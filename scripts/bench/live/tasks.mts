@@ -157,7 +157,9 @@ export const LIVE_TASKS: LiveTask[] = [
       'subfolders), take each top-level `export function`, `export async function`, ' +
       '`export const` and `export class` (only these four forms). List the names that do not ' +
       'appear anywhere in the text of any OTHER file under src/ (a mention in code, an import or ' +
-      'a comment counts as an appearance). Answer with one name per line, formatted `file: name`. ' +
+      'a comment counts as an appearance; only the whole word counts, so `parse` inside ' +
+      '`parseDuration` is no appearance of `parse`). Answer with one name per line, formatted ' +
+      '`file: name`. ' +
       TOOLS_NOTE,
     checker: { type: 'dead-exports', dir: 'src/server', minRecall: 0.8, minPrecision: 0.8 },
   },
