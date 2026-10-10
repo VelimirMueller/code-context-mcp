@@ -96,3 +96,12 @@ describe('parseEventStream', () => {
     expect(u.assistantText).toBe('ok');
   });
 });
+
+describe('parseEventStream — first-call cache read', () => {
+  it('reports cache.read of the FIRST step only', () => {
+    expect(parseEventStream(lines).firstCallCacheRead).toBe(200); // fixture steps: 200, then 0
+  });
+  it('is 0 for an empty stream', () => {
+    expect(parseEventStream([]).firstCallCacheRead).toBe(0);
+  });
+});

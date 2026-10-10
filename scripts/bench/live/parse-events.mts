@@ -56,6 +56,8 @@ export interface SessionUsage {
   outputTokens: number;
   cacheReadTokens: number;
   cacheWriteTokens: number;
+  /** cache.read of the FIRST model call — 0 means the session started cold. */
+  firstCallCacheRead: number;
   toolCalls: number;
   mcpToolCalls: number;
   assistantText: string;
@@ -125,6 +127,7 @@ export function parseEventStream(lines: string[]): SessionUsage {
   let outputTokens = 0;
   let cacheReadTokens = 0;
   let cacheWriteTokens = 0;
+  let firstCallCacheRead: number | null = null;
   let toolCalls = 0;
   let mcpToolCalls = 0;
   const texts: string[] = [];
@@ -141,6 +144,7 @@ export function parseEventStream(lines: string[]): SessionUsage {
       inputTokens += num(t?.input);
       outputTokens += num(t?.output) + num(t?.reasoning);
       cacheReadTokens += num(t?.cache?.read);
+      if (firstCallCacheRead === null) firstCallCacheRead = num(t?.cache?.read); // parts keep stream order
       cacheWriteTokens += num(t?.cache?.write);
     }
   }
@@ -150,6 +154,7 @@ export function parseEventStream(lines: string[]): SessionUsage {
     outputTokens,
     cacheReadTokens,
     cacheWriteTokens,
+    firstCallCacheRead: firstCallCacheRead ?? 0,
     toolCalls,
     mcpToolCalls,
     assistantText: texts.join('\n\n'),

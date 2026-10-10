@@ -30,6 +30,7 @@ const NEW_RUN_KINDS: ReadonlySet<string> = new Set<NewRunKind>([
   'simulated',
   'agent-glm',
   'agent-deepseek',
+  'agent-opus',
 ]);
 
 /**
@@ -114,7 +115,7 @@ function toEntry(run: unknown): IndexEntry {
     ts: tsOf(r),
     model: typeof r.model === 'string' ? r.model : null,
     trigger: typeof r.trigger === 'string' ? r.trigger : '',
-    headline: legacy ? legacyHeadline(r) : r.headline ?? null,
+    headline: legacy ? legacyHeadline(r) : (r.headline ?? null),
   };
 }
 
@@ -129,14 +130,14 @@ export function buildIndex(runs: unknown[]): IndexJson {
     seen.add(entry.run_id);
     entries.push(entry);
   }
-  entries.sort((a, b) => compareRunsDesc(a as Record<string, unknown>, b as Record<string, unknown>));
+  entries.sort((a, b) =>
+    compareRunsDesc(a as Record<string, unknown>, b as Record<string, unknown>),
+  );
   return { schema: 'ccc-bench-index/1', runs: entries };
 }
 
 export function pickLatest(runs: unknown[]): object {
   if (runs.length === 0) throw new Error('pickLatest: no runs');
-  const sorted = [...runs].sort((a, b) =>
-    compareRunsDesc(asRecord(a), asRecord(b)),
-  );
+  const sorted = [...runs].sort((a, b) => compareRunsDesc(asRecord(a), asRecord(b)));
   return sorted[0] as object;
 }

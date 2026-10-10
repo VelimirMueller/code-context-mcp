@@ -10,8 +10,8 @@
   'use strict';
 
   var CFG = window.BENCH_CONFIG || {};
-  var NEW_KINDS = ['simulated', 'agent-glm', 'agent-deepseek'];
-  var AGENT_KINDS = ['agent-glm', 'agent-deepseek'];
+  var NEW_KINDS = ['simulated', 'agent-glm', 'agent-deepseek', 'agent-opus'];
+  var AGENT_KINDS = ['agent-glm', 'agent-deepseek', 'agent-opus'];
   var LEGACY_SCHEMA = CFG.LEGACY_SCHEMA || 'overdrive-bench/2';
   var MIN_TREATMENT_RATE = isNum(CFG.MIN_TREATMENT_RATE) ? CFG.MIN_TREATMENT_RATE : 0.8;
 

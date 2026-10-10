@@ -99,16 +99,17 @@ describe('normalizeLive', () => {
     expect(run.auth).toEqual({ keyEnv: 'DEEPSEEK_API_KEY' });
   });
 
-  it('computes arm aggregates: totals exclude cache, saved_pct rounds to 1 decimal', () => {
+  it('computes arm aggregates: totals include cache reads, saved_pct rounds to 1 decimal', () => {
     const run = normalizeLive('glm', 'zai-coding-plan/glm-5.3', [L1, L2], sessions, ctx);
     const agg = run.aggregate as {
       tokens: { vanilla: { total: number }; cc: { total: number }; saved_pct: number };
       tool_calls: { vanilla: number; cc: number; saved_pct: number };
     };
-    expect(agg.tokens.vanilla.total).toBe(17_200); // 6400 + 10800; cache never summed in
-    expect(agg.tokens.cc.total).toBe(7_450); // 2150 + 5300
-    // (17200 - 7450) / 17200 * 100 = 56.686… → 56.7
-    expect(agg.tokens.saved_pct).toBe(56.7);
+    // total = input + cache_read + output; cache_write is not processed input
+    expect(agg.tokens.vanilla.total).toBe(18_200); // (6000 + 1000 + 400) + (10000 + 800)
+    expect(agg.tokens.cc.total).toBe(7_950); // (2000 + 500 + 150) + (5000 + 300)
+    // (18200 - 7950) / 18200 * 100 = 56.318… → 56.3
+    expect(agg.tokens.saved_pct).toBe(56.3);
     expect(agg.tool_calls).toEqual({ vanilla: 24, cc: 10, saved_pct: 58.3 });
   });
 
@@ -123,7 +124,7 @@ describe('normalizeLive', () => {
     expect(run.headline).toEqual({
       success_vanilla_pct: 50,
       success_cc_pct: 100,
-      tokens_saved_pct: 56.7,
+      tokens_saved_pct: 56.3,
       tool_calls_saved_pct: 58.3,
     });
   });
@@ -138,7 +139,7 @@ describe('normalizeLive', () => {
       }>;
     };
     expect(agg.per_task.map((p) => p.task_id)).toEqual(['L1', 'L2']);
-    expect(agg.per_task[0].vanilla.tokens.total).toBe(6_400);
+    expect(agg.per_task[0].vanilla.tokens.total).toBe(7_400); // 6000 + 1000 cached + 400
     expect(agg.per_task[1].cc.tokens.total).toBe(5_300);
   });
 
@@ -168,5 +169,16 @@ describe('normalizeLive', () => {
     expect(json).not.toMatch(/sk-[A-Za-z0-9]/);
     expect(json).not.toMatch(/apiKey/i);
     expect(run.auth).toEqual({ keyEnv: 'ZAI_API_KEY' }); // name only
+  });
+
+  it('opus runs get their own kind, run-id prefix and agent CLI name', () => {
+    const run = normalizeLive('opus', 'claude-opus-5-5', [L1, L2], sessions, {
+      ...ctx,
+      agentName: 'claude-code',
+    });
+    expect(run.kind).toBe('agent-opus');
+    expect(run.run_id.startsWith('opus-')).toBe(true);
+    expect(run.agent_cli.name).toBe('claude-code');
+    expect(run.auth).toEqual({ keyEnv: 'CLAUDE_CODE_OAUTH_TOKEN' });
   });
 });

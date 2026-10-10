@@ -22,6 +22,8 @@ export const PROVIDER_KEY_ENV_NAMES: readonly string[] = [
   'ZAI_API_KEY',
   'ZHIPU_API_KEY',
   'DEEPSEEK_API_KEY',
+  'CLAUDE_CODE_OAUTH_TOKEN',
+  'ANTHROPIC_API_KEY',
 ];
 
 const DEFAULT_PATH = '/usr/local/bin:/usr/bin:/bin';
@@ -39,10 +41,12 @@ export interface AgentEnvOpts {
   allowedRoots?: string;
   /** PATH override (tests). Defaults to the parent PATH or a known fallback. */
   pathValue?: string;
+  /** Fixed, non-secret switches for the agent CLI (e.g. DISABLE_PROMPT_CACHING). */
+  extra?: Record<string, string>;
 }
 
 /**
- * Minimal env for the `opencode run` child. Built from scratch — it never
+ * Minimal env for the agent CLI child (opencode or claude). Built from scratch — it never
  * spreads `process.env`, so GITHUB_TOKEN and unrelated keys cannot leak in.
  */
 export function agentSpawnEnv(opts: AgentEnvOpts): NodeJS.ProcessEnv {
@@ -52,6 +56,7 @@ export function agentSpawnEnv(opts: AgentEnvOpts): NodeJS.ProcessEnv {
     TMPDIR: opts.tmpdir ?? os.tmpdir(),
   };
   if (opts.allowedRoots) env.CODE_CONTEXT_ALLOWED_ROOTS = opts.allowedRoots;
+  for (const [k, v] of Object.entries(opts.extra ?? {})) env[k] = v;
   env[opts.keyExportName] = opts.key;
   return env;
 }

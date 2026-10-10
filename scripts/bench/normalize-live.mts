@@ -1,5 +1,5 @@
 /**
- * Fold live-bench sessions into the `agent-glm` / `agent-deepseek` run JSON
+ * Fold live-bench sessions into the `agent-glm` / `agent-deepseek` / `agent-opus` run JSON
  * (PLAN.md task 8, data contract "Run JSON — kind agent-*").
  *
  * Pure: the caller supplies clock, git ref and versions, so normalisation is
@@ -10,7 +10,7 @@ import type { AgentRun, GitRef, SessionResult } from './lib/types.mts';
 import type { LiveTask } from './live/tasks.mts';
 import { formatDate, formatStamp, formatTs } from './lib/stamp.mts';
 
-export type LiveProvider = 'glm' | 'deepseek';
+export type LiveProvider = 'glm' | 'deepseek' | 'opus';
 
 export interface LiveSessions {
   vanilla: SessionResult[];
@@ -25,12 +25,20 @@ export interface NormalizeLiveCtx {
   durationMs: number;
   codeContextVersion: string;
   agentVersion: string;
+  /** Agent CLI name (opencode for glm/deepseek, claude-code for opus). */
+  agentName?: string;
   now?: Date;
   notes?: string[];
 }
 
+/**
+ * `total` = input + cache_read + output: every token the model processed.
+ * Since 2026-10-11 cache reads count — before, a provider cache hit made an
+ * arm look cheaper than it was. Runs published earlier keep input + output.
+ */
 export interface TokenAgg {
   input: number;
+  cache_read: number;
   output: number;
   total: number;
 }
@@ -64,7 +72,7 @@ export interface AgentArms {
 
 const PROVIDER_META: Record<
   LiveProvider,
-  { prefix: string; kind: 'agent-glm' | 'agent-deepseek'; keyEnv: string; fixture: string }
+  { prefix: string; kind: AgentRun['kind']; keyEnv: string; fixture: string }
 > = {
   glm: {
     prefix: 'glm-',
@@ -78,6 +86,19 @@ const PROVIDER_META: Record<
     keyEnv: 'DEEPSEEK_API_KEY',
     fixture: 'test/fixtures/sample-project',
   },
+  opus: {
+    prefix: 'opus-',
+    kind: 'agent-opus',
+    keyEnv: 'CLAUDE_CODE_OAUTH_TOKEN',
+    fixture: 'test/fixtures/sample-project',
+  },
+};
+
+/** Run-id prefix per provider (run.mts uses it for the artefact dir). */
+export const RUN_ID_PREFIX: Record<LiveProvider, string> = {
+  glm: PROVIDER_META.glm.prefix,
+  deepseek: PROVIDER_META.deepseek.prefix,
+  opus: PROVIDER_META.opus.prefix,
 };
 
 function round1(n: number): number {
@@ -90,8 +111,9 @@ function savedPct(vanilla: number, cc: number): number {
 
 function tokensOf(results: SessionResult[]): TokenAgg {
   const input = results.reduce((s, r) => s + r.tokens.input, 0);
+  const cacheRead = results.reduce((s, r) => s + r.tokens.cache_read, 0);
   const output = results.reduce((s, r) => s + r.tokens.output, 0);
-  return { input, output, total: input + output }; // cache fields recorded raw, never summed into total
+  return { input, cache_read: cacheRead, output, total: input + cacheRead + output };
 }
 
 function perTaskArm(results: SessionResult[]): PerTaskArmAgg {
@@ -168,7 +190,7 @@ export function normalizeLive(
     git: ctx.git,
     notes: ctx.notes ?? [],
     model,
-    agent_cli: { name: 'opencode', version: ctx.agentVersion },
+    agent_cli: { name: ctx.agentName ?? 'opencode', version: ctx.agentVersion },
     fixture: meta.fixture,
     auth: { keyEnv: meta.keyEnv },
     tasks: tasks.map((t) => ({ id: t.id, prompt: t.prompt, checker: t.checker })),

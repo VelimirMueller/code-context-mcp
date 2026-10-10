@@ -77,11 +77,12 @@ describe('bench guard — every agent arm spawns through the sandbox prepare pat
   const runSrc = () => readFileSync(join(LIVE_DIR, 'run.mts'), 'utf-8');
   const prepareSrc = () => readFileSync(join(LIVE_DIR, 'prepare.mts'), 'utf-8');
 
-  it('run.mts has exactly ONE spawn site and it is the opencode agent', () => {
+  it('run.mts has exactly ONE spawn site and it runs the command prepare.mts built', () => {
     const src = runSrc();
     const spawns = [...src.matchAll(/\bspawn\(/g)];
     expect(spawns.length, 'run.mts must have exactly one spawn() call').toBe(1);
-    expect(src).toContain("spawn(\n    'opencode',");
+    expect(src).toContain('spawn(\n    opts.prep.command.bin,');
+    expect(src).toContain('[...opts.prep.command.args,');
   });
 
   it('run.mts never writes or references the agent config itself — only prepare.mts may', () => {
@@ -113,5 +114,14 @@ describe('bench guard — every agent arm spawns through the sandbox prepare pat
     // the trusted config exists in the repo (harness-owned), denies workspace
     // config hooks, and lives outside any bench workspace by construction.
     expect(existsSync(join(LIVE_DIR, 'checks', 'vitest.trusted.config.mts'))).toBe(true);
+  });
+});
+
+describe('bench guard — fresh sessions (2026-10-11)', () => {
+  it('run.mts aborts the run when a strict provider session reads cache on its first call', () => {
+    const src = readFileSync(join(LIVE_DIR, 'run.mts'), 'utf-8');
+    expect(src).toContain('providerMeta.strictCache && firstRead > 0');
+    // only glm is exempt (provider-side tool cache, no off switch)
+    expect(src.match(/strictCache: false/g)?.length).toBe(1);
   });
 });

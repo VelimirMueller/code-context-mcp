@@ -23,6 +23,10 @@ window.BENCH_CONFIG = {
       label: 'AGENT DEEPSEEK',
       blurb: 'real model, same agent with vs without code-context',
     },
+    'agent-opus': {
+      label: 'AGENT OPUS',
+      blurb: 'Claude Code (Opus), same agent with vs without code-context',
+    },
     'agent-claude': {
       label: 'AGENT CLAUDE',
       blurb: 'real Claude Code sessions under pre-registration v1/v2',
