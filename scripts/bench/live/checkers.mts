@@ -217,7 +217,7 @@ function srcFiles(root: string): string[] {
 const rel = (root: string, f: string): string => path.relative(root, f).split(path.sep).join('/');
 const stripExt = (p: string): string => p.replace(/\.(ts|tsx|mts|js|mjs)$/, '');
 const wordRe = (name: string, flags = ''): RegExp =>
-  new RegExp(`(?<![\\w$])${name.replace(/[$]/g, '\\$')}(?![\\w$])`, flags);
+  new RegExp(`(?<![\\w$])${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w$])`, flags);
 
 const IMPORT_SPEC_RES = [
   /(?:import|export)\s[^'";]*?from\s*['"]([^'"]+)['"]/g,
