@@ -2,6 +2,34 @@
   "schema": "ccc-bench-index/1",
   "runs": [
     {
+      "run_id": "dsk-20261010-224325",
+      "kind": "agent-deepseek",
+      "date": "2026-10-10",
+      "ts": "2026-10-10T22:43:25Z",
+      "model": "deepseek/deepseek-v4-pro",
+      "trigger": "manual",
+      "headline": {
+        "success_vanilla_pct": 100,
+        "success_cc_pct": 100,
+        "tokens_saved_pct": -363,
+        "tool_calls_saved_pct": 0
+      }
+    },
+    {
+      "run_id": "glm-20261010-224159",
+      "kind": "agent-glm",
+      "date": "2026-10-10",
+      "ts": "2026-10-10T22:41:59Z",
+      "model": "zai-coding-plan/glm-5.3",
+      "trigger": "manual",
+      "headline": {
+        "success_vanilla_pct": 100,
+        "success_cc_pct": 100,
+        "tokens_saved_pct": -315.2,
+        "tool_calls_saved_pct": 11.1
+      }
+    },
+    {
       "run_id": "sim-20261010-205102",
       "kind": "simulated",
       "date": "2026-10-10",
