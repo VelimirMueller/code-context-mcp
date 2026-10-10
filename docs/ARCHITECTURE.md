@@ -14,13 +14,14 @@ vlm-code-context-mcp is an MCP server that pre-indexes TypeScript/JavaScript cod
 
 ### Scrum System (src/scrum/)
 
-- ~26 database tables: agents, sprints, tickets, subtasks, retro_findings, blockers, bugs, skills, processes, milestones, decisions, epics, sprint_metrics, ticket_dependencies, tags, ticket_tags, agent_mood_history, event_log, discoveries, token_usage, pending_actions, workflow_runs, workflow_step_log, schema_versions, and migration shadow tables
-- 88 MCP tools for full sprint lifecycle management (including bridge wizard); 11 code-context tools in src/server/index.ts = 99 total
+- Database tables (the current count is in the README, "Tech stack and engine numbers"): agents, sprints, tickets, subtasks, retro_findings, blockers, bugs, skills, processes, milestones, decisions, epics, sprint_metrics, ticket_dependencies, tags, ticket_tags, agent_mood_history, event_log, discoveries, token_usage, pending_actions, workflow_runs, workflow_step_log, schema_versions, and migration shadow tables
+- 99 MCP tools are registered: 88 for the sprint lifecycle in `src/scrum/` (75 in `tools.ts`, 7 in `tools/analytics.ts`, 6 in `tools/skills.ts`) and 11 code-context tools in `src/server/index.ts`.
+- 6 of them are optional (toolsets `fun` and `stream` in `src/server/tool-wrap.ts`) and hidden by default. A client sees 93 tools; `CODE_CONTEXT_TOOLSETS=all` shows all 99.
 - All data lives in SQLite (context.db) — no file-based storage
 
 ### Dashboard (src/dashboard/)
 
-- **App**: Vite + React 18 + TypeScript + Tailwind CSS (src/dashboard/app/)
+- **App**: Vite 8 + React 19 + TypeScript + Tailwind CSS 4 (src/dashboard/app/)
 - **Server**: Node.js HTTP server serving APIs + static files (src/dashboard/dashboard.ts)
 - **State**: 9 Zustand stores (fileStore, sprintStore, agentStore, planningStore, uiStore, benchmarkStore, bridgeStore, comparisonStore, toastStore)
 - **Animation**: Framer Motion for transitions + micro-interactions

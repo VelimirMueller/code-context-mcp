@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `docs/CLAUDE-PROJECT.md`: steps and paste-ready instructions for a Claude project about this repo. Not part of the docs site or the npm package.
 
+### Fixed
+
+- `docs/ARCHITECTURE.md`: tool counts (99 registered, 93 visible by default), React 19, Vite 8, Tailwind 4. The table count now points to the README.
+
 ## [2.9.0] - 2026-10-10
 
 ### Added

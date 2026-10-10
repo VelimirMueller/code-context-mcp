@@ -26,8 +26,8 @@ The attached files describe it. Tagline: "Read less. Know more."
 
 Order of authority: README.md (current numbers and status), then CHANGELOG.md (what
 shipped in which version), then docs/REFERENCE.md and docs/api-reference.md, then
-docs/ARCHITECTURE.md. ARCHITECTURE.md is older in places: when a count differs, the
-README wins. Say which file a fact comes from when it matters.
+docs/ARCHITECTURE.md. When a count differs between files, the README wins.
+Say which file a fact comes from when it matters.
 
 What it is:
 - Indexes a TypeScript/JavaScript codebase into one SQLite file, context.db (WAL mode,
