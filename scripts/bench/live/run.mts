@@ -409,7 +409,14 @@ async function main(): Promise<void> {
           dbBytesSamples.push(prep.indexInfo.dbBytes);
         }
         (arm === 'cc' ? cc : vanilla).push(outcome.result);
-        if (outcome.model) reportedModel = outcome.model;
+        if (outcome.model) {
+          if (reportedModel && reportedModel !== outcome.model) {
+            fail(
+              `${arm} ${task.id}: model changed mid-run (${reportedModel} → ${outcome.model}). No run file written.`,
+            );
+          }
+          reportedModel = outcome.model;
+        }
 
         const res = outcome.result;
         const firstRead = res.first_call_cache_read ?? 0;
@@ -468,6 +475,9 @@ async function main(): Promise<void> {
     agentName: agentBin === 'claude' ? 'claude-code' : 'opencode',
     notes: [
       freshNote,
+      agentBin === 'claude'
+        ? 'agent prompt: Claude Code default system prompt'
+        : 'agent prompt: bench prompt (opencode-config.mts benchAgentPrompt), not the opencode default',
       'tokens total = input + cache_read + output (every token the model processed)',
       agentBin === 'claude'
         ? 'tokens from Claude Code stream-json usage, counted once per API message'

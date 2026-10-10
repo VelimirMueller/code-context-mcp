@@ -790,6 +790,7 @@
     // cache_read is shown when the run has it (runs since 2026-10-11 count it
     // in total); older runs keep input + output = total.
     function tokLine(t) {
+      t = t || {};
       var cached = isNum(t.cache_read) ? ' + ' + rawfmt(t.cache_read) + ' cached' : '';
       return (
         rawfmt(t.input) +
