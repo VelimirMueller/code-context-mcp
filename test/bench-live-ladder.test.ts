@@ -3,7 +3,7 @@
  * from the workspace (a copy of this repo's src/). These tests run each
  * checker on a real copy: a correct solution passes, wrong ones fail.
  */
-import { describe, it, expect, afterAll } from 'vitest';
+import { describe, it, expect, afterAll, beforeAll } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -41,8 +41,12 @@ describe('ladder', () => {
 });
 
 describe('L4 importers', () => {
-  const ws = fresh();
-  const expected = importersOf(ws, 'src/server/schema.ts');
+  let ws = '';
+  let expected: string[] = [];
+  beforeAll(() => {
+    ws = fresh();
+    expected = importersOf(ws, 'src/server/schema.ts');
+  });
   it('finds the importers of schema.ts', () => {
     expect(expected.length).toBeGreaterThanOrEqual(3);
     expect(expected).toContain('src/server/index.ts');
@@ -53,7 +57,15 @@ describe('L4 importers', () => {
       (await runChecker(L4, ws, expected.map((f) => f.replace(/^src\//, '')).join('\n'))).pass,
     ).toBe(true);
     expect((await runChecker(L4, ws, expected.slice(1).join('\n'))).pass).toBe(false);
-    const extra = [...expected, 'src/server/git.ts', 'src/server/sql-guard.ts'];
+    const nonImporters = [
+      'src/server/git.ts',
+      'src/server/sql-guard.ts',
+      'src/server/statusline.ts',
+    ]
+      .filter((f) => !expected.includes(f))
+      .slice(0, 2);
+    expect(nonImporters).toHaveLength(2);
+    const extra = [...expected, ...nonImporters];
     expect((await runChecker(L4, ws, extra.join('\n'))).pass).toBe(false);
   });
 });
@@ -84,8 +96,13 @@ describe('L5 rename', () => {
 });
 
 describe('L6 dead exports', () => {
-  const ws = fresh();
-  const { universe, dead } = deadExportsOf(ws, 'src/server');
+  let ws = '';
+  let universe = new Set<string>();
+  let dead = new Set<string>();
+  beforeAll(() => {
+    ws = fresh();
+    ({ universe, dead } = deadExportsOf(ws, 'src/server'));
+  });
   it('finds a non-trivial set inside a larger universe', () => {
     expect(dead.size).toBeGreaterThanOrEqual(10);
     expect(universe.size).toBeGreaterThan(dead.size);

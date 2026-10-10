@@ -137,7 +137,8 @@ export const LIVE_TASKS: LiveTask[] = [
     prompt:
       'Rename the function `getPhaseStyle` (defined in src/dashboard/app/src/lib/phases.ts) to ' +
       '`phaseStyleFor`. Update the definition and every usage and import anywhere under src/, so ' +
-      'no reference to the old name is left. Change nothing else. ' +
+      'the old name no longer appears anywhere under src/ (code, imports and comments). ' +
+      'Change nothing else. ' +
       TOOLS_NOTE,
     checker: {
       type: 'rename',
@@ -154,8 +155,9 @@ export const LIVE_TASKS: LiveTask[] = [
     prompt:
       'Find dead exports in the server module. For every file directly in src/server/ (not ' +
       'subfolders), take each top-level `export function`, `export async function`, ' +
-      '`export const` and `export class`. List the names that no OTHER file anywhere under src/ ' +
-      'references by name. Answer with one name per line, formatted `file: name`. ' +
+      '`export const` and `export class` (only these four forms). List the names that do not ' +
+      'appear anywhere in the text of any OTHER file under src/ (a mention in code, an import or ' +
+      'a comment counts as an appearance). Answer with one name per line, formatted `file: name`. ' +
       TOOLS_NOTE,
     checker: { type: 'dead-exports', dir: 'src/server', minRecall: 0.8, minPrecision: 0.8 },
   },

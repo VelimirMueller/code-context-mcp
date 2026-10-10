@@ -254,6 +254,9 @@ function answerPaths(answer: string): Set<string> {
 function checkImporters(task: LiveTask, ws: string, finalAnswer: string): CheckResult {
   const { target, maxExtra } = task.checker as { target: string; maxExtra: number };
   const expected = importersOf(ws, target);
+  if (expected.length === 0) {
+    return { pass: false, detail: `fixture drifted: nothing imports ${target} any more` };
+  }
   const named = answerPaths(finalAnswer);
   named.delete(target);
   const missing = expected.filter((f) => !named.has(f));
@@ -294,6 +297,8 @@ function checkRename(task: LiveTask, ws: string): CheckResult {
   };
 }
 
+// Exactly the four forms the L6 prompt names; "appears" = any whole-word
+// mention in another file's text, as the prompt defines it.
 const EXPORT_DECL_RE = /^export (?:async )?(?:function|const|class) ([\w$]+)/gm;
 
 /** Exports of `<dir>/*.ts` (top level only) that no other src file references by name. */
