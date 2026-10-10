@@ -10,11 +10,11 @@ A benchmark runs when a person starts it. Nothing in this repo starts a run from
 
 ## The three kinds
 
-| Kind | What it measures |
-|------|------------------|
-| `simulated` | Context efficiency from scripted replays. No model runs. Deterministic, plus a stochastic block with fixed seed. |
+| Kind                           | What it measures                                                                                                                                            |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `simulated`                    | Context efficiency from scripted replays. No model runs. Deterministic, plus a stochastic block with fixed seed.                                            |
 | `agent-glm` / `agent-deepseek` | A real model through the OpenCode CLI, same task with and without the code-context MCP server. One repeat per arm. Results are indicative, not statistical. |
-| `agent-claude` | Pre-registered external harness (Claude Code sessions, pre-registration v1/v2). The old run files are read-only. The site renders them unchanged. |
+| `agent-claude`                 | Pre-registered external harness (Claude Code sessions, pre-registration v1/v2). The old run files are read-only. The site renders them unchanged.           |
 
 ## How to run
 
@@ -25,6 +25,7 @@ npm run bench
 # Agent: real model, real tokens. Provider picks the model and the key it reads
 npm run bench:live -- --provider glm       # reads ZAI_API_KEY
 npm run bench:live -- --provider deepseek  # reads DEEPSEEK_API_KEY
+npm run bench:live -- --provider opus      # Claude Code headless, reads CLAUDE_CODE_OAUTH_TOKEN
 npm run bench:live -- --provider glm --tasks L1,L2   # narrower task set
 
 # Publish: commit data/ to the bench-results branch and push (builds the site)
@@ -42,6 +43,21 @@ Where each kind runs:
 - **Simulated:** anywhere. In GitHub Actions open the **Benchmark** workflow (`.github/workflows/benchmark.yml`), **Run workflow**, `kind=simulated`. It publishes the run and rebuilds the site.
 - **Agent (glm, deepseek):** locally, by hand. Export the provider key in your shell, run `npm run build`, `npm run bench:live -- --provider <glm|deepseek>`, then `npm run bench:publish`. The provider keys stay on your machine.
 - **Agent in Actions:** only when the repository secret `ZAI_API_KEY` or `DEEPSEEK_API_KEY` is set. The repo keeps none by default, so `kind=agent` prints a notice with the local command, ends green and publishes nothing.
+
+## Fresh sessions
+
+Every agent session starts with nothing to read from. Vanilla and cc never share state.
+
+- **Workspace:** a new copy of the fixture per session. Only the cc arm gets an index, built fresh. The runner refuses a vanilla workspace that holds `context.db` or `.code-context`.
+- **Agent CLI state:** a new HOME with its own TMPDIR per session, deleted afterwards. opencode caches, model catalogue and session store live there. For opus, `CLAUDE_CONFIG_DIR` is a new empty directory: no CLAUDE.md, memory, settings, hooks or plugins. Only the MCP servers on the command line load (`--strict-mcp-config`).
+- **Provider prompt cache:** providers cache prompt prefixes across sessions. Every session records `first_call_cache_read`, the cached tokens its first model call read.
+  - **DeepSeek:** a per-session nonce is the first line of the system prompt, so no prefix repeats. A first-call cache read above 0 aborts the run; no run file is written.
+  - **Opus:** `DISABLE_PROMPT_CACHING=1`. Same hard check.
+  - **GLM:** z.ai caches the tool definitions across sessions, and no prompt change reaches them. GLM runs with the nonce; the run notes give the cached first-call tokens. It hits both arms on the same built-in tools.
+- Inside one session, later calls may still read the session's own earlier prefix from cache. It changes cost and speed, not the answer.
+- **Token metric:** `total = input + cache_read + output`, every token the model processed. Runs before 2026-10-11 count `input + output`.
+
+The opus provider needs a long-lived token: run `claude setup-token` and store it as `CLAUDE_CODE_OAUTH_TOKEN`. It uses your Claude plan quota.
 
 ## Sandbox model
 
@@ -91,9 +107,9 @@ npx vitest run test/benchmark-stochastic.test.ts --reporter=verbose
 
 The benchmark compares two approaches to AI-assisted development:
 
-| Approach | How it works |
-|----------|-------------|
-| **MCP** | Agent calls MCP tools (`search_files`, `get_file_context`, `find_symbol`, `index_directory`) which return structured, summarized context |
+| Approach    | How it works                                                                                                                              |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| **MCP**     | Agent calls MCP tools (`search_files`, `get_file_context`, `find_symbol`, `index_directory`) which return structured, summarized context  |
 | **Vanilla** | Agent reads raw files (`Read`), greps for patterns (`Grep`), and lists directories (`ls`) — the standard Claude Code workflow without MCP |
 
 **Key metric:** How many tokens does an agent's context window consume for the same task?
@@ -124,6 +140,7 @@ MCP tools return summaries (exports, dependencies, file metadata) instead of raw
 Each task defines two workflows:
 
 **MCP workflow:**
+
 ```
 search_files("api")       → structured search results (path, language, exports, summary)
 get_file_context("api.ts") → file metadata + exports + imports + dependents
@@ -132,6 +149,7 @@ index_directory(".")       → full project structure with summaries
 ```
 
 **Vanilla workflow:**
+
 ```
 Grep("api")               → raw matching lines with file paths
 Read("src/services/api.ts") → full raw file content
@@ -153,9 +171,10 @@ The old benchmark (comparison.json) had **session contamination** — the vanill
 
 ```typescript
 function estimateTokens(text: string): number {
-  return text.split(/\s+/)
-    .flatMap(w => w.match(/symbols|words/g) ?? [w])
-    .filter(t => t.length > 0).length;
+  return text
+    .split(/\s+/)
+    .flatMap((w) => w.match(/symbols|words/g) ?? [w])
+    .filter((t) => t.length > 0).length;
 }
 ```
 
@@ -165,24 +184,25 @@ This is a conservative estimate. Actual Claude tokenization may differ. The benc
 
 ## The 10 Tasks
 
-| ID | Task | Category | Points | What it tests |
-|----|------|----------|--------|---------------|
-| T01 | Single-file lookup | retrieval | 1 | Find and understand one file |
-| T02 | Symbol search | retrieval | 1 | Locate a specific export across codebase |
-| T03 | Dependency tracing | analysis | 2 | Trace imports/dependents of a module |
-| T04 | Codebase reconnaissance | exploration | 2 | Understand project structure cold |
-| T05 | Add utility function | implementation | 2 | Add export, wire barrel file |
-| T06 | Bug hunt — type mismatch | debugging | 3 | Find type inconsistency across files |
-| T07 | Add API endpoint | implementation | 3 | New method + types + integration |
-| T08 | Cross-file refactor | refactoring | 5 | Extract pattern, update consumers |
-| T09 | New feature with tests | implementation | 5 | Full feature across multiple files |
-| T10 | Full codebase audit | analysis | 8 | Read everything, assess architecture |
+| ID  | Task                     | Category       | Points | What it tests                            |
+| --- | ------------------------ | -------------- | ------ | ---------------------------------------- |
+| T01 | Single-file lookup       | retrieval      | 1      | Find and understand one file             |
+| T02 | Symbol search            | retrieval      | 1      | Locate a specific export across codebase |
+| T03 | Dependency tracing       | analysis       | 2      | Trace imports/dependents of a module     |
+| T04 | Codebase reconnaissance  | exploration    | 2      | Understand project structure cold        |
+| T05 | Add utility function     | implementation | 2      | Add export, wire barrel file             |
+| T06 | Bug hunt — type mismatch | debugging      | 3      | Find type inconsistency across files     |
+| T07 | Add API endpoint         | implementation | 3      | New method + types + integration         |
+| T08 | Cross-file refactor      | refactoring    | 5      | Extract pattern, update consumers        |
+| T09 | New feature with tests   | implementation | 5      | Full feature across multiple files       |
+| T10 | Full codebase audit      | analysis       | 8      | Read everything, assess architecture     |
 
 **Total: 32 story points across 6 categories.**
 
 ### Why these tasks?
 
 They cover the spectrum of real development work:
+
 - **Retrieval** (T01, T02): The simplest case — does MCP help you find things faster?
 - **Analysis** (T03, T10): Understanding relationships and structure — where MCP's dependency graph shines
 - **Exploration** (T04): Cold-start project understanding — index_directory vs reading every file
@@ -254,16 +274,22 @@ To add a task, create a function following this pattern:
 ```typescript
 function task11_yourTask(db: Database.Database) {
   // MCP approach
-  const mcp = buildResult("T11", "Your task name", "category", "description", points, [
-    step("research", "search_files", "query", "Why this call", mcpSearchFiles(db, "query")),
-    step("understand", "get_file_context", "file.ts", "Why read this", mcpFileContext(queryFile(db, filePath)!)),
+  const mcp = buildResult('T11', 'Your task name', 'category', 'description', points, [
+    step('research', 'search_files', 'query', 'Why this call', mcpSearchFiles(db, 'query')),
+    step(
+      'understand',
+      'get_file_context',
+      'file.ts',
+      'Why read this',
+      mcpFileContext(queryFile(db, filePath)!),
+    ),
     // ... more steps
   ]);
 
   // Vanilla approach — what would an agent do without MCP?
-  const vanilla = buildResult("T11", "Your task name", "category", "description", points, [
-    step("research", "Grep", "pattern", "Why grep this", vanillaGrep(FIXTURE_DIR, "pattern")),
-    step("understand", "Read", "file.ts", "Why read this", vanillaReadFile(rawPath)),
+  const vanilla = buildResult('T11', 'Your task name', 'category', 'description', points, [
+    step('research', 'Grep', 'pattern', 'Why grep this', vanillaGrep(FIXTURE_DIR, 'pattern')),
+    step('understand', 'Read', 'file.ts', 'Why read this', vanillaReadFile(rawPath)),
     // ... more steps
   ]);
 
@@ -296,11 +322,13 @@ The current fixture has 11 files (5 TypeScript). For more realistic benchmarks:
 The benchmark report and JSON output include methodology disclaimers. When citing results:
 
 **Do:**
+
 - "In a 10-task simulated benchmark, MCP tools consumed ~45% fewer estimated tokens than raw file reading"
 - "Token counts are whitespace-based estimates, not Claude API measurements"
 - "Results are from a small fixture (11 files) — production codebases may differ"
 
 **Don't:**
+
 - "MCP reduces token usage by 45%" (implies measured API tokens)
 - "MCP is 45% more efficient" (conflates token reduction with efficiency)
 - "Proven 45% savings" (simulated, not measured in production)
@@ -309,16 +337,16 @@ The benchmark report and JSON output include methodology disclaimers. When citin
 
 ## Comparison With Old Benchmark
 
-| Aspect | Old (comparison.json) | New (benchmark.test.ts) |
-|--------|----------------------|------------------------|
-| Tasks | 3 | 10 |
-| Categories | 1 (implementation) | 6 |
-| Session isolation | Same session (contaminated) | Self-contained functions |
-| Token counting | Hand-estimated from sessions | Automated regex estimation |
-| Reproducibility | Cannot reproduce | `npm test` — deterministic |
-| What it compares | Old format vs new format | MCP tools vs raw file reads |
-| Methodology documented | No | Yes (in test + this guide) |
-| Machine-readable output | comparison.json (manual) | benchmark-results.json (auto) |
+| Aspect                  | Old (comparison.json)        | New (benchmark.test.ts)       |
+| ----------------------- | ---------------------------- | ----------------------------- |
+| Tasks                   | 3                            | 10                            |
+| Categories              | 1 (implementation)           | 6                             |
+| Session isolation       | Same session (contaminated)  | Self-contained functions      |
+| Token counting          | Hand-estimated from sessions | Automated regex estimation    |
+| Reproducibility         | Cannot reproduce             | `npm test` — deterministic    |
+| What it compares        | Old format vs new format     | MCP tools vs raw file reads   |
+| Methodology documented  | No                           | Yes (in test + this guide)    |
+| Machine-readable output | comparison.json (manual)     | benchmark-results.json (auto) |
 
 The old comparison.json measured output format optimization (old verbose vs new compact). The new benchmark measures the core value proposition: does using MCP tools reduce context consumption compared to not using them?
 
@@ -337,18 +365,21 @@ npx vitest run test/benchmark-stochastic.test.ts --reporter=verbose
 ### How it works
 
 **4 task templates** define workflows with ROLES, not specific files:
+
 - `single-file` — find and understand one file
 - `dep-tracing` — trace a file's dependency graph
 - `multi-file` — implement a feature touching 2-4 files
 - `project-scan` — overview + targeted deep dives
 
 **Each of 200 trials:**
+
 1. Randomly selects a task template
 2. Randomly assigns fixture files to roles
 3. Adds Poisson-distributed exploration noise to vanilla (lambda=1.5) — models agents reading wrong files before finding the right one
 4. Records token counts for both approaches
 
 **Statistical tests:**
+
 - Wilcoxon signed-rank test (non-parametric, no normality assumption)
 - Bootstrap 95% confidence intervals (2000 resamples)
 - Rank-biserial correlation (effect size)
@@ -381,6 +412,7 @@ All randomness uses Mulberry32, a fast 32-bit PRNG. Set `SEED` at the top of the
 ### Methodology debate
 
 The stochastic design was developed through structured debate with Gemma 3:
+
 - Gemma proposed randomizing tool ordering → **rejected** (causal workflow dependency)
 - Gemma proposed 500-1000 trials → **reduced to 200** (only 462 possible file combinations with 11 files)
 - Gemma proposed paired t-test → **replaced with Wilcoxon** (token distributions aren't normal)
@@ -407,5 +439,5 @@ Full debate transcript in `GEMMA-VS-OPUS-DEBATE.md`.
 
 ---
 
-*Generated 2026-04-16. On-demand runs since 2026-10-10.*
-*Deterministic + stochastic, published run: `npm run bench`*
+_Generated 2026-04-16. On-demand runs since 2026-10-10._
+_Deterministic + stochastic, published run: `npm run bench`_

@@ -1,7 +1,7 @@
 /**
  * `npm run bench:live` — real agent benchmark (PLAN.md task 8).
  *
- * CLI: npm run bench:live -- --provider glm|deepseek [--tasks L1,L2,L3]
+ * CLI: npm run bench:live -- --provider glm|deepseek|opus [--tasks L1,L2,L3]
  *      [--repeats 1] [--timeout 300] [--data-dir <dir>]
  *
  * For every task × arm (vanilla, cc), the ONE preparation path
@@ -10,8 +10,9 @@
  *   - cc arm: build <ws>/context.db via the indexer, register ONLY
  *     code-context in the per-workspace opencode.json (node <repo>/dist/server/index.js <db>)
  *   - vanilla arm: no MCP config, no db — same permission block
- * Then the ONE spawn site (runSession) runs
- * `opencode run --dir <ws> -m <model> --format json "<prompt>"` with an
+ * Then the ONE spawn site (runSession) runs the command prepare.mts built —
+ * `opencode run --dir <ws> -m <model> --format json "<prompt>"` for glm and
+ * deepseek, `claude -p … --output-format stream-json "<prompt>"` for opus — with an
  * isolated HOME (the user's global opencode config — with its own MCP
  * servers — must not leak into either arm) and a MINIMAL child env (only
  * PATH, HOME, TMPDIR, CODE_CONTEXT_ALLOWED_ROOTS and the one provider key;
@@ -34,10 +35,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildIndex, pickLatest, runFileProblem } from '../lib/index-builder.mts';
 import { formatStamp } from '../lib/stamp.mts';
-import { normalizeLive, type LiveProvider, type LiveSessions } from '../normalize-live.mts';
+import {
+  normalizeLive,
+  RUN_ID_PREFIX,
+  type LiveProvider,
+  type LiveSessions,
+} from '../normalize-live.mts';
 import { DEFAULT_LIVE_TASKS, tasksByIds, renderPrompt, type LiveTask } from './tasks.mts';
 import { runChecker } from './checkers.mts';
-import { parseEventStream } from './parse-events.mts';
+import { parseEventStream, type SessionUsage } from './parse-events.mts';
+import { parseClaudeStream } from './parse-claude.mts';
 import { ARMS, prepareArmSession, type PreparedArm } from './prepare.mts';
 import { stripProviderKeys } from './sandbox.mts';
 import type { SessionResult } from '../lib/types.mts';
@@ -52,12 +59,32 @@ import type { SessionResult } from '../lib/types.mts';
  * DEEPSEEK_API_KEY. `keyEnv` is the documented SOURCE name (run JSON auth);
  * `exportAs` is the name the opencode child actually reads.
  */
-const PROVIDERS: Record<LiveProvider, { model: string; keyEnv: string; exportAs: string }> = {
-  glm: { model: 'zai-coding-plan/glm-5.3', keyEnv: 'ZAI_API_KEY', exportAs: 'ZHIPU_API_KEY' },
+const PROVIDERS: Record<
+  LiveProvider,
+  { model: string; keyEnv: string; exportAs: string; strictCache: boolean }
+> = {
+  // strictCache=false: z.ai caches the tool definitions across sessions and
+  // no prompt change reaches that prefix (probe 2026-10-11: 2,752 cached
+  // tokens on a nonce session). Recorded, flagged in the run notes.
+  glm: {
+    model: 'zai-coding-plan/glm-5.3',
+    keyEnv: 'ZAI_API_KEY',
+    exportAs: 'ZHIPU_API_KEY',
+    strictCache: false,
+  },
   deepseek: {
     model: 'deepseek/deepseek-v4-pro',
     keyEnv: 'DEEPSEEK_API_KEY',
     exportAs: 'DEEPSEEK_API_KEY',
+    strictCache: true,
+  },
+  // Claude Code headless with a long-lived token (`claude setup-token`), so
+  // each session can start from an empty CLAUDE_CONFIG_DIR.
+  opus: {
+    model: 'claude-opus-5-5',
+    keyEnv: 'CLAUDE_CODE_OAUTH_TOKEN',
+    exportAs: 'CLAUDE_CODE_OAUTH_TOKEN',
+    strictCache: true,
   },
 };
 
@@ -108,8 +135,8 @@ function parseArgs(argv: string[]): {
     else if (a === '--data-dir') out.dataDir = path.resolve(next());
     else fail(`unknown argument ${a} (--provider, --tasks, --repeats, --timeout, --data-dir)`);
   }
-  if (out.provider !== 'glm' && out.provider !== 'deepseek') {
-    fail('--provider glm|deepseek is required');
+  if (!Object.hasOwn(PROVIDERS, out.provider)) {
+    fail('--provider glm|deepseek|opus is required');
   }
   return out as {
     provider: LiveProvider;
@@ -148,18 +175,19 @@ function git(...args: string[]): string {
 interface SessionOutcome {
   result: SessionResult;
   checkDetail: string;
+  /** Model id the CLI reported (claude init event); null for opencode. */
+  model: string | null;
 }
 
 /**
- * The ONE opencode spawn site. Consumes a PreparedArm (prepare.mts) — the
- * workspace it reads, the config that confines it and the env it runs with
- * were all built together, so no arm can reach this spawn without its
- * sandbox opencode.json in place.
+ * The ONE agent spawn site. Consumes a PreparedArm (prepare.mts) — the
+ * command, the workspace it reads, the config that confines it and the env
+ * it runs with were all built together, so no arm can reach this spawn
+ * without its sandbox in place.
  */
 async function runSession(opts: {
   task: LiveTask;
   prep: PreparedArm;
-  model: string;
   timeoutSec: number;
   eventsFile: string;
   stderrFile: string;
@@ -169,18 +197,10 @@ async function runSession(opts: {
   let spawnError = ''; // e.g. ENOENT when opencode is not spawnable
 
   const child = spawn(
-    'opencode',
-    [
-      'run',
-      '--dir',
-      opts.prep.ws,
-      '-m',
-      opts.model,
-      '--format',
-      'json',
-      renderPrompt(opts.task, { fakeHome: opts.prep.fakeHome }),
-    ],
+    opts.prep.command.bin,
+    [...opts.prep.command.args, renderPrompt(opts.task, { fakeHome: opts.prep.fakeHome })],
     {
+      cwd: opts.prep.ws, // claude works in its cwd; opencode also gets --dir
       env: opts.prep.env,
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -243,17 +263,28 @@ async function runSession(opts: {
         success: false,
         timeout: false,
         tokens: { input: 0, output: 0, cache_read: 0, cache_write: 0 },
+        first_call_cache_read: 0,
         tool_calls: 0,
         mcp_tool_calls: 0,
         wall_ms: wallMs,
         session_id: '',
         events_path: path.basename(opts.eventsFile),
       },
-      checkDetail: `opencode failed to start: ${spawnError}`,
+      checkDetail: `${opts.prep.command.bin} failed to start: ${spawnError}`,
+      model: null,
     };
   }
 
-  const usage = parseEventStream(stdout.toString('utf-8').split('\n'));
+  const lines = stdout.toString('utf-8').split('\n');
+  let usage: SessionUsage;
+  let model: string | null = null;
+  if (opts.prep.command.bin === 'claude') {
+    const cu = parseClaudeStream(lines);
+    usage = cu;
+    model = cu.model;
+  } else {
+    usage = parseEventStream(lines);
+  }
   const check = await runChecker(opts.task, opts.prep.ws, usage.assistantText);
 
   return {
@@ -267,6 +298,7 @@ async function runSession(opts: {
         cache_read: usage.cacheReadTokens,
         cache_write: usage.cacheWriteTokens,
       },
+      first_call_cache_read: usage.firstCallCacheRead,
       tool_calls: usage.toolCalls,
       mcp_tool_calls: usage.mcpToolCalls,
       wall_ms: wallMs,
@@ -274,6 +306,7 @@ async function runSession(opts: {
       events_path: path.basename(opts.eventsFile),
     },
     checkDetail: check.detail,
+    model,
   };
 }
 
@@ -305,16 +338,21 @@ async function main(): Promise<void> {
     );
   }
 
-  let opencodeVersion = 'unknown';
+  const agentBin = args.provider === 'opus' ? 'claude' : 'opencode';
+  let agentVersion = 'unknown';
   try {
-    opencodeVersion = execFileSync('opencode', ['--version'], { encoding: 'utf-8' }).trim();
+    agentVersion = execFileSync(agentBin, ['--version'], { encoding: 'utf-8' }).trim();
   } catch {
-    fail('opencode CLI not found on PATH — install it (brew install sst/tap/opencode).');
+    fail(
+      agentBin === 'claude'
+        ? 'claude CLI not found on PATH — install Claude Code.'
+        : 'opencode CLI not found on PATH — install it (brew install sst/tap/opencode).',
+    );
   }
 
   const start = Date.now();
   const stamp = new Date();
-  const runId = `${args.provider === 'glm' ? 'glm' : 'dsk'}-${formatStamp(stamp)}`;
+  const runId = `${RUN_ID_PREFIX[args.provider]}${formatStamp(stamp)}`;
 
   // The indexer sandbox (src/server/indexer.ts) only allows the process cwd by
   // default; the temp workspaces need an explicit allowance, both for the
@@ -335,6 +373,8 @@ async function main(): Promise<void> {
   const cc: SessionResult[] = [];
   const indexMsSamples: number[] = [];
   const dbBytesSamples: number[] = [];
+  const firstCallCacheReads: number[] = [];
+  let reportedModel: string | null = null;
 
   for (const task of tasks) {
     for (let r = 1; r <= args.repeats; r++) {
@@ -344,6 +384,7 @@ async function main(): Promise<void> {
         const prep = prepareArmSession({
           provider: args.provider,
           arm,
+          model: providerMeta.model,
           distServer: DIST_SERVER,
           keyExportName: providerMeta.exportAs,
           key,
@@ -356,7 +397,6 @@ async function main(): Promise<void> {
           outcome = await runSession({
             task,
             prep,
-            model: providerMeta.model,
             timeoutSec: args.timeoutSec,
             eventsFile: path.join(artefactDir, `${arm}-${task.id}${suffix}.jsonl`),
             stderrFile: path.join(artefactDir, `${arm}-${task.id}${suffix}.stderr.log`),
@@ -369,12 +409,25 @@ async function main(): Promise<void> {
           dbBytesSamples.push(prep.indexInfo.dbBytes);
         }
         (arm === 'cc' ? cc : vanilla).push(outcome.result);
+        if (outcome.model) reportedModel = outcome.model;
 
         const res = outcome.result;
+        const firstRead = res.first_call_cache_read ?? 0;
+        firstCallCacheReads.push(firstRead);
+        // Fresh-session rule: a session whose FIRST model call reads cache did
+        // not start cold. For strict providers that voids the whole run — no
+        // run file is written, nothing can be published by accident.
+        if (providerMeta.strictCache && firstRead > 0) {
+          fail(
+            `${arm} ${task.id}: first model call read ${firstRead} cached tokens — the session did not start fresh. ` +
+              `No run file written. Artefacts: ${artefactDir}`,
+          );
+        }
         console.log(
           `  ${arm.padEnd(7)} ${task.id}${suffix ? ` r${r}` : ''}  ` +
             `${res.success ? 'PASS' : res.timeout ? 'TIMEOUT' : 'FAIL'}  ` +
-            `tok ${res.tokens.input}→${res.tokens.output}  tools ${res.tool_calls} (mcp ${res.mcp_tool_calls})  ` +
+            `tok ${res.tokens.input}+${res.tokens.cache_read}c→${res.tokens.output} (1st call cache ${firstRead})  ` +
+            `tools ${res.tool_calls} (mcp ${res.mcp_tool_calls})  ` +
             `${(res.wall_ms / 1000).toFixed(1)}s  — ${outcome.checkDetail}`,
         );
       }
@@ -394,7 +447,14 @@ async function main(): Promise<void> {
   const pkg = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf-8')) as {
     version: string;
   };
-  const run = normalizeLive(args.provider, providerMeta.model, tasks, sessions, {
+  const firstCallCacheTotal = firstCallCacheReads.reduce((a, b) => a + b, 0);
+  const freshNote =
+    agentBin === 'claude'
+      ? 'fresh sessions: new fixture copy, HOME, TMPDIR and empty CLAUDE_CONFIG_DIR per session; DISABLE_PROMPT_CACHING=1; only the MCP servers on the command line; first-call cache read 0 in every session (enforced)'
+      : providerMeta.strictCache
+        ? 'fresh sessions: new fixture copy, HOME and TMPDIR per session; per-session nonce first in the system prompt; first-call cache read 0 in every session (enforced)'
+        : `fresh sessions: new fixture copy, HOME and TMPDIR per session; per-session nonce first in the system prompt. The provider caches tool definitions across sessions and offers no off switch: ${firstCallCacheTotal} cached tokens read on first calls (both arms)`;
+  const run = normalizeLive(args.provider, reportedModel ?? providerMeta.model, tasks, sessions, {
     trigger: 'manual',
     git: {
       commit: git('rev-parse', 'HEAD'),
@@ -404,10 +464,15 @@ async function main(): Promise<void> {
     now: stamp, // one clock for the artefact dir name and the run_id
     durationMs: Date.now() - start,
     codeContextVersion: pkg.version,
-    agentVersion: opencodeVersion,
+    agentVersion,
+    agentName: agentBin === 'claude' ? 'claude-code' : 'opencode',
     notes: [
-      'tokens from opencode step-finish events; reasoning tokens folded into output',
-      `key ${providerMeta.keyEnv} exported to opencode as ${providerMeta.exportAs}`,
+      freshNote,
+      'tokens total = input + cache_read + output (every token the model processed)',
+      agentBin === 'claude'
+        ? 'tokens from Claude Code stream-json usage, counted once per API message'
+        : 'tokens from opencode step-finish events; reasoning tokens folded into output',
+      `key ${providerMeta.keyEnv} exported to ${agentBin} as ${providerMeta.exportAs}`,
       // No absolute temp paths in the run JSON (machine-dependent, diff-noisy):
       // the artefact dir is only printed to the runner console above.
       `artefacts retained by the runner for run ${runId}`,

@@ -14,6 +14,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   ARMS,
+  CLAUDE_TOOLS,
   prepareArmSession,
   type PreparedArm,
 } from '../scripts/bench/live/prepare.mts';
@@ -29,6 +30,7 @@ const PROVIDERS: LiveProvider[] = ['glm', 'deepseek'];
 const KEY_BY_PROVIDER: Record<LiveProvider, { keyExportName: string; key: string }> = {
   glm: { keyExportName: 'ZHIPU_API_KEY', key: 'glm-key-value' },
   deepseek: { keyExportName: 'DEEPSEEK_API_KEY', key: 'dsk-key-value' },
+  opus: { keyExportName: 'CLAUDE_CODE_OAUTH_TOKEN', key: 'opus-token-value' },
 };
 
 let prepped: PreparedArm[] = [];
@@ -60,6 +62,7 @@ const prepare = (provider: LiveProvider, arm: (typeof ARMS)[number]): PreparedAr
   const p = prepareArmSession({
     provider,
     arm,
+    model: `${provider}-model`,
     distServer: path.join(tmpRoot, 'dist-server.js'),
     ...KEY_BY_PROVIDER[provider],
     allowedRoots: tmpRoot,
@@ -99,10 +102,7 @@ describe('prepareArmSession — every arm carries the sandbox config', () => {
     const p = prepare('glm', 'cc');
     expect(p.indexInfo).toBeTruthy();
     expect(fs.statSync(path.join(p.ws, 'context.db')).size).toBeGreaterThan(0);
-    const written = JSON.parse(fs.readFileSync(p.configPath, 'utf-8')) as Record<
-      string,
-      unknown
-    >;
+    const written = JSON.parse(fs.readFileSync(p.configPath, 'utf-8')) as Record<string, unknown>;
     const mcp = written.mcp as Record<string, { type: string; command: string[] }>;
     expect(Object.keys(mcp)).toEqual(['code-context']);
     expect(mcp['code-context'].command).toEqual([
@@ -116,10 +116,7 @@ describe('prepareArmSession — every arm carries the sandbox config', () => {
     for (const provider of PROVIDERS) {
       const p = prepare(provider, 'vanilla');
       expect(p.indexInfo).toBeUndefined();
-      const written = JSON.parse(fs.readFileSync(p.configPath, 'utf-8')) as Record<
-        string,
-        unknown
-      >;
+      const written = JSON.parse(fs.readFileSync(p.configPath, 'utf-8')) as Record<string, unknown>;
       expect(written.mcp).toBeUndefined();
       if (provider === 'glm') expect(written.provider).toBeUndefined();
     }
@@ -169,5 +166,75 @@ describe('prepareArmSession — every arm carries the sandbox config', () => {
     prepped = prepped.filter((x) => x !== p);
     expect(fs.existsSync(ws)).toBe(false);
     expect(fs.existsSync(home)).toBe(false);
+  });
+});
+
+describe('prepareArmSession — every session starts fresh (2026-10-11)', () => {
+  it('opencode arms: a new nonce per session, first line of the build agent prompt', () => {
+    const nonces = new Set<string>();
+    for (const provider of PROVIDERS) {
+      for (const arm of ARMS) {
+        const p = prepare(provider, arm);
+        const cfg = JSON.parse(fs.readFileSync(p.configPath, 'utf-8')) as {
+          agent?: { build?: { prompt?: string } };
+        };
+        const prompt = cfg.agent?.build?.prompt ?? '';
+        expect(prompt.split('\n')[0]).toBe(`bench-session ${p.nonce}`);
+        nonces.add(p.nonce);
+      }
+    }
+    expect(nonces.size).toBe(PROVIDERS.length * ARMS.length);
+  });
+
+  it('each session gets its own TMPDIR inside its own HOME', () => {
+    const a = prepare('deepseek', 'vanilla');
+    const b = prepare('deepseek', 'cc');
+    expect(a.env.TMPDIR).toBe(path.join(a.fakeHome, 'tmp'));
+    expect(fs.statSync(a.env.TMPDIR as string).isDirectory()).toBe(true);
+    expect(a.env.TMPDIR).not.toBe(b.env.TMPDIR);
+  });
+
+  it('the vanilla workspace holds no index; the cc workspace has its own', () => {
+    const v = prepare('glm', 'vanilla');
+    const c = prepare('glm', 'cc');
+    expect(fs.existsSync(path.join(v.ws, 'context.db'))).toBe(false);
+    expect(fs.existsSync(path.join(v.ws, '.code-context'))).toBe(false);
+    expect(fs.existsSync(path.join(c.ws, 'context.db'))).toBe(true);
+  });
+
+  it('opus: claude with an empty config dir, no prompt caching, only the MCP servers it names', () => {
+    for (const arm of ARMS) {
+      const p = prepare('opus', arm);
+      expect(p.command.bin).toBe('claude');
+      const args = p.command.args;
+      expect(args[0]).toBe('-p');
+      expect(args).toContain('--strict-mcp-config');
+      expect(
+        args.slice(args.indexOf('--tools') + 1, args.indexOf('--tools') + 1 + CLAUDE_TOOLS.length),
+      ).toEqual([...CLAUDE_TOOLS]);
+      expect(CLAUDE_TOOLS).not.toContain('Bash');
+      // the prompt is appended after a single-value option, never after a variadic one
+      expect(args.at(-2)).toBe('--output-format');
+
+      expect(p.env.DISABLE_PROMPT_CACHING).toBe('1');
+      expect(p.env.CLAUDE_CONFIG_DIR).toBe(path.join(p.fakeHome, '.claude'));
+      expect(fs.readdirSync(p.env.CLAUDE_CONFIG_DIR as string)).toEqual([]);
+      expect(p.env.CLAUDE_CODE_OAUTH_TOKEN).toBe('opus-token-value');
+
+      const mcpPath = args[args.indexOf('--mcp-config') + 1];
+      expect(mcpPath.startsWith(p.fakeHome)).toBe(true); // outside the workspace
+      const servers = (
+        JSON.parse(fs.readFileSync(mcpPath, 'utf-8')) as {
+          mcpServers: Record<string, unknown>;
+        }
+      ).mcpServers;
+      if (arm === 'cc') {
+        expect(Object.keys(servers)).toEqual(['code-context']);
+        expect(args).toContain('mcp__code-context');
+      } else {
+        expect(servers).toEqual({});
+        expect(args).not.toContain('--allowedTools');
+      }
+    }
   });
 });

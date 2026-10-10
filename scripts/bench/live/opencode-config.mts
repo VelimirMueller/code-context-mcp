@@ -81,11 +81,32 @@ export const DEEPSEEK_PROVIDER_CONFIG: Record<string, unknown> = {
   },
 };
 
+/**
+ * The bench agent prompt, identical for every arm and provider except the
+ * first line. Fresh-session rule (2026-10-11): GLM and DeepSeek cache prompt
+ * prefixes on the provider side and offer no off switch, so two sessions with
+ * the default opencode prompt share a cached prefix from their FIRST call
+ * (measured: DeepSeek 1,920 cached tokens on a brand-new session). A unique
+ * nonce as the very first line of the system prompt breaks that prefix
+ * (measured: DeepSeek 0). `agent.build.prompt` replaces opencode's default
+ * provider prompt, so the nonce really is first.
+ */
+export function benchAgentPrompt(nonce: string): string {
+  return [
+    `bench-session ${nonce}`,
+    'You are a software engineering agent working in the current directory.',
+    'Use the available tools to inspect and edit files in this directory.',
+    'Do the task in the user message, then answer briefly and precisely.',
+  ].join('\n');
+}
+
 export interface WriteOpencodeConfigOpts {
   /** Register code-context as the only MCP server, running `command`. */
   mcp?: { command: string[] };
   /** Include the pinned DeepSeek provider block (needed for -m deepseek/…). */
   includeDeepseekProvider?: boolean;
+  /** Per-session nonce; the default `build` agent gets benchAgentPrompt(nonce). */
+  nonce?: string;
 }
 
 /**
@@ -100,6 +121,9 @@ export function writeOpencodeConfig(
   const config: Record<string, unknown> = {
     permission: SANDBOX_PERMISSIONS,
   };
+  if (opts.nonce) {
+    config.agent = { build: { prompt: benchAgentPrompt(opts.nonce) } };
+  }
   if (opts.includeDeepseekProvider) {
     config.provider = { deepseek: DEEPSEEK_PROVIDER_CONFIG };
   }

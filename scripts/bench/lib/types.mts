@@ -7,7 +7,7 @@
  * and kept clean via `npm run lint`.
  */
 
-export type NewRunKind = 'simulated' | 'agent-glm' | 'agent-deepseek';
+export type NewRunKind = 'simulated' | 'agent-glm' | 'agent-deepseek' | 'agent-opus';
 export type IndexKind = NewRunKind | 'agent-claude';
 
 export interface GitRef {
@@ -57,6 +57,8 @@ export interface SessionResult {
   success: boolean;
   timeout: boolean;
   tokens: SessionTokens;
+  /** cache_read of the session's first model call; 0 = the session started cold. */
+  first_call_cache_read?: number;
   tool_calls: number;
   mcp_tool_calls: number;
   wall_ms: number;
@@ -72,7 +74,7 @@ export interface AgentHeadline {
 }
 
 export interface AgentRun extends RunEnvelope {
-  kind: 'agent-glm' | 'agent-deepseek';
+  kind: 'agent-glm' | 'agent-deepseek' | 'agent-opus';
   model: string;
   agent_cli: { name: string; version: string };
   fixture: string;

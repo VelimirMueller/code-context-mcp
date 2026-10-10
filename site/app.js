@@ -191,9 +191,7 @@
       var pre = el('pre', { class: 'frames' });
       frameLines(i.label, i.value).forEach(function (text, r) {
         if (r) pre.appendChild(document.createTextNode('\n'));
-        pre.appendChild(
-          el('span', { class: r === 1 ? 'fl' : r === 2 ? 'fv' : null }, [text]),
-        );
+        pre.appendChild(el('span', { class: r === 1 ? 'fl' : r === 2 ? 'fv' : null }, [text]));
       });
       row.appendChild(pre);
     });
@@ -591,9 +589,10 @@
       }
       if (f.kind === 'simulated') detailSimulated(f, box);
       else if (D.isAgentKind(f.kind)) detailAgent(f, box);
-      else detailClaude(f, box, allRuns, function () {
-        return seq !== detailSeq;
-      });
+      else
+        detailClaude(f, box, allRuns, function () {
+          return seq !== detailSeq;
+        });
       box.appendChild(metaLine(f));
     });
   }
@@ -788,18 +787,27 @@
       dl.appendChild(el('dt', null, [k]));
       dl.appendChild(el('dd', null, [v]));
     }
+    // cache_read is shown when the run has it (runs since 2026-10-11 count it
+    // in total); older runs keep input + output = total.
+    function tokLine(t) {
+      var cached = isNum(t.cache_read) ? ' + ' + rawfmt(t.cache_read) + ' cached' : '';
+      return (
+        rawfmt(t.input) +
+        ' in' +
+        cached +
+        ' / ' +
+        rawfmt(t.output) +
+        ' out / ' +
+        rawfmt(t.total) +
+        ' total'
+      );
+    }
     var tk = a.tokens || {};
     var tv = tk.vanilla || {};
     var tc = tk.cc || {};
     var cl = a.toolCalls || {};
-    row(
-      'Tokens (vanilla)',
-      rawfmt(tv.input) + ' in / ' + rawfmt(tv.output) + ' out / ' + rawfmt(tv.total) + ' total',
-    );
-    row(
-      'Tokens (cc)',
-      rawfmt(tc.input) + ' in / ' + rawfmt(tc.output) + ' out / ' + rawfmt(tc.total) + ' total',
-    );
+    row('Tokens (vanilla)', tokLine(tv));
+    row('Tokens (cc)', tokLine(tc));
     row('Tokens saved', pct1(a.tokensSavedPct).trim());
     row(
       'Tool calls',
@@ -1586,7 +1594,9 @@
   } else {
     // site/data.js failed to load (or loaded after app.js): fail loudly and
     // visibly instead of leaving a silently empty page.
-    console.error('bench site: window.BenchData is missing — site/data.js must load before site/app.js');
+    console.error(
+      'bench site: window.BenchData is missing — site/data.js must load before site/app.js',
+    );
     renderWordmark();
     var main = document.querySelector('main') || document.body;
     main.textContent =
