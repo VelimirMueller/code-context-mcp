@@ -196,6 +196,148 @@ async function checkTests(task: LiveTask, workspaceDir: string): Promise<CheckRe
       };
 }
 
+// ---- ladder checkers (L4–L6): expected answers are COMPUTED from source ----
+
+/** Every .ts/.tsx/.mts file under `<root>/src`, skipping node_modules. */
+function srcFiles(root: string): string[] {
+  const out: string[] = [];
+  const walk = (dir: string): void => {
+    if (!fs.existsSync(dir)) return;
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (e.name === 'node_modules') continue;
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) walk(full);
+      else if (/\.(ts|tsx|mts)$/.test(e.name)) out.push(full);
+    }
+  };
+  walk(path.join(root, 'src'));
+  return out;
+}
+
+const rel = (root: string, f: string): string => path.relative(root, f).split(path.sep).join('/');
+const stripExt = (p: string): string => p.replace(/\.(ts|tsx|mts|js|mjs)$/, '');
+const wordRe = (name: string, flags = ''): RegExp =>
+  new RegExp(`(?<![\\w$])${name.replace(/[$]/g, '\\$')}(?![\\w$])`, flags);
+
+const IMPORT_SPEC_RES = [
+  /(?:import|export)\s[^'";]*?from\s*['"]([^'"]+)['"]/g,
+  /import\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+  /import\s+['"]([^'"]+)['"]/g,
+];
+
+/** Workspace files that import or re-export `target` (relative specifiers only). */
+export function importersOf(root: string, target: string): string[] {
+  const want = stripExt(target);
+  const hits: string[] = [];
+  for (const f of srcFiles(root)) {
+    const src = fs.readFileSync(f, 'utf-8');
+    const specs = IMPORT_SPEC_RES.flatMap((re) => [...src.matchAll(re)].map((m) => m[1]));
+    const hit = specs.some(
+      (sp) => sp.startsWith('.') && stripExt(rel(root, path.resolve(path.dirname(f), sp))) === want,
+    );
+    if (hit && rel(root, f) !== target) hits.push(rel(root, f));
+  }
+  return hits.sort();
+}
+
+/** File paths named in an answer, normalised to `src/…`. */
+function answerPaths(answer: string): Set<string> {
+  const out = new Set<string>();
+  for (const m of answer
+    .replace(/\\/g, '/')
+    .matchAll(/(?:\.\/)?((?:src\/)?[\w.-]+(?:\/[\w.-]+)+\.(?:ts|tsx|mts))/g)) {
+    out.add(m[1].startsWith('src/') ? m[1] : `src/${m[1]}`);
+  }
+  return out;
+}
+
+function checkImporters(task: LiveTask, ws: string, finalAnswer: string): CheckResult {
+  const { target, maxExtra } = task.checker as { target: string; maxExtra: number };
+  const expected = importersOf(ws, target);
+  const named = answerPaths(finalAnswer);
+  named.delete(target);
+  const missing = expected.filter((f) => !named.has(f));
+  const extra = [...named].filter((f) => !expected.includes(f));
+  const pass = expected.length > 0 && missing.length === 0 && extra.length <= maxExtra;
+  return {
+    pass,
+    detail:
+      `${expected.length - missing.length}/${expected.length} importers found, ${extra.length} extra` +
+      (missing.length ? `; missing ${missing.join(', ')}` : '') +
+      (extra.length ? `; extra ${extra.join(', ')}` : ''),
+  };
+}
+
+function countWord(files: string[], name: string): number {
+  return files.reduce(
+    (n, f) => n + (fs.readFileSync(f, 'utf-8').match(wordRe(name, 'g'))?.length ?? 0),
+    0,
+  );
+}
+
+function checkRename(task: LiveTask, ws: string): CheckResult {
+  const { from, to, definedIn } = task.checker as { from: string; to: string; definedIn: string };
+  // The workspace is a copy of this repo's src/, so the pristine counts come from the repo.
+  const pristine = srcFiles(repoRoot);
+  const wantTo = countWord(pristine, from) + countWord(pristine, to);
+  const files = srcFiles(ws);
+  const leftFrom = countWord(files, from);
+  const gotTo = countWord(files, to);
+  const defPath = path.join(ws, definedIn);
+  const defines =
+    fs.existsSync(defPath) &&
+    parseExports(fs.readFileSync(defPath, 'utf-8')).some((e) => e.name === to);
+  const pass = leftFrom === 0 && gotTo === wantTo && defines;
+  return {
+    pass,
+    detail: `${from} left: ${leftFrom}; ${to}: ${gotTo}/${wantTo}; ${definedIn} exports ${to}: ${defines ? 'yes' : 'no'}`,
+  };
+}
+
+const EXPORT_DECL_RE = /^export (?:async )?(?:function|const|class) ([\w$]+)/gm;
+
+/** Exports of `<dir>/*.ts` (top level only) that no other src file references by name. */
+export function deadExportsOf(
+  root: string,
+  dir: string,
+): { universe: Set<string>; dead: Set<string> } {
+  const files = srcFiles(root);
+  const texts = new Map(files.map((f) => [f, fs.readFileSync(f, 'utf-8')]));
+  const universe = new Set<string>();
+  const dead = new Set<string>();
+  for (const f of files) {
+    if (path.dirname(rel(root, f)) !== dir) continue;
+    for (const m of (texts.get(f) ?? '').matchAll(EXPORT_DECL_RE)) {
+      const name = m[1];
+      universe.add(name);
+      const re = wordRe(name);
+      if (![...texts].some(([g, t]) => g !== f && re.test(t))) dead.add(name);
+    }
+  }
+  return { universe, dead };
+}
+
+function checkDeadExports(task: LiveTask, ws: string, finalAnswer: string): CheckResult {
+  const { dir, minRecall, minPrecision } = task.checker as {
+    dir: string;
+    minRecall: number;
+    minPrecision: number;
+  };
+  const { universe, dead } = deadExportsOf(ws, dir);
+  // Case-sensitive: identifiers are compared as written.
+  const named = new Set(
+    [...finalAnswer.matchAll(/[A-Za-z_$][\w$]*/g)].map((m) => m[0]).filter((t) => universe.has(t)),
+  );
+  const hit = [...named].filter((n) => dead.has(n)).length;
+  const recall = dead.size ? hit / dead.size : 0;
+  const precision = named.size ? hit / named.size : 0;
+  const pct = (x: number): string => `${Math.round(x * 100)} %`;
+  return {
+    pass: recall >= minRecall && precision >= minPrecision,
+    detail: `${hit}/${dead.size} dead exports named, ${named.size - hit} wrong; recall ${pct(recall)}, precision ${pct(precision)}`,
+  };
+}
+
 export async function runChecker(
   task: LiveTask,
   workspaceDir: string,
@@ -208,5 +350,11 @@ export async function runChecker(
       return checkSymbol(task, workspaceDir);
     case 'tests':
       return checkTests(task, workspaceDir);
+    case 'importers':
+      return checkImporters(task, workspaceDir, finalAnswer);
+    case 'rename':
+      return checkRename(task, workspaceDir);
+    case 'dead-exports':
+      return checkDeadExports(task, workspaceDir, finalAnswer);
   }
 }

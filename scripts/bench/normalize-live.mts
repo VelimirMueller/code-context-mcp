@@ -191,9 +191,15 @@ export function normalizeLive(
     notes: ctx.notes ?? [],
     model,
     agent_cli: { name: ctx.agentName ?? 'opencode', version: ctx.agentVersion },
-    fixture: meta.fixture,
+    fixture: tasks.some((t) => t.fixture === 'src') ? 'per task' : meta.fixture,
     auth: { keyEnv: meta.keyEnv },
-    tasks: tasks.map((t) => ({ id: t.id, prompt: t.prompt, checker: t.checker })),
+    tasks: tasks.map((t) => ({
+      id: t.id,
+      ...(t.size ? { size: t.size } : {}),
+      fixture: t.fixture === 'src' ? 'src/ (this repo)' : meta.fixture,
+      prompt: t.prompt,
+      checker: t.checker,
+    })),
     arms,
     aggregate,
     headline: {

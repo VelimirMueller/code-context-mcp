@@ -732,6 +732,11 @@
     var a = D.agentOf(run);
     var raw = run.raw || {};
     var rows = a.perTask.length ? a.perTask : [];
+    // Ladder size per task (S, M, ML, L, XL) from the run's task list, when present.
+    var sizeOf = {};
+    (Array.isArray(raw.tasks) ? raw.tasks : []).forEach(function (t) {
+      if (t && typeof t.id === 'string' && typeof t.size === 'string') sizeOf[t.id] = t.size;
+    });
     if (rows.length) {
       var tb = el('table');
       var hd = el('tr');
@@ -760,7 +765,9 @@
         }
         tb.appendChild(
           el('tr', null, [
-            el('td', null, [String(p.task_id)]),
+            el('td', null, [
+              String(p.task_id) + (sizeOf[p.task_id] ? ' · ' + sizeOf[p.task_id] : ''),
+            ]),
             el('td', { class: v.success === true ? 'pos' : 'neg' }, [
               v.success === true ? 'yes' : v.success === false ? 'no' : 'n/a',
             ]),

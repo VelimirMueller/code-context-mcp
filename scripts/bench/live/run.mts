@@ -385,6 +385,7 @@ async function main(): Promise<void> {
           provider: args.provider,
           arm,
           model: providerMeta.model,
+          fixture: task.fixture ?? 'sample',
           distServer: DIST_SERVER,
           keyExportName: providerMeta.exportAs,
           key,

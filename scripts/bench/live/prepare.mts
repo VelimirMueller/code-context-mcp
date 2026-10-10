@@ -37,6 +37,7 @@ import type { LiveProvider } from '../normalize-live.mts';
 import { writeOpencodeConfig, type WriteOpencodeConfigOpts } from './opencode-config.mts';
 import { agentSpawnEnv } from './sandbox.mts';
 import { CODE_CONTEXT_SERVER_ALIAS } from './parse-events.mts';
+import type { FixtureKind } from './tasks.mts';
 
 /**
  * Claude Code built-in tools for the opus arm — the same capabilities the
@@ -50,6 +51,26 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..', '..', '..');
 const FIXTURE = path.join(repoRoot, 'test', 'fixtures', 'sample-project');
 
+/**
+ * Copy the task's source into a fresh workspace. 'sample' = the 10-file
+ * fixture; 'src' = this repo's src/ (≈160 files) plus package.json and
+ * tsconfig.json — a real codebase for the larger ladder tasks. node_modules
+ * and build output are never copied.
+ */
+export function copyFixture(kind: FixtureKind, ws: string): void {
+  if (kind === 'sample') {
+    fs.cpSync(FIXTURE, ws, { recursive: true });
+    return;
+  }
+  fs.cpSync(path.join(repoRoot, 'src'), path.join(ws, 'src'), {
+    recursive: true,
+    filter: (p) => !p.split(path.sep).some((part) => part === 'node_modules' || part === 'dist'),
+  });
+  for (const f of ['package.json', 'tsconfig.json']) {
+    fs.copyFileSync(path.join(repoRoot, f), path.join(ws, f));
+  }
+}
+
 /** Every bench arm — run.mts iterates this; tests enumerate it exhaustively. */
 export const ARMS = ['vanilla', 'cc'] as const;
 export type Arm = (typeof ARMS)[number];
@@ -59,6 +80,8 @@ export interface PrepareArmOpts {
   arm: Arm;
   /** Model id passed to the agent CLI. */
   model: string;
+  /** Workspace source (task.fixture); defaults to 'sample'. */
+  fixture?: FixtureKind;
   /** Repo dist server (cc arm MCP command); existence is checked by run.mts. */
   distServer: string;
   /** Name the opencode child reads the provider key under. */
@@ -119,7 +142,7 @@ export function prepareArmSession(opts: PrepareArmOpts): PreparedArm {
   const nonce = randomUUID();
 
   const ws = fs.mkdtempSync(path.join(tmpdir, 'bench-ws-'));
-  fs.cpSync(FIXTURE, ws, { recursive: true });
+  copyFixture(opts.fixture ?? 'sample', ws);
 
   const mcpCommand = [process.execPath, opts.distServer, path.join(ws, 'context.db')];
   const configOpts: WriteOpencodeConfigOpts = { nonce };
