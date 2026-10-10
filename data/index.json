@@ -2,6 +2,20 @@
   "schema": "ccc-bench-index/1",
   "runs": [
     {
+      "run_id": "opus-20261010-230200",
+      "kind": "agent-opus",
+      "date": "2026-10-10",
+      "ts": "2026-10-10T23:02:00Z",
+      "model": "claude-opus-5-5",
+      "trigger": "manual",
+      "headline": {
+        "success_vanilla_pct": 100,
+        "success_cc_pct": 100,
+        "tokens_saved_pct": -185.4,
+        "tool_calls_saved_pct": 27.3
+      }
+    },
+    {
       "run_id": "dsk-20261010-224325",
       "kind": "agent-deepseek",
       "date": "2026-10-10",

@@ -1,33 +1,33 @@
 {
   "schema": "ccc-bench/1",
-  "run_id": "dsk-20261010-224325",
-  "kind": "agent-deepseek",
+  "run_id": "opus-20261010-230200",
+  "kind": "agent-opus",
   "date": "2026-10-10",
-  "ts": "2026-10-10T22:43:25Z",
+  "ts": "2026-10-10T23:02:00Z",
   "trigger": "manual",
-  "duration_ms": 35745,
+  "duration_ms": 64420,
   "code_context_version": "2.9.0",
   "git": {
-    "commit": "effc7733aa00ea04c65f66e7a07a6f781656bef8",
+    "commit": "65a17d43d548565f9a8c815e3835e146587f080e",
     "branch": "HEAD",
     "dirty": false
   },
   "notes": [
-    "fresh sessions: new fixture copy, HOME and TMPDIR per session; per-session nonce first in the system prompt; first-call cache read 0 in every session (enforced)",
-    "agent prompt: bench prompt (opencode-config.mts benchAgentPrompt), not the opencode default",
+    "fresh sessions: new fixture copy, HOME, TMPDIR and empty CLAUDE_CONFIG_DIR per session; DISABLE_PROMPT_CACHING=1; only the MCP servers on the command line; first-call cache read 0 in every session (enforced)",
+    "agent prompt: Claude Code default system prompt",
     "tokens total = input + cache_read + output (every token the model processed)",
-    "tokens from opencode step-finish events; reasoning tokens folded into output",
-    "key DEEPSEEK_API_KEY exported to opencode as DEEPSEEK_API_KEY",
-    "artefacts retained by the runner for run dsk-20261010-224325"
+    "tokens from Claude Code stream-json usage, counted once per API message",
+    "key CLAUDE_CODE_OAUTH_TOKEN exported to claude as CLAUDE_CODE_OAUTH_TOKEN",
+    "artefacts retained by the runner for run opus-20261010-230200"
   ],
-  "model": "deepseek/deepseek-v4-pro",
+  "model": "claude-opus-5-5",
   "agent_cli": {
-    "name": "opencode",
-    "version": "1.18.30"
+    "name": "claude-code",
+    "version": "2.1.296 (Claude Code)"
   },
   "fixture": "test/fixtures/sample-project",
   "auth": {
-    "keyEnv": "DEEPSEEK_API_KEY"
+    "keyEnv": "CLAUDE_CODE_OAUTH_TOKEN"
   },
   "tasks": [
     {
@@ -59,16 +59,16 @@
           "success": true,
           "timeout": false,
           "tokens": {
-            "input": 4386,
-            "output": 445,
-            "cache_read": 6656,
+            "input": 23379,
+            "output": 214,
+            "cache_read": 0,
             "cache_write": 0
           },
           "first_call_cache_read": 0,
-          "tool_calls": 4,
+          "tool_calls": 3,
           "mcp_tool_calls": 0,
-          "wall_ms": 7356,
-          "session_id": "ses_ed803bbe1ffeYXC8EokJ7AAT02",
+          "wall_ms": 9368,
+          "session_id": "0049d4ee-7616-40b8-bf98-a8c482e34f76",
           "events_path": "vanilla-L1.jsonl"
         },
         {
@@ -76,16 +76,16 @@
           "success": true,
           "timeout": false,
           "tokens": {
-            "input": 3495,
-            "output": 661,
-            "cache_read": 7040,
+            "input": 49295,
+            "output": 73,
+            "cache_read": 0,
             "cache_write": 0
           },
           "first_call_cache_read": 0,
-          "tool_calls": 4,
+          "tool_calls": 8,
           "mcp_tool_calls": 0,
-          "wall_ms": 7987,
-          "session_id": "ses_ed80379a9ffexHZ4994LI0SHvl",
+          "wall_ms": 30691,
+          "session_id": "33c5c610-af1c-4787-907d-8cf27351210e",
           "events_path": "vanilla-L2.jsonl"
         }
       ]
@@ -97,16 +97,16 @@
           "success": true,
           "timeout": false,
           "tokens": {
-            "input": 17602,
-            "output": 603,
-            "cache_read": 34176,
+            "input": 75907,
+            "output": 34,
+            "cache_read": 0,
             "cache_write": 0
           },
           "first_call_cache_read": 0,
-          "tool_calls": 4,
+          "tool_calls": 2,
           "mcp_tool_calls": 0,
-          "wall_ms": 9244,
-          "session_id": "ses_ed8039e8affecpwV0thFxRDL8G",
+          "wall_ms": 6363,
+          "session_id": "a4f596ff-2559-4987-a9dc-d8faf89dd771",
           "events_path": "cc-L1.jsonl"
         },
         {
@@ -114,20 +114,20 @@
           "success": true,
           "timeout": false,
           "tokens": {
-            "input": 17303,
-            "output": 767,
-            "cache_read": 34560,
+            "input": 131827,
+            "output": 482,
+            "cache_read": 0,
             "cache_write": 0
           },
           "first_call_cache_read": 0,
-          "tool_calls": 4,
+          "tool_calls": 6,
           "mcp_tool_calls": 0,
-          "wall_ms": 10307,
-          "session_id": "ses_ed803599fffeWXREin073h4nBc",
+          "wall_ms": 17882,
+          "session_id": "47434e02-a307-47e9-b035-ba5c6f9f7014",
           "events_path": "cc-L2.jsonl"
         }
       ],
-      "index_ms": 12,
+      "index_ms": 19,
       "db_bytes": 102400
     }
   },
@@ -138,27 +138,27 @@
     },
     "tokens": {
       "vanilla": {
-        "input": 7881,
-        "cache_read": 13696,
-        "output": 1106,
-        "total": 22683
+        "input": 72674,
+        "cache_read": 0,
+        "output": 287,
+        "total": 72961
       },
       "cc": {
-        "input": 34905,
-        "cache_read": 68736,
-        "output": 1370,
-        "total": 105011
+        "input": 207734,
+        "cache_read": 0,
+        "output": 516,
+        "total": 208250
       },
-      "saved_pct": -363
+      "saved_pct": -185.4
     },
     "tool_calls": {
-      "vanilla": 8,
+      "vanilla": 11,
       "cc": 8,
-      "saved_pct": 0
+      "saved_pct": 27.3
     },
     "wall_ms": {
-      "vanilla_mean": 7672,
-      "cc_mean": 9776
+      "vanilla_mean": 20030,
+      "cc_mean": 12123
     },
     "per_task": [
       {
@@ -166,26 +166,26 @@
         "vanilla": {
           "success_rate": 1,
           "tokens": {
-            "input": 4386,
-            "cache_read": 6656,
-            "output": 445,
-            "total": 11487
+            "input": 23379,
+            "cache_read": 0,
+            "output": 214,
+            "total": 23593
           },
-          "tool_calls": 4,
+          "tool_calls": 3,
           "mcp_tool_calls": 0,
-          "wall_ms_mean": 7356
+          "wall_ms_mean": 9368
         },
         "cc": {
           "success_rate": 1,
           "tokens": {
-            "input": 17602,
-            "cache_read": 34176,
-            "output": 603,
-            "total": 52381
+            "input": 75907,
+            "cache_read": 0,
+            "output": 34,
+            "total": 75941
           },
-          "tool_calls": 4,
+          "tool_calls": 2,
           "mcp_tool_calls": 0,
-          "wall_ms_mean": 9244
+          "wall_ms_mean": 6363
         }
       },
       {
@@ -193,26 +193,26 @@
         "vanilla": {
           "success_rate": 1,
           "tokens": {
-            "input": 3495,
-            "cache_read": 7040,
-            "output": 661,
-            "total": 11196
+            "input": 49295,
+            "cache_read": 0,
+            "output": 73,
+            "total": 49368
           },
-          "tool_calls": 4,
+          "tool_calls": 8,
           "mcp_tool_calls": 0,
-          "wall_ms_mean": 7987
+          "wall_ms_mean": 30691
         },
         "cc": {
           "success_rate": 1,
           "tokens": {
-            "input": 17303,
-            "cache_read": 34560,
-            "output": 767,
-            "total": 52630
+            "input": 131827,
+            "cache_read": 0,
+            "output": 482,
+            "total": 132309
           },
-          "tool_calls": 4,
+          "tool_calls": 6,
           "mcp_tool_calls": 0,
-          "wall_ms_mean": 10307
+          "wall_ms_mean": 17882
         }
       }
     ]
@@ -220,7 +220,7 @@
   "headline": {
     "success_vanilla_pct": 100,
     "success_cc_pct": 100,
-    "tokens_saved_pct": -363,
-    "tool_calls_saved_pct": 0
+    "tokens_saved_pct": -185.4,
+    "tool_calls_saved_pct": 27.3
   }
 }
