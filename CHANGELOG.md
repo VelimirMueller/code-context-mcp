@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `docs/CLAUDE-PROJECT.md`: steps and paste-ready instructions for a Claude project about this repo. Not part of the docs site or the npm package.
+
 ## [2.9.0] - 2026-10-10
 
 ### Added

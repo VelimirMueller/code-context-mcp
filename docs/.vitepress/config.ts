@@ -4,7 +4,7 @@ export default defineConfig({
   title: "Code Context MCP",
   description: "Living documentation for the code-context MCP server",
   ignoreDeadLinks: [/^http:\/\/localhost/],
-  srcExclude: ["superpowers/**"],
+  srcExclude: ["superpowers/**", "CLAUDE-PROJECT.md"],
   appearance: "dark",
   head: [
     ["link", { rel: "preconnect", href: "https://cdn.jsdelivr.net" }],
