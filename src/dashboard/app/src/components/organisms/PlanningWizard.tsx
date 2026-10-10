@@ -23,7 +23,7 @@ function getStepConfig(phase: SprintPhase, ticketsDone: number, ticketsTotal: nu
       return {
         label: 'First Step',
         icon: '◈',
-        color: '#8b5cf6',
+        color: '#818cf8',
         description: 'Add tickets below, then start a sprint.',
         buttonLabel: 'Start Sprint',
         buttonAction: 'start',
@@ -33,7 +33,7 @@ function getStepConfig(phase: SprintPhase, ticketsDone: number, ticketsTotal: nu
       return {
         label: 'First Step',
         icon: '◈',
-        color: '#8b5cf6',
+        color: '#818cf8',
         description: 'Previous sprint complete. Create tickets and start the next one.',
         buttonLabel: 'Start Sprint',
         buttonAction: 'start',
@@ -43,7 +43,7 @@ function getStepConfig(phase: SprintPhase, ticketsDone: number, ticketsTotal: nu
       return {
         label: 'Next Step',
         icon: '▶',
-        color: '#3b82f6',
+        color: '#60a5fa',
         description: 'Review tickets, adjust points and assignees. Begin when ready.',
         buttonLabel: 'Start Implementation',
         buttonAction: 'advance',
@@ -67,7 +67,7 @@ function getStepConfig(phase: SprintPhase, ticketsDone: number, ticketsTotal: nu
       return {
         label: 'Next Step',
         icon: '✓',
-        color: '#f59e0b',
+        color: '#fbbf24',
         description: 'Verify completed work passes QA.',
         buttonLabel: 'Advance',
         buttonAction: 'advance',
@@ -91,13 +91,13 @@ interface PlanningWizardProps {
 }
 
 const WIZARD_STEP_COLORS: Record<string, string> = {
-  vision: '#8b5cf6',
-  discovery: '#3b82f6',
+  vision: '#818cf8',
+  discovery: '#60a5fa',
   milestone: '#10b981',
-  epics: '#f59e0b',
+  epics: '#fbbf24',
   tickets: '#ec4899',
   sprint_launch: '#06b6d4',
-  retro: '#ef4444',
+  retro: '#f87171',
   dashboard_check: '#6366f1',
 };
 
@@ -153,7 +153,7 @@ export function PlanningWizard({ onStartSprint }: PlanningWizardProps) {
     }
   };
 
-  const positionColor = step.position === 'first' ? '#8b5cf6' : step.position === 'last' ? '#ec4899' : step.color;
+  const positionColor = step.position === 'first' ? '#818cf8' : step.position === 'last' ? '#ec4899' : step.color;
 
   return (
     <motion.div
@@ -259,7 +259,7 @@ export function PlanningWizard({ onStartSprint }: PlanningWizardProps) {
               background: lastResult.startsWith('Error') ? 'rgba(239,68,68,0.1)' : `${positionColor}10`,
               borderRadius: 8,
               fontSize: 12,
-              color: lastResult.startsWith('Error') ? '#ef4444' : 'var(--text2)',
+              color: lastResult.startsWith('Error') ? '#f87171' : 'var(--text2)',
             }}
           >
             {lastResult}

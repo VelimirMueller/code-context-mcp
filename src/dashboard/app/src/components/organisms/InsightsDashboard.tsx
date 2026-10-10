@@ -9,11 +9,11 @@ import type { Sprint, RetroFinding } from '@/types';
 
 const COLORS = {
   accent: 'var(--accent)',
-  blue: '#3b82f6',
+  blue: '#60a5fa',
   green: '#10b981',
-  red: '#ef4444',
-  orange: '#f59e0b',
-  purple: '#8b5cf6',
+  red: '#f87171',
+  orange: '#fbbf24',
+  purple: '#818cf8',
   cyan: '#06b6d4',
   text: 'var(--text)',
   text2: 'var(--text2)',

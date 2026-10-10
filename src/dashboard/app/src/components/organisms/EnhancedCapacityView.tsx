@@ -32,7 +32,7 @@ interface HeatmapCell {
 
 const STATUS_COLORS = {
   under: { bg: 'rgba(16,185,129,.15)', border: '#10b981', text: '#10b981' },
-  optimal: { bg: 'rgba(59,130,246,.15)', border: '#3b82f6', text: '#3b82f6' },
+  optimal: { bg: 'rgba(59,130,246,.15)', border: '#60a5fa', text: '#60a5fa' },
   over: { bg: 'rgba(248,113,113,.15)', border: '#f87171', text: '#f87171' },
 };
 
@@ -44,9 +44,9 @@ const STATUS_LABELS = {
 
 const HEATMAP_COLORS = [
   '#10b981', // low
-  '#3b82f6', // medium
-  '#f59e0b', // high
-  '#ef4444', // overloaded
+  '#60a5fa', // medium
+  '#fbbf24', // high
+  '#f87171', // overloaded
 ];
 
 /* ─── Main Component ──────────────────────────────────────────────────────── */
@@ -208,11 +208,11 @@ export function EnhancedCapacityView() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
         <KPICard label="Total Capacity" value={`${metrics.totalCapacity} pts`} color="var(--blue)" />
         <KPICard label="Allocated" value={`${metrics.allocated} pts`} color="var(--accent)" />
-        <KPICard label="Avg Utilization" value={`${metrics.avgUtil}%`} color={metrics.avgUtil > 100 ? '#ef4444' : metrics.avgUtil > 80 ? '#f59e0b' : 'var(--green)'} />
-        <KPICard label="Health Score" value={`${healthScore}/100`} color={healthScore >= 80 ? 'var(--green)' : healthScore >= 50 ? '#f59e0b' : '#ef4444'} />
+        <KPICard label="Avg Utilization" value={`${metrics.avgUtil}%`} color={metrics.avgUtil > 100 ? '#f87171' : metrics.avgUtil > 80 ? '#fbbf24' : 'var(--green)'} />
+        <KPICard label="Health Score" value={`${healthScore}/100`} color={healthScore >= 80 ? 'var(--green)' : healthScore >= 50 ? '#fbbf24' : '#f87171'} />
         <div style={{ display: 'flex', gap: 8 }}>
-          <KPICard label="Optimal" value={metrics.optimalCount} color="#3b82f6" compact />
-          <KPICard label="Overloaded" value={metrics.overCount} color="#ef4444" compact />
+          <KPICard label="Optimal" value={metrics.optimalCount} color="#60a5fa" compact />
+          <KPICard label="Overloaded" value={metrics.overCount} color="#f87171" compact />
           <KPICard label="Under" value={metrics.underCount} color="#10b981" compact />
         </div>
       </div>
@@ -346,13 +346,13 @@ function AgentWorkloadCard({ workload }: { workload: AgentWorkload }) {
             <div style={{
               marginTop: 4,
               fontSize: 10,
-              color: '#ef4444',
+              color: '#f87171',
               fontWeight: 600,
               display: 'flex',
               alignItems: 'center',
               gap: 4,
             }}>
-              <span style={{ width: 4, height: 4, borderRadius: '50%', background: '#ef4444' }} />
+              <span style={{ width: 4, height: 4, borderRadius: '50%', background: '#f87171' }} />
               Overloaded by {activePoints - maxCapacity} pts
             </div>
           )}
@@ -379,7 +379,7 @@ function AgentWorkloadCard({ workload }: { workload: AgentWorkload }) {
                   width: 5,
                   height: 5,
                   borderRadius: '50%',
-                  background: ticket.status === 'IN_PROGRESS' ? '#3b82f6' : ticket.status === 'DONE' ? '#10b981' : ticket.status === 'BLOCKED' ? '#ef4444' : '#636474',
+                  background: ticket.status === 'IN_PROGRESS' ? '#60a5fa' : ticket.status === 'DONE' ? '#10b981' : ticket.status === 'BLOCKED' ? '#f87171' : '#6b6b84',
                   flexShrink: 0,
                 }} />
                 <span style={{ fontFamily: 'var(--mono)', color: 'var(--text3)', fontSize: 10, width: 40, flexShrink: 0 }}>
@@ -431,18 +431,18 @@ function WorkloadHeatmap({ agents, data }: { agents: Agent[]; data: HeatmapCell[
     if (points === 0) return 'var(--surface3)';
     const ratio = points / maxPoints;
     if (ratio <= 0.5) return '#10b98140';
-    if (ratio <= 0.8) return '#3b82f640';
-    if (ratio <= 1.0) return '#f59e0b40';
-    return '#ef444440';
+    if (ratio <= 0.8) return '#60a5fa40';
+    if (ratio <= 1.0) return '#fbbf2440';
+    return '#f8717140';
   };
 
   const getHeatTextColor = (points: number, maxPoints: number): string => {
     if (points === 0) return 'var(--text3)';
     const ratio = points / maxPoints;
     if (ratio <= 0.5) return '#10b981';
-    if (ratio <= 0.8) return '#3b82f6';
-    if (ratio <= 1.0) return '#f59e0b';
-    return '#ef4444';
+    if (ratio <= 0.8) return '#60a5fa';
+    if (ratio <= 1.0) return '#fbbf24';
+    return '#f87171';
   };
 
   return (
@@ -507,9 +507,9 @@ function WorkloadHeatmap({ agents, data }: { agents: Agent[]; data: HeatmapCell[
         <span style={{ fontSize: 10, color: 'var(--text3)', marginRight: 4 }}>Load:</span>
         {[
           { color: '#10b981', label: '<50%' },
-          { color: '#3b82f6', label: '50-80%' },
-          { color: '#f59e0b', label: '80-100%' },
-          { color: '#ef4444', label: '>100%' },
+          { color: '#60a5fa', label: '50-80%' },
+          { color: '#fbbf24', label: '80-100%' },
+          { color: '#f87171', label: '>100%' },
         ].map(({ color, label }) => (
           <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <div style={{ width: 8, height: 8, borderRadius: 2, background: color, opacity: 0.5 }} />
@@ -561,7 +561,7 @@ function VelocityHistory({ sprints, agents }: { sprints: Sprint[]; agents: Agent
             const completionRate = (sprint.velocity_committed || 0) > 0
               ? Math.round(((sprint.velocity_completed || 0) / sprint.velocity_committed) * 100)
               : 0;
-            const barColor = completionRate >= 80 ? '#10b981' : completionRate >= 50 ? '#f59e0b' : '#ef4444';
+            const barColor = completionRate >= 80 ? '#10b981' : completionRate >= 50 ? '#fbbf24' : '#f87171';
 
             return (
               <div key={sprint.id}>

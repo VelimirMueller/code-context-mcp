@@ -49,11 +49,11 @@ export function makeLineId(): string {
 /** Color map for line types */
 const LINE_COLORS: Record<ClaudeOutputLine['type'], string> = {
   text: 'var(--text)',
-  tool_call: '#3b82f6',
+  tool_call: '#60a5fa',
   tool_result: '#10b981',
-  thinking: '#a78bfa',
-  error: '#ef4444',
-  step: '#f59e0b',
+  thinking: '#a5b4fc',
+  error: '#f87171',
+  step: '#fbbf24',
   system: 'var(--text3)',
 };
 
@@ -67,9 +67,9 @@ const STEP_STATUS_ICON: Record<ClaudeStep['status'], string> = {
 
 const STEP_STATUS_COLOR: Record<ClaudeStep['status'], string> = {
   pending: 'var(--text3)',
-  in_progress: '#3b82f6',
+  in_progress: '#60a5fa',
   completed: '#10b981',
-  error: '#ef4444',
+  error: '#f87171',
 };
 
 /**
@@ -230,10 +230,10 @@ export function ClaudeOutputStream({
                 height: '100%',
                 background:
                   currentStep.status === 'error'
-                    ? '#ef4444'
+                    ? '#f87171'
                     : currentStep.status === 'completed'
                       ? '#10b981'
-                      : '#3b82f6',
+                      : '#60a5fa',
                 borderRadius: 2,
               }}
               initial={{ width: 0 }}
@@ -311,16 +311,16 @@ export function ClaudeOutputStream({
                   >
                     {/* Line type indicator */}
                     {line.type === 'tool_call' && (
-                      <span style={{ color: '#3b82f6', flexShrink: 0 }}>&#9654;</span>
+                      <span style={{ color: '#60a5fa', flexShrink: 0 }}>&#9654;</span>
                     )}
                     {line.type === 'error' && (
-                      <span style={{ color: '#ef4444', flexShrink: 0 }}>&#x2717;</span>
+                      <span style={{ color: '#f87171', flexShrink: 0 }}>&#x2717;</span>
                     )}
                     {line.type === 'step' && (
-                      <span style={{ color: '#f59e0b', flexShrink: 0 }}>&#9656;</span>
+                      <span style={{ color: '#fbbf24', flexShrink: 0 }}>&#9656;</span>
                     )}
                     {line.type === 'thinking' && (
-                      <span style={{ color: '#a78bfa', flexShrink: 0, fontStyle: 'italic' }}>&#8230;</span>
+                      <span style={{ color: '#a5b4fc', flexShrink: 0, fontStyle: 'italic' }}>&#8230;</span>
                     )}
                     <span>{line.text}</span>
                   </motion.div>

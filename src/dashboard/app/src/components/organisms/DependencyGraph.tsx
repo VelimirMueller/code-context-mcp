@@ -198,7 +198,7 @@ export function DependencyGraph() {
     for (const n of nodes) {
       const isSelected =
         selectedFileId && (n.id === selectedFileId || n.id === String(selectedFileId));
-      const nodeColor = isSelected ? '#10b981' : '#3b82f6';
+      const nodeColor = isSelected ? '#10b981' : '#60a5fa';
       const nodeStroke = isSelected ? '#34d399' : '#60a5fa';
       const nodeRadius = isSelected ? 7 : 5;
       const glowRadius = isSelected ? 20 : 14;

@@ -138,7 +138,7 @@ export function DashboardTour({ onComplete, onDismiss }: DashboardTourProps) {
               top: highlightRect.top - 8,
               width: highlightRect.width + 16,
               height: highlightRect.height + 16,
-              border: '3px solid rgb(59, 130, 246)',
+              border: '3px solid var(--accent)',
               borderRadius: 12,
               boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.5)',
               pointerEvents: 'none',
@@ -179,7 +179,7 @@ export function DashboardTour({ onComplete, onDismiss }: DashboardTourProps) {
                   width: i === currentStep ? 24 : 8,
                   height: 8,
                   borderRadius: 4,
-                  backgroundColor: i === currentStep ? 'rgb(59, 130, 246)' : 'var(--surface3)',
+                  backgroundColor: i === currentStep ? 'var(--accent)' : 'var(--surface3)',
                   transition: 'all 0.3s',
                 }}
               />
@@ -217,10 +217,10 @@ export function DashboardTour({ onComplete, onDismiss }: DashboardTourProps) {
               onClick={handleNext}
               style={{
                 padding: '8px 20px',
-                borderRadius: 8,
+                borderRadius: 'var(--radius-pill)',
                 border: 'none',
-                background: 'rgb(59, 130, 246)',
-                color: 'white',
+                background: 'var(--pill-bg)',
+                color: 'var(--pill-fg)',
                 cursor: 'pointer',
                 fontSize: 14,
                 fontWeight: 600,

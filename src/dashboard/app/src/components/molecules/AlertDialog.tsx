@@ -38,7 +38,7 @@ export function AlertDialog({
 
   if (!open) return null;
 
-  const confirmBg = variant === 'danger' ? '#ef4444' : '#f59e0b';
+  const confirmBg = variant === 'danger' ? '#f87171' : '#fbbf24';
   const confirmHoverBg = variant === 'danger' ? '#dc2626' : '#d97706';
 
   return (

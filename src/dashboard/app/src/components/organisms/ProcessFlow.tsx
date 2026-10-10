@@ -146,7 +146,7 @@ function StepIcon({ type, status }: { type: string; status: StepStatus }) {
     status === 'completed'
       ? '#10b981'
       : status === 'active'
-        ? '#3b82f6'
+        ? '#60a5fa'
         : status === 'blocked'
           ? '#f87171'
           : 'var(--text3)';
@@ -260,7 +260,7 @@ function StatusIndicator({ status }: { status: StepStatus }) {
             width: 20,
             height: 20,
             borderRadius: '50%',
-            border: '2px solid #3b82f6',
+            border: '2px solid #60a5fa',
             position: 'absolute',
             top: 0,
             left: 0,
@@ -271,7 +271,7 @@ function StatusIndicator({ status }: { status: StepStatus }) {
             width: 8,
             height: 8,
             borderRadius: '50%',
-            background: '#3b82f6',
+            background: '#60a5fa',
             animation: 'pf-active-pulse 1.5s ease-in-out infinite',
           }}
         />
@@ -324,7 +324,7 @@ function FlowConnector({ status }: { status: StepStatus }) {
     status === 'completed'
       ? '#10b981'
       : status === 'active'
-        ? '#3b82f6'
+        ? '#60a5fa'
         : status === 'blocked'
           ? '#f87171'
           : 'var(--border2)';
@@ -355,7 +355,7 @@ function FlowConnectorVertical({ status }: { status: StepStatus }) {
     status === 'completed'
       ? '#10b981'
       : status === 'active'
-        ? '#3b82f6'
+        ? '#60a5fa'
         : status === 'blocked'
           ? '#f87171'
           : 'var(--border2)';
@@ -456,7 +456,7 @@ function FlowStepHorizontal({
     step.status === 'completed'
       ? '#10b981'
       : step.status === 'active'
-        ? '#3b82f6'
+        ? '#60a5fa'
         : step.status === 'blocked'
           ? '#f87171'
           : 'var(--border)';
@@ -472,7 +472,7 @@ function FlowStepHorizontal({
     step.status === 'completed'
       ? '#10b981'
       : step.status === 'active'
-        ? '#3b82f6'
+        ? '#60a5fa'
         : step.status === 'blocked'
           ? '#f87171'
           : 'var(--text3)';
@@ -560,7 +560,7 @@ function FlowStepVertical({
     step.status === 'completed'
       ? '#10b981'
       : step.status === 'active'
-        ? '#3b82f6'
+        ? '#60a5fa'
         : step.status === 'blocked'
           ? '#f87171'
           : 'var(--border)';
@@ -576,7 +576,7 @@ function FlowStepVertical({
     step.status === 'completed'
       ? '#10b981'
       : step.status === 'active'
-        ? '#3b82f6'
+        ? '#60a5fa'
         : step.status === 'blocked'
           ? '#f87171'
           : 'var(--text3)';
@@ -829,12 +829,12 @@ export function ProcessFlow({ onStepClick }: ProcessFlowProps) {
                 gap: 8,
                 padding: '6px 14px',
                 background: activeStep.status === 'blocked' ? 'rgba(248,113,113,.1)' : 'rgba(59,130,246,.1)',
-                border: `1px solid ${activeStep.status === 'blocked' ? '#f87171' : '#3b82f6'}`,
+                border: `1px solid ${activeStep.status === 'blocked' ? '#f87171' : '#60a5fa'}`,
                 borderRadius: 20,
                 fontSize: 11,
                 fontWeight: 600,
                 fontFamily: 'var(--font)',
-                color: activeStep.status === 'blocked' ? '#f87171' : '#3b82f6',
+                color: activeStep.status === 'blocked' ? '#f87171' : '#60a5fa',
               }}
             >
               <span
@@ -842,7 +842,7 @@ export function ProcessFlow({ onStepClick }: ProcessFlowProps) {
                   width: 6,
                   height: 6,
                   borderRadius: '50%',
-                  background: activeStep.status === 'blocked' ? '#f87171' : '#3b82f6',
+                  background: activeStep.status === 'blocked' ? '#f87171' : '#60a5fa',
                   animation: activeStep.status === 'blocked' ? undefined : 'pf-active-pulse 1.5s ease-in-out infinite',
                 }}
               />
@@ -857,10 +857,10 @@ export function ProcessFlow({ onStepClick }: ProcessFlowProps) {
               whileTap={{ scale: 0.97 }}
               onClick={() => onStepClick('kickoff')}
               style={{
-                background: 'var(--accent)',
-                color: '#000',
+                background: 'var(--pill-bg)',
+                color: 'var(--pill-fg)',
                 border: 'none',
-                borderRadius: 9,
+                borderRadius: 'var(--radius-pill)',
                 padding: '8px 18px',
                 fontSize: 13,
                 fontWeight: 700,
@@ -897,7 +897,7 @@ export function ProcessFlow({ onStepClick }: ProcessFlowProps) {
           transition={{ duration: 0.8, ease: 'easeOut' }}
           style={{
             height: '100%',
-            background: 'linear-gradient(90deg, #10b981, #3b82f6)',
+            background: 'linear-gradient(90deg, #10b981, #60a5fa)',
             borderRadius: 2,
           }}
         />
@@ -951,7 +951,7 @@ export function ProcessFlow({ onStepClick }: ProcessFlowProps) {
         }}
       >
         <LegendItem color="#10b981" label="Completed" />
-        <LegendItem color="#3b82f6" label="Active" />
+        <LegendItem color="#60a5fa" label="Active" />
         <LegendItem color="var(--border2)" label="Pending" />
         <LegendItem color="#f87171" label="Blocked" />
       </div>

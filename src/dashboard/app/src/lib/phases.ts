@@ -4,10 +4,10 @@
 /* ------------------------------------------------------------------ */
 
 export const PHASE_COLORS: Record<string, { bg: string; border: string; label: string }> = {
-  planning:       { bg: '#3b82f6', border: '#60a5fa', label: 'Planning' },
-  implementation: { bg: '#f59e0b', border: '#fbbf24', label: 'Implementation' },
+  planning:       { bg: '#60a5fa', border: '#60a5fa', label: 'Planning' },
+  implementation: { bg: '#fbbf24', border: '#fbbf24', label: 'Implementation' },
   done:           { bg: '#10b981', border: '#34d399', label: 'Done' },
-  rest:           { bg: '#6b7280', border: '#9ca3af', label: 'Rest' },
+  rest:           { bg: '#6b6b84', border: '#9ca3af', label: 'Rest' },
 };
 
 export const PHASE_ORDER = ['planning', 'implementation', 'done', 'rest'];

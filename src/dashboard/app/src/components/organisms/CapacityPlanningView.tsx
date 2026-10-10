@@ -105,7 +105,7 @@ export function CapacityPlanningView() {
 
   const statusColors = {
     under: { bg: 'rgba(16,185,129,.15)', border: '#10b981', text: '#10b981' },
-    optimal: { bg: 'rgba(59,130,246,.15)', border: '#3b82f6', text: '#3b82f6' },
+    optimal: { bg: 'rgba(59,130,246,.15)', border: '#60a5fa', text: '#60a5fa' },
     over: { bg: 'rgba(248,113,113,.15)', border: '#f87171', text: '#f87171' }
   };
 

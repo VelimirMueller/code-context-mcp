@@ -15,12 +15,12 @@ const priorityColor: Record<string, string> = {
   P0: 'var(--red)',
   P1: 'var(--orange)',
   P2: 'var(--blue)',
-  P3: '#6b7280',
+  P3: '#6b6b84',
 };
 
 export function TicketCard({ ticket, onClick, onEdit }: TicketCardProps) {
   const queueAction = useBridgeStore((s) => s.queueAction);
-  const pColor = priorityColor[ticket.priority] ?? '#6b7280';
+  const pColor = priorityColor[ticket.priority] ?? '#6b6b84';
   const assignments = ticket.assignments ?? [];
 
   return (
@@ -147,7 +147,7 @@ export function TicketCard({ ticket, onClick, onEdit }: TicketCardProps) {
         {ticket.status !== 'DONE' && (
           <button
             onClick={(e) => { e.stopPropagation(); queueAction('update_ticket', 'ticket', ticket.id, { status: 'DONE', ticket_ref: ticket.ticket_ref }); }}
-            style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--green, #22c55e)', cursor: 'pointer' }}
+            style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--green, #10b981)', cursor: 'pointer' }}
           >
             Done
           </button>

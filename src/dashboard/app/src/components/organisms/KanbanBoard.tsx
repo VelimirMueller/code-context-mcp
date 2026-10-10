@@ -17,7 +17,7 @@ interface ColConfig {
 }
 
 const COLUMNS: Record<string, ColConfig> = {
-  TODO: { label: 'To Do', color: '#6b7280' },
+  TODO: { label: 'To Do', color: '#6b6b84' },
   IN_PROGRESS: { label: 'In Progress', color: 'var(--blue)' },
   DONE: { label: 'Done', color: 'var(--green)' },
   NOT_DONE: { label: 'Not Done', color: 'var(--red)' },

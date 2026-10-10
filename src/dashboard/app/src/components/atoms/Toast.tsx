@@ -15,7 +15,7 @@ export function Toast({ message, type, onClose }: ToastProps) {
     return () => clearTimeout(timer);
   }, [onClose]);
 
-  const colorMap = { success: 'var(--green)', error: 'var(--red)', warning: 'var(--yellow, #f59e0b)' };
+  const colorMap = { success: 'var(--green)', error: 'var(--red)', warning: 'var(--yellow, #fbbf24)' };
   const iconMap = { success: '\u2713', error: '\u2715', warning: '\u26A0' };
   const borderColor = colorMap[type];
   const iconColor = colorMap[type];

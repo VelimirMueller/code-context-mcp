@@ -145,10 +145,10 @@ export function TeamMemberForm({ agent, onSave, onCancel, busy }: TeamMemberForm
             padding: '6px 14px',
             fontSize: 12,
             fontWeight: 600,
-            background: 'var(--accent-fill)',
+            background: 'var(--pill-bg)',
             border: 'none',
-            borderRadius: 'var(--radius)',
-            color: '#fff',
+            borderRadius: 'var(--radius-pill)',
+            color: 'var(--pill-fg)',
             cursor: busy ? 'not-allowed' : 'pointer',
             opacity: busy || !role.trim() || !name.trim() ? 0.5 : 1,
           }}

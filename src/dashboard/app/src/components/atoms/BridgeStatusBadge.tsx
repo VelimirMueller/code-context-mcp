@@ -21,7 +21,7 @@ export function BridgeStatusBadge() {
 
   const dotColor = hasWizard
     ? '#f97316'
-    : hasClaimed ? 'var(--blue)' : hasPending ? 'var(--yellow, #eab308)' : 'var(--green, #22c55e)';
+    : hasClaimed ? 'var(--blue)' : hasPending ? 'var(--yellow, #eab308)' : 'var(--green, #10b981)';
   const label = hasWizard
     ? `Wizard: ${wizardSteps.length} input${wizardSteps.length > 1 ? 's' : ''} requested`
     : hasClaimed

@@ -156,7 +156,7 @@ export function TeamManagementModal({ open, onClose, agent }: TeamManagementModa
   if (!open) return null;
 
   const selectedModel = MODEL_OPTIONS.find(m => m.value === model);
-  const accentColor = selectedModel?.color ?? '#3b82f6';
+  const accentColor = selectedModel?.color ?? '#60a5fa';
 
   return (
     <>
@@ -394,7 +394,7 @@ export function TeamManagementModal({ open, onClose, agent }: TeamManagementModa
                   border: '1px solid rgba(239,68,68,0.2)',
                   borderRadius: 8,
                   fontSize: 12,
-                  color: '#ef4444',
+                  color: '#f87171',
                 }}>
                   {error}
                 </div>
@@ -411,7 +411,7 @@ export function TeamManagementModal({ open, onClose, agent }: TeamManagementModa
                       style={{
                         background: 'none',
                         border: 'none',
-                        color: '#ef4444',
+                        color: '#f87171',
                         fontSize: 12,
                         fontWeight: 600,
                         cursor: busy ? 'not-allowed' : 'pointer',

@@ -28,8 +28,8 @@ function HistoryView() {
   const byCategory = (cat: string) => allFindings.filter((f) => f.category === cat);
   const categories = [
     { key: 'went_well', label: 'Went Well', color: '#10b981' },
-    { key: 'went_wrong', label: 'Went Wrong', color: '#ef4444' },
-    { key: 'try_next', label: 'Try Next', color: '#8b5cf6' },
+    { key: 'went_wrong', label: 'Went Wrong', color: '#f87171' },
+    { key: 'try_next', label: 'Try Next', color: '#818cf8' },
   ];
 
   if (allFindings.length === 0) {
@@ -104,7 +104,7 @@ function PatternsView() {
     .sort((a, b) => b[1].size - a[1].size)
     .slice(0, 8);
 
-  const catColor: Record<string, string> = { went_well: '#10b981', went_wrong: '#ef4444', try_next: '#8b5cf6' };
+  const catColor: Record<string, string> = { went_well: '#10b981', went_wrong: '#f87171', try_next: '#818cf8' };
   const catLabel: Record<string, string> = { went_well: 'Went Well', went_wrong: 'Went Wrong', try_next: 'Try Next' };
 
   return (
@@ -117,8 +117,8 @@ function PatternsView() {
         </div>
         <div style={{ display: 'flex', height: 10, borderRadius: 5, overflow: 'hidden', gap: 2 }}>
           {totalWell > 0 && <div style={{ flex: totalWell, background: '#10b981', borderRadius: 5 }} title={`${totalWell} went well`} />}
-          {totalTry > 0 && <div style={{ flex: totalTry, background: '#8b5cf6', borderRadius: 5 }} title={`${totalTry} try next`} />}
-          {totalWrong > 0 && <div style={{ flex: totalWrong, background: '#ef4444', borderRadius: 5 }} title={`${totalWrong} went wrong`} />}
+          {totalTry > 0 && <div style={{ flex: totalTry, background: '#818cf8', borderRadius: 5 }} title={`${totalTry} try next`} />}
+          {totalWrong > 0 && <div style={{ flex: totalWrong, background: '#f87171', borderRadius: 5 }} title={`${totalWrong} went wrong`} />}
         </div>
         <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
           {[['went_well', totalWell], ['try_next', totalTry], ['went_wrong', totalWrong]].map(([cat, count]) => (
@@ -174,8 +174,8 @@ function PatternsView() {
                   ))}
                   <div style={{ display: 'flex', gap: 10, marginTop: 2 }}>
                     {well > 0 && <span style={{ fontSize: 10, color: '#10b981', fontFamily: 'var(--mono)' }}>✓ {well} well</span>}
-                    {wrong > 0 && <span style={{ fontSize: 10, color: '#ef4444', fontFamily: 'var(--mono)' }}>✗ {wrong} wrong</span>}
-                    {tryN > 0 && <span style={{ fontSize: 10, color: '#8b5cf6', fontFamily: 'var(--mono)' }}>→ {tryN} try</span>}
+                    {wrong > 0 && <span style={{ fontSize: 10, color: '#f87171', fontFamily: 'var(--mono)' }}>✗ {wrong} wrong</span>}
+                    {tryN > 0 && <span style={{ fontSize: 10, color: '#818cf8', fontFamily: 'var(--mono)' }}>→ {tryN} try</span>}
                   </div>
                 </div>
               </div>

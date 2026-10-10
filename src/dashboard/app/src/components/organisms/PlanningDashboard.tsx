@@ -188,14 +188,14 @@ export function PlanningDashboard() {
               value={metrics.healthScore}
               suffix="/100"
               subtitle="sprint performance"
-              color={metrics.healthScore >= 80 ? '#10b981' : metrics.healthScore >= 50 ? '#f59e0b' : '#ef4444'}
+              color={metrics.healthScore >= 80 ? '#10b981' : metrics.healthScore >= 50 ? '#fbbf24' : '#f87171'}
               trend={metrics.healthScore >= 80 ? 'on-track' : metrics.healthScore >= 50 ? 'at-risk' : 'off-track'}
             />
             <KPICard
               title="Active Sprints"
               value={metrics.activeSprints}
               subtitle={`${metrics.totalTickets} tickets`}
-              color="#3b82f6"
+              color="#60a5fa"
               trend={metrics.activeSprints > 0 ? 'on-track' : 'attention'}
             />
             <KPICard
@@ -209,21 +209,21 @@ export function PlanningDashboard() {
               title="Capacity"
               value={`${metrics.utilizedCapacity}/${metrics.totalCapacity}`}
               subtitle={`${metrics.capacityUtilization}% utilized`}
-              color="#f59e0b"
+              color="#fbbf24"
               trend={metrics.capacityUtilization >= 80 ? 'at-risk' : metrics.capacityUtilization >= 50 ? 'on-track' : 'underutilized'}
             />
             <KPICard
               title="Backlog"
               value={metrics.backlogCount}
               subtitle={`${metrics.backlogPoints} points`}
-              color="#8b5cf6"
+              color="#818cf8"
               trend={metrics.unassignedTickets > 0 ? 'attention' : 'on-track'}
             />
             <KPICard
               title="Blockers"
               value={metrics.openBlockers}
               subtitle="open blockers"
-              color={metrics.openBlockers > 0 ? '#ef4444' : '#6b7280'}
+              color={metrics.openBlockers > 0 ? '#f87171' : '#6b6b84'}
               trend={metrics.openBlockers === 0 ? 'on-track' : 'critical'}
             />
             <KPICard
@@ -248,7 +248,7 @@ export function PlanningDashboard() {
               title="Sprint Timeline"
               description="Interactive Gantt chart with zoom, swimlanes, and ticket detail"
               icon="\u25e7"
-              color="#3b82f6"
+              color="#60a5fa"
               onClick={() => setViewMode('gantt')}
             />
             <NavCard
@@ -262,14 +262,14 @@ export function PlanningDashboard() {
               title="Capacity Planning"
               description="Agent workload cards, heatmap matrix, velocity history"
               icon="\u25d0"
-              color="#f59e0b"
+              color="#fbbf24"
               onClick={() => setViewMode('capacity')}
             />
             <NavCard
               title="Data Explorer"
               description="Enterprise data tables with sort, filter, and pagination"
               icon="\u2630"
-              color="#8b5cf6"
+              color="#818cf8"
               onClick={() => setViewMode('table')}
             />
           </div>
@@ -318,7 +318,7 @@ export function PlanningDashboard() {
                             <div style={{
                               position: 'absolute', bottom: 0, left: 0, right: 0,
                               height: `${pct}%`,
-                              background: pct >= committed * 0.8 ? 'var(--green)' : '#f59e0b',
+                              background: pct >= committed * 0.8 ? 'var(--green)' : '#fbbf24',
                               borderRadius: 3,
                               transition: 'height .3s',
                             }} />
@@ -352,7 +352,7 @@ export function PlanningDashboard() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {agents.slice(0, 6).map(agent => {
                   const pct = Math.round((agent.active_points / 19) * 100);
-                  const color = pct > 100 ? '#ef4444' : pct > 70 ? '#3b82f6' : '#10b981';
+                  const color = pct > 100 ? '#f87171' : pct > 70 ? '#60a5fa' : '#10b981';
                   return (
                     <div key={agent.role} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 14 }}>{agent.mood_emoji}</span>
@@ -430,11 +430,11 @@ interface KPICardProps {
 function KPICard({ title, value, suffix, subtitle, color, trend }: KPICardProps) {
   const trendConfig = {
     'on-track': { bg: '#10b98120', color: '#10b981', label: 'On Track' },
-    'at-risk': { bg: '#f59e0b20', color: '#f59e0b', label: 'At Risk' },
-    'off-track': { bg: '#ef444420', color: '#ef4444', label: 'Off Track' },
+    'at-risk': { bg: '#fbbf2420', color: '#fbbf24', label: 'At Risk' },
+    'off-track': { bg: '#f8717120', color: '#f87171', label: 'Off Track' },
     'critical': { bg: '#dc262620', color: '#dc2626', label: 'Critical' },
-    'underutilized': { bg: '#6b728020', color: '#6b7280', label: 'Low' },
-    'attention': { bg: '#f59e0b20', color: '#f59e0b', label: 'Attention' },
+    'underutilized': { bg: '#6b6b8420', color: '#6b6b84', label: 'Low' },
+    'attention': { bg: '#fbbf2420', color: '#fbbf24', label: 'Attention' },
   }[trend];
 
   return (
