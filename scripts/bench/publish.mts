@@ -6,7 +6,13 @@
  * must not itself be bench-results. A missing bench-results branch is
  * bootstrapped as an orphan containing only data/.
  *
- * Options (see `main` below): --run <id>, --dry-run, --no-push.
+ * Options (see `main` below): --run <id>, --dry-run, --no-push, --no-site.
+ *
+ * After a local push it starts the Pages build (`gh workflow run pages.yml
+ * --ref main`). A push to bench-results cannot do that itself: GitHub runs a
+ * push-triggered workflow from the pushed branch, and bench-results holds
+ * only data/. In Actions the Benchmark workflow dispatches Pages in its own
+ * step, so the CLI skips it there.
  */
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -96,7 +102,14 @@ function remoteRunStems(
   remote: string,
   branch: string,
 ): Set<string> {
-  const out = runMaybe(cwd, env, ['ls-tree', '-r', '--name-only', `${remote}/${branch}`, '--', 'data/runs']);
+  const out = runMaybe(cwd, env, [
+    'ls-tree',
+    '-r',
+    '--name-only',
+    `${remote}/${branch}`,
+    '--',
+    'data/runs',
+  ]);
   if (!out) {
     // The ref exists (callers check first), so a failed ls-tree is a real
     // error (network, permissions) — treating it as "remote has no runs"
@@ -183,10 +196,7 @@ export function publish(opts: PublishOptions = {}): PublishResult {
     const index = buildIndex(merged.map((m) => m.data));
     const latest = pickLatest(merged.map((m) => m.data));
     fs.writeFileSync(path.join(tmp, 'data', 'index.json'), `${JSON.stringify(index, null, 2)}\n`);
-    fs.writeFileSync(
-      path.join(tmp, 'data', 'latest.json'),
-      `${JSON.stringify(latest, null, 2)}\n`,
-    );
+    fs.writeFileSync(path.join(tmp, 'data', 'latest.json'), `${JSON.stringify(latest, null, 2)}\n`);
 
     const commitEnv: NodeJS.ProcessEnv = { ...env };
     if (process.env.CI === 'true') {
@@ -233,6 +243,7 @@ function isMain(): boolean {
 if (isMain()) {
   const args = process.argv.slice(2);
   const opts: PublishOptions = {};
+  let rebuildSite = process.env.GITHUB_ACTIONS !== 'true';
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--dry-run') opts.dryRun = true;
     else if (args[i] === '--run') {
@@ -243,6 +254,7 @@ if (isMain()) {
       }
       opts.runId = v.trim();
     } else if (args[i] === '--no-push') opts.push = false;
+    else if (args[i] === '--no-site') rebuildSite = false;
     else {
       console.error(`bench:publish: unknown argument ${args[i]}`);
       process.exit(1);
@@ -255,6 +267,18 @@ if (isMain()) {
       for (const f of res.files) console.log(`  ${f}`);
     } else {
       console.log(`published ${res.runIds.join(', ')} (${res.files.length} files)`);
+      if (res.pushed && rebuildSite) {
+        try {
+          execFileSync('gh', ['workflow', 'run', 'pages.yml', '--ref', 'main'], {
+            stdio: ['ignore', 'ignore', 'pipe'],
+          });
+          console.log('site: Pages build started (pages.yml on main)');
+        } catch {
+          console.warn(
+            'site: could not start the Pages build. Run: gh workflow run pages.yml --ref main',
+          );
+        }
+      }
     }
   } catch (e) {
     console.error((e as Error).message);
