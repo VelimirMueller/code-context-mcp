@@ -41,7 +41,7 @@ Notes:
 Where each kind runs:
 
 - **Simulated:** anywhere. In GitHub Actions open the **Benchmark** workflow (`.github/workflows/benchmark.yml`), **Run workflow**, `kind=simulated`. It publishes the run and rebuilds the site.
-- **Agent (glm, deepseek):** locally, by hand. Export the provider key in your shell, run `npm run build`, `npm run bench:live -- --provider <glm|deepseek>`, then `npm run bench:publish`. The provider keys stay on your machine.
+- **Agent (glm, deepseek):** locally, by hand. Export the provider key in your shell, run `npm run build`, `npm run bench:live -- --provider <glm|deepseek|opus>`, then `npm run bench:publish`. Publish also starts the Pages build through `gh`; `--no-site` skips that. The provider keys stay on your machine.
 - **Agent in Actions:** only when the repository secret `ZAI_API_KEY` or `DEEPSEEK_API_KEY` is set. The repo keeps none by default, so `kind=agent` prints a notice with the local command, ends green and publishes nothing.
 
 ## Fresh sessions
