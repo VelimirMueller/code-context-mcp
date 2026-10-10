@@ -73,3 +73,23 @@ describe('parseClaudeStream', () => {
     expect(warm.firstCallCacheRead).toBe(4000);
   });
 });
+
+describe('parseClaudeStream — totals from the result event', () => {
+  it('takes output from result.usage, not the partial per-message snapshot', () => {
+    const u = parseClaudeStream([
+      ev({ type: 'assistant', message: { id: 'm1', content: [], usage: usage(5480, 16, 0, 0) } }),
+      ev({ type: 'assistant', message: { id: 'm2', content: [], usage: usage(8210, 2, 0, 0) } }),
+      ev({ type: 'result', result: 'done', usage: usage(13690, 2912, 0, 0) }),
+    ]);
+    expect(u.inputTokens).toBe(13690);
+    expect(u.outputTokens).toBe(2912);
+    expect(u.firstCallCacheRead).toBe(0);
+  });
+  it('falls back to per-message usage when the stream has no result (timeout)', () => {
+    const u = parseClaudeStream([
+      ev({ type: 'assistant', message: { id: 'm1', content: [], usage: usage(100, 7, 0, 0) } }),
+    ]);
+    expect(u.inputTokens).toBe(100);
+    expect(u.outputTokens).toBe(7);
+  });
+});
