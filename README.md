@@ -49,7 +49,7 @@ Your agents forget everything between sessions. This one file does not.
 </picture>
 
 - Gives AI coding agents **persistent memory**. The memory survives the session.
-- Indexes your codebase into one SQLite file, `context.db`. Agents query file roles, exports and dependents. In real agent runs on import-graph questions (683-file fixture, GLM 5.3) it used 34–47 % fewer uncached tokens at equal or better success. With Claude Code (Opus) on two tasks it used more. The 43.7 % figure is simulated; see [Benchmark](#benchmark).
+- Indexes your codebase into one SQLite file, `context.db`. Agents query file roles, exports and dependents. In real agent runs on import-graph questions (683-file fixture, n=5) it used 28–47 % fewer uncached tokens (GLM 5.3 and DeepSeek v4 pro; DeepSeek cost −29 %) at equal or better success, every repeat above 0. With Claude Code (Opus) on two tasks it used more. The 43.7 % figure is simulated; see [Benchmark](#benchmark).
 - Runs a full sprint process for a 9-agent team: vision, discovery, milestones, epics, tickets, gates and retros. It uses 97 MCP tools and 6 slash commands.
 - Shows everything on a live React dashboard at `:3333`. Zero API keys.
 
@@ -171,6 +171,7 @@ Real agent numbers (proof runs, 2026-10-11, rescored and renormalized). "Saved" 
 | Model · tasks | n | Success vanilla / cc / guided | Uncached tokens saved, cc | Uncached tokens saved, guided | Cost saved cc / guided | Uncached tokens per PASS vanilla / cc / guided |
 | --- | --- | --- | --- | --- | --- | --- |
 | GLM 5.3 · I1–I6 (683 files) | 5 | 26/30 · 26/30 · 28/30 | +33.7 % [+11.1 … +45.2] | +47.1 % [+34.7 … +61.2] | n/a (subscription) | 12,213 · 8,091 · 5,997 |
+| DeepSeek v4 pro · I1–I6 (683 files) | 5 | 25/30 · 29/30 · 30/30 | +28.4 % [+24.1 … +34.5] | +34.7 % [+15.1 … +49.1] | +29.1 % / +34.5 % | 22,342 · 13,800 · 12,153 |
 | DeepSeek v4 pro · L1, L4, L6 | 3 | 9/9 · 9/9 · 8/9 | +16.4 % [−11.1 … +54.1] | +7.3 % [+0.1 … +16.8] | +16.4 % / +8.4 % | 55,259 · 46,206 · 57,635 |
 | Opus (Claude Code) · L1, I1 | 2 | 4/4 · 4/4 · — | −46.0 % [−82.5 … −31.9] | — | −36.5 % / — | 4,508 · 6,579 · — |
 
