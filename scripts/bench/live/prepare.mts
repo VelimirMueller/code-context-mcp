@@ -249,7 +249,8 @@ export function prepareArmSession(opts: PrepareArmOpts): PreparedArm {
   if (warm) {
     for (const [rel, mtimeMs] of warm.mtimes) {
       const abs = path.join(ws, rel);
-      const t = new Date(mtimeMs);
+      // Seconds as a float keep sub-millisecond precision; a Date rounds to whole ms.
+      const t = mtimeMs / 1000;
       fs.utimesSync(abs, t, t);
     }
   }

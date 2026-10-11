@@ -388,7 +388,8 @@ describe('cold-warm cache mode (2026-10-11)', () => {
     const warm = prepare('glm', 'cc', { warmFrom: seed });
     expect(fs.readFileSync(helpers, 'utf-8')).toBe(original);
     // mtimes restored: the server's freshness check sees the indexed files unchanged
-    expect(Math.trunc(fs.statSync(helpers).mtimeMs)).toBe(Math.trunc(mtime));
+    // Filesystems store mtimes at different precision (Linux CI rounds sub-ms), so allow < 1 ms.
+    expect(Math.abs(fs.statSync(helpers).mtimeMs - mtime)).toBeLessThan(1);
     const rows = fileRows(path.join(warm.ws, 'context.db')) as Array<{
       path: string;
       size_bytes: number;
