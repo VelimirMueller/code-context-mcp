@@ -9,6 +9,10 @@
  * - Idempotent through `tickets.github_issue` and `milestones.github_milestone`:
  *   a stored number is updated, never re-created. A second run with no local
  *   change makes no write.
+ * - Ownership (CCA-14, #142): created issues / milestones carry a hidden
+ *   `<!-- code-context-sync: … -->` marker; a stored number is updated only
+ *   when the remote text carries the marker of the same project and ticket
+ *   (or local milestone). Unmarked objects need an explicit adopt.
  * - Rate limits: one REST read of the repo milestones (only when the project
  *   has milestones) and one GraphQL read per 50 tracked issues that returns the
  *   issues, their Project items and the Status field. Writes: one REST call per
@@ -523,6 +527,63 @@ function parseCriteria(raw: string | null): string[] {
   return [raw.trim()];
 }
 
+// ─── Ownership markers ───────────────────────────────────────────────────────
+//
+// A stored issue / milestone number is not proof that the sync created that
+// object: `update_ticket github_issue=N`, `update_milestone github_milestone=N`
+// and the `execute` tool can point a row at any issue of the repo. So the sync
+// writes a hidden marker into every issue body and milestone description it
+// creates, and later updates only objects whose current remote text carries
+// the marker of the same project AND the same ticket (or local milestone id).
+// Anything else is skipped with a plan note — never edited, closed, relabelled
+// or moved on the board. Taking over an unmarked object is an explicit adopt.
+
+const MARKER_RE = /<!--\s*code-context-sync:([^<>]*?)-->/g;
+
+function markerPart(v: string): string {
+  return encodeURIComponent(v);
+}
+
+/** Hidden marker of the issue the sync owns for `ticket` in `project`. */
+export function issueMarker(project: string, ref: string): string {
+  return `<!-- code-context-sync: project=${markerPart(project)} ticket=${markerPart(ref)} -->`;
+}
+
+/** Hidden marker of the milestone the sync owns for local milestone `localId` in `project`. */
+export function milestoneMarker(project: string, localId: number): string {
+  return `<!-- code-context-sync: project=${markerPart(project)} milestone=${localId} -->`;
+}
+
+/** Canonical `k=v k=v` forms of every marker in text. */
+function markersIn(text: string | null | undefined): string[] {
+  const out: string[] = [];
+  for (const m of (text ?? "").matchAll(MARKER_RE)) out.push(m[1].trim().split(/\s+/).join(" "));
+  return out;
+}
+
+export type Ownership = "owned" | "unmarked" | "foreign";
+
+/** owned: at least one marker and every marker is `want`; unmarked: no marker;
+ *  foreign: a marker of another project, ticket or milestone. */
+export function ownershipOf(text: string | null | undefined, want: string): Ownership {
+  const have = markersIn(text);
+  if (!have.length) return "unmarked";
+  const w = markersIn(want)[0];
+  return have.every((h) => h === w) ? "owned" : "foreign";
+}
+
+/** text + marker on its own last line; the marker passes the publish guard too. */
+export function withMarker(text: string, marker: string, what: string): string {
+  assertPublishable(marker, what);
+  const t = text.replace(/\s+$/, "");
+  return t ? `${t}\n\n${marker}\n` : `${marker}\n`;
+}
+
+/** The issue body the sync writes for a ticket: Why / Done when + its marker. */
+export function ownedIssueBody(project: string, t: Pick<SyncTicket, "id" | "ticket_ref" | "description" | "acceptance_criteria">): string {
+  return withMarker(buildIssueBody(t), issueMarker(project, refOf(t)), "issue body");
+}
+
 export interface LabelRule {
   /** Labels the sync owns for this ticket; existing ones outside it are kept. */
   managed: string[];
@@ -662,7 +723,8 @@ export interface GitHubGateway {
 // ─── Plan ────────────────────────────────────────────────────────────────────
 
 export interface MilestoneAction {
-  kind: "create" | "link" | "update" | "noop";
+  /** adopt: an explicit number mapping takes over an unmarked milestone (writes the marker). */
+  kind: "create" | "adopt" | "update" | "noop";
   localId: number;
   name: string;
   number: number | null;
@@ -685,6 +747,17 @@ export interface IssueAction {
   addToProject: boolean;
   nodeId: string | null;
   itemId: string | null;
+  /** This update takes over an unmarked issue (explicit adopt) and writes the marker. */
+  adopt: boolean;
+}
+
+/** Explicit take-overs of existing GitHub objects the sync did not create. */
+export interface AdoptOptions {
+  /** Issue numbers: each must be linked by a ticket of the project (github_issue)
+   *  and its GitHub title must start with "<ticket_ref>:". */
+  issues?: number[];
+  /** Local milestone id → GitHub milestone number. */
+  milestones?: Array<{ id: number; number: number }>;
 }
 
 export interface SyncPlan {
@@ -698,11 +771,11 @@ export interface SyncPlan {
   warnings: string[];
 }
 
-function milestoneFields(m: SyncMilestone): MilestoneFields {
+function milestoneFields(project: string, m: SyncMilestone): MilestoneFields {
   const date = m.target_date && /^\d{4}-\d{2}-\d{2}/.test(m.target_date) ? `${m.target_date.slice(0, 10)}T00:00:00Z` : null;
   return {
     title: publishable(m.name, "milestone title"),
-    description: publishable(m.description ?? "", "milestone description"),
+    description: withMarker(publishable(m.description ?? "", "milestone description"), milestoneMarker(project, m.id), "milestone description"),
     state: m.status === "completed" ? "closed" : "open",
     due_on: date,
   };
@@ -721,7 +794,7 @@ function diffMilestone(want: MilestoneFields, have: RemoteMilestone): string[] {
  * Build the plan. `remote` null = offline: no GitHub read, stored numbers are
  * planned as unverified updates (a live run always re-plans from a fresh read).
  */
-export function planSync(db: Database.Database, project: ProjectRow, remote: RemoteState | null): SyncPlan {
+export function planSync(db: Database.Database, project: ProjectRow, remote: RemoteState | null, adopt: AdoptOptions = {}): SyncPlan {
   if (!project.repo) throw new Error(`Project "${project.name}" has no repo — set_project repo=owner/name first`);
   const repo = project.repo;
   const plan: SyncPlan = {
@@ -734,24 +807,54 @@ export function planSync(db: Database.Database, project: ProjectRow, remote: Rem
     skipped: [],
     warnings: [],
   };
+  if (!remote) plan.warnings.push("offline: ownership markers not checked — a live run skips every issue or milestone without this sync's marker");
 
-  // Milestones
+  // Milestones. A stored number is updated only when the remote description
+  // carries this milestone's marker; an explicit mapping (adopt) takes over an
+  // unmarked one. A title match alone never links.
+  const msAdopt = new Map<number, number>();
+  for (const a of adopt.milestones ?? []) msAdopt.set(a.id, a.number);
   const msNumber = new Map<number, number | null>(); // local id → GitHub number (null = not yet created)
-  for (const m of loadProjectMilestones(db, project.name)) {
-    const fields = milestoneFields(m);
+  const projectMs = loadProjectMilestones(db, project.name);
+  for (const id of msAdopt.keys()) {
+    if (!projectMs.some((m) => m.id === id)) plan.warnings.push(`milestone adopt ${id}=${msAdopt.get(id)} ignored: local milestone ${id} is not in project ${project.name}`);
+  }
+  for (const m of projectMs) {
+    const fields = milestoneFields(project.name, m);
+    const marker = milestoneMarker(project.name, m.id);
+    const adoptNum = msAdopt.get(m.id);
+    const num = adoptNum ?? m.github_milestone;
     let action: MilestoneAction;
-    if (m.github_milestone !== null) {
-      const have = remote?.milestones?.find((r) => r.number === m.github_milestone);
+    if (num !== null && num !== undefined) {
+      const have = remote?.milestones?.find((r) => r.number === num);
       if (remote && !have) {
-        plan.warnings.push(`milestone "${m.name}": GitHub milestone #${m.github_milestone} not found in ${repo} — skipped`);
+        plan.warnings.push(`milestone "${m.name}": GitHub milestone #${num} not found in ${repo} — skipped`);
+        continue;
+      }
+      const own = have ? ownershipOf(have.description, marker) : "owned";
+      if (own === "foreign") {
+        plan.warnings.push(`milestone "${m.name}": GitHub milestone #${num} carries another project's or milestone's code-context-sync marker — left untouched`);
+        continue;
+      }
+      if (own === "unmarked" && adoptNum === undefined) {
+        plan.warnings.push(
+          `milestone "${m.name}": GitHub milestone #${num} has no code-context-sync marker — not created by this sync, left untouched (adopt it explicitly: --milestone ${m.id}=${num} / adopt_milestones [{milestone_id: ${m.id}, github_milestone: ${num}}])`,
+        );
         continue;
       }
       const changed = have ? diffMilestone(fields, have) : ["unverified (offline)"];
-      action = { kind: changed.length ? "update" : "noop", localId: m.id, name: m.name, number: m.github_milestone, fields, changed };
+      const adopting = adoptNum !== undefined && (own === "unmarked" || m.github_milestone !== adoptNum);
+      action = { kind: adopting ? "adopt" : changed.length ? "update" : "noop", localId: m.id, name: m.name, number: num, fields, changed };
     } else {
-      const byTitle = remote?.milestones?.find((r) => r.title.trim().toLowerCase() === fields.title.trim().toLowerCase());
-      if (byTitle) action = { kind: "link", localId: m.id, name: m.name, number: byTitle.number, fields, changed: diffMilestone(fields, byTitle) };
-      else action = { kind: "create", localId: m.id, name: m.name, number: null, fields, changed: [] };
+      const sameTitle = remote?.milestones?.find((r) => r.title.trim().toLowerCase() === fields.title.trim().toLowerCase());
+      if (sameTitle) {
+        // GitHub refuses a second milestone with the same title, and a title is no proof of ownership.
+        plan.warnings.push(
+          `milestone "${m.name}": GitHub milestone #${sameTitle.number} has the same title — not linked by title; adopt it with --milestone ${m.id}=${sameTitle.number} / adopt_milestones, or rename one of them`,
+        );
+        continue;
+      }
+      action = { kind: "create", localId: m.id, name: m.name, number: null, fields, changed: [] };
     }
     msNumber.set(m.id, action.number);
     plan.milestones.push(action);
@@ -762,6 +865,13 @@ export function planSync(db: Database.Database, project: ProjectRow, remote: Rem
   plan.skipped.push(...skipped);
   const assignee = assigneeOf(project);
   const meta = remote?.meta ?? null;
+  // Adopt: only issues a ticket of this project links, each by exactly one ticket.
+  const adoptIssues = new Set((adopt.issues ?? []).filter((n) => Number.isInteger(n) && n > 0));
+  const linkedBy = new Map<number, number>();
+  for (const t of tickets) if (t.github_issue !== null && (!t.github_repo || t.github_repo.toLowerCase() === repo.toLowerCase())) linkedBy.set(t.github_issue, (linkedBy.get(t.github_issue) ?? 0) + 1);
+  for (const n of adoptIssues) {
+    if (!linkedBy.has(n)) plan.warnings.push(`adopt #${n} ignored: no ticket of project ${project.name} links issue #${n} (set update_ticket github_issue=${n} first)`);
+  }
   for (const t of tickets) {
     const ref = refOf(t);
     if (t.github_issue !== null && t.github_repo && t.github_repo.toLowerCase() !== repo.toLowerCase()) {
@@ -772,7 +882,7 @@ export function planSync(db: Database.Database, project: ProjectRow, remote: Rem
     let body: string;
     try {
       title = issueTitle(t);
-      body = buildIssueBody(t);
+      body = ownedIssueBody(project.name, t);
     } catch (e: any) {
       plan.skipped.push({ ref, reason: e.message });
       continue;
@@ -802,6 +912,7 @@ export function planSync(db: Database.Database, project: ProjectRow, remote: Rem
         addToProject: project.github_project_number !== null,
         nodeId: null,
         itemId: null,
+        adopt: false,
       });
       continue;
     }
@@ -812,8 +923,35 @@ export function planSync(db: Database.Database, project: ProjectRow, remote: Rem
       continue;
     }
     const have = remote?.issues.get(num);
+    // Ownership: update only an issue whose body carries this ticket's marker,
+    // unless this run adopts it explicitly.
+    let adopting = false;
+    if (have) {
+      const own = ownershipOf(have.body, issueMarker(project.name, ref));
+      if (own === "foreign") {
+        plan.skipped.push({ ref, reason: `issue #${num} carries another ticket's or project's code-context-sync marker — left untouched` });
+        continue;
+      }
+      if (own === "unmarked") {
+        if (!adoptIssues.has(num)) {
+          plan.skipped.push({
+            ref,
+            reason: `issue #${num} has no code-context-sync marker — not created by this sync, left untouched (adopt: [${num}] takes it over when its GitHub title starts with "${t.ticket_ref ?? "<ticket_ref>"}:")`,
+          });
+          continue;
+        }
+        const refusal = adoptRefusal(t, have, linkedBy.get(num) ?? 0);
+        if (refusal) {
+          plan.skipped.push({ ref, reason: `adopt #${num} refused: ${refusal}` });
+          continue;
+        }
+        adopting = true;
+      }
+    } else if (!remote && adoptIssues.has(num)) {
+      adopting = true; // offline plan: the title rule is checked on the live read
+    }
     const patch: IssuePatch = {};
-    const changed: string[] = [];
+    const changed: string[] = adopting ? ["adopt"] : [];
     if (have) {
       if (title !== have.title) { patch.title = title; changed.push("title"); }
       if (norm(body) !== norm(have.body)) { patch.body = body; changed.push("body"); }
@@ -846,6 +984,7 @@ export function planSync(db: Database.Database, project: ProjectRow, remote: Rem
       addToProject: project.github_project_number !== null && remote !== null && item === null,
       nodeId: have?.nodeId ?? null,
       itemId: item?.id ?? null,
+      adopt: adopting,
     });
   }
 
@@ -856,6 +995,18 @@ export function planSync(db: Database.Database, project: ProjectRow, remote: Rem
   }
   if (project.github_project_number === null) plan.warnings.push("no github_project_number — issues are not added to a Project board");
   return plan;
+}
+
+/**
+ * Why an unmarked issue may not be adopted for ticket t, or null. The GitHub
+ * title must already start with "<ticket_ref>:" — so an agent cannot adopt an
+ * arbitrary issue — and exactly one ticket of the project must link it.
+ */
+export function adoptRefusal(t: Pick<SyncTicket, "ticket_ref">, have: Pick<RemoteIssue, "title">, linkCount = 1): string | null {
+  if (!t.ticket_ref) return "the ticket has no ticket_ref, and the GitHub title must start with it";
+  if (linkCount > 1) return `${linkCount} tickets of the project link this issue`;
+  if (!have.title.trimStart().startsWith(`${t.ticket_ref}:`)) return `its GitHub title does not start with "${t.ticket_ref}:"`;
+  return null;
 }
 
 function optionId(meta: ProjectMeta, name: string): string | undefined {
@@ -871,7 +1022,7 @@ function statusChanges(a: IssueAction): boolean {
 /** Planned write count (REST calls + mutation aliases). */
 export function plannedWrites(plan: SyncPlan): number {
   let n = 0;
-  for (const m of plan.milestones) if (m.kind === "create" || m.kind === "update" || (m.kind === "link" && m.changed.length)) n++;
+  for (const m of plan.milestones) if (m.kind === "create" || m.kind === "update" || (m.kind === "adopt" && m.changed.length)) n++;
   for (const i of plan.issues) {
     if (i.kind === "create") n += 1 + (i.patch.state === "closed" ? 1 : 0);
     if (i.kind === "update") n++;
@@ -892,7 +1043,7 @@ export function formatPlan(plan: SyncPlan, header: string): string {
   if (plan.milestones.length) {
     lines.push("", `Milestones (${plan.milestones.length}):`);
     for (const m of plan.milestones) {
-      const tag = { create: "+ create", link: "~ link  ", update: "~ update", noop: "= ok    " }[m.kind];
+      const tag = { create: "+ create", adopt: "~ adopt ", update: "~ update", noop: "= ok    " }[m.kind];
       const num = m.number !== null ? ` #${m.number}` : "";
       const ch = m.changed.length ? ` — ${m.changed.join(", ")}` : "";
       lines.push(`  ${tag}${num} "${m.name}"${ch}`);
@@ -901,7 +1052,7 @@ export function formatPlan(plan: SyncPlan, header: string): string {
   lines.push("", `Issues (${plan.issues.length}):`);
   if (!plan.issues.length) lines.push("  (none)");
   for (const i of plan.issues) {
-    const tag = { create: "+ create", update: "~ update", noop: "= ok    " }[i.kind];
+    const tag = i.adopt ? "~ adopt " : { create: "+ create", update: "~ update", noop: "= ok    " }[i.kind];
     const num = i.number !== null ? ` #${i.number}` : "";
     const parts: string[] = [];
     if (i.kind === "create") parts.push(`labels [${i.fields.labels.join(", ")}] @${i.fields.assignees[0]}`);
@@ -965,6 +1116,9 @@ export interface SyncOptions {
   /** Pause between content-creating calls (GitHub secondary limits). Default 1000 ms. */
   pauseMs?: number;
   sleep?: (ms: number) => Promise<void>;
+  /** Explicit take-over of unmarked issues / milestones. A live run honours it
+   *  only after the allowlist check passed; a dry run only plans it. */
+  adopt?: AdoptOptions;
 }
 
 export interface SyncResult {
@@ -987,11 +1141,11 @@ export async function syncGithub(db: Database.Database, gw: GitHubGateway, proje
   }
 
   if (opts.dryRun && opts.offline) {
-    const plan = planSync(db, project, null);
+    const plan = planSync(db, project, null, opts.adopt);
     return { plan, text: formatPlan(plan, `sync_github ${projectName} — dry run (offline)`), writes: 0, error: null };
   }
   const remote = await readRemote(db, gw, project, { trustCache: !!opts.dryRun });
-  const plan = planSync(db, project, remote);
+  const plan = planSync(db, project, remote, opts.adopt);
   if (opts.dryRun) return { plan, text: formatPlan(plan, `sync_github ${projectName} — dry run`), writes: 0, error: null };
 
   const max = opts.maxWrites ?? DEFAULT_MAX_WRITES;
@@ -1023,13 +1177,13 @@ export async function syncGithub(db: Database.Database, gw: GitHubGateway, proje
         setMs.run(r.number, m.localId);
         done.push(`created milestone #${r.number}`);
         if (pause) await sleep(pause);
-      } else if (m.kind === "link") {
-        setMs.run(m.number, m.localId);
+      } else if (m.kind === "adopt") {
         if (m.changed.length) {
           await gw.updateMilestone(plan.repo, m.number!, m.fields);
           writes++;
         }
-        done.push(`linked milestone #${m.number}`);
+        setMs.run(m.number, m.localId);
+        done.push(`adopted milestone #${m.number}`);
       } else if (m.kind === "update") {
         await gw.updateMilestone(plan.repo, m.number!, m.fields);
         writes++;
@@ -1059,7 +1213,7 @@ export async function syncGithub(db: Database.Database, gw: GitHubGateway, proje
         if (i.milestoneLocalId !== null && "milestone" in patch) patch.milestone = msNum.get(i.milestoneLocalId) ?? null;
         await gw.updateIssue(plan.repo, i.number!, patch);
         writes++;
-        done.push(`updated #${i.number} (${i.ref})`);
+        done.push(`${i.adopt ? "adopted" : "updated"} #${i.number} (${i.ref})`);
       }
     }
 

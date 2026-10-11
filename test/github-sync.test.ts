@@ -51,6 +51,11 @@ import {
   statusFor,
   syncGithub,
   getProject,
+  issueMarker,
+  milestoneMarker,
+  ownedIssueBody,
+  ownershipOf,
+  adoptRefusal,
   type GitHubGateway,
   type IssueFields,
   type IssuePatch,
@@ -62,7 +67,7 @@ import {
 import { GhGateway, type GhRunner } from "../src/scrum/github-gateway.js";
 import { registerGithubTools, upsertProject } from "../src/scrum/tools/github.js";
 import { registerScrumTools } from "../src/scrum/tools.js";
-import { parseArgs, run as runCli } from "../src/server/sync-github-cli.js";
+import { parseArgs, parseIssueList, run as runCli } from "../src/server/sync-github-cli.js";
 import { initSchema } from "../src/server/schema.js";
 
 process.env.CODE_CONTEXT_DASHBOARD_TOKEN ??= "test-token-unused-by-fake-server";
@@ -256,7 +261,8 @@ describe("syncGithub", () => {
     expect(gh.writes()).toEqual(["createMilestone 1", "createIssue 200", "addToProject 1", "setStatus 1"]);
     const issue = gh.issues.get(200)!;
     expect(issue.title).toBe("APP-1: Add x");
-    expect(issue.body).toBe("## Why\n\nWhy text\n\n## Done when\n\ny\n");
+    expect(issue.body).toBe("## Why\n\nWhy text\n\n## Done when\n\ny\n\n<!-- code-context-sync: project=app ticket=APP-1 -->\n");
+    expect(gh.milestones[0].description).toBe("Goal\n\n<!-- code-context-sync: project=app milestone=1 -->\n");
     expect(issue.labels).toEqual(["P1", "feat", "ai_issue"]);
     expect(issue.assignees).toEqual(["octo"]);
     expect(issue.milestone).toBe(1);
@@ -281,25 +287,34 @@ describe("syncGithub", () => {
     expect(gh.log).toEqual(["readMilestones octo/app", "readIssues 200"]);
   });
 
-  it("updates a linked issue: title/body/labels/assignee, keeps unmanaged labels, moves Status", async () => {
+  it("adopts a hand-made issue and milestone: title/body/labels/assignee, keeps unmanaged labels, moves Status", async () => {
     gh.milestones.push({ number: 1, title: "M1", description: "Goal", state: "open", due_on: null });
-    gh.seedIssue(116, { title: "old title", labels: ["P0", "feat", "issue", "keep-me"], assignees: ["someone"], milestone: 1, item: { id: "PVTI_x", status: "Backlog" } });
+    gh.seedIssue(116, { title: "APP-2: old title", labels: ["P0", "feat", "issue", "keep-me"], assignees: ["someone"], milestone: 1, item: { id: "PVTI_x", status: "Backlog" } });
     const t = ticket(db, { sprint_id: ids.sprint, ticket_ref: "APP-2", title: "New", priority: "P2", status: "IN_PROGRESS", milestone_id: ids.ms, notes: "GitHub: octo/app#116" });
     backfillGithubIssues(db);
     expect(row(db, t).github_issue).toBe(116);
-    const r = await syncGithub(db, gh, "app", noSleep);
-    expect(r.plan.milestones[0].kind).toBe("link");
+    const r = await syncGithub(db, gh, "app", { ...noSleep, adopt: { issues: [116], milestones: [{ id: ids.ms, number: 1 }] } });
+    expect(r.plan.milestones[0].kind).toBe("adopt");
+    expect(r.plan.issues[0]).toMatchObject({ kind: "update", adopt: true });
     const i = gh.issues.get(116)!;
     expect(i.title).toBe("APP-2: New");
+    expect(i.body).toContain(issueMarker("app", "APP-2"));
     expect(i.labels.sort()).toEqual(["P2", "feat", "issue", "keep-me"].sort());
     expect(i.assignees).toEqual(["someone", "octo"]);
     expect(i.item?.status).toBe("In progress");
-    expect(gh.writes()).toEqual(["updateIssue 116 assignees,body,labels,title", "setStatus 1"]);
+    expect(gh.milestones[0].description).toContain(milestoneMarker("app", ids.ms));
+    expect((db.prepare("SELECT github_milestone FROM milestones WHERE id = ?").get(ids.ms) as any).github_milestone).toBe(1);
+    expect(gh.writes()).toEqual(["updateMilestone 1", "updateIssue 116 assignees,body,labels,title", "setStatus 1"]);
+    // Owned now: a rerun without adopt is a no-op.
+    gh.log = [];
+    const again = await syncGithub(db, gh, "app", noSleep);
+    expect(again.plan.skipped).toEqual([]);
+    expect(gh.writes()).toEqual([]);
   });
 
   it("closes the issue when the ticket is DONE and sets Status Done; reopens when it is not", async () => {
     gh.milestones.push({ number: 1, title: "M1", description: "Goal", state: "open", due_on: null });
-    gh.seedIssue(120, { title: "APP-3: T", body: buildIssueBody({ description: null, acceptance_criteria: null }), labels: ["P1"], assignees: ["octo"], item: { id: "PVTI_1", status: "In progress" } });
+    gh.seedIssue(120, { title: "APP-3: T", body: ownedIssueBody("app", { id: 0, ticket_ref: "APP-3", description: null, acceptance_criteria: null }), labels: ["P1"], assignees: ["octo"], item: { id: "PVTI_1", status: "In progress" } });
     const t = ticket(db, { sprint_id: ids.sprint, ticket_ref: "APP-3", title: "T", priority: "P1", status: "DONE", github_issue: 120 });
     await syncGithub(db, gh, "app", noSleep);
     expect(gh.issues.get(120)!.state).toBe("closed");
@@ -315,7 +330,7 @@ describe("syncGithub", () => {
 
   it("adds a linked issue that is not on the board yet", async () => {
     gh.milestones.push({ number: 1, title: "M1", description: "Goal", state: "open", due_on: null });
-    gh.seedIssue(130, { title: "APP-4: T", body: buildIssueBody({ description: null, acceptance_criteria: null }), labels: ["P2"], assignees: ["octo"] });
+    gh.seedIssue(130, { title: "APP-4: T", body: ownedIssueBody("app", { id: 0, ticket_ref: "APP-4", description: null, acceptance_criteria: null }), labels: ["P2"], assignees: ["octo"] });
     ticket(db, { sprint_id: ids.sprint, ticket_ref: "APP-4", title: "T", priority: "P2", github_issue: 130 });
     await syncGithub(db, gh, "app", noSleep);
     expect(gh.writes()).toEqual(["addToProject 1", "setStatus 1"]);
@@ -401,6 +416,171 @@ describe("syncGithub", () => {
     await expect(syncGithub(db, gh, "nope")).rejects.toThrow(/Unknown project/);
     upsertProject(db, { name: "norepo" });
     await expect(syncGithub(db, gh, "norepo")).rejects.toThrow(/no repo/);
+  });
+});
+
+// ─── Ownership markers + adopt (CCA-14, #142) ────────────────────────────────
+
+describe("ownership markers", () => {
+  it("marker format and ownership", () => {
+    expect(issueMarker("code-context", "CCA-01")).toBe("<!-- code-context-sync: project=code-context ticket=CCA-01 -->");
+    expect(issueMarker("a b", "#12")).toBe("<!-- code-context-sync: project=a%20b ticket=%2312 -->");
+    expect(milestoneMarker("app", 3)).toBe("<!-- code-context-sync: project=app milestone=3 -->");
+    const want = issueMarker("app", "APP-1");
+    expect(ownershipOf(`x\n\n${want}\n`, want)).toBe("owned");
+    expect(ownershipOf("<!--code-context-sync:   project=app  ticket=APP-1-->", want)).toBe("owned");
+    expect(ownershipOf("no marker", want)).toBe("unmarked");
+    expect(ownershipOf(null, want)).toBe("unmarked");
+    expect(ownershipOf(issueMarker("app", "APP-2"), want)).toBe("foreign");
+    expect(ownershipOf(issueMarker("other", "APP-1"), want)).toBe("foreign");
+    expect(ownershipOf(issueMarker("app", "APP-10"), want)).toBe("foreign");
+    // A matching marker next to a foreign one is not ownership.
+    expect(ownershipOf(`${want}\n${issueMarker("app", "APP-2")}`, want)).toBe("foreign");
+  });
+  it("a project name or ref holding a local path or a secret never reaches the marker", () => {
+    expect(() => ownedIssueBody("/Users/jane/p", { id: 1, ticket_ref: "A-1", description: null, acceptance_criteria: null })).toThrow(/local absolute path/);
+  });
+  it("adopt title rule", () => {
+    expect(adoptRefusal({ ticket_ref: "CCA-01" }, { title: "CCA-01: Do x" })).toBeNull();
+    expect(adoptRefusal({ ticket_ref: "CCA-1" }, { title: "CCA-10: Do x" })).toMatch(/does not start with "CCA-1:"/);
+    expect(adoptRefusal({ ticket_ref: "CCA-01" }, { title: "Release notes" })).toMatch(/does not start/);
+    expect(adoptRefusal({ ticket_ref: null }, { title: "x" })).toMatch(/no ticket_ref/);
+    expect(adoptRefusal({ ticket_ref: "A" }, { title: "A: x" }, 2)).toMatch(/2 tickets/);
+  });
+});
+
+describe("syncGithub ownership", () => {
+  let db: Database.Database;
+  let gh: FakeGitHub;
+  let ids: { ms: number; sprint: number };
+  beforeEach(() => {
+    db = memDb();
+    gh = new FakeGitHub();
+    ids = seed(db);
+  });
+  const owned = (ref: string) => ownedIssueBody("app", { id: 0, ticket_ref: ref, description: null, acceptance_criteria: null });
+
+  it("a ticket retargeted at an unmarked issue (update_ticket github_issue=N) is skipped: no edit, close, relabel or board move", async () => {
+    gh.seedIssue(5, { title: "Security policy", body: "Hand-written, important.", labels: ["docs"], item: null });
+    const before = structuredClone(gh.issues.get(5));
+    ticket(db, { sprint_id: ids.sprint, ticket_ref: "APP-1", title: "x", priority: "P1", type: "feat", status: "DONE", github_issue: 5 });
+    const r = await syncGithub(db, gh, "app", noSleep);
+    expect(r.error).toBeNull();
+    expect(r.plan.issues).toEqual([]);
+    expect(r.plan.skipped).toEqual([{ ref: "APP-1", reason: expect.stringMatching(/issue #5 has no code-context-sync marker — not created by this sync, left untouched \(adopt: \[5\]/) }]);
+    expect(r.text).toMatch(/Skipped \(1\):\n {2}- APP-1: issue #5 has no code-context-sync marker/);
+    expect(gh.writes().filter((w) => !w.startsWith("createMilestone"))).toEqual([]);
+    expect(gh.issues.get(5)).toEqual(before);
+  });
+
+  it("an issue with another ticket's or project's marker is skipped, even with adopt", async () => {
+    gh.seedIssue(6, { title: "APP-1: x", body: owned("APP-2") });
+    gh.seedIssue(7, { title: "APP-3: y", body: ownedIssueBody("other", { id: 0, ticket_ref: "APP-3", description: null, acceptance_criteria: null }) });
+    ticket(db, { sprint_id: ids.sprint, ticket_ref: "APP-1", title: "x", priority: "P1", github_issue: 6 });
+    ticket(db, { sprint_id: ids.sprint, ticket_ref: "APP-3", title: "y", priority: "P1", github_issue: 7 });
+    const before = structuredClone([...gh.issues.values()]);
+    const r = await syncGithub(db, gh, "app", { ...noSleep, adopt: { issues: [6, 7] } });
+    expect(r.plan.skipped.map((s) => [s.ref, s.reason])).toEqual([
+      ["APP-1", "issue #6 carries another ticket's or project's code-context-sync marker — left untouched"],
+      ["APP-3", "issue #7 carries another ticket's or project's code-context-sync marker — left untouched"],
+    ]);
+    expect([...gh.issues.values()]).toEqual(before);
+  });
+
+  it("a marked issue is updated", async () => {
+    gh.seedIssue(8, { title: "APP-1: old", body: owned("APP-1"), labels: ["P1"], assignees: ["octo"], item: { id: "PVTI_8", status: "Ready" } });
+    ticket(db, { sprint_id: ids.sprint, ticket_ref: "APP-1", title: "new", priority: "P1", github_issue: 8 });
+    const r = await syncGithub(db, gh, "app", noSleep);
+    expect(r.plan.skipped).toEqual([]);
+    expect(gh.issues.get(8)!.title).toBe("APP-1: new");
+    expect(gh.writes()).toContain("updateIssue 8 title");
+  });
+
+  it("adopt with a matching title on an allowlisted repo writes the marker", async () => {
+    gh.seedIssue(116, { title: "APP-1: hand-made", body: "by hand", labels: ["P1"], assignees: ["octo"] });
+    ticket(db, { sprint_id: ids.sprint, ticket_ref: "APP-1", title: "hand-made", priority: "P1", github_issue: 116 });
+    const r = await withAllowlist(`${REPO}@octo/7`, () => syncGithub(db, gh, "app", { pauseMs: 0, adopt: { issues: [116] } }));
+    expect(r.error).toBeNull();
+    expect(r.text).toMatch(/~ adopt {2}#116 APP-1 — adopt, body/);
+    expect(r.text).toMatch(/adopted #116 \(APP-1\)/);
+    expect(gh.issues.get(116)!.body).toBe(owned("APP-1"));
+  });
+
+  it("adopt is refused when the GitHub title does not start with the ticket ref", async () => {
+    gh.seedIssue(9, { title: "Release checklist", body: "by hand" });
+    ticket(db, { sprint_id: ids.sprint, ticket_ref: "APP-1", title: "x", priority: "P1", github_issue: 9 });
+    const r = await syncGithub(db, gh, "app", { ...noSleep, adopt: { issues: [9] } });
+    expect(r.plan.skipped).toEqual([{ ref: "APP-1", reason: 'adopt #9 refused: its GitHub title does not start with "APP-1:"' }]);
+    expect(gh.issues.get(9)!.body).toBe("by hand");
+    expect(gh.writes().filter((w) => w.includes(" 9"))).toEqual([]);
+  });
+
+  it("adopt of an issue no ticket links is ignored with a warning", async () => {
+    gh.seedIssue(10, { title: "APP-1: x", body: "by hand" });
+    const r = await syncGithub(db, gh, "app", { ...noSleep, adopt: { issues: [10] } });
+    expect(r.plan.warnings).toContain("adopt #10 ignored: no ticket of project app links issue #10 (set update_ticket github_issue=10 first)");
+    expect(gh.readNumbers.flat()).not.toContain(10);
+  });
+
+  it("adopt on a dry run is planned only; without the allowlist a live adopt is refused before any call", async () => {
+    gh.seedIssue(116, { title: "APP-1: x", body: "by hand" });
+    ticket(db, { sprint_id: ids.sprint, ticket_ref: "APP-1", title: "x", priority: "P1", github_issue: 116 });
+    await withAllowlist(undefined, async () => {
+      const dry = await syncGithub(db, gh, "app", { dryRun: true, adopt: { issues: [116] } });
+      expect(dry.text).toMatch(/~ adopt {2}#116 APP-1/);
+      expect(dry.plan.issues[0]).toMatchObject({ adopt: true, kind: "update" });
+      const offline = await syncGithub(db, gh, "app", { dryRun: true, offline: true, adopt: { issues: [116] } });
+      expect(offline.text).toMatch(/~ adopt {2}#116 APP-1 — adopt, unverified \(offline\)/);
+      expect(gh.writes()).toEqual([]);
+      gh.log = [];
+      await expect(syncGithub(db, gh, "app", { pauseMs: 0, adopt: { issues: [116] } })).rejects.toThrow(/not authorized/);
+      expect(gh.log).toEqual([]);
+    });
+    expect(gh.issues.get(116)!.body).toBe("by hand");
+  });
+
+  it("milestones: a title match never links; a stored number without the marker is left alone; a mapping adopts", async () => {
+    gh.milestones.push({ number: 1, title: "M1", description: "hand-made", state: "open", due_on: null });
+    ticket(db, { sprint_id: ids.sprint, ticket_ref: "APP-1", title: "x", priority: "P1", type: "feat", milestone_id: ids.ms });
+    const r = await syncGithub(db, gh, "app", noSleep);
+    expect(r.plan.milestones).toEqual([]);
+    expect(r.plan.warnings.join("\n")).toMatch(/GitHub milestone #1 has the same title — not linked by title/);
+    expect(gh.writes()).toEqual(["createIssue 200", "addToProject 1", "setStatus 1"]);
+    expect(gh.issues.get(200)!.milestone).toBeNull();
+    expect(gh.milestones[0].description).toBe("hand-made");
+    expect((db.prepare("SELECT github_milestone FROM milestones WHERE id = ?").get(ids.ms) as any).github_milestone).toBeNull();
+
+    // update_milestone github_milestone=1 (or execute) points the row at it: still untouched.
+    db.prepare("UPDATE milestones SET github_milestone = 1 WHERE id = ?").run(ids.ms);
+    gh.log = [];
+    const r2 = await syncGithub(db, gh, "app", noSleep);
+    expect(r2.plan.warnings.join("\n")).toMatch(/milestone #1 has no code-context-sync marker — not created by this sync, left untouched/);
+    expect(gh.writes()).toEqual([]);
+
+    // A foreign marker is refused even with a mapping.
+    gh.milestones[0].description = milestoneMarker("other", ids.ms);
+    const r3 = await syncGithub(db, gh, "app", { ...noSleep, adopt: { milestones: [{ id: ids.ms, number: 1 }] } });
+    expect(r3.plan.warnings.join("\n")).toMatch(/carries another project's or milestone's code-context-sync marker/);
+    expect(gh.writes()).toEqual([]);
+
+    // The explicit mapping adopts it.
+    gh.milestones[0].description = "hand-made";
+    const r4 = await syncGithub(db, gh, "app", { ...noSleep, adopt: { milestones: [{ id: ids.ms, number: 1 }] } });
+    expect(r4.plan.milestones[0].kind).toBe("adopt");
+    expect(gh.milestones[0]).toMatchObject({ title: "M1", description: `Goal\n\n${milestoneMarker("app", ids.ms)}\n` });
+    expect(gh.issues.get(200)!.milestone).toBe(1);
+  });
+
+  it("MCP sync_github passes adopt and adopt_milestones", async () => {
+    gh.seedIssue(116, { title: "APP-1: x", body: "by hand" });
+    gh.milestones.push({ number: 1, title: "M1", description: "", state: "open", due_on: null });
+    ticket(db, { sprint_id: ids.sprint, ticket_ref: "APP-1", title: "x", priority: "P1", github_issue: 116 });
+    const server = new FakeServer();
+    registerGithubTools(server as never, db, () => gh);
+    const r = await server.tools.get("sync_github")!({ project: "app", dry_run: true, adopt: [116], adopt_milestones: [{ milestone_id: ids.ms, github_milestone: 1 }] });
+    expect(text(r)).toMatch(/~ adopt {2}#1 "M1"/);
+    expect(text(r)).toMatch(/~ adopt {2}#116 APP-1/);
+    expect(gh.writes()).toEqual([]);
   });
 });
 
@@ -496,15 +676,16 @@ describe("GhGateway over a fake gh runner", () => {
     upsertProject(db, { name: "app", repo: REPO, github_project_number: 10 });
     db.prepare("INSERT INTO milestones (name, description, status, project, github_milestone) VALUES ('M1', '', 'active', 'app', 1)").run();
     const s = Number(db.prepare("INSERT INTO sprints (name, status, project) VALUES ('S', 'implementation', 'app')").run().lastInsertRowid);
-    const body = buildIssueBody({ description: null, acceptance_criteria: null });
     for (let n = 116; n <= 128; n++) ticket(db, { sprint_id: s, ticket_ref: `C-${n}`, title: "t", priority: "P1", milestone_id: 1, github_issue: n });
     const { run, calls } = fakeRunner((args, input) => {
-      if (args.includes("GET")) return { stdout: [{ number: 1, title: "M1", description: "", state: "open", due_on: null }] };
+      if (args.includes("GET")) return { stdout: [{ number: 1, title: "M1", description: `${milestoneMarker("app", 1)}\n`, state: "open", due_on: null }] };
       const nums = [...input.query.matchAll(/issue\(number: (\d+)\)/g)].map((m) => Number(m[1]));
       return {
         stdout: {
           data: {
-            repository: Object.fromEntries(nums.map((n) => [`i${n}`, issueNode(n, { title: `C-${n}: t`, body })])),
+            repository: Object.fromEntries(
+              nums.map((n) => [`i${n}`, issueNode(n, { title: `C-${n}: t`, body: ownedIssueBody("app", { id: 0, ticket_ref: `C-${n}`, description: null, acceptance_criteria: null }) })]),
+            ),
             board: { projectV2: { id: "PVT_1", field: { id: "F", options: [{ id: "o1", name: "Ready" }] } } },
           },
         },
@@ -512,8 +693,30 @@ describe("GhGateway over a fake gh runner", () => {
     });
     const r = await syncGithub(db, new GhGateway(run), "app", { pauseMs: 0, auth: authFor(`${REPO}@octo/10`) });
     expect(r.error).toBeNull();
+    expect(r.plan.skipped).toEqual([]);
+    expect(r.plan.issues.map((i) => i.kind)).toEqual(Array(13).fill("noop"));
+    expect(r.plan.milestones.map((m) => m.kind)).toEqual(["noop"]);
     expect(r.writes).toBe(0);
     expect(calls).toHaveLength(2);
+  });
+
+  it("adopting 13 hand-made issues needs no extra read: 2 reads + 13 writes", async () => {
+    const db = memDb();
+    upsertProject(db, { name: "app", repo: REPO });
+    const s = Number(db.prepare("INSERT INTO sprints (name, status, project) VALUES ('S', 'implementation', 'app')").run().lastInsertRowid);
+    for (let n = 116; n <= 128; n++) ticket(db, { sprint_id: s, ticket_ref: `C-${n}`, title: "t", priority: "P1", github_issue: n });
+    const { run, calls } = fakeRunner((args, input) => {
+      if (args.includes("PATCH")) return { stdout: {} };
+      const nums = [...input.query.matchAll(/issue\(number: (\d+)\)/g)].map((m) => Number(m[1]));
+      return { stdout: { data: { repository: Object.fromEntries(nums.map((n) => [`i${n}`, issueNode(n, { title: `C-${n}: hand-made`, body: "made by hand" })])) } } };
+    });
+    const adopt = { issues: Array.from({ length: 13 }, (_, k) => 116 + k) };
+    const r = await syncGithub(db, new GhGateway(run), "app", { pauseMs: 0, auth: authFor(REPO), adopt });
+    expect(r.error).toBeNull();
+    expect(r.writes).toBe(13);
+    expect(calls.filter((c) => c.args.includes("graphql"))).toHaveLength(1);
+    expect(calls).toHaveLength(14);
+    expect(calls.filter((c) => c.args.includes("PATCH")).every((c) => String(c.input.body).includes("<!-- code-context-sync: project=app ticket=C-"))).toBe(true);
   });
 });
 
@@ -609,6 +812,9 @@ describe("code-context-sync-github CLI", () => {
     expect(parseArgs(["--project", "p", "--dry-run", "--offline", "--milestone", "14=1", "--milestone", "3", "--db", "/x.db"])).toMatchObject({
       project: "p", dryRun: true, offline: true, milestones: [{ id: 14, github: 1 }, { id: 3, github: null }], db: "/x.db",
     });
+    expect(parseArgs(["--project", "p", "--adopt", "116-118", "--adopt", "#120,118"])).toMatchObject({ adopt: [116, 117, 118, 120] });
+    expect(parseArgs(["--project", "p", "--adopt", "5-3"])).toMatch(/ascending/);
+    expect(parseArgs(["--project", "p", "--adopt", "x"])).toMatch(/--adopt needs/);
     expect(parseArgs(["--dry-run"])).toBe("--project is required");
     expect(parseArgs(["--project", "p", "--offline"])).toBe("--offline needs --dry-run");
   });
@@ -977,6 +1183,26 @@ describe("code-context-sync-github CLI authorization", () => {
     expect((db.prepare("SELECT repo FROM projects WHERE name = 'app'").get() as any).repo).toBe(REPO);
     db.close();
     expect(parseArgs(["--project", "p", "--force"])).toMatchObject({ force: true });
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("--adopt and --milestone <id>=<N> adopt hand-made issues and milestones on an allowlisted live run", async () => {
+    const { dir, file, ms } = fileDb();
+    const setup = new Database(file);
+    setup.prepare("UPDATE tickets SET github_issue = 116").run();
+    setup.close();
+    const gh = new FakeGitHub();
+    gh.milestones.push({ number: 1, title: "M", description: "by hand", state: "open", due_on: null });
+    gh.seedIssue(116, { title: "C-1: t", body: "by hand", labels: ["P1"], assignees: ["octo"] });
+    const out: string[] = [];
+    const args = { ...base(file, ms), milestones: [{ id: ms, github: 1 }], adopt: parseIssueList("116-116") as number[] };
+    // Without the allowlist: refused, nothing written.
+    expect(await withAllowlist(undefined, () => runCli(args, gh, (s) => out.push(s)))).toBe(2);
+    expect(gh.writes()).toEqual([]);
+    expect(await withAllowlist(REPO, () => runCli(args, gh, (s) => out.push(s)))).toBe(0);
+    expect(out.join("\n")).toMatch(/adopted milestone #1; adopted #116 \(C-1\)/);
+    expect(gh.issues.get(116)!.body).toContain(issueMarker("app", "C-1"));
+    expect(gh.milestones[0].description).toContain(milestoneMarker("app", ms));
     fs.rmSync(dir, { recursive: true, force: true });
   });
 });
