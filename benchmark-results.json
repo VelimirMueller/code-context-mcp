@@ -4,8 +4,8 @@
     "fileCount": 10,
     "tsFileCount": 5,
     "exportCount": 19,
-    "depCount": 3,
-    "generatedAt": "2026-06-11T18:25:28.569Z",
+    "depCount": 5,
+    "generatedAt": "2026-10-11T14:07:55.284Z",
     "methodology": "Simulated agent workflows — MCP tool calls vs raw file reads. Self-contained tasks, no cross-task state. Deterministic (no AI API calls).",
     "tokenEstimation": "Conservative whitespace+symbol splitting. NOT Claude tokenizer counts. Real API usage may differ."
   },
@@ -16,16 +16,16 @@
       "category": "retrieval",
       "points": 1,
       "mcp": {
-        "tokens": 161,
+        "tokens": 136,
         "calls": 2,
         "files": 1
       },
       "vanilla": {
-        "tokens": 467,
+        "tokens": 387,
         "calls": 2,
         "files": 1
       },
-      "tokenSavingsPct": 65.5,
+      "tokenSavingsPct": 64.9,
       "callSavingsPct": 0
     },
     {
@@ -34,16 +34,16 @@
       "category": "retrieval",
       "points": 1,
       "mcp": {
-        "tokens": 31,
+        "tokens": 16,
         "calls": 1,
         "files": 0
       },
       "vanilla": {
-        "tokens": 360,
+        "tokens": 310,
         "calls": 2,
         "files": 1
       },
-      "tokenSavingsPct": 91.4,
+      "tokenSavingsPct": 94.8,
       "callSavingsPct": 50
     },
     {
@@ -52,16 +52,16 @@
       "category": "analysis",
       "points": 2,
       "mcp": {
-        "tokens": 114,
+        "tokens": 96,
         "calls": 1,
         "files": 1
       },
       "vanilla": {
-        "tokens": 564,
+        "tokens": 534,
         "calls": 4,
         "files": 3
       },
-      "tokenSavingsPct": 79.8,
+      "tokenSavingsPct": 82,
       "callSavingsPct": 75
     },
     {
@@ -70,7 +70,7 @@
       "category": "exploration",
       "points": 2,
       "mcp": {
-        "tokens": 170,
+        "tokens": 136,
         "calls": 1,
         "files": 0
       },
@@ -79,7 +79,7 @@
         "calls": 5,
         "files": 4
       },
-      "tokenSavingsPct": 40.6,
+      "tokenSavingsPct": 52.4,
       "callSavingsPct": 80
     },
     {
@@ -88,16 +88,16 @@
       "category": "implementation",
       "points": 2,
       "mcp": {
-        "tokens": 304,
+        "tokens": 385,
         "calls": 4,
         "files": 2
       },
       "vanilla": {
-        "tokens": 561,
+        "tokens": 501,
         "calls": 5,
         "files": 2
       },
-      "tokenSavingsPct": 45.8,
+      "tokenSavingsPct": 23.2,
       "callSavingsPct": 20
     },
     {
@@ -106,16 +106,16 @@
       "category": "debugging",
       "points": 3,
       "mcp": {
-        "tokens": 400,
+        "tokens": 373,
         "calls": 4,
         "files": 3
       },
       "vanilla": {
-        "tokens": 1071,
+        "tokens": 931,
         "calls": 5,
         "files": 4
       },
-      "tokenSavingsPct": 62.7,
+      "tokenSavingsPct": 59.9,
       "callSavingsPct": 20
     },
     {
@@ -124,16 +124,16 @@
       "category": "implementation",
       "points": 3,
       "mcp": {
-        "tokens": 694,
+        "tokens": 623,
         "calls": 6,
         "files": 3
       },
       "vanilla": {
-        "tokens": 1001,
+        "tokens": 991,
         "calls": 9,
         "files": 5
       },
-      "tokenSavingsPct": 30.7,
+      "tokenSavingsPct": 37.1,
       "callSavingsPct": 33.3
     },
     {
@@ -142,16 +142,16 @@
       "category": "refactoring",
       "points": 5,
       "mcp": {
-        "tokens": 1158,
+        "tokens": 1136,
         "calls": 11,
         "files": 4
       },
       "vanilla": {
-        "tokens": 1531,
+        "tokens": 1471,
         "calls": 12,
         "files": 9
       },
-      "tokenSavingsPct": 24.4,
+      "tokenSavingsPct": 22.8,
       "callSavingsPct": 8.3
     },
     {
@@ -160,16 +160,16 @@
       "category": "implementation",
       "points": 5,
       "mcp": {
-        "tokens": 863,
+        "tokens": 819,
         "calls": 8,
         "files": 4
       },
       "vanilla": {
-        "tokens": 1254,
+        "tokens": 1224,
         "calls": 11,
         "files": 9
       },
-      "tokenSavingsPct": 31.2,
+      "tokenSavingsPct": 33.1,
       "callSavingsPct": 27.3
     },
     {
@@ -178,23 +178,23 @@
       "category": "analysis",
       "points": 8,
       "mcp": {
-        "tokens": 911,
+        "tokens": 816,
         "calls": 11,
         "files": 9
       },
       "vanilla": {
-        "tokens": 1631,
+        "tokens": 1421,
         "calls": 13,
         "files": 10
       },
-      "tokenSavingsPct": 44.1,
+      "tokenSavingsPct": 42.6,
       "callSavingsPct": 15.4
     }
   ],
   "summary": {
-    "totalMcpTokens": 4806,
-    "totalVanillaTokens": 8726,
-    "totalSavingsPct": 44.9,
+    "totalMcpTokens": 4536,
+    "totalVanillaTokens": 8056,
+    "totalSavingsPct": 43.7,
     "totalMcpCalls": 49,
     "totalVanillaCalls": 68,
     "callSavingsPct": 27.9,
@@ -202,34 +202,34 @@
     "taskCount": 10,
     "categories": {
       "retrieval": {
-        "mcpTokens": 192,
-        "vanillaTokens": 827,
-        "savingsPct": 76.8
+        "mcpTokens": 152,
+        "vanillaTokens": 697,
+        "savingsPct": 78.2
       },
       "analysis": {
-        "mcpTokens": 1025,
-        "vanillaTokens": 2195,
-        "savingsPct": 53.3
+        "mcpTokens": 912,
+        "vanillaTokens": 1955,
+        "savingsPct": 53.4
       },
       "exploration": {
-        "mcpTokens": 170,
+        "mcpTokens": 136,
         "vanillaTokens": 286,
-        "savingsPct": 40.6
+        "savingsPct": 52.4
       },
       "implementation": {
-        "mcpTokens": 1861,
-        "vanillaTokens": 2816,
-        "savingsPct": 33.9
+        "mcpTokens": 1827,
+        "vanillaTokens": 2716,
+        "savingsPct": 32.7
       },
       "debugging": {
-        "mcpTokens": 400,
-        "vanillaTokens": 1071,
-        "savingsPct": 62.7
+        "mcpTokens": 373,
+        "vanillaTokens": 931,
+        "savingsPct": 59.9
       },
       "refactoring": {
-        "mcpTokens": 1158,
-        "vanillaTokens": 1531,
-        "savingsPct": 24.4
+        "mcpTokens": 1136,
+        "vanillaTokens": 1471,
+        "savingsPct": 22.8
       }
     }
   }

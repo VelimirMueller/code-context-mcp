@@ -139,7 +139,13 @@ export const LIVE_TASKS: LiveTask[] = [
         'utils/helpers\\.(ts|js)\\b',
         // CCA-07: "no internal/module dependencies", "no internal imports",
         // "has none — it's a leaf module", "imports nothing" are correct too.
-        'no (external |third[- ]party |npm |node |internal |module |local |project |other )?(imports|dependencies|deps)( at all)?|leaf (module|file|node)|(imports|depends on|relies on) nothing|self[- ]contained|standalone|zero (imports|dependencies)|nothing (to import|outside|imported)|does.?t (import|depend|rely|use) (on |anything |any |external)|only (uses?|imports?)( the )?(built[- ]?in|standard|native|js|javascript|date)|depend(s)? only on (the )?(built[- ]?in|standard|native|js|javascript|date)',
+        // CCA-12: "no file dependencies", "doesn't / does not / don't import
+        // anything" at the end of a sentence (the old pattern wanted a space
+        // after "anything", so "doesn't import anything." failed). normaliseAnswer
+        // strips straight apostrophes ("doesnt"); a curly one survives.
+        // "doesn't depend on src/types.ts" must not pass, so "on" alone no
+        // longer counts as the object.
+        'no (external |third[- ]party |npm |node |internal |module |local |project |other |file |source[- ]file )?(imports|dependencies|deps)( at all)?|leaf (module|file|node)|(imports|depends on|relies on) nothing|self[- ]contained|standalone|zero (imports|dependencies)|nothing (to import|outside|imported)|(does|do)(n’?t| not) (import|depend on|rely on|use) (anything|any|other|external)\\b|only (uses?|imports?)( the )?(built[- ]?in|standard|native|js|javascript|date)|depend(s)? only on (the )?(built[- ]?in|standard|native|js|javascript|date)',
       ],
     },
   },

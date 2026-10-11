@@ -11,7 +11,7 @@
   "panels": [
     {"key": "stats", "type": "stats", "items": [
       {"value": "93",    "label": "MCP TOOLS"},
-      {"value": "46.3%", "label": "FEWER TOKENS, SIMULATED"},
+      {"value": "43.7%", "label": "FEWER TOKENS, SIMULATED"},
       {"value": "1",     "label": "SQLITE FILE"},
       {"value": "0",     "label": "API KEYS"}
     ]},
@@ -34,9 +34,9 @@
       {"title": "DASHBOARD",  "sub": ":3333, SSE"}
     ], "caption": "Load context from the database first. Read the file second."},
     {"key": "bench", "type": "stats", "items": [
-      {"value": "46.3%", "label": "TOKENS SAVED, SIMULATED"},
+      {"value": "43.7%", "label": "TOKENS SAVED, SIMULATED"},
       {"value": "27.9%", "label": "FEWER TOOL CALLS"},
-      {"value": "91.5%", "label": "STOCHASTIC WINS"}
+      {"value": "92.5%", "label": "STOCHASTIC WINS"}
     ]},
     {"key": "phases", "type": "flow", "nodes": [
       {"title": "PLANNING",       "sub": "1 day"},

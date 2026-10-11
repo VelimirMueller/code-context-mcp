@@ -334,8 +334,8 @@ They cover the spectrum of real development work:
 
 ```
 Task                             Pts │  MCP tok calls │  Van tok calls │  Saved Δcalls
-Single-file lookup                 1 │      161     2 │      467     2 │    66%    0%
-Symbol search                      1 │       31     1 │      360     2 │    91%   50%
+Single-file lookup                 1 │      136     2 │      387     2 │    65%    0%
+Symbol search                      1 │       16     1 │      310     2 │    95%   50%
 ...
 ```
 
@@ -371,9 +371,9 @@ The test writes a JSON file consumed by the dashboard. Structure:
       "label": "Single-file lookup",
       "category": "retrieval",
       "points": 1,
-      "mcp": { "tokens": 161, "calls": 2, "files": 1 },
-      "vanilla": { "tokens": 467, "calls": 2, "files": 1 },
-      "tokenSavingsPct": 65.5,
+      "mcp": { "tokens": 136, "calls": 2, "files": 1 },
+      "vanilla": { "tokens": 387, "calls": 2, "files": 1 },
+      "tokenSavingsPct": 64.9,
       "callSavingsPct": 0
     }
   ],
@@ -439,15 +439,15 @@ The benchmark report and JSON output include methodology disclaimers. When citin
 
 **Do:**
 
-- "In a 10-task simulated benchmark, MCP tools consumed ~45% fewer estimated tokens than raw file reading"
+- "In a 10-task simulated benchmark, MCP tools consumed ~44% fewer estimated tokens than raw file reading"
 - "Token counts are whitespace-based estimates, not Claude API measurements"
 - "Results are from a small fixture (11 files) — production codebases may differ"
 
 **Don't:**
 
-- "MCP reduces token usage by 45%" (implies measured API tokens)
-- "MCP is 45% more efficient" (conflates token reduction with efficiency)
-- "Proven 45% savings" (simulated, not measured in production)
+- "MCP reduces token usage by 44%" (implies measured API tokens)
+- "MCP is 44% more efficient" (conflates token reduction with efficiency)
+- "Proven 44% savings" (simulated, not measured in production)
 
 ---
 
@@ -500,20 +500,20 @@ npx vitest run test/benchmark-stochastic.test.ts --reporter=verbose
 - Bootstrap 95% confidence intervals (2000 resamples)
 - Rank-biserial correlation (effect size)
 
-### Results
+### Results (simulated, regenerated 2026-10-11)
 
 ```
 Trials: 200  Seed: 42
 
-MCP wins: 181/200 (90.5%)
-Savings: 49.7% (95% CI: [17.9%, 44.9%])
+MCP wins: 185/200 (92.5%)  Vanilla wins: 14  Ties: 1
+Savings: 50.1% (95% CI: [19.6%, 45.9%])
 
-Wilcoxon signed-rank: z=11.688, p<0.001
-Effect size: r=0.953 (large)
+Wilcoxon signed-rank: z=11.684, p<0.001, n=199
+Effect size: r=0.955 (large)
 Verdict: REJECT H₀ — MCP savings are statistically significant
 ```
 
-**Interpretation:** Across 200 randomized trials with exploration noise, MCP won 90.5% of the time. The Wilcoxon test rejects the null hypothesis (p < 0.001) with a large effect size (r=0.953). The 95% CI lower bound is 17.9% — even in the worst case, MCP saves tokens.
+**Interpretation:** Across 200 randomized trials with exploration noise, MCP won 92.5% of the time. The Wilcoxon test rejects the null hypothesis (p < 0.001) with a large effect size (r=0.955). Savings 50.1% is the ratio of total tokens; the 95% CI is for the mean per-trial saving (34.9%), and its lower bound is 19.6%. All of this is simulated (no model runs).
 
 ### Reproducibility
 
