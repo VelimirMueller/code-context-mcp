@@ -10,7 +10,7 @@ The long version. The [README](../README.md) has the short one.
      ▼
   ┌────────────────────┐   stat + git diff   ┌────────────────────┐
   │  MCP server        │ ──────────────────▸ │  your repo         │
-  │  93 tools          │ ◂────────────────── │  git ls-files only │
+  │  97 tools          │ ◂────────────────── │  git ls-files only │
   │  compact cards     │   re-index changed  └────────────────────┘
   └─────────┬──────────┘
             │  reads · writes

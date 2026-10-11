@@ -4,10 +4,10 @@
   "divider-how-v3.svg": "03 HOW IT WORKS. ONE SQLITE FILE. NO MAGIC.",
   "divider-usage-v3.svg": "04 USAGE. THE LONG PART, FOLDED.",
   "divider-status-v3.svg": "05 STATUS. TESTED. NOT BY VIBES.",
-  "stats-v3-dark.svg": "93 MCP TOOLS. 43.7% FEWER TOKENS, SIMULATED. 1 SQLITE FILE. 0 API KEYS",
-  "stats-v3-light.svg": "93 MCP TOOLS. 43.7% FEWER TOKENS, SIMULATED. 1 SQLITE FILE. 0 API KEYS",
-  "features-v3-dark.svg": "CODE INDEX: File roles, exports and dependents in one context.db. Checked against the disk on every answer. SPRINT PROCESS: A 9-agent team. Vision to retro, with gates. 93 MCP tools, 6 slash commands. LIVE DASHBOARD: React on :3333. SSE updates, no polling. Edit tickets, the session sees it",
-  "features-v3-light.svg": "CODE INDEX: File roles, exports and dependents in one context.db. Checked against the disk on every answer. SPRINT PROCESS: A 9-agent team. Vision to retro, with gates. 93 MCP tools, 6 slash commands. LIVE DASHBOARD: React on :3333. SSE updates, no polling. Edit tickets, the session sees it",
+  "stats-v3-dark.svg": "97 MCP TOOLS. 43.7% FEWER TOKENS, SIMULATED. 1 SQLITE FILE. 0 API KEYS",
+  "stats-v3-light.svg": "97 MCP TOOLS. 43.7% FEWER TOKENS, SIMULATED. 1 SQLITE FILE. 0 API KEYS",
+  "features-v3-dark.svg": "CODE INDEX: File roles, exports and dependents in one context.db. Checked against the disk on every answer. SPRINT PROCESS: A 9-agent team. Vision to retro, with gates. 97 MCP tools, 6 slash commands. LIVE DASHBOARD: React on :3333. SSE updates, no polling. Edit tickets, the session sees it",
+  "features-v3-light.svg": "CODE INDEX: File roles, exports and dependents in one context.db. Checked against the disk on every answer. SPRINT PROCESS: A 9-agent team. Vision to retro, with gates. 97 MCP tools, 6 slash commands. LIVE DASHBOARD: React on :3333. SSE updates, no polling. Edit tickets, the session sees it",
   "start-v3-dark.svg": "Terminal: $ npm install vlm-code-context-mcp | $ npx code-context-mcp setup . | # restart Claude Code. setup wrote .mcp.json | $ npx code-context-dashboard ./context.db | # http://localhost:3333",
   "start-v3-light.svg": "Terminal: $ npm install vlm-code-context-mcp | $ npx code-context-mcp setup . | # restart Claude Code. setup wrote .mcp.json | $ npx code-context-dashboard ./context.db | # http://localhost:3333",
   "flow-v3-dark.svg": "AGENT -> MCP SERVER -> CONTEXT.DB -> DASHBOARD. Load context from the database first. Read the file second.",
@@ -16,6 +16,6 @@
   "bench-v3-light.svg": "43.7% TOKENS SAVED, SIMULATED. 27.9% FEWER TOOL CALLS. 92.5% STOCHASTIC WINS",
   "phases-v3-dark.svg": "PLANNING -> IMPLEMENTATION -> DONE -> REST. 4 phases. Each one has a gate. The gates do not negotiate.",
   "phases-v3-light.svg": "PLANNING -> IMPLEMENTATION -> DONE -> REST. 4 phases. Each one has a gate. The gates do not negotiate.",
-  "status-v3-dark.svg": "Release: 2.11.0 on npm. Python index: since 2.8. Tests: 1052, vitest. Dashboard: 7 pages, live. Fun + stream: hidden unless opted in",
-  "status-v3-light.svg": "Release: 2.11.0 on npm. Python index: since 2.8. Tests: 1052, vitest. Dashboard: 7 pages, live. Fun + stream: hidden unless opted in"
+  "status-v3-dark.svg": "Release: 2.12.0 on npm. Python index: since 2.8. Tests: 1841, vitest. Dashboard: 7 pages, live. Fun + stream: hidden unless opted in",
+  "status-v3-light.svg": "Release: 2.12.0 on npm. Python index: since 2.8. Tests: 1841, vitest. Dashboard: 7 pages, live. Fun + stream: hidden unless opted in"
 }
