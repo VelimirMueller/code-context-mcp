@@ -16,7 +16,10 @@
  *   GraphQL mutations (20 per request). Content-creating calls are paced.
  * - Secret hygiene: no token is read or stored (gh holds it); every text that
  *   leaves the machine is scrubbed of local absolute paths and refused when a
- *   path or a token pattern survives (assertPublishable).
+ *   path or a token pattern survives (assertPublishable, which normalizes
+ *   encodings on its own and does not trust the scrubber).
+ * - Authorization: a live (non-dry-run) sync writes only to repos listed in
+ *   CODE_CONTEXT_GITHUB_SYNC_REPOS, set in the process env, never by a tool.
  */
 import type Database from "better-sqlite3";
 
@@ -32,27 +35,113 @@ export const MUTATION_BATCH = 20;
 export const DEFAULT_MAX_WRITES = 100;
 
 // ─── Path scrubbing + publish guard ──────────────────────────────────────────
+//
+// Two independent layers. The scrubber rewrites path-like tokens so normal text
+// still publishes; the guard re-checks the final text on its own, after
+// normalizing every encoding GitHub would still render as a path. A form the
+// scrubber misses is refused by the guard — never published raw.
 
-/** Local absolute paths: macOS/Linux home, temp and volume dirs, Windows user dirs.
- *  The lookbehind keeps URL paths (https://x.com/home/…) out. */
-const LOCAL_PATH_RE =
-  /(?<![\w.:/~-])(?:\/Users\/|\/home\/|\/root\/|\/private\/(?:var|tmp)\/|\/var\/folders\/|\/tmp\/|\/Volumes\/|[A-Za-z]:\\(?:Users|Documents and Settings)\\)[^\s`'"<>)\]]*/g;
+/** Local roots, matched on normalized text (`/` separators, decoded). */
+const LOCAL_ROOT_RE =
+  /(?:\/(?:Users|home|root|Volumes|tmp)\/|\/var\/folders\/|\/private\/(?:var|tmp)(?![\w.-])|[a-z]:\/(?:Users|Documents and Settings)\/)/gi;
+/** Roots whose next segment is a user name (never kept as the "last segment"). */
+const USER_ROOT_RE = /(?:\/(?:Users|home)\/|[a-z]:\/(?:Users|Documents and Settings)\/)$/i;
+const FILE_URL_RE = /\bfile:\//i;
 const TOKEN_RE = /\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/;
+/** Characters that end a token for the guard's URL check (more = stricter). */
+const GUARD_DELIM = /[\s`'"<>()[\]{}|]/;
+/** Tokens the scrubber rewrites: runs without these characters. */
+const SCRUB_TOKEN_RE = /[^\s`'"<>()[\]{}|,*]+/g;
+/** Windows "Documents and Settings" holds spaces; join it so it stays one token. */
+const DOCS_AND_SETTINGS_RE = /(?<=[\\/;]|%2f|%5c)Documents and Settings(?=[\\/&%])/gi;
+const TRAILING_PUNCT = /[.,:;!?]+$/;
 
-/** Replace every local absolute path with `…/<last segment>`. */
-export function scrubLocalPaths(text: string): string {
-  return text.replace(LOCAL_PATH_RE, (m) => {
-    const seg = m.split(/[\\/]/).filter(Boolean).pop();
-    return seg && !/^[A-Za-z]:$/.test(seg) ? `…/${seg}` : "…";
-  });
+const NAMED_ENTITIES: Record<string, string> = { sol: "/", bsol: "\\", colon: ":", amp: "&", period: ".", tilde: "~", lowbar: "_", hyphen: "-", dash: "-" };
+
+function decodeOnce(s: string): string {
+  return s
+    .replace(/&#(\d{1,7});?/g, (m, d) => safeChar(Number(d), m))
+    .replace(/&#x([0-9a-f]{1,6});?/gi, (m, h) => safeChar(parseInt(h, 16), m))
+    .replace(/&([a-z]+);/gi, (m, n) => NAMED_ENTITIES[n.toLowerCase()] ?? m)
+    .replace(/%([0-9a-f]{2})/gi, (_m, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/\\u\{?([0-9a-f]{4})\}?/gi, (m, h) => safeChar(parseInt(h, 16), m))
+    .replace(/\\x([0-9a-f]{2})/gi, (m, h) => safeChar(parseInt(h, 16), m));
 }
 
-/** Throws when text still holds a local absolute path or a token. Call on every
- *  string sent to GitHub, after scrubbing. */
+function safeChar(cp: number, fallback: string): string {
+  return cp > 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : fallback;
+}
+
+/**
+ * The text as GitHub could render it, for path detection only (never sent):
+ * invisible characters dropped, NFKC, percent / HTML entity / `\u` / `\x`
+ * escapes decoded (repeated for double encoding), `\` → `/`, and repeated
+ * slashes collapsed except right after a scheme colon.
+ */
+export function normalizeForGuard(text: string): string {
+  let s = text;
+  for (let i = 0; i < 4; i++) {
+    const next = decodeOnce(s.replace(/[\u00AD\u180E\u200B-\u200F\u2060-\u2064\uFEFF]/g, "").normalize("NFKC"));
+    if (next === s) break;
+    s = next;
+  }
+  return s.replace(/\\/g, "/").replace(/(?<!:)\/{2,}/g, "/");
+}
+
+/** True when `pre` (token text right before a root) is `http(s)://host[/…]`. */
+function insideHttpUrl(pre: string): boolean {
+  return /(?:^|[^a-z0-9+.-])https?:\/\/[^/]+(?:\/.*)?$/i.test(pre);
+}
+
+/** First local root (or `file:/` URL) in normalized text that is not part of
+ *  an http(s) URL path: its span, or null. */
+function findLocalRoot(n: string): { index: number; end: number; userDir: boolean } | null {
+  const re = new RegExp(LOCAL_ROOT_RE.source, "gi");
+  for (let m = re.exec(n); m; m = re.exec(n)) {
+    let start = m.index;
+    while (start > 0 && !GUARD_DELIM.test(n[start - 1])) start--;
+    if (!insideHttpUrl(n.slice(start, m.index))) return { index: m.index, end: m.index + m[0].length, userDir: USER_ROOT_RE.test(m[0]) };
+  }
+  const f = FILE_URL_RE.exec(n);
+  return f ? { index: f.index, end: f.index + f[0].length, userDir: false } : null;
+}
+
+/** True when text, in any encoding GitHub would render, holds a local absolute path. */
+export function hasLocalPath(text: string): boolean {
+  return findLocalRoot(normalizeForGuard(text)) !== null;
+}
+
+/** Replace every local absolute path (any encoding, file:// URLs included) with
+ *  `…/<last segment>`; a bare user directory (`/Users/<name>`) becomes `…`.
+ *  http(s) URLs stay. */
+export function scrubLocalPaths(text: string): string {
+  return text.replace(DOCS_AND_SETTINGS_RE, "Documents_and_Settings").replace(SCRUB_TOKEN_RE, (raw) => scrubToken(raw.replace(/Documents_and_Settings/g, "Documents and Settings")));
+}
+
+/** One token: unchanged without a local root; `k=v` pairs scrubbed per part
+ *  (keeps `path=` and URL queries readable); otherwise the whole token goes. */
+function scrubToken(tok: string): string {
+  const n = normalizeForGuard(tok);
+  const root = findLocalRoot(n);
+  if (!root) return tok;
+  if (tok.includes("=")) {
+    const joined = tok.split("=").map(scrubToken).join("=");
+    if (!hasLocalPath(joined)) return joined;
+  }
+  const suffix = TRAILING_PUNCT.exec(tok)?.[0] ?? "";
+  const body = n.replace(TRAILING_PUNCT, "");
+  const rest = body.slice(root.end).split("/").filter(Boolean);
+  // The segment right after a user root is the user name — that is the leak.
+  if (!rest.length || (root.userDir && rest.length === 1)) return `…${suffix}`;
+  return `…/${rest[rest.length - 1]}${suffix}`;
+}
+
+/** Throws when text still holds a local absolute path (in any encoding GitHub
+ *  renders) or a token. Independent of the scrubber. Call on every string sent
+ *  to GitHub, after scrubbing. */
 export function assertPublishable(text: string, what: string): void {
-  LOCAL_PATH_RE.lastIndex = 0;
-  if (LOCAL_PATH_RE.test(text)) throw new Error(`${what} holds a local absolute path — refusing to publish`);
-  if (TOKEN_RE.test(text)) throw new Error(`${what} holds a token-like string — refusing to publish`);
+  if (hasLocalPath(text)) throw new Error(`${what} holds a local absolute path — refusing to publish`);
+  if (TOKEN_RE.test(text) || TOKEN_RE.test(normalizeForGuard(text))) throw new Error(`${what} holds a token-like string — refusing to publish`);
 }
 
 /** Scrub, then guard. */
@@ -60,6 +149,51 @@ export function publishable(text: string, what: string): string {
   const out = scrubLocalPaths(text);
   assertPublishable(out, what);
   return out;
+}
+
+// ─── Live-sync authorization ─────────────────────────────────────────────────
+//
+// Any MCP client can call set_project and sync_github, and an agent can be
+// steered by prompt-injected content. So a live sync writes only to repos the
+// user allowed OUTSIDE the MCP channel: the env of the server / CLI process.
+// No tool can set it. Dry runs (online or offline) need no permission.
+
+export const SYNC_ALLOWLIST_ENV = "CODE_CONTEXT_GITHUB_SYNC_REPOS";
+const ALLOW_ENTRY_RE = /^[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9._-]+$/;
+
+/** Allowed `owner/repo` entries (lower case) from CODE_CONTEXT_GITHUB_SYNC_REPOS
+ *  (comma or whitespace separated). Malformed entries and wildcards are ignored. */
+export function syncAllowlist(env: NodeJS.ProcessEnv = process.env): string[] {
+  return (env[SYNC_ALLOWLIST_ENV] ?? "")
+    .split(/[\s,]+/)
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => ALLOW_ENTRY_RE.test(e));
+}
+
+/** Board owner a project writes to, or null without a board. */
+export function boardOwnerOf(p: Pick<ProjectRow, "repo" | "github_project_number" | "github_project_owner">): string | null {
+  if (p.github_project_number === null || p.github_project_number === undefined) return null;
+  return p.github_project_owner || (p.repo ? repoOwner(p.repo) : null);
+}
+
+/**
+ * Error text when a live sync to `repo` (and its board owner) is not allowed,
+ * else null. The repo must be listed; the board owner must own a listed repo.
+ */
+export function liveSyncRefusal(repo: string, boardOwner: string | null, allowed: readonly string[]): string | null {
+  const how = `Allow it outside the MCP session: add it to ${SYNC_ALLOWLIST_ENV} (comma-separated owner/repo) in the environment of the code-context server or the code-context-sync-github CLI, then restart the server. dry_run works without it.`;
+  if (!allowed.includes(repo.toLowerCase())) {
+    return `Live sync to ${repo} is not authorized: ${repo} is not in ${SYNC_ALLOWLIST_ENV}${allowed.length ? ` (allowed: ${allowed.join(", ")})` : " (unset)"}. ${how}`;
+  }
+  if (boardOwner !== null && !allowed.some((e) => e.split("/")[0] === boardOwner.toLowerCase())) {
+    return `Live sync to the Project board of ${boardOwner} is not authorized: no repo of ${boardOwner} is in ${SYNC_ALLOWLIST_ENV}. ${how}`;
+  }
+  return null;
+}
+
+/** True when the project already pushed something to GitHub (a stored issue or milestone number). */
+export function projectHasSynced(db: Database.Database, project: string): boolean {
+  return loadProjectTickets(db, project).tickets.some((t) => t.github_issue !== null) || loadProjectMilestones(db, project).some((m) => m.github_milestone !== null);
 }
 
 // ─── Local model ─────────────────────────────────────────────────────────────
@@ -652,6 +786,9 @@ export interface SyncOptions {
   /** Dry run without any GitHub read. */
   offline?: boolean;
   maxWrites?: number;
+  /** Allowed `owner/repo` list for a live run. Default: syncAllowlist(process.env).
+   *  Code callers only (tests); no MCP tool or CLI flag sets it. */
+  allowedRepos?: readonly string[];
   /** Pause between content-creating calls (GitHub secondary limits). Default 1000 ms. */
   pauseMs?: number;
   sleep?: (ms: number) => Promise<void>;
@@ -670,6 +807,11 @@ export async function syncGithub(db: Database.Database, gw: GitHubGateway, proje
   const project = getProject(db, projectName);
   if (!project) throw new Error(unknownProject(db, projectName)!);
   if (!project.repo) throw new Error(`Project "${projectName}" has no repo — set_project repo=owner/name first`);
+
+  if (!opts.dryRun) {
+    const refusal = liveSyncRefusal(project.repo, boardOwnerOf(project), opts.allowedRepos ?? syncAllowlist());
+    if (refusal) throw new Error(refusal);
+  }
 
   if (opts.dryRun && opts.offline) {
     const plan = planSync(db, project, null);

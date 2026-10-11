@@ -12,6 +12,11 @@ import path from "node:path";
 import { initScrumSchema, runMigrations, backfillGithubIssues, LATEST_SCHEMA_VERSION } from "../src/scrum/schema.js";
 import {
   assertPublishable,
+  hasLocalPath,
+  liveSyncRefusal,
+  publishable,
+  syncAllowlist,
+  SYNC_ALLOWLIST_ENV,
   buildIssueBody,
   labelRule,
   applyLabelRule,
@@ -140,7 +145,7 @@ function ticket(db: Database.Database, f: Record<string, unknown>): number {
 }
 
 const row = (db: Database.Database, id: number) => db.prepare("SELECT * FROM tickets WHERE id = ?").get(id) as any;
-const noSleep = { pauseMs: 0 };
+const noSleep = { pauseMs: 0, allowedRepos: [REPO] };
 
 // ─── Rules ───────────────────────────────────────────────────────────────────
 
@@ -613,5 +618,250 @@ describe("planSync guards", () => {
     const db = memDb();
     upsertProject(db, { name: "x" });
     expect(() => planSync(db, getProject(db, "x")!, null)).toThrow(/no repo/);
+  });
+});
+
+// ─── Security review fixes ───────────────────────────────────────────────────
+
+/** Run fn with CODE_CONTEXT_GITHUB_SYNC_REPOS set (or unset), then restore it. */
+async function withAllowlist<T>(value: string | undefined, fn: () => Promise<T> | T): Promise<T> {
+  const prev = process.env[SYNC_ALLOWLIST_ENV];
+  if (value === undefined) delete process.env[SYNC_ALLOWLIST_ENV];
+  else process.env[SYNC_ALLOWLIST_ENV] = value;
+  try {
+    return await fn();
+  } finally {
+    if (prev === undefined) delete process.env[SYNC_ALLOWLIST_ENV];
+    else process.env[SYNC_ALLOWLIST_ENV] = prev;
+  }
+}
+
+describe("publish guard: encoded and prefixed local paths (parser differential)", () => {
+  // Every form GitHub still renders as a local path. Each must be scrubbed or
+  // refused — never published raw — and the guard alone (no scrubber) must
+  // refuse the raw text.
+  const bypasses: Array<[string, string]> = [
+    ["file:// URL", "see file:///Users/jane/dev/a.ts"],
+    ["file:// autolink", "<file:///Users/jane/dev/a.ts>"],
+    ["file:// markdown link target", "[spec](file:///Users/jane/dev/a.ts)"],
+    ["file:// non-user path", "file:///etc/jane/hosts"],
+    ["prefixed root", "x/Users/jane/dev/a.ts"],
+    ["markdown-escaped slashes", "\\/Users\\/jane\\/dev\\/a.ts"],
+    ["JSON-escaped slashes", '{"path":"\\/Users\\/jane\\/a.ts"}'],
+    ["JSON \\u002F escapes", "\\u002FUsers\\u002Fjane\\u002Fa.ts"],
+    ["percent-encoded", "%2FUsers%2Fjane%2Fdev%2Fa.ts"],
+    ["double percent-encoded", "%252FUsers%252Fjane%252Fa.ts"],
+    ["HTML decimal entity", "&#47;Users&#47;jane&#47;a.ts"],
+    ["HTML hex entity", "&#x2F;Users&#x2f;jane&#x2F;a.ts"],
+    ["HTML named entity", "&sol;Users&sol;jane&sol;a.ts"],
+    ["double-encoded entity", "&amp;#47;Users&amp;#47;jane&amp;#47;a.ts"],
+    ["Windows forward slashes", "C:/Users/jane/dev/a.ts"],
+    ["Windows backslashes", "C:\\Users\\jane\\dev\\a.ts"],
+    ["Windows JSON-escaped", "C:\\\\Users\\\\jane\\\\a.ts"],
+    ["Documents and Settings", "C:\\Documents and Settings\\jane\\a.ts"],
+    ["Documents and Settings, forward", "C:/Documents and Settings/jane/a.ts"],
+    ["lower-case root", "/users/jane/a.ts"],
+    ["zero-width space inside root", "/Us\u200bers/jane/a.ts"],
+    ["BOM splits the token", "/Us\ufeffers/jane/a.ts"],
+    ["empty-host http URL", "https:///Users/jane/a.ts"],
+    ["double slash", "//Users//jane//a.ts"],
+    ["bold markdown", "**/Users/jane/a.ts**"],
+    ["docker volume", "-v /home/jane/src:/app"],
+    ["bare user dir", "home is /Users/jane"],
+    ["/private/tmp", "/private/tmp/jane-build/a.log"],
+    ["/private/var", "/private/var/jane/x"],
+    ["/Volumes", "/Volumes/Disk/jane/a.ts"],
+    ["fullwidth solidus", "\uff0fUsers\uff0fjane\uff0fa.ts"],
+  ];
+  it.each(bypasses)("%s: the guard alone refuses the raw text", (_name, raw) => {
+    expect(hasLocalPath(raw)).toBe(true);
+    expect(() => assertPublishable(raw, "body")).toThrow(/local absolute path/);
+  });
+  it.each(bypasses)("%s: scrubbed or refused, never published raw", (_name, raw) => {
+    let out: string | null = null;
+    try {
+      out = publishable(raw, "body");
+    } catch (e: any) {
+      expect(e.message).toMatch(/local absolute path/);
+    }
+    if (out !== null) {
+      expect(hasLocalPath(out)).toBe(false);
+      expect(out).not.toMatch(/jane/);
+    }
+  });
+  it("normal text gets scrubbed, not refused", () => {
+    expect(publishable("open file:///Users/jane/dev/a.ts now", "b")).toBe("open …/a.ts now");
+    expect(publishable("[spec](file:///Users/jane/dev/spec.md)", "b")).toBe("[spec](…/spec.md)");
+    expect(publishable("at %2FUsers%2Fjane%2Fa.ts.", "b")).toBe("at …/a.ts.");
+    expect(publishable("in &#47;Users&#47;jane&#47;a.ts", "b")).toBe("in …/a.ts");
+    expect(publishable("C:/Users/jane/x/b.ts and C:\\Documents and Settings\\jane\\c.ts", "b")).toBe("…/b.ts and …/c.ts");
+    expect(publishable('{"p":"\\/Users\\/jane\\/a.ts"}', "b")).toBe('{"p":"…/a.ts"}');
+    expect(publishable("home is /Users/jane, ok", "b")).toBe("home is …, ok");
+    expect(publishable("x/Users/jane/a.ts", "b")).toBe("…/a.ts");
+    expect(publishable("--db=/Users/jane/ctx.db", "b")).toBe("--db=…/ctx.db");
+  });
+
+  const allowed = [
+    "https://github.com/home/x",
+    "https://github.com/root/repo/blob/main/tmp/x.ts",
+    "https://example.com/Users/list?q=1",
+    "[docs](https://example.com/home/page)",
+    "<https://example.com/tmp/file>",
+    "http://localhost:3000/Volumes/list",
+    "https://example.com/a%2Fhome%2Fx",
+    "https://example.com/a?next=%2Fhome%2Fx",
+    "src/server/git.ts and ./tmp-file and home/office",
+    "~/Desktop/repo/a.ts",
+    "a profile:/x line and a /usr/local/bin path",
+  ];
+  it.each(allowed)("allowed and unchanged: %s", (text) => {
+    expect(hasLocalPath(text)).toBe(false);
+    expect(publishable(text, "body")).toBe(text);
+  });
+  it("the token check also sees encoded tokens", () => {
+    expect(() => assertPublishable("ghp%5Fabcdefghijklmnopqrstuvwxyz0123", "body")).toThrow(/token/);
+  });
+});
+
+describe("live-sync authorization (CODE_CONTEXT_GITHUB_SYNC_REPOS)", () => {
+  it("parses the allowlist: comma or space separated, case-insensitive, junk and wildcards ignored", () => {
+    expect(syncAllowlist({ [SYNC_ALLOWLIST_ENV]: " octo/app, Octo/Other  bad * x/* ,," })).toEqual(["octo/app", "octo/other"]);
+    expect(syncAllowlist({})).toEqual([]);
+  });
+  it("refuses an unlisted repo or a board owner without a listed repo, and says how to allow it", () => {
+    expect(liveSyncRefusal("octo/app", "octo", ["octo/app"])).toBeNull();
+    expect(liveSyncRefusal("Octo/App", null, ["octo/app"])).toBeNull();
+    expect(liveSyncRefusal("evil/pub", null, ["octo/app"])).toMatch(/evil\/pub is not in CODE_CONTEXT_GITHUB_SYNC_REPOS.*add it to CODE_CONTEXT_GITHUB_SYNC_REPOS/);
+    expect(liveSyncRefusal("octo/app", "evil", ["octo/app"])).toMatch(/board of evil is not authorized/);
+    expect(liveSyncRefusal("octo/app", null, [])).toMatch(/\(unset\)/);
+  });
+
+  let db: Database.Database;
+  let gh: FakeGitHub;
+  let ids: { ms: number; sprint: number };
+  beforeEach(() => {
+    db = memDb();
+    gh = new FakeGitHub();
+    ids = seed(db);
+    ticket(db, { sprint_id: ids.sprint, ticket_ref: "APP-1", title: "Add x", priority: "P1", type: "feat", milestone_id: ids.ms });
+  });
+
+  it("a live sync without the env is refused before any GitHub call; dry runs stay allowed", async () => {
+    await withAllowlist(undefined, async () => {
+      await expect(syncGithub(db, gh, "app", { pauseMs: 0 })).rejects.toThrow(/not authorized.*CODE_CONTEXT_GITHUB_SYNC_REPOS/);
+      expect(gh.log).toEqual([]);
+      expect((await syncGithub(db, gh, "app", { dryRun: true })).error).toBeNull();
+      expect((await syncGithub(db, gh, "app", { dryRun: true, offline: true })).error).toBeNull();
+      expect(gh.writes()).toEqual([]);
+    });
+  });
+  it("the env allowlist authorizes a live sync; another repo on the list does not", async () => {
+    await withAllowlist("octo/other", async () => {
+      await expect(syncGithub(db, gh, "app", { pauseMs: 0 })).rejects.toThrow(/octo\/app is not in/);
+    });
+    await withAllowlist("octo/other,OCTO/app", async () => {
+      const r = await syncGithub(db, gh, "app", { pauseMs: 0 });
+      expect(r.error).toBeNull();
+      expect(gh.writes()).toContain("createIssue 200");
+    });
+  });
+  it("a board owned by an unlisted owner is refused even when the repo is listed", async () => {
+    db.prepare("UPDATE projects SET github_project_owner = 'evil' WHERE name = 'app'").run();
+    await withAllowlist("octo/app", async () => {
+      await expect(syncGithub(db, gh, "app", { pauseMs: 0 })).rejects.toThrow(/board of evil/);
+      expect(gh.log).toEqual([]);
+    });
+  });
+
+  it("MCP: sync_github cannot authorize itself; set_project cannot re-point a synced project", async () => {
+    const server = new FakeServer();
+    registerGithubTools(server as never, db, () => gh);
+    const call = (n: string, a: Record<string, unknown>) => server.tools.get(n)!(a);
+    await withAllowlist(undefined, async () => {
+      // Extra args (an injected allowlist) are ignored.
+      const r = await call("sync_github", { project: "app", allowedRepos: [REPO], allowed_repos: REPO });
+      expect(r.isError).toBe(true);
+      expect(text(r)).toMatch(/not authorized.*CODE_CONTEXT_GITHUB_SYNC_REPOS/);
+      expect(gh.log).toEqual([]);
+      expect((await call("sync_github", { project: "app", dry_run: true })).isError).toBe(false);
+      // Not synced yet: re-pointing is a plain setup change.
+      expect((await call("set_project", { name: "app", repo: "octo/app2" })).isError).toBeUndefined();
+      expect((await call("set_project", { name: "app", repo: REPO })).isError).toBeUndefined();
+    });
+    await withAllowlist(REPO, async () => {
+      expect((await call("sync_github", { project: "app" })).isError).toBe(false);
+    });
+    expect(gh.writes()).toContain("createIssue 200");
+
+    await withAllowlist(`${REPO},octo/public`, async () => {
+      const moved = await call("set_project", { name: "app", repo: "evil/public" });
+      expect(moved.isError).toBe(true);
+      expect(text(moved)).toMatch(/already synced to octo\/app.*force=true/);
+      expect(text(await call("set_project", { name: "app", github_project_number: 99 }))).toMatch(/refused/);
+      expect(text(await call("set_project", { name: "app", github_project_owner: "evil" }))).toMatch(/refused/);
+      // force is honoured only for an allowlisted target.
+      const forcedBad = await call("set_project", { name: "app", repo: "evil/public", force: true });
+      expect(forcedBad.isError).toBe(true);
+      expect(text(forcedBad)).toMatch(/force refused: .*evil\/public is not in/);
+      expect(getProject(db, "app")!.repo).toBe(REPO);
+      // Same values and the assignee stay free.
+      expect((await call("set_project", { name: "app", repo: "OCTO/app", github_project_number: 7 })).isError).toBeUndefined();
+      expect((await call("set_project", { name: "app", github_assignee: "someone" })).isError).toBeUndefined();
+      const forcedOk = await call("set_project", { name: "app", repo: "octo/public", force: true });
+      expect(forcedOk.isError).toBeUndefined();
+      expect(getProject(db, "app")!.repo).toBe("octo/public");
+    });
+  });
+});
+
+describe("code-context-sync-github CLI authorization", () => {
+  function fileDb() {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cca13-auth-"));
+    const file = path.join(dir, "context.db");
+    const db = new Database(file);
+    initSchema(db);
+    initScrumSchema(db);
+    runMigrations(db, { freshDb: true });
+    const ms = Number(db.prepare("INSERT INTO milestones (name, status) VALUES ('M', 'active')").run().lastInsertRowid);
+    db.prepare("INSERT INTO tickets (title, ticket_ref, milestone_id, priority, type) VALUES ('t', 'C-1', ?, 'P1', 'feat')").run(ms);
+    db.close();
+    return { dir, file, ms };
+  }
+  const base = (file: string, ms: number) => ({ db: file, project: "app", dryRun: false, offline: false, repo: REPO, milestones: [{ id: ms, github: null }], maxWrites: 10 });
+
+  it("--repo alone does not authorize a live run: exit 2, no GitHub call, db unchanged", async () => {
+    const { dir, file, ms } = fileDb();
+    const out: string[] = [];
+    const gh = new FakeGitHub();
+    const code = await withAllowlist(undefined, () => runCli(base(file, ms), gh, (s) => out.push(s)));
+    expect(code).toBe(2);
+    expect(out.join("\n")).toMatch(/not authorized.*CODE_CONTEXT_GITHUB_SYNC_REPOS/);
+    expect(gh.log).toEqual([]);
+    const db = new Database(file, { readonly: true });
+    // The setup flags were rolled back with the refusal.
+    expect(db.prepare("SELECT COUNT(*) AS n FROM projects").get()).toEqual({ n: 0 });
+    expect(db.prepare("SELECT project FROM milestones WHERE id = ?").get(ms)).toEqual({ project: null });
+    db.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("the env allowlist authorizes the live run; a dry run needs no allowlist", async () => {
+    const { dir, file, ms } = fileDb();
+    const gh = new FakeGitHub();
+    const out: string[] = [];
+    expect(await withAllowlist(undefined, () => runCli({ ...base(file, ms), dryRun: true }, gh, (s) => out.push(s)))).toBe(0);
+    expect(gh.writes()).toEqual([]);
+    expect(await withAllowlist(REPO, () => runCli(base(file, ms), gh, (s) => out.push(s)))).toBe(0);
+    expect(gh.writes()).toContain("createIssue 200");
+    // Re-pointing the now-synced project: refused, and --force only to an allowlisted repo.
+    const other = { ...base(file, ms), repo: "evil/public", milestones: [] };
+    expect(await withAllowlist(REPO, () => runCli(other, gh, (s) => out.push(s)))).toBe(2);
+    expect(await withAllowlist(REPO, () => runCli({ ...other, force: true }, gh, (s) => out.push(s)))).toBe(2);
+    expect(out.join("\n")).toMatch(/force refused/);
+    const db = new Database(file, { readonly: true });
+    expect((db.prepare("SELECT repo FROM projects WHERE name = 'app'").get() as any).repo).toBe(REPO);
+    db.close();
+    expect(parseArgs(["--project", "p", "--force"])).toMatchObject({ force: true });
+    fs.rmSync(dir, { recursive: true, force: true });
   });
 });

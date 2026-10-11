@@ -3,7 +3,18 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { log as slog } from "../../sessionlog.js";
 import { GhGateway } from "../github-gateway.js";
-import { getProject, listProjectNames, syncGithub, type GitHubGateway, type ProjectRow } from "../github-sync.js";
+import {
+  boardOwnerOf,
+  getProject,
+  listProjectNames,
+  liveSyncRefusal,
+  projectHasSynced,
+  syncAllowlist,
+  syncGithub,
+  SYNC_ALLOWLIST_ENV,
+  type GitHubGateway,
+  type ProjectRow,
+} from "../github-sync.js";
 
 const REPO_RE = /^[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9._-]+$/;
 const LOGIN_RE = /^[A-Za-z0-9][A-Za-z0-9-]*$/;
@@ -13,10 +24,30 @@ export function formatProject(p: ProjectRow): string {
   return `${p.name}: repo ${p.repo ?? "—"}, board ${board}, assignee ${p.github_assignee || p.repo?.split("/")[0] || "—"}`;
 }
 
-/** Upsert a project row. Returns an error string or the stored row. */
+export interface UpsertOptions {
+  /** Re-point a project that already synced. Honoured only when the new repo
+   *  and board owner pass the live-sync allowlist. */
+  force?: boolean;
+  /** Allowlist override for code callers (tests). Default: CODE_CONTEXT_GITHUB_SYNC_REPOS. */
+  allowedRepos?: readonly string[];
+  /** false skips the re-point rule (the CLI dry run, which edits an in-memory copy). */
+  guard?: boolean;
+}
+
+/**
+ * Upsert a project row. Returns an error string or the stored row.
+ *
+ * Re-point rule: once a project has synced (a ticket holds github_issue or a
+ * milestone holds github_milestone), changing its repo, board number or board
+ * owner is refused — the stored numbers belong to the old target, and a
+ * re-point would send the project's ticket text somewhere else. `force` lifts
+ * this only when the NEW target passes the live-sync allowlist (the env, which
+ * no tool can set). The assignee may change freely.
+ */
 export function upsertProject(
   db: Database.Database,
   a: { name: string; repo?: string; github_project_number?: number | null; github_project_owner?: string | null; github_assignee?: string | null },
+  opts: UpsertOptions = {},
 ): string | ProjectRow {
   if (!a.name.trim()) return "name must not be empty";
   if (a.repo !== undefined && !REPO_RE.test(a.repo)) return `repo must look like owner/name, got "${a.repo}"`;
@@ -25,6 +56,25 @@ export function upsertProject(
     if (v !== undefined && v !== null && !LOGIN_RE.test(v)) return `${k} must be a GitHub login, got "${v}"`;
   }
   const existing = getProject(db, a.name);
+  if (existing && opts.guard !== false) {
+    const next = {
+      repo: a.repo ?? existing.repo,
+      github_project_number: a.github_project_number !== undefined ? a.github_project_number : existing.github_project_number,
+      github_project_owner: a.github_project_owner !== undefined ? a.github_project_owner : existing.github_project_owner,
+    };
+    const lc = (v: string | null) => (v ?? "").toLowerCase();
+    const moves =
+      lc(next.repo) !== lc(existing.repo) ||
+      next.github_project_number !== existing.github_project_number ||
+      lc(boardOwnerOf(next)) !== lc(boardOwnerOf(existing));
+    if (moves && projectHasSynced(db, a.name)) {
+      if (!opts.force) {
+        return `project "${a.name}" already synced to ${existing.repo ?? "GitHub"} (stored issue/milestone numbers); changing its repo or board is refused. Pass force=true to re-point it — honoured only when the new repo is in ${SYNC_ALLOWLIST_ENV}.`;
+      }
+      const refusal = next.repo ? liveSyncRefusal(next.repo, boardOwnerOf(next), opts.allowedRepos ?? syncAllowlist()) : null;
+      if (refusal) return `force refused: ${refusal}`;
+    }
+  }
   if (!existing) {
     db.prepare(
       "INSERT INTO projects (name, repo, github_project_number, github_project_owner, github_assignee) VALUES (?, ?, ?, ?, ?)",
@@ -54,16 +104,17 @@ export function upsertProject(
 export function registerGithubTools(server: McpServer, db: Database.Database, gateway: () => GitHubGateway = () => new GhGateway()): void {
   server.tool(
     "set_project",
-    "Create or update a project key: maps a short name to a GitHub repo (owner/name), an optional GitHub Project board number and the issue assignee. Milestones, sprints, epics and tickets take this name in their `project` field.",
+    "Create or update a project key: maps a short name to a GitHub repo (owner/name), an optional GitHub Project board number and the issue assignee. Milestones, sprints, epics and tickets take this name in their `project` field. A project that already synced keeps its repo/board unless force=true and the new repo is allowlisted.",
     {
       name: z.string().describe("Project key, e.g. 'code-context-mcp'"),
       repo: z.string().optional().describe("GitHub repo owner/name"),
       github_project_number: z.number().int().nullable().optional().describe("GitHub Project (v2) number, null to unset"),
       github_project_owner: z.string().nullable().optional().describe("Board owner login (default: repo owner)"),
       github_assignee: z.string().nullable().optional().describe("Issue assignee login (default: repo owner)"),
+      force: z.boolean().optional().describe("Re-point a project that already synced; honoured only when the new repo is allowlisted in the server env"),
     },
-    async (args) => {
-      const r = upsertProject(db, args);
+    async ({ force, ...args }) => {
+      const r = upsertProject(db, args, { force });
       if (typeof r === "string") return { content: [{ type: "text" as const, text: `Error: ${r}` }], isError: true };
       return { content: [{ type: "text" as const, text: `Project ${formatProject(r)}` }] };
     },
@@ -71,7 +122,7 @@ export function registerGithubTools(server: McpServer, db: Database.Database, ga
 
   server.tool(
     "sync_github",
-    "One-way sync of ONE project's milestones and tickets to its GitHub repo and Project board: creates/updates the milestone and issues (title '<ref>: <title>', Why/Done when body, priority/type/origin labels, owner assignee), sets the board Status from the ticket status and closes DONE issues. Idempotent via the stored issue number; never touches other projects. dry_run=true prints the plan (offline=true: no GitHub read at all).",
+    "One-way sync of ONE project's milestones and tickets to its GitHub repo and Project board: creates/updates the milestone and issues (title '<ref>: <title>', Why/Done when body, priority/type/origin labels, owner assignee), sets the board Status from the ticket status and closes DONE issues. Idempotent via the stored issue number; never touches other projects. dry_run=true prints the plan (offline=true: no GitHub read at all). A live run needs the repo in the server env CODE_CONTEXT_GITHUB_SYNC_REPOS (no tool sets it).",
     {
       project: z.string().describe("Project key (see set_project)"),
       dry_run: z.boolean().optional().describe("Print the plan, write nothing"),

@@ -3,7 +3,12 @@
 //
 //   code-context-sync-github --project <name> [--db <file>] [--dry-run [--offline]]
 //       [--repo owner/name] [--project-number N] [--project-owner login] [--assignee login]
-//       [--milestone <id>[=<github number>]]... [--max-writes N]
+//       [--milestone <id>[=<github number>]]... [--max-writes N] [--force]
+//
+// A live run writes only to repos listed in CODE_CONTEXT_GITHUB_SYNC_REPOS
+// (comma-separated owner/repo) in this process's env; --repo alone never
+// authorizes a write. --force re-points a project that already synced, and
+// only to an allowlisted repo. A refused live run leaves the db unchanged.
 //
 // --dry-run works on an in-memory copy of the db: the file is opened read-only,
 // never migrated and never written, so it is safe against a db that an older
@@ -16,13 +21,13 @@ import os from "node:os";
 import fs from "node:fs";
 import Database from "better-sqlite3";
 import { initScrumSchema, runMigrations, peekSchemaVersion, LATEST_SCHEMA_VERSION } from "../scrum/schema.js";
-import { syncGithub, getProject, type GitHubGateway } from "../scrum/github-sync.js";
+import { syncGithub, getProject, liveSyncRefusal, boardOwnerOf, syncAllowlist, type GitHubGateway } from "../scrum/github-sync.js";
 import { GhGateway } from "../scrum/github-gateway.js";
 import { upsertProject } from "../scrum/tools/github.js";
 import { log as slog } from "../sessionlog.js";
 
 export const USAGE =
-  "usage: code-context-sync-github --project <name> [--db <file>] [--dry-run [--offline]] [--repo owner/name] [--project-number N] [--project-owner login] [--assignee login] [--milestone <id>[=<gh number>]]... [--max-writes N]";
+  "usage: code-context-sync-github --project <name> [--db <file>] [--dry-run [--offline]] [--repo owner/name] [--project-number N] [--project-owner login] [--assignee login] [--milestone <id>[=<gh number>]]... [--max-writes N] [--force]\n\nA live run needs the repo in CODE_CONTEXT_GITHUB_SYNC_REPOS=owner/repo[,owner/repo…].";
 
 export interface Args {
   db: string;
@@ -35,6 +40,7 @@ export interface Args {
   assignee?: string;
   milestones: Array<{ id: number; github: number | null }>;
   maxWrites?: number;
+  force?: boolean;
 }
 
 function expandHome(p: string): string {
@@ -50,6 +56,7 @@ export function parseArgs(argv: string[]): Args | string {
     if (arg === "-h" || arg === "--help") return "help";
     else if (arg === "--dry-run") a.dryRun = true;
     else if (arg === "--offline") a.offline = true;
+    else if (arg === "--force") a.force = true;
     else if (arg === "--db") {
       const v = next();
       if (!v) return "--db needs a file";
@@ -104,7 +111,8 @@ export function snapshotDb(file: string): Database.Database {
   }
 }
 
-/** Apply the setup flags (project row + milestone links) to db. Returns an error or null. */
+/** Apply the setup flags (project row + milestone links) to db. Returns an error or null.
+ *  A dry run edits an in-memory copy, so the re-point rule does not apply there. */
 export function applySetup(db: Database.Database, a: Args): string | null {
   if (a.repo !== undefined || a.projectNumber !== undefined || a.projectOwner !== undefined || a.assignee !== undefined || !getProject(db, a.project)) {
     if (!getProject(db, a.project) && a.repo === undefined) return `project "${a.project}" is not registered — pass --repo owner/name`;
@@ -114,7 +122,7 @@ export function applySetup(db: Database.Database, a: Args): string | null {
       github_project_number: a.projectNumber,
       github_project_owner: a.projectOwner,
       github_assignee: a.assignee,
-    });
+    }, { force: a.force, guard: !a.dryRun });
     if (typeof r === "string") return r;
   }
   for (const m of a.milestones) {
@@ -148,11 +156,20 @@ export async function run(a: Args, gateway: GitHubGateway = new GhGateway(), out
     // tables are there and stay untouched.
     initScrumSchema(db);
     runMigrations(db);
-    const err = applySetup(db, a);
+    // Setup + the live-sync permission check in one transaction: a refused
+    // live run leaves the db as it was.
+    db.exec("BEGIN");
+    let err = applySetup(db, a);
+    if (!err && !a.dryRun) {
+      const p = getProject(db, a.project);
+      if (p?.repo) err = liveSyncRefusal(p.repo, boardOwnerOf(p), syncAllowlist());
+    }
     if (err) {
+      db.exec("ROLLBACK");
       out(`code-context-sync-github: ${err}`);
       return 2;
     }
+    db.exec("COMMIT");
     const r = await syncGithub(db, gateway, a.project, { dryRun: a.dryRun, offline: a.offline, maxWrites: a.maxWrites });
     out(r.text);
     if (a.dryRun) out("\n(dry run on an in-memory copy — the db file was not changed)");
