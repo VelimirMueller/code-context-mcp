@@ -50,7 +50,7 @@ async function renderPage() {
   vi.resetModules();
   const { Benchmark } = await import('@/pages/Benchmark');
   render(<Benchmark />);
-  await waitFor(() => expect(screen.getByText('Per task (success · tokens · tool calls)')).toBeTruthy());
+  await waitFor(() => expect(screen.getByText(/^Per task \(success · uncached tokens/)).toBeTruthy());
 }
 
 describe('Benchmark run detail: cold vs warm', () => {

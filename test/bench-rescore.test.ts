@@ -119,4 +119,33 @@ describe('rescoreRun', () => {
     expect(report.changes).toEqual([]);
     expect(report.kept[0].reason).toMatch(/source tree/);
   });
+  it('recomputes the per-PASS headline of a full run file (CCA-08)', async () => {
+    const dir = fs.mkdtempSync(path.join(tmp, 'art-'));
+    fs.writeFileSync(path.join(dir, 'vanilla-L1-r1.jsonl'), events(realL1));
+    const run = {
+      run_id: 'glm-full',
+      kind: 'agent-glm',
+      agent_cli: { name: 'opencode' },
+      tasks: [{ id: 'L1', checker: { type: 'answer', answerMustMatch: ['old'] } }],
+      arms: {
+        vanilla: { results: [session('L1', 'vanilla-L1-r1.jsonl', false)] },
+        cc: { results: [session('L1', 'cc-L1-r1.jsonl', true)] },
+      },
+      aggregate: {
+        success_rate: { vanilla: 0, cc: 1 },
+        tokens: {},
+        per_task: [{ task_id: 'L1', vanilla: { success_rate: 0 }, cc: { success_rate: 1 } }],
+      },
+      headline: { success_vanilla_pct: 0, success_cc_pct: 100 },
+    };
+    const report = await rescoreRun(run, { artefactDir: dir, srcRoot: null });
+    expect(report.changes).toHaveLength(1);
+    const h = report.run.headline as unknown as {
+      success_vanilla_pct: number;
+      uncached_per_pass: { vanilla: number | null; cc: number | null };
+    };
+    expect(h.success_vanilla_pct).toBe(100);
+    // vanilla had no PASS before; after the flip its 15 uncached tokens count once.
+    expect(h.uncached_per_pass).toEqual({ vanilla: 15, cc: 15 });
+  });
 });

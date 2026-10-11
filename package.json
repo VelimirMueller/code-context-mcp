@@ -34,6 +34,7 @@
     "bench:publish": "tsx scripts/bench/publish.mts",
     "bench:live": "tsx scripts/bench/live/run.mts",
     "bench:rescore": "tsx scripts/bench/rescore.mts",
+    "bench:renormalize": "tsx scripts/bench/renormalize.mts",
     "test:frontend": "cd src/dashboard/app && node ../../../node_modules/.bin/vitest run",
     "test:all": "vitest run && cd src/dashboard/app && node ../../../node_modules/.bin/vitest run",
     "test:watch": "vitest",

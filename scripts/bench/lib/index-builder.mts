@@ -13,7 +13,8 @@
  * (descending). `buildIndex` and `pickLatest` share one comparator, so the
  * index order and latest.json can never disagree.
  */
-import type { IndexEntry, IndexJson, IndexKind, NewRunKind } from './types.mts';
+import { honestMetrics } from './metrics.mts';
+import type { IndexEntry, IndexJson, IndexKind, NewRunKind, SessionResult } from './types.mts';
 
 function asRecord(x: unknown): Record<string, unknown> {
   return (x && typeof x === 'object' ? x : {}) as Record<string, unknown>;
@@ -103,6 +104,40 @@ function compareRunsDesc(a: Record<string, unknown>, b: Record<string, unknown>)
   return 0;
 }
 
+const AGENT_KINDS: ReadonlySet<string> = new Set(['agent-glm', 'agent-deepseek', 'agent-opus']);
+
+function resultsOf(arms: Record<string, unknown>, key: string): SessionResult[] | null {
+  const arm = asRecord(arms[key]);
+  return Array.isArray(arm.results) ? (arm.results as SessionResult[]) : null;
+}
+
+/**
+ * Agent headline for the index (CCA-08). A run normalised since CCA-08
+ * carries the honest fields (uncached saved %, cost saved %, uncached per
+ * PASS) itself. An older run file gets them derived from its sessions here,
+ * so the site and dashboard can show them without loading the run; the
+ * recorded fields are never overwritten.
+ */
+function agentHeadline(r: Record<string, unknown>): unknown {
+  const h = r.headline;
+  if (!h || typeof h !== 'object') return h ?? null;
+  if ('uncached_saved_pct' in h) return h;
+  const arms = asRecord(r.arms);
+  const vanilla = resultsOf(arms, 'vanilla');
+  const cc = resultsOf(arms, 'cc');
+  if (!vanilla || !cc) return h;
+  const guided = resultsOf(arms, 'cc_guided') ?? [];
+  const ids = Array.isArray(r.tasks)
+    ? (r.tasks as unknown[]).map((t) => String(asRecord(t).id))
+    : [];
+  for (const s of [...vanilla, ...cc, ...guided]) if (!ids.includes(s.task_id)) ids.push(s.task_id);
+  try {
+    return { ...honestMetrics(ids, vanilla, cc, guided).headline, ...h };
+  } catch {
+    return h; // malformed sessions: keep the recorded headline as is
+  }
+}
+
 function toEntry(run: unknown): IndexEntry {
   const r = asRecord(run);
   if (typeof r.run_id !== 'string') throw new Error('buildIndex: run missing run_id');
@@ -115,7 +150,11 @@ function toEntry(run: unknown): IndexEntry {
     ts: tsOf(r),
     model: typeof r.model === 'string' ? r.model : null,
     trigger: typeof r.trigger === 'string' ? r.trigger : '',
-    headline: legacy ? legacyHeadline(r) : (r.headline ?? null),
+    headline: legacy
+      ? legacyHeadline(r)
+      : AGENT_KINDS.has(kind)
+        ? agentHeadline(r)
+        : (r.headline ?? null),
   };
 }
 

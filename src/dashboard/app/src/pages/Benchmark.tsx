@@ -10,7 +10,9 @@ import {
   type BenchIndexEntry,
   type BenchRun,
   type BenchArmStats,
+  type BenchPairedDelta,
   type BenchPhaseArmStats,
+  type SavedSpread,
   type AgentHeadline,
   type SimulatedHeadline,
   type LegacyHeadline,
@@ -333,17 +335,50 @@ function pct(value: number | undefined): string {
   return value === undefined ? '—' : `${value}%`;
 }
 
+function signed(value: number): string {
+  return `${value > 0 ? '+' : ''}${value}%`;
+}
+
+/** Min–max of a saved % over repeats, muted next to the value it qualifies. */
+function Spread({ spread }: { spread: SavedSpread | null | undefined }) {
+  if (!spread) return null;
+  return (
+    <span title={`min … max over ${spread.repeats} repeats`} style={{ color: 'var(--text3)', fontWeight: 400 }}>
+      {' '}[{signed(spread.min)} … {signed(spread.max)}]
+    </span>
+  );
+}
+
+function tokens(value: number | null | undefined): string {
+  return typeof value === 'number' ? value.toLocaleString() : '—';
+}
+
 function HeadlineStats({ entry }: { entry: BenchIndexEntry }) {
   const h = entry.headline;
   const rows: Array<[string, ReactNode]> = [];
   if (isAgentHeadline(h)) {
+    // CCA-08: success, then uncached tokens (input + output + cache write),
+    // cost and uncached tokens per PASS. The all-tokens figure is mostly cache
+    // reads (billed at ~1 % of input) and lives in the run detail.
+    const guided = h.success_cc_guided_pct !== undefined;
+    const pp = h.uncached_per_pass;
     rows.push(
       ['Success vanilla', pct(h.success_vanilla_pct)],
       ['Success cc', pct(h.success_cc_pct)],
       ['Success cc-guided', pct(h.success_cc_guided_pct)],
-      ['Tokens saved', <SavedPct value={h.tokens_saved_pct} />],
-      ['Tool calls saved', <SavedPct value={h.tool_calls_saved_pct} />],
+      ['Uncached saved cc', <><SavedPct value={h.uncached_saved_pct} /><Spread spread={h.uncached_saved_spread} /></>],
     );
+    if (guided) {
+      rows.push(['Uncached saved guided', <><SavedPct value={h.guided_uncached_saved_pct} /><Spread spread={h.guided_uncached_saved_spread} /></>]);
+    }
+    rows.push(['Cost saved cc', <SavedPct value={h.cost_saved_pct ?? undefined} />]);
+    if (guided) rows.push(['Cost saved guided', <SavedPct value={h.guided_cost_saved_pct ?? undefined} />]);
+    rows.push(
+      ['Uncached / PASS vanilla', tokens(pp?.vanilla)],
+      ['Uncached / PASS cc', tokens(pp?.cc)],
+    );
+    if (guided) rows.push(['Uncached / PASS guided', tokens(pp?.cc_guided)]);
+    rows.push(['Tool calls saved', <SavedPct value={h.tool_calls_saved_pct} />]);
   } else if (isSimulatedHeadline(h)) {
     rows.push(
       ['Tokens saved', <SavedPct value={h.tokensSavedPct} />],
@@ -448,20 +483,41 @@ const td: CSSProperties = { fontSize: 11, fontFamily: 'var(--mono)', color: 'var
 const thNum: CSSProperties = { ...th, textAlign: 'right' };
 const tdNum: CSSProperties = { ...td, textAlign: 'right' };
 
+/** Paired uncached delta vs vanilla: green = fewer tokens, red = more; min … max muted. */
+function DeltaCell({ d }: { d: BenchPairedDelta | null | undefined }) {
+  if (!d) return <td style={tdNum}>—</td>;
+  const color = d.saved_pct > 0 ? 'var(--green)' : d.saved_pct < 0 ? 'var(--red)' : 'var(--text2)';
+  return (
+    <td style={tdNum}>
+      <span style={{ color }}>{signed(d.saved_pct)}</span>
+      {d.pairs > 1 && <span style={{ color: 'var(--text3)' }}> [{signed(d.min)} … {signed(d.max)}]</span>}
+    </td>
+  );
+}
+
 function PerTaskTable({ run }: { run: BenchRun }) {
   const perTask = run.aggregate?.per_task ?? [];
   if (perTask.length === 0) return null;
   const arms = ARMS.filter((a) => perTask.some((t) => t[a.key]));
+  const deltaArms = arms.filter((a) => a.key !== 'vanilla' && perTask.some((t) => t.delta && a.key in t.delta));
   const sizes = new Map((run.tasks ?? []).map((t) => [t.id, t.size]));
+  // Uncached tokens when the run has them (CCA-08); older runs show all tokens, marked.
   const cell = (s: BenchArmStats | undefined) =>
-    s ? `${Math.round(s.success_rate * 100)}% · ${s.tokens.total.toLocaleString()} tok · ${s.tool_calls} calls` : '—';
+    s
+      ? `${Math.round(s.success_rate * 100)}% · ${
+          typeof s.uncached_tokens === 'number'
+            ? `${s.uncached_tokens.toLocaleString()} unc`
+            : `${s.tokens.total.toLocaleString()} tok (all)`
+        } · ${s.tool_calls} calls`
+      : '—';
   return (
     <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <table aria-label="Per task" style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr>
             <th style={th}>Task</th>
             {arms.map((a) => <th key={a.key} style={th}>{a.label}</th>)}
+            {deltaArms.map((a) => <th key={`d-${a.key}`} style={thNum}>Δ unc {a.label}</th>)}
           </tr>
         </thead>
         <tbody>
@@ -471,6 +527,9 @@ function PerTaskTable({ run }: { run: BenchRun }) {
                 {t.task_id}{sizes.get(t.task_id) ? <span style={{ color: 'var(--text3)', fontWeight: 400 }}> {sizes.get(t.task_id)}</span> : null}
               </td>
               {arms.map((a) => <td key={a.key} style={td}>{cell(t[a.key])}</td>)}
+              {deltaArms.map((a) => (
+                <DeltaCell key={`d-${a.key}`} d={a.key === 'vanilla' ? null : t.delta?.[a.key]} />
+              ))}
             </tr>
           ))}
         </tbody>
@@ -567,9 +626,19 @@ function RunDetail({ entry, run, error }: { entry: BenchIndexEntry; run: BenchRu
 
       {run && (run.aggregate?.per_task?.length ?? 0) > 0 && (
         <>
-          <div style={{ ...sectionLabel, marginBottom: 6 }}>Per task (success · tokens · tool calls)</div>
+          <div style={{ ...sectionLabel, marginBottom: 6 }}>Per task (success · uncached tokens · tool calls · Δ vs vanilla, min … max over repeats)</div>
           <PerTaskTable run={run} />
         </>
+      )}
+
+      {isAgentHeadline(entry.headline) && (
+        <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text3)' }}>
+          All tokens incl. cache reads (billed at ~1 % of input): saved cc{' '}
+          <SavedPct value={entry.headline.tokens_saved_pct} />
+          {entry.headline.guided_tokens_saved_pct !== undefined && (
+            <> · guided <SavedPct value={entry.headline.guided_tokens_saved_pct} /></>
+          )}
+        </div>
       )}
 
       {run?.aggregate?.by_phase && (

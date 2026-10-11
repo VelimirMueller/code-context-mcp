@@ -77,13 +77,35 @@ export interface StochasticReport {
 
 export type BenchKind = 'agent-opus' | 'agent-glm' | 'agent-deepseek' | 'simulated' | 'agent-claude';
 
+/** Min–max of a per-repeat saved % (CCA-08). */
+export interface SavedSpread {
+  min: number;
+  max: number;
+  repeats: number;
+}
+
+/**
+ * Mirrors scripts/bench/lib/types.mts AgentHeadline. The CCA-08 fields are
+ * optional: index entries built before CCA-08 lack them.
+ */
 export interface AgentHeadline {
   success_vanilla_pct: number;
   success_cc_pct: number;
-  tokens_saved_pct: number;
-  tool_calls_saved_pct: number;
   /** cc-guided arm (runs since 2026-10-11). */
   success_cc_guided_pct?: number;
+  /** Saved % on input + output + cache_write. */
+  uncached_saved_pct?: number;
+  guided_uncached_saved_pct?: number;
+  uncached_saved_spread?: SavedSpread | null;
+  guided_uncached_saved_spread?: SavedSpread | null;
+  /** Saved % on reported USD; null when any cost is unknown. */
+  cost_saved_pct?: number | null;
+  guided_cost_saved_pct?: number | null;
+  /** Uncached tokens / passing sessions; null when nothing passed. */
+  uncached_per_pass?: { vanilla: number | null; cc: number | null; cc_guided?: number | null };
+  /** Demoted: input + cache_read + output, mostly cache reads. */
+  tokens_saved_pct: number;
+  tool_calls_saved_pct: number;
   guided_tokens_saved_pct?: number;
 }
 
@@ -121,9 +143,19 @@ export interface BenchSourceInfo {
 export interface BenchArmStats {
   success_rate: number;
   tokens: { total: number };
+  /** input + output + cache_write (CCA-08; absent in older runs). */
+  uncached_tokens?: number;
   tool_calls: number;
   mcp_tool_calls: number;
   wall_ms_mean: number;
+}
+
+/** Paired uncached delta vs vanilla over repeats (saved %, min … max). */
+export interface BenchPairedDelta {
+  pairs: number;
+  saved_pct: number;
+  min: number;
+  max: number;
 }
 
 export interface BenchPerTask {
@@ -131,6 +163,8 @@ export interface BenchPerTask {
   vanilla?: BenchArmStats;
   cc?: BenchArmStats;
   cc_guided?: BenchArmStats;
+  /** CCA-08; absent in older runs. null = no pair. */
+  delta?: { cc?: BenchPairedDelta | null; cc_guided?: BenchPairedDelta | null };
 }
 
 /** One arm in one cache phase (cold-warm runs). Means are per session. */
