@@ -16,6 +16,6 @@
   "bench-v3-light.svg": "46.3% TOKENS SAVED. 27.9% FEWER TOOL CALLS. 91.5% STOCHASTIC WINS",
   "phases-v3-dark.svg": "PLANNING -> IMPLEMENTATION -> DONE -> REST. 4 phases. Each one has a gate. The gates do not negotiate.",
   "phases-v3-light.svg": "PLANNING -> IMPLEMENTATION -> DONE -> REST. 4 phases. Each one has a gate. The gates do not negotiate.",
-  "status-v3-dark.svg": "Release: 2.9.0 on npm. Python index: since 2.8. Tests: 992, vitest. Dashboard: 7 pages, live. Fun + stream: hidden unless opted in",
-  "status-v3-light.svg": "Release: 2.9.0 on npm. Python index: since 2.8. Tests: 992, vitest. Dashboard: 7 pages, live. Fun + stream: hidden unless opted in"
+  "status-v3-dark.svg": "Release: 2.10.0 on npm. Python index: since 2.8. Tests: 1014, vitest. Dashboard: 7 pages, live. Fun + stream: hidden unless opted in",
+  "status-v3-light.svg": "Release: 2.10.0 on npm. Python index: since 2.8. Tests: 1014, vitest. Dashboard: 7 pages, live. Fun + stream: hidden unless opted in"
 }
