@@ -3,7 +3,16 @@
 //
 //   code-context-sync-github --project <name> [--db <file>] [--dry-run [--offline]]
 //       [--repo owner/name] [--project-number N] [--project-owner login] [--assignee login]
-//       [--milestone <id>[=<github number>]]... [--max-writes N] [--force]
+//       [--milestone <id>[=<github number>]]... [--adopt N[-M][,…]]... [--max-writes N] [--force]
+//
+// The sync updates only issues / milestones whose GitHub text carries its
+// hidden marker, that the gh user created and whose node id matches the one
+// recorded. --adopt takes over unmarked issues (each linked by one ticket,
+// opened by the gh user, GitHub title starting with "<ticket_ref>:");
+// --milestone <id>=<N> is the explicit mapping that adopts milestone N (created
+// by the gh user, title = local name). Both go through the same engine gate as
+// the MCP tool: honoured on a live run only after the allowlist check; a dry
+// run only plans them. The mapping is stored only when the adopt succeeds.
 //
 // A live run writes only to the exact targets listed in
 // CODE_CONTEXT_GITHUB_SYNC_REPOS in this process's env (comma-separated
@@ -24,13 +33,13 @@ import os from "node:os";
 import fs from "node:fs";
 import Database from "better-sqlite3";
 import { initScrumSchema, runMigrations, peekSchemaVersion, LATEST_SCHEMA_VERSION } from "../scrum/schema.js";
-import { syncGithub, getProject, liveSyncRefusal, syncAuth, syncTargetOf, type GitHubGateway } from "../scrum/github-sync.js";
+import { syncGithub, getProject, liveSyncGate, syncAuth, type GitHubGateway } from "../scrum/github-sync.js";
 import { GhGateway } from "../scrum/github-gateway.js";
 import { upsertProject } from "../scrum/tools/github.js";
 import { log as slog } from "../sessionlog.js";
 
 export const USAGE =
-  "usage: code-context-sync-github --project <name> [--db <file>] [--dry-run [--offline]] [--repo owner/name] [--project-number N] [--project-owner login] [--assignee login] [--milestone <id>[=<gh number>]]... [--max-writes N] [--force]\n\nA live run needs the exact target in CODE_CONTEXT_GITHUB_SYNC_REPOS=owner/repo[@board-owner/N][,…] (a board needs the @board-owner/N form)\nand an assignee that is the repo owner or in CODE_CONTEXT_GITHUB_SYNC_ASSIGNEES=login[,login…].";
+  "usage: code-context-sync-github --project <name> [--db <file>] [--dry-run [--offline]] [--repo owner/name] [--project-number N] [--project-owner login] [--assignee login] [--milestone <id>[=<gh number>]]... [--adopt N[-M][,…]]... [--max-writes N] [--force]\n\nA live run needs the exact target in CODE_CONTEXT_GITHUB_SYNC_REPOS=owner/repo[@board-owner/N][,…] (a board needs the @board-owner/N form)\nand an assignee that is the repo owner or in CODE_CONTEXT_GITHUB_SYNC_ASSIGNEES=login[,login…].";
 
 export interface Args {
   db: string;
@@ -42,12 +51,29 @@ export interface Args {
   projectOwner?: string;
   assignee?: string;
   milestones: Array<{ id: number; github: number | null }>;
+  /** Issue numbers to adopt (unmarked issues; title must start with the ticket ref). */
+  adopt?: number[];
   maxWrites?: number;
   force?: boolean;
 }
 
 function expandHome(p: string): string {
   return p === "~" || p.startsWith("~/") ? path.join(os.homedir(), p.slice(1)) : p;
+}
+
+/** "116-128", "116,118", "#120" → issue numbers; an error string when malformed. */
+export function parseIssueList(raw: string): number[] | string {
+  const out: number[] = [];
+  const parts = raw.split(",").map((p) => p.trim().replace(/^#/, ""));
+  for (const p of parts) {
+    const m = /^(\d+)(?:-#?(\d+))?$/.exec(p);
+    if (!m) return "--adopt needs issue numbers: N, N-M or N,M,…";
+    const lo = Number(m[1]);
+    const hi = m[2] ? Number(m[2]) : lo;
+    if (lo < 1 || hi < lo || hi - lo >= 500) return "--adopt range must be ascending, start at 1 or more and hold at most 500 issues";
+    for (let n = lo; n <= hi; n++) out.push(n);
+  }
+  return out;
 }
 
 export function parseArgs(argv: string[]): Args | string {
@@ -92,6 +118,10 @@ export function parseArgs(argv: string[]): Args | string {
       const m = /^(\d+)(?:=(\d+))?$/.exec(next() ?? "");
       if (!m) return "--milestone needs <id> or <id>=<github number>";
       a.milestones.push({ id: Number(m[1]), github: m[2] ? Number(m[2]) : null });
+    } else if (arg === "--adopt") {
+      const nums = parseIssueList(next() ?? "");
+      if (typeof nums === "string") return nums;
+      a.adopt = [...new Set([...(a.adopt ?? []), ...nums])];
     } else return `unknown option ${arg}`;
   }
   if (!a.project) return "--project is required";
@@ -114,8 +144,10 @@ export function snapshotDb(file: string): Database.Database {
   }
 }
 
-/** Apply the setup flags (project row + milestone links) to db. Returns an error or null.
- *  A dry run edits an in-memory copy, so the re-point rule does not apply there. */
+/** Apply the setup flags (project row + milestone project keys) to db. Returns
+ *  an error or null. A dry run edits an in-memory copy, so the re-point rule
+ *  does not apply there. `--milestone <id>=<N>` is NOT stored here: it is an
+ *  adopt, and the engine stores N only when its ownership gate passes. */
 export function applySetup(db: Database.Database, a: Args): string | null {
   if (a.repo !== undefined || a.projectNumber !== undefined || a.projectOwner !== undefined || a.assignee !== undefined || !getProject(db, a.project)) {
     if (!getProject(db, a.project) && a.repo === undefined) return `project "${a.project}" is not registered — pass --repo owner/name`;
@@ -129,9 +161,7 @@ export function applySetup(db: Database.Database, a: Args): string | null {
     if (typeof r === "string") return r;
   }
   for (const m of a.milestones) {
-    const res = db
-      .prepare(`UPDATE milestones SET project = ?${m.github !== null ? ", github_milestone = ?" : ""}, updated_at = datetime('now') WHERE id = ?`)
-      .run(...(m.github !== null ? [a.project, m.github, m.id] : [a.project, m.id]));
+    const res = db.prepare("UPDATE milestones SET project = ?, updated_at = datetime('now') WHERE id = ?").run(a.project, m.id);
     if (res.changes === 0) return `milestone ${m.id} not found`;
   }
   return null;
@@ -164,8 +194,10 @@ export async function run(a: Args, gateway: GitHubGateway = new GhGateway(), out
     db.exec("BEGIN");
     let err = applySetup(db, a);
     if (!err && !a.dryRun) {
+      // The engine's own gate (syncGithub re-checks it): refused here first so
+      // the setup flags roll back with the refusal.
       const p = getProject(db, a.project);
-      if (p?.repo) err = liveSyncRefusal(syncTargetOf(p), syncAuth());
+      if (p) err = liveSyncGate(p, syncAuth());
     }
     if (err) {
       db.exec("ROLLBACK");
@@ -173,7 +205,12 @@ export async function run(a: Args, gateway: GitHubGateway = new GhGateway(), out
       return 2;
     }
     db.exec("COMMIT");
-    const r = await syncGithub(db, gateway, a.project, { dryRun: a.dryRun, offline: a.offline, maxWrites: a.maxWrites });
+    const adopt = {
+      issues: a.adopt,
+      // --milestone <id>=<N> is the explicit mapping that adopts milestone N.
+      milestones: a.milestones.filter((m) => m.github !== null).map((m) => ({ id: m.id, number: m.github! })),
+    };
+    const r = await syncGithub(db, gateway, a.project, { dryRun: a.dryRun, offline: a.offline, maxWrites: a.maxWrites, adopt });
     out(r.text);
     if (a.dryRun) out("\n(dry run on an in-memory copy — the db file was not changed)");
     slog(r.error ? "WARN" : "INFO", `sync-github: project=${a.project} dry_run=${a.dryRun} issues=${r.plan.issues.length} writes=${r.writes}${r.error ? " failed" : ""}`);

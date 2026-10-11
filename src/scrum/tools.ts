@@ -1278,7 +1278,9 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       if (type !== undefined) { sets.push("type=?"); vals.push(type); }
       if (origin !== undefined) { sets.push("origin=?"); vals.push(origin); }
       // A hand-set number has no known repo: the sync assumes the project's repo.
-      if (github_issue !== undefined) { sets.push("github_issue=?", "github_repo=NULL"); vals.push(github_issue); }
+      // The recorded node id belongs to the old issue: drop it, so the sync never
+      // treats the new number as the issue it created (CCA-14).
+      if (github_issue !== undefined) { sets.push("github_issue=?", "github_repo=NULL", "github_node_id=NULL"); vals.push(github_issue); }
       if (milestone_id !== undefined) {
         sets.push("milestone_id=?"); vals.push(milestone_id);
         if (milestone_id) {
@@ -1612,7 +1614,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       if (badProject) return { content: [{ type: "text" as const, text: badProject }], isError: true };
       const sets: string[] = []; const vals: any[] = [];
       if (project !== undefined) { sets.push("project=?"); vals.push(project); }
-      if (github_milestone !== undefined) { sets.push("github_milestone=?"); vals.push(github_milestone); }
+      if (github_milestone !== undefined) { sets.push("github_milestone=?", "github_node_id=NULL"); vals.push(github_milestone); }
       if (status) { sets.push("status=?"); vals.push(status); }
       if (description) { sets.push("description=?"); vals.push(description); }
       if (progress !== undefined) { sets.push("progress=?"); vals.push(progress); }
