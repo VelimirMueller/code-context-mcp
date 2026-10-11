@@ -7,13 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+## [2.11.0] - 2026-10-11
 
-- **`CODE_CONTEXT_TOOLSETS=code`**: a profile that lists only the 11 code-index tools (`index_directory`, `find_symbol`, `get_file_context`, `search_files`, `get_changes`, `query`, `execute`, `health`, `set_description`, `set_directory_description`, `set_change_reason`). Tool definitions drop from about 12,300 to about 1,300 tokens per model call. For sessions that read code but never run the sprint process. `all` still wins. The default does not change.
+### Added
+- **Dashboard Benchmark page shows real ccc-bench runs:** the latest run per kind with its date and age, the run list, and per-task detail. New `/api/bench/index` and `/api/bench/run/:id` read from `CODE_CONTEXT_BENCH_DIR`, then `<db dir>/bench/`, then `origin/bench-results` in the package's own git checkout; otherwise an explicit empty state. The June simulated data stays as a "Simulated (2026-06)" tab. (#114)
+- **`CODE_CONTEXT_TOOLSETS=code`**: a profile that lists only the 11 code-index tools (`index_directory`, `find_symbol`, `get_file_context`, `search_files`, `get_changes`, `query`, `execute`, `health`, `set_description`, `set_directory_description`, `set_change_reason`). Tool definitions drop from about 12,300 to about 1,300 tokens per model call. For sessions that read code but never run the sprint process. `all` still wins. The default does not change. (#109)
+- **Fair benchmark arms:** task prompts name no tools, a third `cc-guided` arm adds the "use code-context first" rule to the system prompt, both code-context arms run `CODE_CONTEXT_TOOLSETS=code`, and sessions record the cost the CLI reports. (#111)
+
+### Changed
+- `bench:publish` copies the merged `data/` to `CODE_CONTEXT_BENCH_DIR` when set (never in Actions), so the dashboard gets new runs without a manual copy. (#114)
+- README token claim quotes the fair agent runs; the 46.3 % figure is labelled as simulated in the stats and bench panels. The site notes that agent runs before 2026-10-11 used grep-steering prompts. (#113)
 
 ### Fixed
-
-- **Repo-relative paths work.** `get_file_context` and `set_description` accept `src/server/schema.ts` as well as absolute paths: relative to the server's working directory first, then a unique suffix match in the index. With several repos in one database, the match under the working directory wins, otherwise the tool lists the candidates. Before, a relative path answered "not in index", and agents fell back to grep.
+- **Repo-relative paths work.** `get_file_context` and `set_description` accept `src/server/schema.ts` as well as absolute paths: relative to the server's working directory first, then a unique suffix match in the index. With several repos in one database, the match under the working directory wins, otherwise the tool lists the candidates. Before, a relative path answered "not in index", and agents fell back to grep. (#109)
+- A provider error or a session with 0 model calls voids a live benchmark run: no run file, the artefacts stay for diagnosis. (#112)
+- The dashboard build clears old hashed chunks in `dist/dashboard/assets`; the 2.10.0 pack held three copies of each. (#110)
 
 ## [2.10.0] - 2026-10-11
 
