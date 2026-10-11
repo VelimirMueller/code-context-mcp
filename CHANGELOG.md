@@ -7,9 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+## [2.10.0] - 2026-10-11
 
-- `docs/CLAUDE-PROJECT.md`: steps and paste-ready instructions for a Claude project about this repo. Not part of the docs site or the npm package.
+### Added
+- **Benchmark task ladder S → XL** on the sample project and on this repo's `src/`; prompts state exactly what counts, and the checker uses the same whole-word rule. (#105)
+- **Fresh agent sessions and an Opus provider** for agent benchmarks; cache reads count as tokens; a run fails when the model changes mid-run, and the agent prompt is recorded. (#102)
+- `docs/CLAUDE-PROJECT.md`: steps and paste-ready instructions for a Claude project about this repo. Not part of the docs site or the npm package. (#104)
+
+### Changed
+- **Dashboard in the D-41 look:** Inter and Space Mono bundled with the app (Geist from a CDN removed), Space Mono logo, headings and upper-case nav labels, a 32 px grid, white pill for primary actions, card radius 24, and the literal palette mapped to the token values. (#107)
+- **Benchmark site** serves Inter and Space Mono from `site/assets/fonts`; still no third-party request. (#107)
+- Agent benchmarks run locally; Actions skips them when secrets are missing. (#101)
+
+### Fixed
+- Claude token totals come from the result event. (#106)
+- Local `bench:publish` starts the Pages build. (#103)
+- Every regex metacharacter is escaped in `wordRe` (CodeQL). (#105)
 
 ## [2.9.0] - 2026-10-10
 
