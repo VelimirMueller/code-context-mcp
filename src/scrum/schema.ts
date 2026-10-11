@@ -32,6 +32,7 @@ export function initScrumSchema(db: Database.Database): void {
       milestone_id INTEGER REFERENCES milestones(id),
       deleted_at TEXT DEFAULT NULL,
       archived_at TEXT DEFAULT NULL,
+      project TEXT DEFAULT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -60,6 +61,11 @@ export function initScrumSchema(db: Database.Database): void {
       dependencies TEXT,
       notes TEXT,
       deleted_at TEXT DEFAULT NULL,
+      project TEXT DEFAULT NULL,
+      type TEXT DEFAULT NULL CHECK (type IS NULL OR type IN ('feat', 'fix', 'chore', 'infra', 'improvement')),
+      origin TEXT DEFAULT NULL CHECK (origin IS NULL OR origin IN ('ai', 'human')),
+      github_issue INTEGER DEFAULT NULL,
+      github_repo TEXT DEFAULT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (sprint_id) REFERENCES sprints(id) ON DELETE CASCADE,
@@ -151,6 +157,8 @@ export function initScrumSchema(db: Database.Database): void {
       progress INTEGER NOT NULL DEFAULT 0,
       deleted_at TEXT DEFAULT NULL,
       archived_at TEXT DEFAULT NULL,
+      project TEXT DEFAULT NULL,
+      github_milestone INTEGER DEFAULT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -175,6 +183,7 @@ export function initScrumSchema(db: Database.Database): void {
       priority INTEGER NOT NULL DEFAULT 0 CHECK (priority BETWEEN 0 AND 4),
       deleted_at TEXT DEFAULT NULL,
       archived_at TEXT DEFAULT NULL,
+      project TEXT DEFAULT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -364,6 +373,20 @@ export function initScrumSchema(db: Database.Database): void {
     );
     CREATE INDEX IF NOT EXISTS idx_ticket_assignments_ticket ON ticket_assignments(ticket_id);
 
+    CREATE TABLE IF NOT EXISTS projects (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      repo TEXT,
+      github_project_owner TEXT,
+      github_project_number INTEGER,
+      github_assignee TEXT,
+      github_project_id TEXT,
+      github_status_field_id TEXT,
+      github_status_options TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE VIEW IF NOT EXISTS velocity_trends AS
     SELECT
       s.id as sprint_id, s.name as sprint_name, s.status,
@@ -419,6 +442,10 @@ export function initScrumSchema(db: Database.Database): void {
     }
   }
 
+  // v26 project indexes — legacy tables gain `project` in runMigrations' idempotent
+  // section, so only index it here when the column already exists.
+  createProjectIndexes(db);
+
   // idx_tickets_sprint_deleted and idx_sprints_status_deleted reference deleted_at columns
   // that may not exist on legacy DBs — create them only when the columns are present.
   // For fresh DBs the columns exist in the canonical CREATE TABLE above; for legacy DBs
@@ -440,9 +467,45 @@ export function initScrumSchema(db: Database.Database): void {
   )`);
 }
 
+/** Tables that carry the v26 `project` key (CCA-13). */
+const PROJECT_TABLES = ["milestones", "sprints", "epics", "tickets"] as const;
+
+/** Index `project` on every table that has the column (idempotent). */
+function createProjectIndexes(db: Database.Database): void {
+  for (const table of PROJECT_TABLES) {
+    const cols = db.pragma(`table_info(${table})`) as Array<{ name: string }>;
+    if (cols.some((c) => c.name === "project")) {
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_${table}_project ON ${table}(project);`);
+    }
+  }
+}
+
+/** `GitHub: owner/repo#123` as the CCA tickets store it in `notes`. */
+const GITHUB_NOTE_RE = /GitHub:\s*([A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9._-]+)#(\d+)/;
+
+/**
+ * One-off backfill (v26): tickets whose `notes` hold `GitHub: owner/repo#N` get
+ * `github_issue = N` and `github_repo = owner/repo`. Only rows with no stored
+ * issue number change; `project` is never set here (never guessed).
+ * Returns the number of tickets updated.
+ */
+export function backfillGithubIssues(db: Database.Database): number {
+  const rows = db
+    .prepare("SELECT id, notes FROM tickets WHERE github_issue IS NULL AND notes LIKE '%GitHub:%'")
+    .all() as Array<{ id: number; notes: string }>;
+  const upd = db.prepare("UPDATE tickets SET github_issue = ?, github_repo = ? WHERE id = ? AND github_issue IS NULL");
+  let n = 0;
+  for (const r of rows) {
+    const m = GITHUB_NOTE_RE.exec(r.notes);
+    if (!m) continue;
+    n += upd.run(Number(m[2]), m[1], r.id).changes;
+  }
+  return n;
+}
+
 /** Single source of truth for the schema version. Must equal the max version in
  *  runMigrations' array — runMigrations asserts this at every call. */
-export const LATEST_SCHEMA_VERSION = 25;
+export const LATEST_SCHEMA_VERSION = 26;
 
 /**
  * Read the stamped schema version of an on-disk DB without opening it
@@ -628,6 +691,12 @@ export function runMigrations(
     // initSchema's upgradeCodeIndexColumns (src/server/schema.ts), which every
     // opener runs before this; this entry records the version.
     { version: 25, name: 'add_export_signatures_and_import_lines', sql: `SELECT 1` },
+    // CCA-13: projects table, `project` key on milestones/sprints/epics/tickets,
+    // tickets.type/origin/github_issue/github_repo, milestones.github_milestone.
+    // Columns, indexes and the notes backfill are applied in the idempotent
+    // post-migration section below (after the v17 sprints rebuild); this entry
+    // records the version.
+    { version: 26, name: 'add_projects_and_github_sync', sql: `SELECT 1` },
   ];
 
   const maxDefined = Math.max(...migrations.map((m) => m.version));
@@ -852,6 +921,38 @@ export function runMigrations(
     }
     db.exec(`CREATE INDEX IF NOT EXISTS idx_${table}_archived ON ${table}(archived_at);`);
   }
+
+  // Migration 26 (CCA-13): project key + GitHub sync columns. Existing rows stay
+  // NULL (unassigned) — the project is never guessed. Runs after the v17 rebuild.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS projects (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      repo TEXT,
+      github_project_owner TEXT,
+      github_project_number INTEGER,
+      github_assignee TEXT,
+      github_project_id TEXT,
+      github_status_field_id TEXT,
+      github_status_options TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+  const addCol = (table: string, col: string, ddl: string) => {
+    const tCols = db.pragma(`table_info(${table})`) as Array<{ name: string }>;
+    if (!tCols.some((c) => c.name === col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${ddl}`);
+  };
+  for (const table of PROJECT_TABLES) addCol(table, "project", "TEXT DEFAULT NULL");
+  addCol("tickets", "type", "TEXT DEFAULT NULL CHECK (type IS NULL OR type IN ('feat', 'fix', 'chore', 'infra', 'improvement'))");
+  addCol("tickets", "origin", "TEXT DEFAULT NULL CHECK (origin IS NULL OR origin IN ('ai', 'human'))");
+  addCol("tickets", "github_issue", "INTEGER DEFAULT NULL");
+  addCol("tickets", "github_repo", "TEXT DEFAULT NULL");
+  addCol("milestones", "github_milestone", "INTEGER DEFAULT NULL");
+  createProjectIndexes(db);
+  // One-off: parse `GitHub: owner/repo#N` notes into github_issue (only on the
+  // upgrade to v26, so a number cleared later is not re-filled on every boot).
+  if (current < 26) backfillGithubIssues(db);
   });
 
   // SQLite table rebuilds (DROP + RENAME) under FK enforcement fire ON DELETE CASCADE

@@ -8,7 +8,8 @@
     "code-context-mcp": "dist/server/setup.js",
     "code-context-dashboard": "dist/dashboard/dashboard.js",
     "code-context-statusline": "dist/server/statusline.js",
-    "code-context-reindex": "dist/server/reindex-cli.js"
+    "code-context-reindex": "dist/server/reindex-cli.js",
+    "code-context-sync-github": "dist/server/sync-github-cli.js"
   },
   "files": [
     "dist",

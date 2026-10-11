@@ -50,7 +50,7 @@ Your agents forget everything between sessions. This one file does not.
 
 - Gives AI coding agents **persistent memory**. The memory survives the session.
 - Indexes your codebase into one SQLite file, `context.db`. Agents query file roles, exports and dependents. In real agent runs this pays off on dependency questions ("who imports X": 0.55–0.77× the tokens of an agent without it) and costs more on small or grep-friendly tasks. The 46 % saving is the simulated benchmark; see [Benchmark](#benchmark).
-- Runs a full sprint process for a 9-agent team: vision, discovery, milestones, epics, tickets, gates and retros. It uses 95 MCP tools and 6 slash commands.
+- Runs a full sprint process for a 9-agent team: vision, discovery, milestones, epics, tickets, gates and retros. It uses 97 MCP tools and 6 slash commands.
 - Shows everything on a live React dashboard at `:3333`. Zero API keys.
 
 <br>
@@ -127,7 +127,7 @@ No agent holds the full project in its context window. Agents query a shared SQL
 │  └────┬─────┘  └────┬─────┘  └────┬─────┘          │
 │       └──────────────┼─────────────┘                │
 │                      ▼                              │
-│     95 MCP Tools (101 with all toolsets)            │
+│     97 MCP Tools (103 with all toolsets)            │
 │      (reads · writes · ceremony cards)              │
 │                      │                              │
 │                      ▼                              │
@@ -265,7 +265,7 @@ planning → implementation → done → rest
 
 - Runtime: Node.js 24 LTS. Build: TypeScript strict mode.
 - Database: SQLite via better-sqlite3, WAL mode. 33 tables (27 scrum + 6 code).
-- MCP protocol: @modelcontextprotocol/sdk. 95 MCP tools by default, 101 with `CODE_CONTEXT_TOOLSETS=all`, 6 with `CODE_CONTEXT_TOOLSETS=code` (`find_symbol`, `get_file_context`, `who_imports`, `exports_in`, `search_files`, `query`). The server sends short MCP `instructions` (about 90 tokens) on when to use the graph tools.
+- MCP protocol: @modelcontextprotocol/sdk. 97 MCP tools by default, 103 with `CODE_CONTEXT_TOOLSETS=all`, 6 with `CODE_CONTEXT_TOOLSETS=code` (`find_symbol`, `get_file_context`, `who_imports`, `exports_in`, `search_files`, `query`). The server sends short MCP `instructions` (about 90 tokens) on when to use the graph tools.
 - Output env vars: `OVERDRIVE_FLAIR` (flair header/footer on text results: on by default, off under `code`; `0`/`1` force it), `CODE_CONTEXT_TIMESTAMPS=1` (adds `modified`/`indexed` timestamps; off by default), `CODE_CONTEXT_ABSOLUTE_PATHS=1` (absolute paths). See [REFERENCE](docs/REFERENCE.md).
 - Dashboard: React 19 + Vite + Zustand + Framer Motion. CSS variables + Tailwind, dark theme. 75 React components.
 - Live updates: SSE via WAL file watcher.
