@@ -39,7 +39,8 @@ export function resolveToolPath(
     const root = cwd.endsWith(path.sep) ? cwd : cwd + path.sep;
     const underCwd = rows.filter((r) => r.path.startsWith(root));
     if (underCwd.length === 1) return { kind: 'path', path: underCwd[0].path };
-    return { kind: 'ambiguous', candidates: rows.map((r) => r.path) };
+    const pool = underCwd.length > 1 ? underCwd : rows;
+    return { kind: 'ambiguous', candidates: pool.map((r) => r.path) };
   }
   // Not indexed yet: hand back the cwd-relative path so on-demand indexing can try it.
   return { kind: 'path', path: fromCwd };

@@ -49,6 +49,14 @@ describe('resolveToolPath', () => {
     expect(r.kind).toBe('ambiguous');
     if (r.kind === 'ambiguous') expect(r.candidates).toHaveLength(2);
   });
+  it('lists only the matches under cwd when several sit there', () => {
+    add('/repos/a/lib/server/schema.ts');
+    const r = resolveToolPath(db, 'server/schema.ts', '/repos/a');
+    expect(r).toEqual({
+      kind: 'ambiguous',
+      candidates: ['/repos/a/lib/server/schema.ts', '/repos/a/src/server/schema.ts'],
+    });
+  });
   it('treats LIKE wildcards in the input literally', () => {
     expect(resolveToolPath(db, 'odd_%name.ts', '/elsewhere')).toEqual({
       kind: 'path',
