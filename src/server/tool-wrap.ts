@@ -25,14 +25,17 @@ export const OPTIONAL_TOOLSETS: Readonly<Record<string, readonly string[]>> = {
 };
 
 /**
- * The `code` profile: the four tools that answer a reading agent's questions
- * (CCA-02, #117; query schema CCA-03, #118). About 2.4k chars of tool
+ * The `code` profile: the six tools that answer a reading agent's questions
+ * (CCA-02, #117; query schema CCA-03, #118; who_imports/exports_in CCA-05,
+ * #120). About 3.3k chars of tool
  * definitions instead of about 49k for the default set — for sessions that
  * read code but never run the sprint process (benchmarks, OpenCode workers, one-off agents).
  */
 export const CODE_TOOLS: readonly string[] = [
   "find_symbol",
   "get_file_context",
+  "who_imports",
+  "exports_in",
   "search_files",
   "query",
 ];

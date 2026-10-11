@@ -7,7 +7,7 @@
  * Measures total MCP tool OUTPUT tokens consumed under old vs new format,
  * representing the real context-window cost an AI agent pays during development.
  *
- * Fixture: sample-project (10 files, 5 TypeScript, 19 exports, 3 dep edges)
+ * Fixture: sample-project (10 files, 5 TypeScript, 19 exports, 5 dep edges)
  *
  * Tasks:
  *   S — Add a utility function to helpers.ts (2pt)
@@ -22,8 +22,7 @@ import path from "path";
 import Database from "better-sqlite3";
 import { indexDirectory } from "../src/server/indexer.js";
 import { createTestDb } from "./helpers/db.js";
-
-const FIXTURE_DIR = path.resolve(__dirname, "fixtures/sample-project");
+import { FIXTURE_DIR, canonicalPath, simFileContext, simFindSymbol, simSearchFiles } from "./helpers/benchmark-fixture.js";
 
 // ═════════════════════════════════════════════════════════════════════════════
 // Token estimation
@@ -50,6 +49,7 @@ function queryFile(db: Database.Database, fp: string) {
   const file = db.prepare("SELECT * FROM files WHERE path = ?").get(fp) as any;
   if (!file) return null;
   return {
+    db,
     file,
     exports: db.prepare("SELECT name, kind FROM exports WHERE file_id = ?").all(file.id) as any[],
     deps: db.prepare("SELECT f.path, f.summary, d.symbols FROM dependencies d JOIN files f ON d.target_id = f.id WHERE d.source_id = ?").all(file.id) as any[],
@@ -68,29 +68,20 @@ function resolvePath(db: Database.Database, pattern: string): string {
 function fileContextOld(d: NonNullable<ReturnType<typeof queryFile>>): string {
   const { file: f, exports: e, deps, dependents: dep } = d;
   return [
-    `# ${f.path}`,
+    `# ${canonicalPath(f.path)}`,
     `Language: ${f.language} | Extension: ${f.extension} | Size: ${formatSize(f.size_bytes)} | Lines: ${f.line_count}`,
     `Created: ${f.created_at} | Modified: ${f.modified_at} | Indexed: ${f.indexed_at}`,
     `Summary: ${f.summary}`, f.description ? `Description: ${f.description}` : "", "",
     `## Exports (${e.length})`, ...e.map((x: any) => `  - ${x.name} (${x.kind})`), "",
     f.external_imports ? `## External packages\n  ${f.external_imports}` : "", "",
-    `## Imports from (${deps.length})`, ...deps.map((x: any) => `  - ${x.path} [${x.symbols}]\n    ${x.summary}`), "",
-    `## Imported by (${dep.length})`, ...dep.map((x: any) => `  - ${x.path} [${x.symbols}]\n    ${x.summary}`),
+    `## Imports from (${deps.length})`, ...deps.map((x: any) => `  - ${canonicalPath(x.path)} [${x.symbols}]\n    ${x.summary}`), "",
+    `## Imported by (${dep.length})`, ...dep.map((x: any) => `  - ${canonicalPath(x.path)} [${x.symbols}]\n    ${x.summary}`),
   ].join("\n");
 }
 
+/** NEW = the real get_file_context output today (relative paths, #119 signatures and import lines). */
 function fileContextNew(d: NonNullable<ReturnType<typeof queryFile>>): string {
-  const { file: f, exports: e, deps, dependents: dep } = d;
-  return [
-    `# ${f.path}`,
-    `${f.language} | ${formatSize(f.size_bytes)} | ${f.line_count} lines | modified ${f.modified_at}`,
-    f.summary,
-    f.description && f.description !== f.summary ? f.description : "",
-    e.length > 0 ? `## Exports (${e.length})\n${e.map((x: any) => `- ${x.name} (${x.kind})`).join("\n")}` : "",
-    f.external_imports ? `## External packages\n${f.external_imports}` : "",
-    deps.length > 0 ? `## Imports from (${deps.length})\n${deps.map((x: any) => `- ${x.path} [${x.symbols}]`).join("\n")}` : "",
-    dep.length > 0 ? `## Imported by (${dep.length})\n${dep.map((x: any) => `- ${x.path} [${x.symbols}]`).join("\n")}` : "",
-  ].filter(Boolean).join("\n");
+  return simFileContext(d.db, d.file.path);
 }
 
 function indexDirOld(db: Database.Database, root: string): string {
@@ -138,17 +129,14 @@ function indexDirNew(db: Database.Database, root: string): string {
   return s.join("\n");
 }
 
+/** find_symbol: the real output, the same in both arms (its format did not change). */
 function findSymbol(db: Database.Database, name: string): string {
-  const rows = db.prepare("SELECT e.name, e.kind, f.path, f.summary FROM exports e JOIN files f ON e.file_id = f.id WHERE e.name LIKE ? ORDER BY e.name").all(name) as any[];
-  if (!rows.length) return `No exports matching "${name}" found.`;
-  return rows.map((r: any) => `${r.name} (${r.kind}) — ${r.path}\n  ${r.summary}`).join("\n\n");
+  return simFindSymbol(db, name);
 }
 
+/** search_files: the real output, the same in both arms (its format did not change). */
 function searchFiles(db: Database.Database, q: string): string {
-  const p = q.includes("%") ? q : `%${q}%`;
-  const rows = db.prepare("SELECT path, language, line_count, summary, (SELECT COUNT(*) FROM exports WHERE file_id = files.id) as ec, (SELECT COUNT(*) FROM dependencies WHERE source_id = files.id) as dc FROM files WHERE path LIKE ? OR summary LIKE ? ORDER BY path LIMIT 25").all(p, p) as any[];
-  if (!rows.length) return `No files matching "${q}".`;
-  return rows.map((r: any) => `${r.path} (${r.language}, ${r.line_count} lines, ${r.ec} exports, ${r.dc} deps)\n  ${r.summary}`).join("\n\n");
+  return simSearchFiles(db, q);
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -397,7 +385,7 @@ describe("Development task A/B benchmark", () => {
     report.push("╔══════════════════════════════════════════════════════════════════════════════════════════════════╗");
     report.push("║  DEVELOPMENT TASK A/B BENCHMARK                                                                ║");
     report.push("║  Format: OLD (pre-Sprint 10) vs NEW (optimized)                                                ║");
-    report.push("║  Fixture: sample-project (10 files, 5 TypeScript, 19 exports, 3 dependency edges)              ║");
+    report.push("║  Fixture: sample-project (10 files, 5 TypeScript, 19 exports, 5 dependency edges)              ║");
     report.push("║  Measures: total MCP output tokens consumed during simulated development workflow               ║");
     report.push("╚══════════════════════════════════════════════════════════════════════════════════════════════════╝");
     report.push("");
@@ -472,11 +460,16 @@ describe("Development task A/B benchmark", () => {
   });
 
   // ── Aggregate assertions ────────────────────────────────────────────────
-  it("aggregate savings >20% across all tasks", () => {
+  it("aggregate savings >10% across all tasks", () => {
     const totalOld = oldS.totalTokens + oldM.totalTokens + oldL.totalTokens;
     const totalNew = newS.totalTokens + newM.totalTokens + newL.totalTokens;
     const pct = ((totalOld - totalNew) / totalOld) * 100;
-    expect(pct, `${pct.toFixed(1)}% savings`).toBeGreaterThan(20);
+    // Floor just under the measured value: 10.7 % on 2026-10-11 (was 20.97 %).
+    // NEW is now the real get_file_context output, which since #119 carries
+    // signatures and import lines (alone: 21.0 % → 9.0 %), and the sample
+    // project has 5 correct import edges instead of 3 (#120). OLD prints fixed
+    // absolute paths, so the number no longer depends on the checkout path.
+    expect(pct, `${pct.toFixed(1)}% savings`).toBeGreaterThan(10);
   });
 
   it("every get_file_context call across all tasks: new < old", () => {

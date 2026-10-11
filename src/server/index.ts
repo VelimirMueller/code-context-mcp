@@ -18,6 +18,7 @@ import { FreshnessGuard, freshnessNotice, type FreshRow } from "./freshness.js";
 import { instrumentTools } from "./tool-wrap.js";
 import { resolveToolPath, resolveDirPath, pathDisplay, canonicalPath } from "./path-resolve.js";
 import { declarationLines, hasSignatureParser, parseStoredImportLines } from "./signatures.js";
+import { whoImports, exportsIn } from "./graph.js";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const DB_PATH = process.argv[2] ?? "./context.db";
@@ -415,6 +416,36 @@ server.tool(
     }
 
     return { content: [{ type: "text", text: notice + sections.join("\n") }] };
+  }
+);
+
+// ─── Tools: who_imports, exports_in (CCA-05, #120) ───────────────────────────
+// Answers from the import graph (dependencies + exports); see graph.ts for the
+// symbol rules and how re-exports and namespace imports count.
+server.tool(
+  "who_imports",
+  "Which files import X (file path or exported symbol)? Complete list from the import graph, with symbols, lines and re-exports. No grep needed.",
+  {
+    target: z.string().describe("File path or symbol name"),
+    absolute_paths: z.boolean().optional().describe(ABSOLUTE_PATHS_DESC),
+  },
+  async ({ target, absolute_paths }) => {
+    const r = whoImports(db, target, { show: pathDisplay(db, { absolute: absolute_paths }), fresh });
+    return { content: [{ type: "text", text: r.text }], ...(r.isError ? { isError: true } : {}) };
+  }
+);
+
+server.tool(
+  "exports_in",
+  "What does directory D export, and which exports are unused (unused: true)? Signatures and lines, complete from the import graph.",
+  {
+    dir: z.string(),
+    unused: z.boolean().optional(),
+    absolute_paths: z.boolean().optional().describe(ABSOLUTE_PATHS_DESC),
+  },
+  async ({ dir, unused, absolute_paths }) => {
+    const r = exportsIn(db, dir, unused === true, { show: pathDisplay(db, { absolute: absolute_paths }), fresh });
+    return { content: [{ type: "text", text: r.text }], ...(r.isError ? { isError: true } : {}) };
   }
 );
 

@@ -109,7 +109,7 @@ export function benchAgentPrompt(nonce: string, guidance?: string): string {
  */
 export const CC_GUIDANCE =
   'A code-context MCP server has indexed this project. Before you read or search files, use its tools: ' +
-  'search_files, find_symbol and get_file_context (repo-relative paths work). ' +
+  'search_files, find_symbol, get_file_context and who_imports (repo-relative paths work). ' +
   'Fall back to read, grep and glob only for what they do not answer.';
 
 export interface WriteOpencodeConfigOpts {

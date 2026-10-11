@@ -1,0 +1,50 @@
+# who_imports
+
+Which files import X? X is a file or an exported symbol. The answer is the complete list from the import graph, so it needs no grep to verify.
+
+## Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `target` | string | yes | A file path (repo-relative, absolute, a unique suffix such as `core.ts`, or a bare module name such as `schema`) or an exported symbol name (`initSchema`). |
+| `absolute_paths` | boolean | no | Print absolute paths instead of project-relative ones. |
+
+A bare identifier is read as a symbol first. When no indexed file exports that name, it is read as a file name.
+
+## Output
+
+- **Heading**: the target, the number of files that import it directly, the number that reach it through a re-export, and "complete list from the import graph".
+- **One line per importer**: path, the line numbers of its import statements (`L2,L7`), the symbols it takes in brackets, and a flag:
+  - `(re-export)`: the file re-exports the target (`export { a } from`, `export * from`). It is a barrel.
+  - `(whole module)`: symbol mode only. The file takes every export (`import * as ns`, `import()` without destructuring), so it may use the symbol.
+- **Via re-export**: files that import the target one hop through a barrel listed above, with the barrel named. Files that also import the target directly are not repeated.
+- At most 100 lines per list, then `+N more`.
+
+Symbol mode lists the file that defines the symbol (not a barrel that only re-exports it), then only the files that take that symbol: by name, through a re-export, or as a whole module. A renamed re-export (`export { beta as betaRenamed }`) is followed under its new name.
+
+## What the graph holds
+
+Edges come from relative imports of indexed files: `import … from`, `import type`, side-effect `import '…'`, `export … from`, dynamic `import('…')` and `require('…')` (JS/TS), and `import` / `from … import` (Python). Not in the graph: package imports, tsconfig path aliases (`@/…`), and files the index skips (git-ignored, binary or over the size limit). Databases indexed before this release lack the re-export, type-import and dynamic-import edges until the next full re-index.
+
+## Example
+
+```
+who_imports src/server/schema.ts
+```
+
+```
+# src/server/schema.ts: imported by 4 files — complete list from the import graph
+- src/dashboard/dashboard.ts L10 [initSchema]
+- src/server/index.ts L10 [initSchema]
+- src/server/reindex-cli.ts L14 [initSchema]
+- src/server/setup.ts L6 [initSchema]
+```
+
+A barrel and the file behind it:
+
+```
+# src/utils/helpers.ts: imported by 1 file (+1 through re-exports) — complete list from the import graph
+- src/utils/index.ts L2 [export formatDate, export capitalize, export clamp, export generateId, export DEFAULT_PAGE_SIZE] (re-export)
+## Via re-export (1): import it through a barrel above
+- src/index.ts L2 [formatDate, capitalize, DEFAULT_PAGE_SIZE] via src/utils/index.ts
+```

@@ -166,8 +166,9 @@ describe("Import Parsing", () => {
     });
     indexDirectory(db, tmpDir);
     const deps = getDeps(db, path.join(tmpDir, "main.ts"));
-    // Should have 1 dependency (deduplicated by source_id + target_id UNIQUE)
+    // One edge per target (UNIQUE(source_id, target_id)) carrying both statements' symbols
     expect(deps).toHaveLength(1);
+    expect(deps[0].symbols).toBe("foo, bar");
     fs.rmSync(tmpDir, { recursive: true });
   });
 });
@@ -355,15 +356,15 @@ describe("Known Limitations (documented)", () => {
     db = createTestDb();
   });
 
-  it.skip("does not detect dynamic imports: import('./module') — regex only matches static imports", () => {
+  it("detects dynamic imports: import('./module') is a whole-module edge (CCA-05)", () => {
     tmpDir = createTempProject({
       "utils.ts": "export function foo() {}",
       "main.ts": "const m = await import('./utils');",
     });
     indexDirectory(db, tmpDir);
     const deps = getDeps(db, path.join(tmpDir, "main.ts"));
-    // Dynamic imports are not captured by the static regex
-    expect(deps).toHaveLength(0);
+    expect(deps).toHaveLength(1);
+    expect(deps[0].symbols).toBe("import()");
     fs.rmSync(tmpDir, { recursive: true });
   });
 

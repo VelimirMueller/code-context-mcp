@@ -108,16 +108,68 @@ interface ParsedImport {
   fromImport?: boolean;
 }
 
-function parseImports(content: string): ParsedImport[] {
+/** Names of a `{ a, type b, c as d }` list, original spelling (`a`, `b`, `c`). */
+function braceNames(raw: string): string[] {
+  return raw
+    .split(",")
+    .map((s) => s.trim().replace(/^type\s+/, "").split(/\s+as\s+|\s*:\s*|\s*=/)[0].trim())
+    .filter((s) => /^[\w$]+$/.test(s));
+}
+
+/**
+ * JS/TS module references and what each one takes. Symbols (stored in
+ * dependencies.symbols, CCA-05 #120):
+ * - `a` named or default import (`import type` too); `* as ns` namespace import
+ * - `export a` / `export a as b` re-export; `export *`; `export * as ns`
+ * - `import()` / `require()` dynamic import or require without destructuring
+ *   (a destructured one lists its names); side-effect import: no symbols
+ */
+export function parseImports(content: string): ParsedImport[] {
   const results: ParsedImport[] = [];
-  const importRe = /import\s+(?:(?:\{([^}]*)\}|(\w+)|\*\s+as\s+(\w+))\s+from\s+)?['"]([^'"]+)['"]/g;
+  const NB = String.raw`(?<![\w$.])`;
   let m: RegExpExecArray | null;
-  while ((m = importRe.exec(content)) !== null) {
-    const named = m[1]?.split(",").map(s => s.trim().split(/\s+as\s+/)[0]).filter(Boolean) ?? [];
-    const defaultImport = m[2] ? [m[2]] : [];
-    const namespace = m[3] ? [`* as ${m[3]}`] : [];
-    const source = m[4];
-    results.push({ symbols: [...named, ...defaultImport, ...namespace], source });
+  // import [type] <clause> from '<src>'
+  const staticRe = new RegExp(String.raw`${NB}import\s+(?:type\s+)?([^'";]*?)\s*\bfrom\s*['"]([^'"\n]+)['"]`, "g");
+  while ((m = staticRe.exec(content)) !== null) {
+    const clause = m[1];
+    const symbols: string[] = [];
+    const def = /^([\w$]+)\s*(?:,|$)/.exec(clause.trim());
+    if (def && def[1] !== "type") symbols.push(def[1]);
+    const braces = /\{([^}]*)\}/.exec(clause);
+    if (braces) symbols.push(...braceNames(braces[1]));
+    const ns = /\*\s*as\s+([\w$]+)/.exec(clause);
+    if (ns) symbols.push(`* as ${ns[1]}`);
+    results.push({ symbols, source: m[2] });
+  }
+  // import '<src>' (side effect)
+  const bareRe = new RegExp(String.raw`${NB}import\s*['"]([^'"\n]+)['"]`, "g");
+  while ((m = bareRe.exec(content)) !== null) results.push({ symbols: [], source: m[1] });
+  // export [type] * [as ns] | { list } from '<src>'
+  const reRe = new RegExp(
+    String.raw`${NB}export\s+(?:type\s+)?(?:\*(?:\s*as\s+([\w$]+))?|\{([^}]*)\})\s*from\s*['"]([^'"\n]+)['"]`,
+    "g",
+  );
+  while ((m = reRe.exec(content)) !== null) {
+    let symbols: string[];
+    if (m[2] !== undefined) {
+      symbols = m[2]
+        .split(",")
+        .map((s) => s.trim().replace(/^type\s+/, "").split(/\s+as\s+/).map((p) => p.trim()))
+        .filter((p) => /^[\w$]+$/.test(p[0]))
+        .map((p) => (p[1] && p[1] !== p[0] ? `export ${p[0]} as ${p[1]}` : `export ${p[0]}`));
+    } else {
+      symbols = [m[1] ? `export * as ${m[1]}` : "export *"];
+    }
+    results.push({ symbols, source: m[3] });
+  }
+  // [const { a, b } = ] [await] import('<src>') | require('<src>')
+  const dynRe = new RegExp(
+    String.raw`(?:(?:const|let|var)\s*\{([^}]*)\}\s*=\s*(?:await\s+)?)?${NB}(import|require)\s*\(\s*['"]([^'"\n]+)['"]\s*\)`,
+    "g",
+  );
+  while ((m = dynRe.exec(content)) !== null) {
+    const names = m[1] !== undefined ? braceNames(m[1]) : [];
+    results.push({ symbols: names.length ? names : [`${m[2]}()`], source: m[3] });
   }
   return results;
 }
@@ -190,14 +242,16 @@ function findNamedExports(content: string): ParsedExport[] {
   );
 }
 
+// Re-export statements start a line: `export { a, b }` inside a comment or a
+// string (` * Parse \`export { a, b }\` braces`) is not one.
 function findLocalReExports(content: string): ParsedExport[] {
-  return matchAll(content, /export\s+\{([^}]+)\}(?!\s*from)/g, (m) =>
+  return matchAll(content, /^[ \t]*export\s+\{([^}]+)\}(?!\s*from)/gm, (m) =>
     parseBraceList(m[1], false).map(name => ({ name, kind: "re-export", description: null })),
   );
 }
 
 function findModuleReExports(content: string): ParsedExport[] {
-  return matchAll(content, /export\s+\{([^}]+)\}\s*from\s+['"][^'"]+['"]/g, (m) =>
+  return matchAll(content, /^[ \t]*export\s+\{([^}]+)\}\s*from\s+['"][^'"]+['"]/gm, (m) =>
     parseBraceList(m[1], true).map(name => ({ name, kind: "re-export", description: null })),
   );
 }
@@ -1067,7 +1121,9 @@ function storeDeps(st: FileStatements, filePath: string, content: string, rootDi
   const sourceRow = st.getFileId.get(filePath) as { id: number } | undefined;
   if (!sourceRow) return 0;
   st.clearDeps.run(sourceRow.id);
-  let n = 0;
+  // One edge per target (UNIQUE(source_id, target_id)): every statement that
+  // reaches the same file adds its symbols to that edge, in source order.
+  const byTarget = new Map<number, Set<string>>();
   for (const imp of parseFileImports(content, ext)) {
     const targets = PYTHON_EXTENSIONS.has(ext)
       ? resolvePythonImportTargets(imp.source, imp.symbols, filePath, rootDir, imp.fromImport !== false)
@@ -1075,11 +1131,13 @@ function storeDeps(st: FileStatements, filePath: string, content: string, rootDi
     for (const resolved of targets) {
       const targetRow = st.getFileId.get(resolved) as { id: number } | undefined;
       if (!targetRow || targetRow.id === sourceRow.id) continue;
-      st.insertDep.run(sourceRow.id, targetRow.id, imp.symbols.join(", "));
-      n++;
+      const syms = byTarget.get(targetRow.id) ?? new Set<string>();
+      for (const s of imp.symbols) syms.add(s);
+      byTarget.set(targetRow.id, syms);
     }
   }
-  return n;
+  for (const [targetId, syms] of byTarget) st.insertDep.run(sourceRow.id, targetId, [...syms].join(", "));
+  return byTarget.size;
 }
 
 /** Delete file rows (and their exports/edges) by path. Returns rows removed. */

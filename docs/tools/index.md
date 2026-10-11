@@ -1,16 +1,18 @@
 # MCP Tools Overview
 
-The server exposes **94 tools** via the Model Context Protocol: **11 code-context tools** (codebase indexing and search) and **83 scrum & agent tools** (sprints, tickets, ceremonies, metrics, and the agent workflow). Tool descriptions and directory metadata are maintained by the MCP server itself — the same indexing engine that powers the code-context tools also keeps their documentation up to date.
+The server exposes **101 tools** via the Model Context Protocol (95 by default; `CODE_CONTEXT_TOOLSETS=all` adds 6 optional ones): **13 code-context tools** (codebase indexing and search) and **88 scrum & agent tools** (sprints, tickets, ceremonies, metrics, and the agent workflow). Tool descriptions and directory metadata are maintained by the MCP server itself — the same indexing engine that powers the code-context tools also keeps their documentation up to date.
 
 ## Code-context tools
 
-The codebase indexing and search half of the server. These 11 tools scan a directory, build a searchable index, and answer structured queries about files, symbols, and changes.
+The codebase indexing and search half of the server. These 13 tools scan a directory, build a searchable index, and answer structured queries about files, symbols, and changes.
 
 | Tool | Description |
 |------|-------------|
 | [`index_directory`](./index-directory) | Scan a directory and build the index |
 | [`find_symbol`](./find-symbol) | Find which files export a given symbol |
 | [`get_file_context`](./get-file-context) | Get full file context: exports, imports, dependents, changes |
+| [`who_imports`](./who-imports) | Which files import a file or symbol: complete list from the import graph |
+| [`exports_in`](./exports-in) | What a directory exports, and which exports nothing imports |
 | [`get_changes`](./get-changes) | View recent file changes with diffs |
 | [`search_files`](./search-files) | Search indexed files by path or summary |
 | [`query`](./query-execute) | Run read-only SQL against the database |

@@ -42,11 +42,10 @@ import { createTestDb } from "./helpers/db.js";
 import { resolveBenchmarkOutputPath } from "./helpers/benchmark-output.js";
 import {
   FIXTURE_DIR,
-  canonicalPath,
+  simFileContext,
+  simSearchFiles,
   hasMachineDependentText,
   CANONICAL_ROOT,
-  CANONICAL_MODIFIED_AT,
-  CANONICAL_INDEXED_AT,
 } from "./helpers/benchmark-fixture.js";
 const NUM_TRIALS = 200;
 const SEED = 42;
@@ -139,18 +138,13 @@ function estimateTokens(text: string): number {
 // DB + file helpers
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return bytes + " B";
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-  return (bytes / (1024 * 1024)).toFixed(1) + " MB";
-}
-
 function queryFile(db: Database.Database, fp: string) {
   const file = db
     .prepare("SELECT * FROM files WHERE path = ?")
     .get(fp) as any;
   if (!file) return null;
   return {
+    db,
     file,
     exports: db
       .prepare("SELECT name, kind FROM exports WHERE file_id = ?")
@@ -169,43 +163,11 @@ function queryFile(db: Database.Database, fp: string) {
 }
 
 function mcpFileContext(d: NonNullable<ReturnType<typeof queryFile>>): string {
-  const { file: f, exports: e, deps, dependents: dep } = d;
-  return [
-    `# ${canonicalPath(f.path)}`,
-    `${f.language} | ${formatSize(f.size_bytes)} | ${f.line_count} lines | modified ${CANONICAL_MODIFIED_AT} | indexed ${CANONICAL_INDEXED_AT}`,
-    f.summary,
-    f.description && f.description !== f.summary ? f.description : "",
-    e.length > 0
-      ? `## Exports (${e.length})\n${e.map((x: any) => `- ${x.name} (${x.kind})`).join("\n")}`
-      : "",
-    f.external_imports
-      ? `## External packages\n${f.external_imports}`
-      : "",
-    deps.length > 0
-      ? `## Imports from (${deps.length})\n${deps.map((x: any) => `- ${canonicalPath(x.path)} [${x.symbols}]`).join("\n")}`
-      : "",
-    dep.length > 0
-      ? `## Imported by (${dep.length})\n${dep.map((x: any) => `- ${canonicalPath(x.path)} [${x.symbols}]`).join("\n")}`
-      : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
+  return simFileContext(d.db, d.file.path);
 }
 
 function mcpSearchFiles(db: Database.Database, q: string): string {
-  const p = q.includes("%") ? q : `%${q}%`;
-  const rows = db
-    .prepare(
-      "SELECT path, language, line_count, summary, (SELECT COUNT(*) FROM exports WHERE file_id = files.id) as ec, (SELECT COUNT(*) FROM dependencies WHERE source_id = files.id) as dc FROM files WHERE path LIKE ? OR summary LIKE ? ORDER BY path LIMIT 25",
-    )
-    .all(p, p) as any[];
-  if (!rows.length) return `No files matching "${q}".`;
-  return rows
-    .map(
-      (r: any) =>
-        `${canonicalPath(r.path)} (${r.language}, ${r.line_count} lines, ${r.ec} exports, ${r.dc} deps)\n  Modified: ${CANONICAL_MODIFIED_AT} | indexed ${CANONICAL_INDEXED_AT} | ${r.summary}`,
-    )
-    .join("\n\n");
+  return simSearchFiles(db, q);
 }
 
 function mcpIndexDir(db: Database.Database, root: string): string {
@@ -934,9 +896,16 @@ describe("Stochastic MCP vs Vanilla benchmark", () => {
   it("different seed produces different but consistent results", () => {
     const trials3 = runTrials(db, tsFiles, allFiles, NUM_TRIALS, SEED + 1);
     const report3 = analyzeResults(trials3, SEED + 1);
-    // Different exact numbers but same direction
+    // Different exact numbers but same direction: significant, MCP ahead in aggregate.
     expect(report3.statistics.significant).toBe(true);
-    expect(report3.tokens.ci95.lower).toBeGreaterThan(0);
+    expect(report3.tokens.savingsPct).toBeGreaterThan(38); // measured 38.4 % (2026-10-11)
+    // Floor, not a claim of a positive per-trial CI. Measured 2026-10-11: lower
+    // bound -11.5 (was 10.8). It moved because the simulated get_file_context
+    // now mirrors the real output (#119 signatures + import lines; relative
+    // paths) and the sample project has 5 correct import edges instead of 3
+    // (#120: type imports and barrel re-exports). Small single-file trials now
+    // cost MCP about as much as reading the 20-40-line file.
+    expect(report3.tokens.ci95.lower).toBeGreaterThan(-12);
   });
 
   // ── Sanity checks ─────────────────────────────────────────────────────────
@@ -960,7 +929,7 @@ describe("Stochastic MCP vs Vanilla benchmark", () => {
 
   // ── Path independence ─────────────────────────────────────────────────────
 
-  it("simulated MCP outputs use a fixed canonical root (contain CANONICAL_ROOT, never the real fixture dir)", () => {
+  it("simulated MCP outputs print project-relative paths, as the real tools do (never the real fixture dir)", () => {
     const outputs: string[] = [];
     for (const f of tsFiles) {
       outputs.push(mcpFileContext(queryFile(db, f.dbPath)!));
@@ -970,7 +939,8 @@ describe("Stochastic MCP vs Vanilla benchmark", () => {
     for (const out of outputs) {
       expect(hasMachineDependentText(out)).toBe(false);
       expect(out).not.toContain(FIXTURE_DIR);
-      expect(out).toContain(CANONICAL_ROOT);
+      expect(out).not.toContain(CANONICAL_ROOT);
+      expect(out).not.toMatch(/(^|[\s(])\/[\w.-]+\//); // no absolute path anywhere
     }
   });
 });

@@ -50,7 +50,7 @@ Your agents forget everything between sessions. This one file does not.
 
 - Gives AI coding agents **persistent memory**. The memory survives the session.
 - Indexes your codebase into one SQLite file, `context.db`. Agents query file roles, exports and dependents. In real agent runs this pays off on dependency questions ("who imports X": 0.55–0.77× the tokens of an agent without it) and costs more on small or grep-friendly tasks. The 46 % saving is the simulated benchmark; see [Benchmark](#benchmark).
-- Runs a full sprint process for a 9-agent team: vision, discovery, milestones, epics, tickets, gates and retros. It uses 93 MCP tools and 6 slash commands.
+- Runs a full sprint process for a 9-agent team: vision, discovery, milestones, epics, tickets, gates and retros. It uses 95 MCP tools and 6 slash commands.
 - Shows everything on a live React dashboard at `:3333`. Zero API keys.
 
 <br>
@@ -127,7 +127,7 @@ No agent holds the full project in its context window. Agents query a shared SQL
 │  └────┬─────┘  └────┬─────┘  └────┬─────┘          │
 │       └──────────────┼─────────────┘                │
 │                      ▼                              │
-│     93 MCP Tools (99 with all toolsets)             │
+│     95 MCP Tools (101 with all toolsets)            │
 │      (reads · writes · ceremony cards)              │
 │                      │                              │
 │                      ▼                              │
@@ -265,7 +265,7 @@ planning → implementation → done → rest
 
 - Runtime: Node.js 24 LTS. Build: TypeScript strict mode.
 - Database: SQLite via better-sqlite3, WAL mode. 33 tables (27 scrum + 6 code).
-- MCP protocol: @modelcontextprotocol/sdk. 93 MCP tools by default, 99 with `CODE_CONTEXT_TOOLSETS=all`, 4 with `CODE_CONTEXT_TOOLSETS=code` (`find_symbol`, `get_file_context`, `search_files`, `query`).
+- MCP protocol: @modelcontextprotocol/sdk. 95 MCP tools by default, 101 with `CODE_CONTEXT_TOOLSETS=all`, 6 with `CODE_CONTEXT_TOOLSETS=code` (`find_symbol`, `get_file_context`, `who_imports`, `exports_in`, `search_files`, `query`).
 - Dashboard: React 19 + Vite + Zustand + Framer Motion. CSS variables + Tailwind, dark theme. 75 React components.
 - Live updates: SSE via WAL file watcher.
 - Testing: Vitest. 992 backend tests and 93 dashboard tests.
