@@ -125,3 +125,10 @@ describe('bench guard — fresh sessions (2026-10-11)', () => {
     expect(src.match(/strictCache: false/g)?.length).toBe(1);
   });
 });
+
+describe('bench guard — provider errors void the run (2026-10-11)', () => {
+  it('run.mts aborts on a provider error or a session with 0 model calls', () => {
+    const src = readFileSync(join(LIVE_DIR, 'run.mts'), 'utf-8');
+    expect(src).toContain('outcome.providerError || outcome.modelCalls === 0');
+  });
+});

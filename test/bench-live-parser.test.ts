@@ -124,3 +124,10 @@ describe('parseEventStream — cost', () => {
     expect(parseEventStream([step('a')]).costUsd).toBeNull();
   });
 });
+
+describe('parseEventStream — model calls', () => {
+  it('counts step-finish parts as model calls; an empty stream has none', () => {
+    expect(parseEventStream(lines).modelCalls).toBe(2);
+    expect(parseEventStream([]).modelCalls).toBe(0);
+  });
+});

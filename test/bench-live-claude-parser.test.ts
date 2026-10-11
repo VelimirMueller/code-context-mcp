@@ -105,3 +105,33 @@ describe('parseClaudeStream — cost', () => {
     expect(parseClaudeStream([]).costUsd).toBeNull();
   });
 });
+
+describe('parseClaudeStream — provider errors', () => {
+  it('reports a usage-limit result as a provider error with 0 model calls', () => {
+    const u = parseClaudeStream([
+      ev({
+        type: 'assistant',
+        message: {
+          id: 'x',
+          model: '<synthetic>',
+          content: [{ type: 'text', text: 'limit' }],
+          usage: usage(0, 0, 0, 0),
+        },
+      }),
+      ev({
+        type: 'result',
+        is_error: true,
+        api_error: 'usage_limit_reached',
+        api_error_status: 429,
+        result: "You've hit your session limit",
+      }),
+    ]);
+    expect(u.providerError).toBe('usage_limit_reached (HTTP 429)');
+    expect(u.modelCalls).toBe(0);
+  });
+  it('a normal session has model calls and no provider error', () => {
+    const u = parseClaudeStream(lines);
+    expect(u.providerError).toBeNull();
+    expect(u.modelCalls).toBe(2);
+  });
+});
