@@ -11,26 +11,21 @@ Scan a directory, parse all files, extract metadata/exports and build a dependen
 
 ## Response
 
-A full index run returns a structured multi-section markdown document:
+A full index run returns a compact markdown summary. Each top-level directory prints its file and line counts once, in its heading (languages follow when the description does not name them), then its description, its files and its sub-directories:
 
 ```
-# Index Summary
-Indexed 42 files, 87 exports, 31 dependencies
+# Indexed 42 files, 87 exports, 31 dependencies
 
 ## Directories
+### src/ — 12 files, 3,400 lines (typescript)
+Source code. contains scrum.
+- index.ts — MCP server entry point; registers all tools and starts the transport
+- indexer.ts — Walks the filesystem, parses files, and writes to the SQLite DB
+- scrum/ (8 files) — Scrum MCP tool implementations
 
-### src/
-Entry point and core modules. 12 files, 3,400 lines.
-- **index.ts** — MCP server entry point; registers all tools and starts the transport
-- **indexer.ts** — Walks the filesystem, parses files, and writes to the SQLite DB
-
-### src/scrum/
-- **tools/** (8 files) — Scrum MCP tool implementations
-
-## Root Files
-
-- **package.json** — Project manifest and dependency declarations
-- **tsconfig.json** — TypeScript compiler configuration
+## Root files
+- package.json — Project manifest and dependency declarations
+- tsconfig.json — TypeScript compiler configuration
 ```
 
 When `freshness_check=true` and the index is less than 5 minutes old, re-indexing is skipped and a compact summary is returned instead:

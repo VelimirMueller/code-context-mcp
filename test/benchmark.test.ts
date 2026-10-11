@@ -49,6 +49,7 @@ import {
   simFileContext,
   simFindSymbol,
   simSearchFiles,
+  simIndexDirectory,
   hasMachineDependentText,
   CANONICAL_ROOT,
 } from "./helpers/benchmark-fixture.js";
@@ -112,61 +113,7 @@ function mcpFileContext(d: NonNullable<ReturnType<typeof queryFile>>): string {
 }
 
 function mcpIndexDir(db: Database.Database, root: string): string {
-  const fc = (db.prepare("SELECT COUNT(*) as c FROM files").get() as any).c;
-  const ec = (db.prepare("SELECT COUNT(*) as c FROM exports").get() as any).c;
-  const dc = (
-    db.prepare("SELECT COUNT(*) as c FROM dependencies").get() as any
-  ).c;
-  const s: string[] = [
-    `# Index Summary\nIndexed ${fc} files, ${ec} exports, ${dc} dependencies\n`,
-  ];
-  const dirs = db
-    .prepare(
-      "SELECT path, name, description, file_count, total_lines, language_breakdown FROM directories WHERE parent_path = ? ORDER BY name",
-    )
-    .all(root) as any[];
-  if (dirs.length) {
-    s.push("## Directories\n");
-    for (const d of dirs) {
-      const desc = d.description ?? "";
-      const lang = d.language_breakdown ? `. ${d.language_breakdown}` : "";
-      s.push(
-        `### ${d.name}/\n${desc}${d.file_count ? ` ${d.file_count} files, ${(d.total_lines || 0).toLocaleString()} lines.` : ""}${lang}\n`,
-      );
-      const files = db
-        .prepare(
-          "SELECT path, summary, description FROM files WHERE path LIKE ? AND path NOT LIKE ? ORDER BY path",
-        )
-        .all(d.path + "/%", d.path + "/%/%") as any[];
-      for (const f of files)
-        s.push(
-          `- **${path.basename(f.path)}** — ${f.description ?? f.summary ?? ""}`,
-        );
-      const sub = db
-        .prepare(
-          "SELECT name, description, file_count FROM directories WHERE parent_path = ? ORDER BY name",
-        )
-        .all(d.path) as any[];
-      for (const x of sub)
-        s.push(
-          `- **${x.name}/** (${x.file_count} files) — ${x.description ?? ""}`,
-        );
-      s.push("");
-    }
-  }
-  const rf = db
-    .prepare(
-      "SELECT path, summary, description FROM files WHERE path LIKE ? AND path NOT LIKE ? ORDER BY path",
-    )
-    .all(root + "/%", root + "/%/%") as any[];
-  if (rf.length) {
-    s.push("## Root Files\n");
-    for (const f of rf)
-      s.push(
-        `- **${path.basename(f.path)}** — ${f.description ?? f.summary ?? ""}`,
-      );
-  }
-  return s.join("\n");
+  return simIndexDirectory(db, root);
 }
 
 function mcpFindSymbol(db: Database.Database, name: string): string {

@@ -24,11 +24,13 @@ What a file exports (one-line signatures with line numbers), its raw import line
 
 Signatures, line numbers and import lines are stored at index time (schema v25: `exports.signature`, `exports.line`, `files.import_lines`). A row indexed by an older version is re-indexed on the first `get_file_context` call; when that is not possible it still renders as `name (kind)`.
 
+The header line carries no `modified`/`indexed` timestamps unless `CODE_CONTEXT_TIMESTAMPS=1`. The file is re-checked against the disk before every answer either way; a `↻ fresh: re-indexed …` line says when it changed.
+
 ## Example
 
 ```
 # src/utils/helpers.ts
-typescript | 706 B | 33 lines | modified 2026-10-11 11:43:31 | indexed 2026-10-11 11:43:32
+typescript | 706 B | 33 lines
 Utility helper functions
 Helper functions. exports formatDate, capitalize, clamp, generateId. constants: DEFAULT_PAGE_SIZE.
 ## Exports (5)

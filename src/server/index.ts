@@ -15,7 +15,8 @@ import { seedDefaults } from "../scrum/defaults.js";
 import { syncSkillsFromUpstream } from "../scrum/skill-sync.js";
 import { log as slog, errorClass, logToolExceptions } from "../sessionlog.js";
 import { FreshnessGuard, freshnessNotice, type FreshRow } from "./freshness.js";
-import { instrumentTools } from "./tool-wrap.js";
+import { instrumentTools, toolFilter, serverInstructions, showTimestamps } from "./tool-wrap.js";
+import { formatIndexSummary } from "./index-summary.js";
 import { resolveToolPath, resolveDirPath, pathDisplay, canonicalPath } from "./path-resolve.js";
 import { declarationLines, hasSignatureParser, parseStoredImportLines } from "./signatures.js";
 import { whoImports, exportsIn } from "./graph.js";
@@ -110,13 +111,16 @@ const PKG_VERSION: string = (() => {
   }
 })();
 
-const server = new McpServer({ name: "code-context", version: PKG_VERSION });
+// CCA-06 (#121): short `instructions` naming only the listed code tools.
+const hiddenToolFilter = toolFilter();
+const instructions = serverInstructions(hiddenToolFilter);
+const server = new McpServer({ name: "code-context", version: PKG_VERSION }, instructions ? { instructions } : undefined);
 
 // Session log: an exception escaping any tool handler (core or scrum) is a
 // CRITICAL breadcrumb — tool name + error class only, then rethrown unchanged.
 logToolExceptions(server);
 // Toolsets (CODE_CONTEXT_TOOLSETS), flair and the `done <tool> in N ms` line.
-instrumentTools(server);
+instrumentTools(server, hiddenToolFilter);
 
 // Read-time freshness: every file-returning tool checks its rows against the
 // disk (and each repo's HEAD) before answering. See freshness.ts.
@@ -159,70 +163,7 @@ server.tool(
       const root = stats.root; // realpath: rows are stored under it
       slog("INFO", `index_directory: files=${stats.files} exports=${stats.exports} deps=${stats.deps} pruned=${stats.prunedFiles} duration_ms=${Date.now() - indexStart}`);
 
-      // Build structured description output
-      const sections: string[] = [];
-      const prunedNote = stats.prunedFiles || stats.prunedDirs
-        ? ` — pruned ${stats.prunedFiles} deleted file${stats.prunedFiles === 1 ? "" : "s"}, ${stats.prunedDirs} deleted director${stats.prunedDirs === 1 ? "y" : "ies"}`
-        : "";
-      sections.push(`# Index Summary\nIndexed ${stats.files} files, ${stats.exports} exports, ${stats.deps} dependencies${prunedNote}\n`);
-
-      // Top-level directories with descriptions
-      const topDirs = db.prepare(`
-        SELECT path, name, description, file_count, total_lines, language_breakdown
-        FROM directories WHERE parent_path = ? ORDER BY name
-      `).all(root) as { path: string; name: string; description: string | null; file_count: number; total_lines: number; language_breakdown: string | null }[];
-
-      if (topDirs.length > 0) {
-        sections.push("## Directories\n");
-        for (const dir of topDirs) {
-          const desc = dir.description ?? "";
-          const langInfo = dir.language_breakdown ? `. ${dir.language_breakdown}` : "";
-          sections.push(`### ${dir.name}/\n${desc}${dir.file_count ? ` ${dir.file_count} files, ${(dir.total_lines || 0).toLocaleString()} lines.` : ""}${langInfo}\n`);
-
-          // Files in this directory (direct children only)
-          const dirFiles = db.prepare(`
-            SELECT path, summary, description, language, line_count
-            FROM files WHERE path LIKE ? AND path NOT LIKE ?
-            ORDER BY path
-          `).all(dir.path + "/%", dir.path + "/%/%") as { path: string; summary: string; description: string | null; language: string; line_count: number }[];
-
-          for (const f of dirFiles) {
-            const fname = path.basename(f.path);
-            const desc = f.description ?? f.summary ?? "";
-            sections.push(`- **${fname}** — ${desc}`);
-          }
-
-          // Sub-directories (one level deeper)
-          const subDirs = db.prepare(`
-            SELECT path, name, description, file_count
-            FROM directories WHERE parent_path = ? ORDER BY name
-          `).all(dir.path) as { path: string; name: string; description: string | null; file_count: number }[];
-
-          for (const sub of subDirs) {
-            sections.push(`- **${sub.name}/** (${sub.file_count} files) — ${sub.description ?? ""}`);
-          }
-          sections.push("");
-        }
-      }
-
-      // Root-level files (not inside any subdirectory)
-      const rootFiles = db.prepare(`
-        SELECT path, summary, description, language, line_count
-        FROM files WHERE path LIKE ? AND path NOT LIKE ?
-        ORDER BY path
-      `).all(root + "/%", root + "/%/%") as { path: string; summary: string; description: string | null; language: string; line_count: number }[];
-
-      if (rootFiles.length > 0) {
-        sections.push("## Root Files\n");
-        for (const f of rootFiles) {
-          const fname = path.basename(f.path);
-          const desc = f.description ?? f.summary ?? "No description";
-          sections.push(`- **${fname}** — ${desc}`);
-        }
-        sections.push("");
-      }
-
-      return { content: [{ type: "text", text: sections.join("\n") }] };
+      return { content: [{ type: "text", text: formatIndexSummary(db, root, stats) }] };
     } catch (err: any) {
       slog("CRITICAL", `tool index_directory: failed error=${errorClass(err)}`);
       return { content: [{ type: "text", text: `Error: ${err.message}` }], isError: true };
@@ -257,7 +198,8 @@ server.tool(
       return { content: [{ type: "text", text: `${notice}No exports matching "${name}" found.` }] };
     }
 
-    const text = rows.map(r => `${r.name} (${r.kind}) — ${show(r.path)}\n  ${r.summary} | indexed ${r.indexed_at}`).join("\n\n");
+    const stamp = showTimestamps();
+    const text = rows.map(r => `${r.name} (${r.kind}) — ${show(r.path)}\n  ${r.summary}${stamp ? ` | indexed ${r.indexed_at}` : ""}`).join("\n\n");
     return { content: [{ type: "text", text: notice + text }] };
   }
 );
@@ -367,7 +309,7 @@ server.tool(
 
     const sections = [
       `# ${show(file.path)}`,
-      `${file.language} | ${formatSize(file.size_bytes)} | ${file.line_count} lines | modified ${file.modified_at} | indexed ${file.indexed_at}`,
+      `${file.language} | ${formatSize(file.size_bytes)} | ${file.line_count} lines${showTimestamps() ? ` | modified ${file.modified_at} | indexed ${file.indexed_at}` : ""}`,
       file.summary,
       file.description && file.description !== file.summary ? file.description : "",
       exports.length > 0 ? `## Exports (${exports.length})\n${capped(exports, MAX_LISTED_EXPORTS, renderExport)}` : "",
@@ -623,8 +565,9 @@ server.tool(
       return { content: [{ type: "text", text: `${notice}No files matching "${query}".` }] };
     }
 
+    const stamp = showTimestamps();
     const text = rows.map(r =>
-      `${show(r.path)} (${r.language}, ${r.line_count} lines, ${r.export_count} exports, ${r.dep_count} deps)\n  Modified: ${r.modified_at} | indexed ${r.indexed_at} | ${r.summary}`
+      `${show(r.path)} (${r.language}, ${r.line_count} lines, ${r.export_count} exports, ${r.dep_count} deps)\n  ${stamp ? `Modified: ${r.modified_at} | indexed ${r.indexed_at} | ` : ""}${r.summary}`
     ).join("\n\n");
     return { content: [{ type: "text", text: notice + text }] };
   }

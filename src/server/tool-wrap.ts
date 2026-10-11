@@ -8,8 +8,14 @@
  * 2. Flair (overdrive FLAIR.md) — a text response gets ONE header line
  *    `● code-context ▸ <tool> ░▒▓` and ONE footer line `<kaomoji> <ms> ms`.
  *    Responses callers parse as JSON get none. Errors: text stays plain and
- *    first, the footer uses a fail kaomoji. `OVERDRIVE_FLAIR=0` turns it off.
+ *    first, the footer uses a fail kaomoji. Default profile: on, and
+ *    `OVERDRIVE_FLAIR=0` turns it off. `code` profile: off (it is model
+ *    context, ~15–25 tokens per result), and `OVERDRIVE_FLAIR=1` turns it on.
  * 3. Timing — one session-log line `done <tool> in <ms> ms` per finished call.
+ *
+ * Also here: the MCP server `instructions` (serverInstructions) and the
+ * timestamp switch for model-facing results (showTimestamps), because both
+ * depend on the same env as the toolsets.
  *
  * Call once, before any tool is registered (after logToolExceptions is fine).
  */
@@ -68,7 +74,7 @@ export interface ToolFilter {
  */
 export function toolFilter(env: string | undefined = process.env.CODE_CONTEXT_TOOLSETS): ToolFilter {
   const wanted = (env ?? "").split(",").map((s) => s.trim().toLowerCase().replace(/^\+/, ""));
-  if (wanted.includes("code") && !wanted.includes("all")) {
+  if (isCodeProfile(env)) {
     const keep = new Set([...CODE_TOOLS, ...(wanted.includes("code-admin") ? CODE_ADMIN_TOOLS : [])]);
     return { has: (name: string) => !keep.has(name) };
   }
@@ -100,8 +106,68 @@ const TOOL = "code-context";
 const OK = ["┬─┬ノ( º _ºノ)", "(⌐■_■)", "ᕙ(⇀‸↼‶)ᕗ", "(•̀ᴗ•́)و"];
 const FAIL = ["(╯°□°)╯︵ ┻━┻", "ಠ_ಠ"];
 
-function flairOn(): boolean {
-  return process.env.OVERDRIVE_FLAIR !== "0";
+const TRUTHY = /^(1|true|yes)$/i;
+
+/** True when CODE_CONTEXT_TOOLSETS selects the `code` profile (and not `all`). */
+export function isCodeProfile(env: string | undefined = process.env.CODE_CONTEXT_TOOLSETS): boolean {
+  const wanted = (env ?? "").split(",").map((s) => s.trim().toLowerCase().replace(/^\+/, ""));
+  return wanted.includes("code") && !wanted.includes("all");
+}
+
+/**
+ * Flair on or off. `OVERDRIVE_FLAIR=0` always turns it off, `OVERDRIVE_FLAIR=1`
+ * (true/yes) always on. Unset: on in the default profile (the overdrive
+ * terminal look), off under `code`, where every result is model context.
+ */
+export function flairEnabled(
+  flair: string | undefined = process.env.OVERDRIVE_FLAIR,
+  toolsets: string | undefined = process.env.CODE_CONTEXT_TOOLSETS,
+): boolean {
+  const v = (flair ?? "").trim();
+  if (v === "0" || /^(false|no|off)$/i.test(v)) return false;
+  if (TRUTHY.test(v)) return true;
+  return !isCodeProfile(toolsets);
+}
+
+/**
+ * `modified …` / `indexed …` timestamps in model-facing results
+ * (find_symbol, get_file_context, search_files). Off unless
+ * `CODE_CONTEXT_TIMESTAMPS=1`: the read-time freshness check already
+ * re-indexes changed files and prints a notice when it did, so the
+ * timestamps cost tokens without changing an answer.
+ */
+export function showTimestamps(env: string | undefined = process.env.CODE_CONTEXT_TIMESTAMPS): boolean {
+  return TRUTHY.test((env ?? "").trim());
+}
+
+/** Upper bound for serverInstructions(), pinned by test/tool-wrap.test.ts (~95 tokens). */
+export const MAX_INSTRUCTIONS_CHARS = 400;
+
+/**
+ * The MCP server `instructions`: when to use the graph tools instead of grep,
+ * that results hold no full code, and how paths print. Only tools the active
+ * profile lists are named; undefined when none of them is listed.
+ */
+export function serverInstructions(
+  hidden: ToolFilter = toolFilter(),
+  absolutePaths: boolean = TRUTHY.test(process.env.CODE_CONTEXT_ABSOLUTE_PATHS ?? ""),
+): string | undefined {
+  const on = (t: string) => !hidden.has(t);
+  const routes = [
+    ["who_imports", "Who imports X: who_imports."],
+    ["find_symbol", "Where is S defined: find_symbol."],
+    ["get_file_context", "What a file exports or imports: get_file_context."],
+    ["exports_in", "What dir D exports or leaves unused: exports_in."],
+  ].filter(([t]) => on(t)).map(([, r]) => r);
+  if (routes.length === 0) return undefined;
+  const parts = ["Code index of this project; prefer it to grep.", ...routes];
+  parts.push(
+    on("get_file_context")
+      ? "Results never hold full code: read the file for that. get_file_context gives signatures and import lines, snippet:true short bodies."
+      : "Results never hold full code: read the file for that.",
+  );
+  if (!absolutePaths) parts.push("Paths are project-relative.");
+  return parts.join(" ");
 }
 
 /** Header line, ≤ 72 chars. */
@@ -137,7 +203,7 @@ type ToolResult = { content?: unknown[]; isError?: boolean; [k: string]: unknown
 /** Add header/footer to a tool result. Pure; returns the input when nothing applies. */
 export function decorate(result: unknown, tool: string, ms: number): unknown {
   try {
-    if (!flairOn() || !result || typeof result !== "object") return result;
+    if (!flairEnabled() || !result || typeof result !== "object") return result;
     const r = result as ToolResult;
     if (!Array.isArray(r.content) || r.content.length === 0) return result;
     const texts = r.content.filter((c): c is TextItem => !!c && (c as TextItem).type === "text" && typeof (c as TextItem).text === "string");

@@ -20,8 +20,10 @@ Each match is rendered as a two-line block:
 
 ```
 <path> (<language>, <line_count> lines, <export_count> exports, <dep_count> deps)
-  Modified: <modified_at> | <summary>
+  <summary>
 ```
+
+With `CODE_CONTEXT_TIMESTAMPS=1` the second line starts with `Modified: <modified_at> | indexed <indexed_at> | `.
 
 Multiple matches are separated by a blank line. When no files match, the tool returns: `No files matching "<query>".`
 

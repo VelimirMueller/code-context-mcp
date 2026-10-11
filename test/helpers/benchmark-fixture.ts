@@ -1,6 +1,7 @@
 import path from "path";
 import type Database from "better-sqlite3";
 import { parseStoredImportLines } from "../../src/server/signatures.js";
+import { formatIndexSummary } from "../../src/server/index-summary.js";
 
 /** The sample-project fixture root, shared by both simulated benchmarks. */
 export const FIXTURE_DIR = path.resolve(
@@ -22,11 +23,11 @@ export const FIXTURE_DIR = path.resolve(
 export const CANONICAL_ROOT = "/workspace/sample-project";
 
 /**
- * Fixed canonical timestamps mirroring the real server output. get_file_context
- * and search_files both emit `modified <modified_at> | indexed <indexed_at>` and
- * find_symbol emits `indexed <indexed_at>`, with values in `YYYY-MM-DD HH:MM:SS`
- * (see toISOLocal in src/server/indexer.ts). Rendering fixed values keeps the
- * realistic token cost of those fields without leaking real mtimes.
+ * Fixed canonical timestamps. Since CCA-06 (#121) the real tools print no
+ * `modified`/`indexed` timestamps unless CODE_CONTEXT_TIMESTAMPS=1, so the
+ * simulated MCP outputs carry none. The constants stay for
+ * hasMachineDependentText and for the historical "old" format in
+ * token-efficiency.test.ts, which still prints them.
  */
 export const CANONICAL_MODIFIED_AT = "2026-01-01 00:00:00";
 export const CANONICAL_INDEXED_AT = "2026-01-01 00:00:00";
@@ -78,9 +79,9 @@ export function hasMachineDependentText(text: string): boolean {
 
 // ─── Simulated MCP output: mirrors the real tools ────────────────────────────
 // Same text as the handlers in src/server/index.ts (find_symbol,
-// get_file_context, search_files) with project-relative paths and the fixed
-// canonical timestamps. test/graph-tools.test.ts compares simFileContext with
-// the real get_file_context over MCP stdio, so the two cannot drift apart.
+// get_file_context, search_files) with project-relative paths and no
+// timestamps (the default since CCA-06, #121). test/graph-tools.test.ts
+// compares them with the real tools over MCP stdio, so they cannot drift apart.
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return bytes + " B";
@@ -114,7 +115,7 @@ export function simFileContext(db: Database.Database, filePath: string): string 
   };
   return [
     `# ${displayPath(f.path)}`,
-    `${f.language} | ${formatSize(f.size_bytes)} | ${f.line_count} lines | modified ${CANONICAL_MODIFIED_AT} | indexed ${CANONICAL_INDEXED_AT}`,
+    `${f.language} | ${formatSize(f.size_bytes)} | ${f.line_count} lines`,
     f.summary,
     f.description && f.description !== f.summary ? f.description : "",
     exports.length > 0 ? `## Exports (${exports.length})\n${capped(exports, 40, renderExport)}` : "",
@@ -134,7 +135,7 @@ export function simFindSymbol(db: Database.Database, name: string): string {
     .all(name) as any[];
   if (!rows.length) return `No exports matching "${name}" found.`;
   return rows
-    .map((r) => `${r.name} (${r.kind}) — ${displayPath(r.path)}\n  ${r.summary} | indexed ${CANONICAL_INDEXED_AT}`)
+    .map((r) => `${r.name} (${r.kind}) — ${displayPath(r.path)}\n  ${r.summary}`)
     .join("\n\n");
 }
 
@@ -150,7 +151,16 @@ export function simSearchFiles(db: Database.Database, q: string): string {
   return rows
     .map(
       (r) =>
-        `${displayPath(r.path)} (${r.language}, ${r.line_count} lines, ${r.ec} exports, ${r.dc} deps)\n  Modified: ${CANONICAL_MODIFIED_AT} | indexed ${CANONICAL_INDEXED_AT} | ${r.summary}`,
+        `${displayPath(r.path)} (${r.language}, ${r.line_count} lines, ${r.ec} exports, ${r.dc} deps)\n  ${r.summary}`,
     )
     .join("\n\n");
+}
+
+/**
+ * index_directory(root) on an already indexed db: the real renderer
+ * (src/server/index-summary.ts) with the db's totals, as a fresh index reports.
+ */
+export function simIndexDirectory(db: Database.Database, root: string): string {
+  const count = (t: string) => (db.prepare(`SELECT COUNT(*) as c FROM ${t}`).get() as { c: number }).c;
+  return formatIndexSummary(db, root, { files: count("files"), exports: count("exports"), deps: count("dependencies") });
 }
