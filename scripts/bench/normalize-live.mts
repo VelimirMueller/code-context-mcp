@@ -370,12 +370,17 @@ export function normalizeLive(
     notes: ctx.notes ?? [],
     model,
     agent_cli: { name: ctx.agentName ?? 'opencode', version: ctx.agentVersion },
-    fixture: tasks.some((t) => t.fixture === 'src') ? 'per task' : meta.fixture,
+    fixture: tasks.some((t) => t.fixture === 'src' || t.fixture === 'large') ? 'per task' : meta.fixture,
     auth: { keyEnv: meta.keyEnv },
     tasks: tasks.map((t) => ({
       id: t.id,
       ...(t.size ? { size: t.size } : {}),
-      fixture: t.fixture === 'src' ? 'src/ (this repo)' : meta.fixture,
+      fixture:
+        t.fixture === 'src'
+          ? 'src/ (this repo)'
+          : t.fixture === 'large'
+            ? 'large synthetic (683 files)'
+            : meta.fixture,
       prompt: t.prompt,
       checker: t.checker,
     })),
