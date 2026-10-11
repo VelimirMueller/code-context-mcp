@@ -2,6 +2,38 @@
   "schema": "ccc-bench-index/1",
   "runs": [
     {
+      "run_id": "glm-20261011-003210",
+      "kind": "agent-glm",
+      "date": "2026-10-11",
+      "ts": "2026-10-11T00:32:10Z",
+      "model": "zai-coding-plan/glm-5.3",
+      "trigger": "manual",
+      "headline": {
+        "success_vanilla_pct": 93.3,
+        "success_cc_pct": 93.3,
+        "tokens_saved_pct": 6.7,
+        "tool_calls_saved_pct": -18.3,
+        "success_cc_guided_pct": 86.7,
+        "guided_tokens_saved_pct": -8.6
+      }
+    },
+    {
+      "run_id": "dsk-20261011-003210",
+      "kind": "agent-deepseek",
+      "date": "2026-10-11",
+      "ts": "2026-10-11T00:32:10Z",
+      "model": "deepseek/deepseek-v4-pro",
+      "trigger": "manual",
+      "headline": {
+        "success_vanilla_pct": 86.7,
+        "success_cc_pct": 100,
+        "tokens_saved_pct": -4.5,
+        "tool_calls_saved_pct": 6.1,
+        "success_cc_guided_pct": 100,
+        "guided_tokens_saved_pct": -40.5
+      }
+    },
+    {
       "run_id": "opus-20261010-234640",
       "kind": "agent-opus",
       "date": "2026-10-10",
