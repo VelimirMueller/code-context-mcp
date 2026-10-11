@@ -7,7 +7,7 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { initSchema } from "./schema.js";
-import { indexDirectory } from "./indexer.js";
+import { indexDirectory, migrateUnresolvedRoots } from "./indexer.js";
 import { initScrumSchema, runMigrations, LATEST_SCHEMA_VERSION, peekSchemaVersion } from "../scrum/schema.js";
 import { checkDistFreshness, registerScrumTools } from "../scrum/tools.js";
 import { seedDefaults } from "../scrum/defaults.js";
@@ -15,7 +15,7 @@ import { syncSkillsFromUpstream } from "../scrum/skill-sync.js";
 import { log as slog, errorClass, logToolExceptions } from "../sessionlog.js";
 import { FreshnessGuard, freshnessNotice, type FreshRow } from "./freshness.js";
 import { instrumentTools } from "./tool-wrap.js";
-import { resolveToolPath } from "./path-resolve.js";
+import { resolveToolPath, resolveDirPath, pathDisplay, canonicalPath } from "./path-resolve.js";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const DB_PATH = process.argv[2] ?? "./context.db";
@@ -64,6 +64,18 @@ console.error(
       ? `[schema] migrated v${preMigrationVersion} → v${LATEST_SCHEMA_VERSION}`
       : `[schema] v${LATEST_SCHEMA_VERSION} (up to date)`,
 );
+
+// CCA-01: rows are keyed by realpath. Rebase roots an older version stored
+// under a symlinked spelling (/var/folders/… on macOS) once, at boot.
+try {
+  const moved = migrateUnresolvedRoots(db);
+  if (moved.roots > 0) {
+    console.error(`[paths] rebased ${moved.roots} indexed root(s), ${moved.files} file rows, onto their realpath`);
+    slog("INFO", `server: rebased roots=${moved.roots} files=${moved.files} onto realpath`);
+  }
+} catch (err) {
+  slog("WARN", `server: realpath migration failed error=${errorClass(err)}`);
+}
 
 // Seed factory defaults into empty tables (never overwrites existing data)
 const seeded = seedDefaults(db);
@@ -137,6 +149,7 @@ server.tool(
 
       const indexStart = Date.now();
       const stats = indexDirectory(db, rootDir);
+      const root = stats.root; // realpath: rows are stored under it
       slog("INFO", `index_directory: files=${stats.files} exports=${stats.exports} deps=${stats.deps} pruned=${stats.prunedFiles} duration_ms=${Date.now() - indexStart}`);
 
       // Build structured description output
@@ -150,7 +163,7 @@ server.tool(
       const topDirs = db.prepare(`
         SELECT path, name, description, file_count, total_lines, language_breakdown
         FROM directories WHERE parent_path = ? ORDER BY name
-      `).all(rootDir) as { path: string; name: string; description: string | null; file_count: number; total_lines: number; language_breakdown: string | null }[];
+      `).all(root) as { path: string; name: string; description: string | null; file_count: number; total_lines: number; language_breakdown: string | null }[];
 
       if (topDirs.length > 0) {
         sections.push("## Directories\n");
@@ -190,7 +203,7 @@ server.tool(
         SELECT path, summary, description, language, line_count
         FROM files WHERE path LIKE ? AND path NOT LIKE ?
         ORDER BY path
-      `).all(rootDir + "/%", rootDir + "/%/%") as { path: string; summary: string; description: string | null; language: string; line_count: number }[];
+      `).all(root + "/%", root + "/%/%") as { path: string; summary: string; description: string | null; language: string; line_count: number }[];
 
       if (rootFiles.length > 0) {
         sections.push("## Root Files\n");
@@ -220,8 +233,12 @@ const findSymbolStmt = db.prepare(`
 server.tool(
   "find_symbol",
   "Find which file(s) export a given function, component, type, or constant. Results are checked against the disk first (changed files are re-indexed, deleted ones dropped) and carry their indexed_at.",
-  { name: z.string().describe("Symbol name to search for (supports % wildcards)") },
-  async ({ name }) => {
+  {
+    name: z.string().describe("Symbol name to search for (supports % wildcards)"),
+    absolute_paths: z.boolean().optional().describe("Print absolute paths instead of paths relative to the project root (default: relative; env CODE_CONTEXT_ABSOLUTE_PATHS=1)"),
+  },
+  async ({ name, absolute_paths }) => {
+    const show = pathDisplay(db, { absolute: absolute_paths });
     type Row = FreshRow & { name: string; kind: string; summary: string; indexed_at: string };
     const repo = fresh.checkRepos();
     let rows = findSymbolStmt.all(name) as Row[];
@@ -233,7 +250,7 @@ server.tool(
       return { content: [{ type: "text", text: `${notice}No exports matching "${name}" found.` }] };
     }
 
-    const text = rows.map(r => `${r.name} (${r.kind}) — ${r.path}\n  ${r.summary} | indexed ${r.indexed_at}`).join("\n\n");
+    const text = rows.map(r => `${r.name} (${r.kind}) — ${show(r.path)}\n  ${r.summary} | indexed ${r.indexed_at}`).join("\n\n");
     return { content: [{ type: "text", text: notice + text }] };
   }
 );
@@ -246,14 +263,16 @@ server.tool(
     path: z.string().describe("File path: absolute, or relative to the project root (e.g. src/server/schema.ts)"),
     include_changes: z.boolean().optional().describe("Include recent change history with diffs (default: false — C1 token diet; enable when debugging)"),
     change_limit: z.number().optional().describe("Max number of recent changes to include (default: 3)"),
+    absolute_paths: z.boolean().optional().describe("Print absolute paths instead of paths relative to the project root (default: relative; env CODE_CONTEXT_ABSOLUTE_PATHS=1)"),
   },
-  async ({ path: rawPath, include_changes, change_limit }) => {
+  async ({ path: rawPath, include_changes, change_limit, absolute_paths }) => {
+    const show = pathDisplay(db, { absolute: absolute_paths });
     const resolved = resolveToolPath(db, rawPath);
     if (resolved.kind === "ambiguous") {
       return {
         content: [{
           type: "text",
-          text: `"${rawPath}" matches ${resolved.candidates.length} indexed files. Pass one of these absolute paths:\n${resolved.candidates.map((c) => `- ${c}`).join("\n")}`,
+          text: `"${rawPath}" matches ${resolved.candidates.length} indexed files. Pass one of these paths:\n${resolved.candidates.map((c) => `- ${show(c)}`).join("\n")}`,
         }],
         isError: true,
       };
@@ -274,7 +293,7 @@ server.tool(
 
     if (!file) {
       const gone = files.dropped > 0 ? "was deleted from disk and dropped from the index" : "not in index. Run index_directory first";
-      return { content: [{ type: "text", text: `${notice}File "${filePath}" ${gone}.` }] };
+      return { content: [{ type: "text", text: `${notice}File "${show(filePath)}" ${gone}.` }] };
     }
 
     const exports = db.prepare(`SELECT name, kind FROM exports WHERE file_id = ?`)
@@ -299,14 +318,14 @@ server.tool(
     }
 
     const sections = [
-      `# ${file.path}`,
+      `# ${show(file.path)}`,
       `${file.language} | ${formatSize(file.size_bytes)} | ${file.line_count} lines | modified ${file.modified_at} | indexed ${file.indexed_at}`,
       file.summary,
       file.description && file.description !== file.summary ? file.description : "",
       exports.length > 0 ? `## Exports (${exports.length})\n${exports.map(e => `- ${e.name} (${e.kind})`).join("\n")}` : "",
       file.external_imports ? `## External packages\n${file.external_imports}` : "",
-      deps.length > 0 ? `## Imports from (${deps.length})\n${deps.map(d => `- ${d.path} [${d.symbols}]`).join("\n")}` : "",
-      dependents.length > 0 ? `## Imported by (${dependents.length})\n${dependents.map(d => `- ${d.path} [${d.symbols}]`).join("\n")}` : "",
+      deps.length > 0 ? `## Imports from (${deps.length})\n${deps.map(d => `- ${show(d.path)} [${d.symbols}]`).join("\n")}` : "",
+      dependents.length > 0 ? `## Imported by (${dependents.length})\n${dependents.map(d => `- ${show(d.path)} [${d.symbols}]`).join("\n")}` : "",
     ];
 
     // C1 (#10): change history is opt-in — the +200-token diff payload only pays off when debugging
@@ -360,19 +379,20 @@ server.tool(
     description: z.string().describe("Description of what the file does"),
   },
   async ({ path: rawPath, description }) => {
+    const show = pathDisplay(db);
     const resolved = resolveToolPath(db, rawPath);
     if (resolved.kind === "ambiguous") {
       return {
-        content: [{ type: "text", text: `"${rawPath}" matches ${resolved.candidates.length} indexed files. Pass one of these absolute paths:\n${resolved.candidates.map((c) => `- ${c}`).join("\n")}` }],
+        content: [{ type: "text", text: `"${rawPath}" matches ${resolved.candidates.length} indexed files. Pass one of these paths:\n${resolved.candidates.map((c) => `- ${show(c)}`).join("\n")}` }],
         isError: true,
       };
     }
     const filePath = resolved.path;
     const result = db.prepare(`UPDATE files SET description = ? WHERE path = ?`).run(description, filePath);
     if (result.changes === 0) {
-      return { content: [{ type: "text", text: `File "${filePath}" not in index.` }], isError: true };
+      return { content: [{ type: "text", text: `File "${show(filePath)}" not in index.` }], isError: true };
     }
-    return { content: [{ type: "text", text: `Description set for ${filePath}` }] };
+    return { content: [{ type: "text", text: `Description set for ${show(filePath)}` }] };
   }
 );
 
@@ -381,15 +401,16 @@ server.tool(
   "set_directory_description",
   "Set a manual description for a directory (persists across re-indexes)",
   {
-    path: z.string().describe("Absolute directory path"),
+    path: z.string().describe("Directory path: absolute, or relative to the project root"),
     description: z.string().describe("Description of what the directory contains"),
   },
-  async ({ path: dirPath, description }) => {
+  async ({ path: rawPath, description }) => {
+    const dirPath = resolveDirPath(db, rawPath);
     const result = db.prepare(`UPDATE directories SET description = ? WHERE path = ?`).run(description, dirPath);
     if (result.changes === 0) {
-      return { content: [{ type: "text", text: `Directory "${dirPath}" not in index.` }], isError: true };
+      return { content: [{ type: "text", text: `Directory "${rawPath}" not in index.` }], isError: true };
     }
-    return { content: [{ type: "text", text: `Description set for ${dirPath}` }] };
+    return { content: [{ type: "text", text: `Description set for ${pathDisplay(db)(dirPath)}` }] };
   }
 );
 
@@ -417,13 +438,16 @@ server.tool(
   {
     file_path: z.string().optional().describe("Filter to a specific file path (supports % wildcards)"),
     limit: z.number().optional().describe("Max changes to return (default 50)"),
+    absolute_paths: z.boolean().optional().describe("Print absolute paths instead of paths relative to the project root (default: relative; env CODE_CONTEXT_ABSOLUTE_PATHS=1)"),
   },
-  async ({ file_path, limit }) => {
+  async ({ file_path, limit, absolute_paths }) => {
+    const show = pathDisplay(db, { absolute: absolute_paths });
     const maxRows = limit ?? 50;
     let rows: any[];
 
     if (file_path) {
-      const pattern = file_path.includes("%") ? file_path : `%${file_path}%`;
+      const term = path.isAbsolute(file_path) && !file_path.includes("%") ? canonicalPath(file_path) : file_path;
+      const pattern = term.includes("%") ? term : `%${term}%`;
       rows = db.prepare(`
         SELECT file_path, event, timestamp,
                old_summary, new_summary,
@@ -462,7 +486,7 @@ server.tool(
 
     const sections: string[] = [];
     for (const [filePath, changes] of grouped) {
-      const lines = [`## ${filePath} (${changes.length} change${changes.length > 1 ? "s" : ""})`];
+      const lines = [`## ${show(filePath)} (${changes.length} change${changes.length > 1 ? "s" : ""})`];
       for (const c of changes) {
         const parts = [`- **${c.event}** at ${c.timestamp}`];
         if (c.old_line_count != null && c.new_line_count != null) {
@@ -501,9 +525,15 @@ const searchFilesStmt = db.prepare(`
 server.tool(
   "search_files",
   "Search indexed files by path or summary (supports % wildcards). Results are checked against the disk first (changed files are re-indexed, deleted ones dropped) and carry their indexed_at.",
-  { query: z.string().describe("Search term (matched against path and summary, use % for wildcards)") },
-  async ({ query }) => {
-    const pattern = query.includes("%") ? query : `%${query}%`;
+  {
+    query: z.string().describe("Search term (matched against path and summary, use % for wildcards)"),
+    absolute_paths: z.boolean().optional().describe("Print absolute paths instead of paths relative to the project root (default: relative; env CODE_CONTEXT_ABSOLUTE_PATHS=1)"),
+  },
+  async ({ query, absolute_paths }) => {
+    const show = pathDisplay(db, { absolute: absolute_paths });
+    // An absolute path (any spelling) matches the realpath the rows are stored under.
+    const term = path.isAbsolute(query) && !query.includes("%") ? canonicalPath(query) : query;
+    const pattern = term.includes("%") ? term : `%${term}%`;
     const repo = fresh.checkRepos();
     let rows = searchFilesStmt.all(pattern, pattern) as any[];
     const files = fresh.checkFiles(rows);
@@ -515,7 +545,7 @@ server.tool(
     }
 
     const text = rows.map(r =>
-      `${r.path} (${r.language}, ${r.line_count} lines, ${r.export_count} exports, ${r.dep_count} deps)\n  Modified: ${r.modified_at} | indexed ${r.indexed_at} | ${r.summary}`
+      `${show(r.path)} (${r.language}, ${r.line_count} lines, ${r.export_count} exports, ${r.dep_count} deps)\n  Modified: ${r.modified_at} | indexed ${r.indexed_at} | ${r.summary}`
     ).join("\n\n");
     return { content: [{ type: "text", text: notice + text }] };
   }

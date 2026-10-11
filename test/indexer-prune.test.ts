@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import path from "path";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import Database from "better-sqlite3";
 import { indexDirectory } from "../src/server/indexer.js";
@@ -21,7 +21,7 @@ describe("Indexer prune: deleted files and directories leave the index", () => {
     (db.prepare("SELECT path FROM files ORDER BY path").all() as { path: string }[]).map(r => r.path);
 
   beforeEach(() => {
-    root = mkdtempSync(path.join(tmpdir(), "cc-prune-"));
+    root = realpathSync(mkdtempSync(path.join(tmpdir(), "cc-prune-"))); // index stores realpaths (CCA-01)
     process.env.CODE_CONTEXT_ALLOWED_ROOTS = root;
     db = createTestDb();
   });

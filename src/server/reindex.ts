@@ -7,7 +7,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
-import { indexDirectory, removeFiles, isPathInside } from "./indexer.js";
+import { indexDirectory, removeFiles, isPathInside, realPathOf } from "./indexer.js";
 import { isDeniedPath, isDeniedDirPath } from "./index-policy.js";
 import { isGitCheckout } from "./git.js";
 
@@ -74,7 +74,7 @@ const DEP_SQL = `path LIKE '%/node_modules/%' OR path LIKE '%/vendor/%'`;
 export function dbStats(db: Database.Database, root: string, dbPath?: string): DbStats {
   const files = (db.prepare(`SELECT COUNT(*) c FROM files`).get() as { c: number }).c;
   const depFiles = (db.prepare(`SELECT COUNT(*) c FROM files WHERE ${DEP_SQL}`).get() as { c: number }).c;
-  const prefix = path.resolve(root) + path.sep;
+  const prefix = realPathOf(root) + path.sep; // rows are stored under the realpath
   const covered = db
     .prepare(
       `SELECT COUNT(DISTINCT substr(path, ?, instr(substr(path, ?), '/') - 1)) c FROM files WHERE substr(path, 1, ?) = ?`,
@@ -152,8 +152,14 @@ export function purgeDenied(db: Database.Database): number {
   return n;
 }
 
-/** Remove everything indexed under `root` (files, dirs, its indexed_repos row). */
+/** Remove everything indexed under `root` (files, dirs, its indexed_repos row), under either spelling. */
 export function purgeUnder(db: Database.Database, root: string): number {
+  const real = realPathOf(root);
+  const lexical = path.resolve(root);
+  return purgeUnderExact(db, real) + (real === lexical ? 0 : purgeUnderExact(db, lexical));
+}
+
+function purgeUnderExact(db: Database.Database, root: string): number {
   const prefix = path.resolve(root) + path.sep;
   const paths = (db.prepare(`SELECT path FROM files WHERE substr(path, 1, ?) = ?`).all(prefix.length, prefix) as {
     path: string;
