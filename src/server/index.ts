@@ -1,7 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import Database from "better-sqlite3";
-import { runReadOnlyQuery, runWriteStatement } from "./sql-guard.js";
+import { runWriteStatement } from "./sql-guard.js";
+import { QUERY_DESCRIPTION, runBoundedQuery } from "./query-output.js";
 import { z } from "zod";
 import path from "path";
 import fs from "fs";
@@ -558,14 +559,14 @@ server.tool(
 // ─── Tool: query (escape hatch) ──────────────────────────────────────────────
 server.tool(
   "query",
-  "Read-only SQL SELECT on the index (tables: files, exports, dependencies).",
-  { sql: z.string().describe("One SELECT statement") },
+  QUERY_DESCRIPTION,
+  { sql: z.string().describe("One SELECT or PRAGMA table_info(t)") },
   async ({ sql }) => {
-    const result = runReadOnlyQuery(db, sql);
+    const result = runBoundedQuery(db, sql);
     if (!result.ok) {
       return { content: [{ type: "text", text: result.error }], isError: true };
     }
-    return { content: [{ type: "text", text: JSON.stringify(result.rows, null, 2) }] };
+    return { content: [{ type: "text", text: result.text }] };
   }
 );
 
