@@ -60,6 +60,10 @@ export interface SessionUsage {
   firstCallCacheRead: number;
   /** Cost the agent CLI reported, summed over calls; null when it reports none. */
   costUsd: number | null;
+  /** Provider/API error the CLI reported (e.g. a usage limit); null when none. */
+  providerError?: string | null;
+  /** Number of model calls that reported usage. 0 = the model never answered. */
+  modelCalls: number;
   toolCalls: number;
   mcpToolCalls: number;
   assistantText: string;
@@ -132,6 +136,7 @@ export function parseEventStream(lines: string[]): SessionUsage {
   let cacheWriteTokens = 0;
   let firstCallCacheRead: number | null = null;
   let costUsd: number | null = null;
+  let modelCalls = 0;
   let toolCalls = 0;
   let mcpToolCalls = 0;
   const texts: string[] = [];
@@ -148,6 +153,7 @@ export function parseEventStream(lines: string[]): SessionUsage {
       inputTokens += num(t?.input);
       outputTokens += num(t?.output) + num(t?.reasoning);
       cacheReadTokens += num(t?.cache?.read);
+      modelCalls++;
       if (firstCallCacheRead === null) firstCallCacheRead = num(t?.cache?.read); // parts keep stream order
       if (typeof part.cost === 'number' && Number.isFinite(part.cost))
         costUsd = (costUsd ?? 0) + part.cost;
@@ -162,6 +168,7 @@ export function parseEventStream(lines: string[]): SessionUsage {
     cacheWriteTokens,
     firstCallCacheRead: firstCallCacheRead ?? 0,
     costUsd,
+    modelCalls,
     toolCalls,
     mcpToolCalls,
     assistantText: texts.join('\n\n'),

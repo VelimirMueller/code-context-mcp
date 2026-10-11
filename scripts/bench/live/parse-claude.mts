@@ -54,6 +54,9 @@ interface ClaudeEvent {
   result?: string;
   usage?: Usage;
   total_cost_usd?: number;
+  is_error?: boolean;
+  api_error?: string;
+  api_error_status?: number;
   message?: { id?: string; model?: string; content?: Block[]; usage?: Usage };
 }
 
@@ -74,6 +77,7 @@ export function parseClaudeStream(lines: string[]): ClaudeSessionUsage {
   let finalText: string | null = null;
   let resultUsage: Usage | null = null;
   let costUsd: number | null = null;
+  let providerError: string | null = null;
 
   for (const line of lines) {
     if (!line.trim()) continue;
@@ -102,6 +106,9 @@ export function parseClaudeStream(lines: string[]): ClaudeSessionUsage {
     } else if (ev.type === 'result') {
       if (typeof ev.result === 'string') finalText = ev.result;
       if (ev.usage && typeof ev.usage === 'object') resultUsage = ev.usage;
+      if (ev.is_error === true && (ev.api_error || ev.api_error_status)) {
+        providerError = `${ev.api_error ?? 'api error'}${ev.api_error_status ? ` (HTTP ${ev.api_error_status})` : ''}`;
+      }
       if (typeof ev.total_cost_usd === 'number' && Number.isFinite(ev.total_cost_usd))
         costUsd = ev.total_cost_usd;
     }
@@ -135,6 +142,12 @@ export function parseClaudeStream(lines: string[]): ClaudeSessionUsage {
     cacheWriteTokens,
     firstCallCacheRead: firstCallCacheRead ?? 0,
     costUsd,
+    providerError,
+    // A message id is only recorded when it carried usage, and a synthetic
+    // error message has none: usageByMsg.size counts real model calls.
+    modelCalls: [...usageByMsg.values()].filter(
+      (u) => num(u.input_tokens) + num(u.output_tokens) > 0,
+    ).length,
     toolCalls: tools.size,
     mcpToolCalls,
     assistantText: finalText ?? [...texts.values()].join('\n\n'),

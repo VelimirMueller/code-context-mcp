@@ -175,6 +175,10 @@ function git(...args: string[]): string {
 interface SessionOutcome {
   result: SessionResult;
   checkDetail: string;
+  /** Provider/API error the CLI reported; null when none. */
+  providerError: string | null;
+  /** Model calls that reported usage; 0 = the model never answered. */
+  modelCalls: number;
   /** Model id the CLI reported (claude init event); null for opencode. */
   model: string | null;
 }
@@ -274,6 +278,8 @@ async function runSession(opts: {
       },
       checkDetail: `${opts.prep.command.bin} failed to start: ${spawnError}`,
       model: null,
+      providerError: `${opts.prep.command.bin} failed to start: ${spawnError}`,
+      modelCalls: 0,
     };
   }
 
@@ -311,6 +317,8 @@ async function runSession(opts: {
     },
     checkDetail: check.detail,
     model,
+    providerError: usage.providerError ?? null,
+    modelCalls: usage.modelCalls,
   };
 }
 
@@ -428,6 +436,16 @@ async function main(): Promise<void> {
         }
 
         const res = outcome.result;
+        // A provider error or a session in which the model never answered is
+        // not a model FAIL: it voids the run, so a rate limit can never be
+        // published as "the model failed" (Opus ladder 2026-10-11: a plan
+        // session limit turned 29 of 45 sessions into 0-call FAILs).
+        if (outcome.providerError || outcome.modelCalls === 0) {
+          fail(
+            `${arm} ${task.id}: ${outcome.providerError ? `provider error: ${outcome.providerError}` : 'the model never answered (0 model calls)'}. ` +
+              `No run file written. Artefacts: ${artefactDir}`,
+          );
+        }
         const firstRead = res.first_call_cache_read ?? 0;
         firstCallCacheReads.push(firstRead);
         // Fresh-session rule: a session whose FIRST model call reads cache did
