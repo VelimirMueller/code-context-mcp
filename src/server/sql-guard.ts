@@ -11,6 +11,18 @@ export type SqlGuardResult = { ok: true; sql: string } | { ok: false; error: str
 
 const COMMENT = /--|\/\*/;
 
+/**
+ * Schema PRAGMAs `query` accepts (CCA-03, #118): readers want the column list
+ * and used to get "Only SELECT queries are allowed". Both forms only read.
+ * Every other PRAGMA (journal_mode=, user_version=, writable_schema, …) stays
+ * rejected; the driver reader check below runs on these too.
+ */
+const READ_PRAGMA = /^pragma\s+(?:table_info\s*\(\s*(["'`]?)[A-Za-z_]\w*\1\s*\)|table_list)$/i;
+
+/** The one rejection text `query` uses: say what IS allowed, never point at execute (it may not be listed). */
+export const READ_ONLY_HINT =
+  "query is read-only: use one SELECT (or WITH … SELECT), PRAGMA table_info(<table>) or PRAGMA table_list.";
+
 /** Trim and drop a single trailing semicolon (the only semicolon we tolerate). */
 function normalize(rawSql: string): string {
   return rawSql.trim().replace(/;\s*$/, "");
@@ -23,8 +35,8 @@ export function validateReadOnlyQuery(rawSql: string): SqlGuardResult {
     return { ok: false, error: "Multiple statements are not allowed; submit a single SELECT." };
   }
   if (COMMENT.test(sql)) return { ok: false, error: "SQL comments are not allowed." };
-  if (!/^(select|with)\b/i.test(sql)) {
-    return { ok: false, error: "Only SELECT queries are allowed. Use execute() for writes." };
+  if (!/^(select|with)\b/i.test(sql) && !READ_PRAGMA.test(sql)) {
+    return { ok: false, error: READ_ONLY_HINT };
   }
   return { ok: true, sql };
 }
@@ -44,8 +56,10 @@ export function validateWriteStatement(rawSql: string): SqlGuardResult {
 
 export type QueryResult = { ok: true; rows: unknown[] } | { ok: false; error: string };
 
-/** Validate, then run a read-only query — refusing anything the driver reports as a writer. */
-export function runReadOnlyQuery(db: Database.Database, rawSql: string): QueryResult {
+export type PreparedRead = { ok: true; sql: string; stmt: Database.Statement } | { ok: false; error: string };
+
+/** Validate and prepare a read-only statement — refusing anything the driver reports as a writer. */
+export function prepareReadOnlyQuery(db: Database.Database, rawSql: string): PreparedRead {
   const check = validateReadOnlyQuery(rawSql);
   if (!check.ok) return check;
   let stmt: Database.Statement;
@@ -56,9 +70,15 @@ export function runReadOnlyQuery(db: Database.Database, rawSql: string): QueryRe
   }
   // Driver ground truth: a non-reader (e.g. a CTE-prefixed DELETE) is rejected
   // BEFORE execution, so it cannot mutate the database.
-  if (!stmt.reader) {
-    return { ok: false, error: "Only read-only queries are allowed. Use execute() for writes." };
-  }
+  if (!stmt.reader) return { ok: false, error: READ_ONLY_HINT };
+  return { ok: true, sql: check.sql, stmt };
+}
+
+/** Validate, then run a read-only query and return every row (no caps — see query-output.ts for the tool). */
+export function runReadOnlyQuery(db: Database.Database, rawSql: string): QueryResult {
+  const prepared = prepareReadOnlyQuery(db, rawSql);
+  if (!prepared.ok) return prepared;
+  const { stmt } = prepared;
   try {
     return { ok: true, rows: stmt.all() };
   } catch (err) {

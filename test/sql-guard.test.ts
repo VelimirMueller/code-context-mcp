@@ -36,10 +36,31 @@ describe("SQL guard: validateReadOnlyQuery (#15a)", () => {
   it("rejects block comments", () => {
     expect(validateReadOnlyQuery("SELECT 1 /* evil */").ok).toBe(false);
   });
-  it("rejects non-SELECT statements (DROP/PRAGMA/ATTACH)", () => {
+  it("rejects non-SELECT statements (DROP/ATTACH)", () => {
     expect(validateReadOnlyQuery("DROP TABLE files").ok).toBe(false);
-    expect(validateReadOnlyQuery("PRAGMA table_info(files)").ok).toBe(false);
     expect(validateReadOnlyQuery("ATTACH DATABASE '/tmp/x.db' AS x").ok).toBe(false);
+  });
+  it("accepts the schema PRAGMAs table_info(<table>) and table_list (CCA-03)", () => {
+    expect(validateReadOnlyQuery("PRAGMA table_info(files)").ok).toBe(true);
+    expect(validateReadOnlyQuery("pragma table_info ( 'exports' );").ok).toBe(true);
+    expect(validateReadOnlyQuery("PRAGMA table_list").ok).toBe(true);
+  });
+  it("rejects every other PRAGMA with a message that names what is allowed (CCA-03)", () => {
+    for (const sql of [
+      "PRAGMA journal_mode=WAL",
+      "PRAGMA user_version = 3",
+      "PRAGMA writable_schema=ON",
+      "PRAGMA table_info(files) = 1",
+      "PRAGMA foreign_keys",
+    ]) {
+      const r = validateReadOnlyQuery(sql);
+      expect(r.ok, sql).toBe(false);
+      if (!r.ok) {
+        expect(r.error).toContain("PRAGMA table_info(<table>)");
+        expect(r.error).toContain("SELECT");
+        expect(r.error).not.toMatch(/execute/);
+      }
+    }
   });
   it("rejects empty input", () => {
     expect(validateReadOnlyQuery("   ").ok).toBe(false);
@@ -99,6 +120,17 @@ describe("SQL guard: runReadOnlyQuery enforces read-only at the driver (#15a)", 
       // The decisive assertion: the DELETE must never have executed.
       const count = (db.prepare("SELECT COUNT(*) AS c FROM t").get() as { c: number }).c;
       expect(count).toBe(2);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("runs PRAGMA table_info and returns the columns (CCA-03)", () => {
+    const db = tmpDb();
+    try {
+      const r = runReadOnlyQuery(db, "PRAGMA table_info(t)");
+      expect(r.ok).toBe(true);
+      if (r.ok) expect((r.rows as { name: string }[]).map((c) => c.name)).toEqual(["id", "name"]);
     } finally {
       db.close();
     }

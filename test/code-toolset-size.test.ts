@@ -5,6 +5,13 @@
  *
  * Measured 2026-10-11 with OVERDRIVE_FLAIR=0: 11 tools / 5,888 chars before,
  * 4 tools / 1,881 chars after (chars/4 ≈ 1.5k → 0.5k tokens).
+ *
+ * CCA-03 (#118) raised the bound on purpose: the `query` description now
+ * carries the files/exports/dependencies schema and the two common joins.
+ * Measured 2026-10-11: 2,376 chars (+495, about 125 tokens per call). Bench
+ * readers paid for the missing schema with sqlite_master dumps of 5–19.5k
+ * chars and failed calls on guessed column names; one avoided dump pays for
+ * the schema on 10–40 calls. The bound leaves ~70 chars of slack.
  */
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
@@ -20,7 +27,7 @@ const TSX_CLI = path.join(REPO_ROOT, "node_modules/tsx/dist/cli.mjs");
 const SERVER_ENTRY = path.join(REPO_ROOT, "src/server/index.ts");
 
 /** Upper bound for JSON.stringify(tools) of `tools/list` under CODE_CONTEXT_TOOLSETS=code. */
-const MAX_CODE_TOOLSET_CHARS = 1_900;
+const MAX_CODE_TOOLSET_CHARS = 2_450;
 
 async function listTools(toolsets: string) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cca02-"));
@@ -47,6 +54,12 @@ describe("code toolset over MCP stdio", () => {
     expect(tools.map((t) => t.name).sort()).toEqual([...CODE_TOOLS].sort());
     expect(JSON.stringify(tools).length).toBeLessThanOrEqual(MAX_CODE_TOOLSET_CHARS);
     for (const t of tools) expect(t.description ?? "").not.toMatch(/checked against the disk/);
+    // CCA-03: the query description is the schema a reader needs.
+    const q = tools.find((t) => t.name === "query")?.description ?? "";
+    for (const col of ["files(id, path,", "line_count", "exports(id, file_id, name, kind", "dependencies(id, source_id, target_id, symbols)", "PRAGMA table_info"]) {
+      expect(q).toContain(col);
+    }
+    expect(q).not.toMatch(/\bcontent\b/);
   }, 30_000);
 
   it("code,code-admin adds the maintenance tools back", async () => {
