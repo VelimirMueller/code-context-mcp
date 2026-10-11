@@ -28,9 +28,14 @@ const repoRoot = path.resolve(scriptDir, '..', '..', '..');
 const CHECKS_DIR = path.join(scriptDir, 'checks');
 const CHECK_TIMEOUT_MS = 120_000;
 
-/** Lowercase, strip quotes/backticks, forward slashes, collapse whitespace. */
+/** Lowercase, strip quotes/backticks/markdown bold, forward slashes, collapse whitespace. */
 export function normaliseAnswer(answer: string): string {
-  return answer.toLowerCase().replace(/[`"']/g, '').replace(/\\/g, '/').replace(/\s+/g, ' ').trim();
+  return answer
+    .toLowerCase()
+    .replace(/[`"'*]/g, '')
+    .replace(/\\/g, '/')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function checkAnswer(task: LiveTask, finalAnswer: string): CheckResult {
@@ -240,13 +245,94 @@ export function importersOf(root: string, target: string): string[] {
   return hits.sort();
 }
 
-/** File paths named in an answer, normalised to `src/…`. */
-function answerPaths(answer: string): Set<string> {
+/** A relative or absolute .ts/.tsx/.mts path; group 1 drops a leading `./`. */
+const PATH_SRC = String.raw`(?:\.\/)?(\/?[\w.-]+(?:\/[\w.-]+)+\.(?:ts|tsx|mts))`;
+const PATH_RE = new RegExp(PATH_SRC, 'g');
+const LEAD_PATH_RE = new RegExp(`^${PATH_SRC}\\b`);
+
+/** `src/a.ts`, `a.ts`-style `server/a.ts` and `/tmp/ws-x/src/a.ts` all become `src/…`. */
+function toSrc(p: string): string {
+  const inSrc = /(?:^|\/)(src\/.+)$/.exec(p);
+  if (inSrc) return inSrc[1];
+  return `src/${p.replace(/^\/+/, '')}`;
+}
+
+/**
+ * Cues that a line or sentence names a path WITHOUT claiming it as an answer:
+ * "excluded", "false positive", "only mentions it", "a different module",
+ * "no longer", "not an import", "isn't an importer", "doesn't import it".
+ * Narrow on purpose: a plain "not" ("- src/a.ts (not a re-export)") must not
+ * drop a real answer, so "not" only counts right before import/importer.
+ */
+const NEGATION_RE =
+  /\b(?:exclu(?:ded|des|de|ding|sions?)|false[- ]positives?|ignored|unrelated|different module|no longer|only (?:mentions?|references?)|(?:not|never|isn['’]t|aren['’]t|doesn['’]t|don['’]t)\s+(?:\w+\s+){0,2}?(?:imports?|importers?|importing)\b)/i;
+
+/** List markers, quotes and emphasis that may precede a path at line start. */
+const LINE_LEAD_RE = /^(?:\s*(?:[-*+•>]|\d+[.)])\s+)*[\s`*_"']*/;
+
+/**
+ * The paths a line OFFERS as answers: the run of paths at the very start of
+ * the line (after list markers, backticks or bold), separated only by commas,
+ * "and" or whitespace. Paths later in the line are commentary.
+ */
+function leadingPaths(line: string): string[] {
+  let rest = line.replace(LINE_LEAD_RE, '');
+  const out: string[] = [];
+  for (;;) {
+    const m = LEAD_PATH_RE.exec(rest);
+    if (!m) break;
+    out.push(m[1]);
+    rest = rest.slice(m[0].length);
+    const sep = /^[`*_"']*(?:\s*(?:,|;|&|\band\b)\s*|\s+)[`*_"']*/.exec(rest);
+    if (!sep || sep[0].length === 0) break;
+    rest = rest.slice(sep[0].length);
+  }
+  return out;
+}
+
+/**
+ * File paths an answer CLAIMS, normalised to `src/…` (CCA-07, 2026-10-11).
+ *
+ * Rule: the answer list is every line that STARTS with a path (plain lines,
+ * list items, lines in a code block). Paths inside prose — "the fifth grep
+ * hit (`src/x.ts`) was a false positive" — are commentary, not answers.
+ * A path line is dropped when it carries a negation cue (NEGATION_RE:
+ * "`src/a.ts` only mentions it in a comment, not an import") or sits under a
+ * short negating heading ("Notes on exclusions:", "False positives:") until
+ * the next prose line. If no line starts with a path, the answer is prose
+ * ("the importers are src/a.ts and src/b.ts"): every path counts, except in
+ * sentences with a negation cue.
+ *
+ * A model that lists a wrong file AS an answer still pays for it: list lines
+ * without a negation cue always count.
+ */
+export function answerPaths(answer: string): Set<string> {
+  const lines = answer.replace(/\\/g, '/').split('\n');
+  const listed = new Set<string>();
+  let anyPathLine = false;
+  let negatedSection = false;
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line || /^```/.test(line)) continue;
+    const lead = leadingPaths(line);
+    if (lead.length === 0) {
+      // Prose line: a short negating heading opens an excluded section;
+      // any other prose line closes it.
+      const words = line.split(/\s+/).length;
+      const heading = /^#{1,6}\s/.test(line) || (line.endsWith(':') && words <= 8);
+      negatedSection = heading && NEGATION_RE.test(line);
+      continue;
+    }
+    anyPathLine = true;
+    if (negatedSection || NEGATION_RE.test(line)) continue;
+    for (const p of lead) listed.add(toSrc(p));
+  }
+  if (anyPathLine) return listed;
+
   const out = new Set<string>();
-  for (const m of answer
-    .replace(/\\/g, '/')
-    .matchAll(/(?:\.\/)?((?:src\/)?[\w.-]+(?:\/[\w.-]+)+\.(?:ts|tsx|mts))/g)) {
-    out.add(m[1].startsWith('src/') ? m[1] : `src/${m[1]}`);
+  for (const sentence of answer.replace(/\\/g, '/').split(/(?<=[.;!?])\s+|\n/)) {
+    if (NEGATION_RE.test(sentence)) continue;
+    for (const m of sentence.matchAll(PATH_RE)) out.add(toSrc(m[1]));
   }
   return out;
 }

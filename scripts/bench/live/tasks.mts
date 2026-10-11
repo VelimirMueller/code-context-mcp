@@ -89,7 +89,9 @@ export const LIVE_TASKS: LiveTask[] = [
       type: 'answer',
       answerMustMatch: [
         'utils/helpers\\.(ts|js)\\b',
-        'no (external |third[- ]party |npm |node )?(imports|dependencies|deps)( at all)?|self[- ]contained|standalone|zero (imports|dependencies)|nothing (to import|outside|imported)|does.?t (import|depend|rely|use) (on |anything |any |external)|only (uses?|imports?)( the )?(built[- ]?in|standard|native|js|javascript|date)|depend(s)? only on (the )?(built[- ]?in|standard|native|js|javascript|date)',
+        // CCA-07: "no internal/module dependencies", "no internal imports",
+        // "has none — it's a leaf module", "imports nothing" are correct too.
+        'no (external |third[- ]party |npm |node |internal |module |local |project |other )?(imports|dependencies|deps)( at all)?|leaf (module|file|node)|(imports|depends on|relies on) nothing|self[- ]contained|standalone|zero (imports|dependencies)|nothing (to import|outside|imported)|does.?t (import|depend|rely|use) (on |anything |any |external)|only (uses?|imports?)( the )?(built[- ]?in|standard|native|js|javascript|date)|depend(s)? only on (the )?(built[- ]?in|standard|native|js|javascript|date)',
       ],
     },
   },

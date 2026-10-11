@@ -1,0 +1,47 @@
+{
+  "_comment": "CCA-07: real final answers the old L1/L4 checkers failed by mistake (opencode runs 2026-10-11). Temp-dir prefixes replaced with <TMP>/.",
+  "answers": [
+    {
+      "run": "dsk-20261011-090622",
+      "session": "cc-L1-r3",
+      "task": "L1",
+      "answer": "`formatDate` is exported from:\n\n- **`<TMP>/bench-ws-KHhd6h/src/utils/helpers.ts`**\n\nThat file has **no internal dependencies** — its `dependencies` are empty and `external_imports` is `null`. Its implementation only uses built-ins (`Date.prototype.toISOString`, `String.prototype.split`).\n\nNote: it's also *re-exported* by the barrel file `src/utils/index.ts`, but `helpers.ts` is the defining module."
+    },
+    {
+      "run": "dsk-20261011-090622",
+      "session": "cc-guided-L1-r1",
+      "task": "L1",
+      "answer": "`formatDate` is exported by **`src/utils/helpers.ts`** (function; also re-exported from `src/utils/index.ts`).\n\nThat file (`<TMP>/bench-ws-xCr8aL/src/utils/helpers.ts`) has **no module dependencies** — its `dependencies` row is empty. It only relies on built-in globals (`Date`, `Math`) and defines `formatDate`, `capitalize`, `clamp`, `generateId`, and `DEFAULT_PAGE_SIZE`."
+    },
+    {
+      "run": "glm-20261011-003210",
+      "session": "cc-guided-L1-r2",
+      "task": "L1",
+      "answer": "The `read` fallback is blocked here, but the index already has the answer. Let me confirm the dependency graph via the context DB:\n\n**Answer:**\n\n- **`formatDate` is exported from `src/utils/helpers.ts`** (where it's defined, alongside `capitalize`, `clamp`, `generateId`, and `DEFAULT_PAGE_SIZE`).\n- It's also **re-exported from `src/utils/index.ts`** (the barrel file).\n\n**Dependencies:** `src/utils/helpers.ts` has **none** — it's a leaf module. Both the file-context report and the dependency-graph table (`SELECT ... FROM dependencies WHERE source = helpers.ts`) confirm it imports nothing, so `formatDate` relies only on language/runtime built-ins."
+    },
+    {
+      "run": "dsk-20261011-003210",
+      "session": "vanilla-L1-r3",
+      "task": "L1",
+      "answer": "`formatDate` is defined in `<TMP>/bench-ws-0GoTbe/src/utils/helpers.ts` (line 6) and re-exported via the barrel file `<TMP>/bench-ws-0GoTbe/src/utils/index.ts` (line 2).\n\n**Dependencies:** It has no internal imports — it only depends on the built-in global `Date` type and its `toISOString()` / `split()` methods."
+    },
+    {
+      "run": "glm-20261011-090620",
+      "session": "vanilla-L4-r1",
+      "task": "L4",
+      "answer": "The direct-path search found one match, but files inside `src/server/` would import via relative paths like `./schema`. Let me check for those and any path aliases.\n\nLet me verify there are no other import styles (dynamic imports, `../schema`, re-exports) and get the full server directory listing to be thorough.\n\nI've completed a thorough search covering all import styles: relative paths (`./schema`, `../server/schema`), alias paths (`@/server/schema`, `~/server/schema`), dynamic `import()`, and re-exports (`export ... from`). The src/server directory is flat, and files importing `../scrum/schema.js` reference a different module (src/scrum/schema.ts).\n\nFiles under `src/` that import from `src/server/schema.ts`:\n\n```\nsrc/dashboard/dashboard.ts\nsrc/server/index.ts\nsrc/server/reindex-cli.ts\nsrc/server/setup.ts\n```\n\nDetails:\n- `src/dashboard/dashboard.ts` — `import { initSchema } from \"../server/schema.js\"`\n- `src/server/index.ts` — `import { initSchema } from \"./schema.js\"`\n- `src/server/reindex-cli.ts` — `import { initSchema } from \"./schema.js\"`\n- `src/server/setup.ts` — `import { initSchema } from \"./schema.js\"`\n\n(Matches in `src/server/index.ts` line 246 and `src/server/path-resolve.ts` line 3 are just string literals/comments mentioning the path, not imports.)"
+    },
+    {
+      "run": "glm-20261011-090620",
+      "session": "vanilla-L4-r2",
+      "task": "L4",
+      "answer": "The exact-match grep found nothing, so imports likely use path suffixes (e.g. `.js`) or other forms. Let me search more broadly.\n\nFound candidates. Now let me check for side-effect imports, `require` calls, and re-export forms that the previous grep might have missed (e.g. `export * from`, `import './schema'`).\n\nThe broad `from '...schema...'` search is the authoritative one. Let me verify the four candidate files' imports are real (not commented out) and confirm the generated-file hit is a false positive (string content, not an import).\n\nThe setup.ts read failed due to a path typo on my part. Let me re-read it correctly.\n\nAll import forms have been checked (`import ... from`, side-effect `import '...'`, re-`export ... from`, dynamic `import()`, and `require()`). Four files import `src/server/schema.ts` (via `./schema.js` or `../server/schema.js`). The fifth grep hit (`src/scrum/frontend-skill-defaults.generated.ts`) was a false positive — the word \"schema\" appears inside an embedded markdown string, not an import statement. Files importing `../scrum/schema.js` target a different module (`src/scrum/schema.ts`).\n\nsrc/dashboard/dashboard.ts\nsrc/server/index.ts\nsrc/server/setup.ts\nsrc/server/reindex-cli.ts"
+    },
+    {
+      "run": "glm-20261011-090620",
+      "session": "vanilla-L4-r3",
+      "task": "L4",
+      "answer": "The first search found one real import; the other two matches are just comments/strings. Let me broaden the search to catch relative imports like `./schema` / `./schema.js` within `src/server`, and any path-alias imports:\n\nLet me verify `src/server/schema.ts` exists, and do a catch-all for side-effect imports or multi-line import statements mentioning schema:\n\nThe files under `src/` that import from `src/server/schema.ts` are:\n\n```\nsrc/dashboard/dashboard.ts\nsrc/server/index.ts\nsrc/server/reindex-cli.ts\nsrc/server/setup.ts\n```\n\nNotes on exclusions:\n- `src/server/path-resolve.ts` and line 246 of `src/server/index.ts` only mention `src/server/schema.ts` in comments/string literals, not imports.\n- Imports of `../scrum/schema.js` (in `dashboard.ts`, `index.ts`, `setup.ts`) resolve to `src/scrum/schema.ts`, a different module.\n- Each import is `import { initSchema } from \"./schema.js\"` (or `\"../server/schema.js\"`); no re-exports or dynamic imports of the module were found."
+    }
+  ]
+}

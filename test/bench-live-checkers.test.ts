@@ -161,6 +161,53 @@ describe('L1 answer checker', () => {
   });
 });
 
+describe('L1 false negatives (CCA-07)', () => {
+  const l1 = (
+    JSON.parse(
+      fs.readFileSync(
+        path.join(repoRoot, 'test', 'fixtures', 'bench', 'cca-07-false-negatives.json'),
+        'utf-8',
+      ),
+    ) as { answers: Array<{ run: string; session: string; task: string; answer: string }> }
+  ).answers.filter((a) => a.task === 'L1');
+
+  it('has the four real failing answers', () => {
+    expect(l1.map((a) => `${a.run}/${a.session}`)).toEqual([
+      'dsk-20261011-090622/cc-L1-r3',
+      'dsk-20261011-090622/cc-guided-L1-r1',
+      'glm-20261011-003210/cc-guided-L1-r2',
+      'dsk-20261011-003210/vanilla-L1-r3',
+    ]);
+  });
+
+  it.each(l1.map((a) => [a.session, a.answer]))(
+    '%s: "no internal/module dependencies", "leaf module", "no internal imports" pass',
+    async (_session, answer) => {
+      const res = await runChecker(L1, freshWorkspace(), answer);
+      expect(res.detail).toBe('answer matches all patterns');
+      expect(res.pass).toBe(true);
+    },
+  );
+
+  it('still fails when the answer names a real dependency instead', async () => {
+    const res = await runChecker(
+      L1,
+      freshWorkspace(),
+      '`formatDate` is exported from `src/utils/helpers.ts`. It depends on `src/types.ts` and `src/services/api.ts`.',
+    );
+    expect(res.pass).toBe(false);
+  });
+
+  it('still fails with the right dependency claim but the wrong file', async () => {
+    const res = await runChecker(
+      L1,
+      freshWorkspace(),
+      '`formatDate` lives in `src/services/api.ts`; it has no internal dependencies (a leaf module).',
+    );
+    expect(res.pass).toBe(false);
+  });
+});
+
 describe('L2 symbol checker', () => {
   it('fails on the pristine workspace', async () => {
     const res = await runChecker(L2, freshWorkspace(), '');
