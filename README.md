@@ -34,7 +34,7 @@ Your agents forget everything between sessions. This one file does not.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/readme/stats-v3-dark.svg">
-  <img alt="93 MCP TOOLS. 46.3% FEWER TOKENS. 1 SQLITE FILE. 0 API KEYS" src="assets/readme/stats-v3-light.svg" width="100%">
+  <img alt="93 MCP TOOLS. 46.3% FEWER TOKENS, SIMULATED. 1 SQLITE FILE. 0 API KEYS" src="assets/readme/stats-v3-light.svg" width="100%">
 </picture>
 
 <br>
@@ -49,7 +49,7 @@ Your agents forget everything between sessions. This one file does not.
 </picture>
 
 - Gives AI coding agents **persistent memory**. The memory survives the session.
-- Indexes your codebase into one SQLite file, `context.db`. Agents query file roles, exports and dependents. They do not read raw files first: about 45 % fewer tokens in the benchmark.
+- Indexes your codebase into one SQLite file, `context.db`. Agents query file roles, exports and dependents. In real agent runs this pays off on dependency questions ("who imports X": 0.55–0.77× the tokens of an agent without it) and costs more on small or grep-friendly tasks. The 46 % saving is the simulated benchmark; see [Benchmark](#benchmark).
 - Runs a full sprint process for a 9-agent team: vision, discovery, milestones, epics, tickets, gates and retros. It uses 93 MCP tools and 6 slash commands.
 - Shows everything on a live React dashboard at `:3333`. Zero API keys.
 
@@ -160,13 +160,19 @@ Benchmarks run on demand, never from a timer. Every published run lands on the l
 
 **[Benchmark site](https://velimirmueller.github.io/code-context-mcp/)** — the latest run is the headline; the history lists all runs.
 
-Three kinds:
+Kinds:
 
-- `simulated` — context efficiency from scripted replays. No model runs.
-- `agent-glm` / `agent-deepseek` — a real model through OpenCode, same task with and without code-context. One repeat per arm. Indicative only.
+- `simulated` — context efficiency from scripted replays. No model runs. This is the source of the 46.3 % figure.
+- `agent-glm` / `agent-deepseek` / `agent-opus` — a real model, the same task in three arms: without the server, with it, and with it plus the instruction to use it first. Five tasks from S to XL, 3 repeats.
 - `agent-claude` — pre-registered external harness (Claude Code sessions). Read-only.
 
-Latest simulated headline: see site.
+What real agents show (2026-10-11, GLM 5.3 and DeepSeek v4 pro, 45 sessions each):
+
+- **Dependency questions get cheaper.** "Which files import `schema.ts`" (162 files): the guided agent used 0.55× (GLM) and 0.77× (DeepSeek) the tokens of the agent without the server.
+- **Everything else costs more.** Small lookups cost 3–6× the tokens, because each call carries the tool definitions. A rename and a whole-repo analysis were done with grep either way.
+- **Success does not drop.** DeepSeek: 87 % without the server, 100 % with it. GLM: 93 % / 93 % / 87 % (vanilla / cc / guided).
+- **Cost (DeepSeek, 15 sessions per arm):** $0.29 without, $0.31 with, $0.33 guided.
+- Agent runs before 2026-10-11 00:00 UTC told every arm to use the built-in file tools. They do not show the server in use.
 
 <details>
 <summary>Run it yourself</summary>
