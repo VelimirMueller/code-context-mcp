@@ -1,0 +1,193 @@
+{
+  "fixture": {
+    "generatorVersion": 1,
+    "files": 683,
+    "sha256": "11a8c9987ae3905d5f8f0bbe9c9982c3276d4bd429936ccf6d4b103b97f8b0f3",
+    "tsFiles": 680,
+    "lines": 18516,
+    "chars": 597196,
+    "typeErrors": 0
+  },
+  "answers": {
+    "retryImporters": [
+      "src/accounts/service/invitation-service.ts",
+      "src/analytics/jobs/analytics-sync-job.ts",
+      "src/app/jobs.ts",
+      "src/inventory/service/reservation-service.ts",
+      "src/media/service/upload-ticket-service.ts",
+      "src/notifications/service/delivery-service.ts",
+      "src/payments/service/payment-service.ts",
+      "src/platform/http/client.ts",
+      "src/platform/queue/worker.ts",
+      "src/search/service/search-index-service.ts",
+      "src/shipping/service/carrier-account-service.ts"
+    ],
+    "orderLineImporters": [
+      "src/checkout/service/cart-item-service.ts",
+      "src/orders/__tests__/order-line-service.spec.ts",
+      "src/orders/index.ts",
+      "src/orders/repo/order-line-repo.ts",
+      "src/orders/service/order-line-service.ts",
+      "src/orders/utils/labels.ts",
+      "src/orders/utils/mapping.ts",
+      "src/orders/utils/sorting.ts",
+      "src/orders/validation/order-line-schema.ts",
+      "src/returns/service/return-request-service.ts"
+    ],
+    "formatMoneyImporters": [
+      "src/auth/service/credential-service.ts",
+      "src/billing/service/credit-note-service.ts",
+      "src/billing/service/statement-service.ts",
+      "src/catalog/utils/price-format.ts",
+      "src/checkout/service/checkout-session-service.ts",
+      "src/customers/service/contact-preference-service.ts",
+      "src/media/service/asset-service.ts",
+      "src/orders/service/order-note-service.ts",
+      "src/orders/service/order-service.ts",
+      "src/promotions/service/promotion-rule-service.ts",
+      "src/returns/service/inspection-service.ts",
+      "src/shipping/service/parcel-service.ts"
+    ],
+    "catalogUtilsUnused": [
+      {
+        "file": "src/catalog/utils/attribute-labels.ts",
+        "name": "attributeGroupLabel"
+      },
+      {
+        "file": "src/catalog/utils/price-format.ts",
+        "name": "PRICE_PLACEHOLDER"
+      },
+      {
+        "file": "src/catalog/utils/price-format.ts",
+        "name": "formatStrikePrice"
+      },
+      {
+        "file": "src/catalog/utils/sku.ts",
+        "name": "legacySkuPrefix"
+      },
+      {
+        "file": "src/catalog/utils/sku.ts",
+        "name": "skuChecksum"
+      },
+      {
+        "file": "src/catalog/utils/slug.ts",
+        "name": "SlugStyle"
+      },
+      {
+        "file": "src/catalog/utils/slug.ts",
+        "name": "collectionSlug"
+      }
+    ],
+    "catalogUtilsExports": [
+      {
+        "file": "src/catalog/utils/attribute-labels.ts",
+        "name": "AttributeLabelCache"
+      },
+      {
+        "file": "src/catalog/utils/attribute-labels.ts",
+        "name": "attributeGroupLabel"
+      },
+      {
+        "file": "src/catalog/utils/attribute-labels.ts",
+        "name": "attributeLabel"
+      },
+      {
+        "file": "src/catalog/utils/price-format.ts",
+        "name": "PRICE_PLACEHOLDER"
+      },
+      {
+        "file": "src/catalog/utils/price-format.ts",
+        "name": "formatListPrice"
+      },
+      {
+        "file": "src/catalog/utils/price-format.ts",
+        "name": "formatStrikePrice"
+      },
+      {
+        "file": "src/catalog/utils/sku.ts",
+        "name": "SKU_SEPARATOR"
+      },
+      {
+        "file": "src/catalog/utils/sku.ts",
+        "name": "legacySkuPrefix"
+      },
+      {
+        "file": "src/catalog/utils/sku.ts",
+        "name": "normalizeSku"
+      },
+      {
+        "file": "src/catalog/utils/sku.ts",
+        "name": "skuChecksum"
+      },
+      {
+        "file": "src/catalog/utils/slug.ts",
+        "name": "SlugOptions"
+      },
+      {
+        "file": "src/catalog/utils/slug.ts",
+        "name": "SlugStyle"
+      },
+      {
+        "file": "src/catalog/utils/slug.ts",
+        "name": "collectionSlug"
+      },
+      {
+        "file": "src/catalog/utils/slug.ts",
+        "name": "productSlug"
+      },
+      {
+        "file": "src/catalog/utils/variant-matrix.ts",
+        "name": "MAX_VARIANT_AXES"
+      },
+      {
+        "file": "src/catalog/utils/variant-matrix.ts",
+        "name": "buildVariantMatrix"
+      },
+      {
+        "file": "src/catalog/utils/variant-matrix.ts",
+        "name": "variantKey"
+      }
+    ],
+    "resolveTaxRateDefinition": [
+      "src/pricing/utils/tax-rates.ts"
+    ],
+    "pointsMathTwoHop": [
+      "src/app/jobs.ts",
+      "src/loyalty/__tests__/points-account-service.spec.ts",
+      "src/loyalty/__tests__/points-math.spec.ts",
+      "src/loyalty/__tests__/tier-service.spec.ts",
+      "src/loyalty/api/points-account-handler.ts",
+      "src/loyalty/api/routes.ts",
+      "src/loyalty/api/tier-handler.ts",
+      "src/loyalty/index.ts",
+      "src/loyalty/jobs/loyalty-sync-job.ts",
+      "src/loyalty/service/points-account-service.ts",
+      "src/loyalty/service/tier-service.ts",
+      "src/promotions/__tests__/coupon-service.spec.ts",
+      "src/promotions/api/coupon-handler.ts",
+      "src/promotions/api/routes.ts",
+      "src/promotions/index.ts",
+      "src/promotions/service/coupon-service.ts"
+    ]
+  },
+  "decoys": {
+    "withRetry": [
+      "src/platform/http/index.ts",
+      "src/support/service/ticket-service.ts"
+    ],
+    "formatMoney": [
+      "src/analytics/service/metric-sample-service.ts",
+      "src/core/strings.ts"
+    ],
+    "resolveTaxRate": [
+      "src/billing/service/invoice-service.ts",
+      "src/billing/utils/tax.ts",
+      "src/checkout/service/cart-service.ts",
+      "src/checkout/service/checkout-session-service.ts",
+      "src/orders/service/order-note-service.ts",
+      "src/orders/service/order-service.ts",
+      "src/pricing/index.ts",
+      "src/shipping/service/shipment-service.ts"
+    ]
+  }
+}

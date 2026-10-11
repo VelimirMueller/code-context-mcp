@@ -16,7 +16,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseExports } from '../../../src/server/indexer.js';
 import { checkerSpawnEnv } from './sandbox.mts';
-import type { LiveTask } from './tasks.mts';
+import type { LiveTask, PinnedPathKey } from './tasks.mts';
+import { ANSWERS_PATH } from './large-fixture/generate.mts';
+import type { AnswerKey } from './large-fixture/answer-key.mts';
 
 export interface CheckResult {
   pass: boolean;
@@ -429,6 +431,106 @@ function checkDeadExports(task: LiveTask, ws: string, finalAnswer: string): Chec
   };
 }
 
+// ---- large-fixture checkers (I1–I6): expected answers are PINNED -------------
+
+/** The pinned answer key (large-fixture/answers.json), read at check time. */
+function answerKey(): AnswerKey {
+  return JSON.parse(fs.readFileSync(ANSWERS_PATH, 'utf-8')) as AnswerKey;
+}
+
+function checkPinnedPaths(task: LiveTask, finalAnswer: string): CheckResult {
+  const { key, maxExtra, ignore, first } = task.checker as {
+    key: PinnedPathKey;
+    maxExtra: number;
+    ignore?: string[];
+    first?: boolean;
+  };
+  const expected = answerKey().answers[key];
+  const named = answerPaths(finalAnswer);
+  for (const p of ignore ?? []) named.delete(p);
+  if (first) {
+    const got = [...named][0];
+    return {
+      pass: got !== undefined && got === expected[0],
+      detail:
+        got === undefined ? 'no path in the answer' : `first path ${got}, expected ${expected[0]}`,
+    };
+  }
+  const missing = expected.filter((f) => !named.has(f));
+  const extra = [...named].filter((f) => !expected.includes(f));
+  return {
+    pass: missing.length === 0 && extra.length <= maxExtra,
+    detail:
+      `${expected.length - missing.length}/${expected.length} found, ${extra.length} extra` +
+      (missing.length ? `; missing ${missing.join(', ')}` : '') +
+      (extra.length ? `; extra ${extra.join(', ')}` : ''),
+  };
+}
+
+/**
+ * Section headings that introduce exports the answer does NOT claim as
+ * unused ("Used exports:", "In use (for reference):", "Excluded:").
+ * "Unused" itself is no cue (lookbehind).
+ */
+const USED_SECTION_RE =
+  /\b(?:(?<!un)used|in use|alive|exclu(?:ded|sions?)|false[- ]positives?|not (?:dead|unused))\b/i;
+const IDENT_LIST_SRC = String.raw`([A-Za-z_$][\w$]*(?:\s*,\s*[A-Za-z_$][\w$]*)*)`;
+/** A file path or bare file name (`sku.ts`), non-capturing. */
+const FILE_SRC = String.raw`(?:\.\/)?\/?[\w.-]+(?:\/[\w.-]+)*\.(?:ts|tsx|mts)`;
+const CLAIM_LINE_RE = new RegExp(
+  String.raw`^(?:${FILE_SRC}\s*(?:::|→|->|[:#—–-])?\s*)?${IDENT_LIST_SRC}`,
+);
+
+/**
+ * Export names an answer CLAIMS (CCA-09), limited to `universe`. Like
+ * answerPaths: the claim lines are lines that start with `file: name`, a
+ * bare name, or a table row of both; names later in a line are commentary
+ * ("skuChecksum — only normalizeSku uses it"). Lines under a short heading
+ * that names used exports are not claims. Without claim lines (prose), every
+ * universe name in the answer counts.
+ */
+export function answerExportNames(answer: string, universe: ReadonlySet<string>): Set<string> {
+  const claimed = new Set<string>();
+  let anyClaim = false;
+  let negatedSection = false;
+  for (const raw of answer.replace(/\\/g, '/').split('\n')) {
+    let line = raw.trim();
+    if (!line || /^```/.test(line)) continue;
+    if (line.startsWith('|')) line = line.replace(/^\|/, '').replace(/\|/g, ' : ');
+    const lead = line.replace(LINE_LEAD_RE, '').replace(/[`*]/g, '');
+    const m = CLAIM_LINE_RE.exec(lead);
+    const names = m ? m[1].split(/\s*,\s*/).filter((n) => universe.has(n)) : [];
+    if (names.length === 0) {
+      const words = line.split(/\s+/).length;
+      const heading = /^#{1,6}\s/.test(line) || (line.endsWith(':') && words <= 8);
+      if (heading) negatedSection = USED_SECTION_RE.test(line);
+      continue;
+    }
+    anyClaim = true;
+    if (!negatedSection) for (const n of names) claimed.add(n);
+  }
+  if (anyClaim) return claimed;
+  return new Set(
+    [...answer.matchAll(/[A-Za-z_$][\w$]*/g)].map((x) => x[0]).filter((t) => universe.has(t)),
+  );
+}
+
+function checkPinnedExports(task: LiveTask, finalAnswer: string): CheckResult {
+  const { maxExtra } = task.checker as { maxExtra: number };
+  const { catalogUtilsUnused, catalogUtilsExports } = answerKey().answers;
+  const expected = catalogUtilsUnused.map((e) => e.name);
+  const named = answerExportNames(finalAnswer, new Set(catalogUtilsExports.map((e) => e.name)));
+  const missing = expected.filter((n) => !named.has(n));
+  const extra = [...named].filter((n) => !expected.includes(n));
+  return {
+    pass: missing.length === 0 && extra.length <= maxExtra,
+    detail:
+      `${expected.length - missing.length}/${expected.length} unused exports named, ${extra.length} wrong` +
+      (missing.length ? `; missing ${missing.join(', ')}` : '') +
+      (extra.length ? `; wrong ${extra.join(', ')}` : ''),
+  };
+}
+
 export async function runChecker(
   task: LiveTask,
   workspaceDir: string,
@@ -447,5 +549,9 @@ export async function runChecker(
       return checkRename(task, workspaceDir);
     case 'dead-exports':
       return checkDeadExports(task, workspaceDir, finalAnswer);
+    case 'pinned-paths':
+      return checkPinnedPaths(task, finalAnswer);
+    case 'pinned-exports':
+      return checkPinnedExports(task, finalAnswer);
   }
 }
