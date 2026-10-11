@@ -24,6 +24,19 @@
  * (opencode-config.mts benchAgentPrompt); Claude Code sessions run with
  * DISABLE_PROMPT_CACHING=1, an empty CLAUDE_CONFIG_DIR and only the MCP
  * servers named on the command line.
+ *
+ * Cold-then-warm mode (`--cache-mode cold-warm`, 2026-10-11): repeat 1 of a
+ * (task, arm) is cold exactly as above and also leaves a `WarmSeed` — its
+ * nonce, its workspace and HOME paths, the file mtimes of its fixture copy
+ * and a snapshot of its freshly built index (taken before the agent runs).
+ * Repeats 2..N are warm: `warmFrom` rebuilds a FRESH fixture copy and a
+ * FRESH HOME at the SAME paths (cwd and HOME appear in the agent's system
+ * prompt and task prompt, and the index stores absolute paths), restores the
+ * mtimes (so the server's read-time freshness check sees nothing stale),
+ * copies the index snapshot instead of re-indexing, and reuses the nonce, so
+ * the provider prompt prefix of repeat 1 matches again. Claude Code sessions
+ * additionally run with prompt caching ON when warm (cold keeps
+ * DISABLE_PROMPT_CACHING=1).
  */
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
@@ -84,6 +97,36 @@ export function copyFixture(kind: FixtureKind, ws: string): void {
 export const ARMS = ['vanilla', 'cc', 'cc-guided'] as const;
 export type Arm = (typeof ARMS)[number];
 
+/** `cold` = every session cold (default); `cold-warm` = repeat 1 cold, repeats 2..N warm. */
+export const CACHE_MODES = ['cold', 'cold-warm'] as const;
+export type CacheMode = (typeof CACHE_MODES)[number];
+export type CachePhase = 'cold' | 'warm';
+
+/** The phase of repeat `repeat` (1-based) of one (task, arm) under `mode`. */
+export function cachePhaseFor(mode: CacheMode, repeat: number): CachePhase {
+  return mode === 'cold-warm' && repeat > 1 ? 'warm' : 'cold';
+}
+
+/**
+ * What a cold session leaves for the warm repeats of the same (task, arm):
+ * the nonce, the paths to rebuild at, the fixture mtimes and the index
+ * snapshot (cc arms). Owned by the runner; `dispose()` removes the snapshot.
+ */
+export interface WarmSeed {
+  provider: LiveProvider;
+  arm: Arm;
+  fixture: FixtureKind;
+  nonce: string;
+  ws: string;
+  fakeHome: string;
+  /** Workspace-relative path → mtime (ms) of the cold session's fixture copy. */
+  mtimes: Array<[string, number]>;
+  /** Snapshot of the cold session's index db, taken before the agent ran (cc arms). */
+  indexDb?: string;
+  dbBytes?: number;
+  dispose(): void;
+}
+
 export interface PrepareArmOpts {
   provider: LiveProvider;
   arm: Arm;
@@ -101,6 +144,10 @@ export interface PrepareArmOpts {
   allowedRoots?: string;
   /** Parent dir for the temp workspace/HOME (tests); defaults to os.tmpdir(). */
   tmpdir?: string;
+  /** Cold session that seeds warm repeats: also return `seed` (cold-warm mode). */
+  seed?: boolean;
+  /** Warm session: rebuild from this cold session's seed (cold-warm mode). */
+  warmFrom?: WarmSeed;
 }
 
 export interface IndexInfo {
@@ -123,6 +170,10 @@ export interface PreparedArm {
   command: { bin: 'opencode' | 'claude'; args: string[] };
   /** Per-session nonce (first line of the opencode system prompt). */
   nonce: string;
+  /** 'warm' only when prepared from a WarmSeed. */
+  cachePhase: CachePhase;
+  /** Present when prepared with `seed: true` (cold-warm repeat 1). */
+  seed?: WarmSeed;
   /** Remove the workspace and the fake HOME. */
   cleanup(): void;
 }
@@ -141,6 +192,32 @@ function buildIndexDb(ws: string): IndexInfo {
   return { indexMs, dbBytes: fs.statSync(dbPath).size };
 }
 
+/** Every regular file under `dir`, workspace-relative, with its mtime (ms), sorted. */
+function fileMtimes(dir: string): Array<[string, number]> {
+  const out: Array<[string, number]> = [];
+  const walk = (rel: string): void => {
+    for (const e of fs.readdirSync(path.join(dir, rel), { withFileTypes: true })) {
+      const r = rel ? path.join(rel, e.name) : e.name;
+      if (e.isDirectory()) walk(r);
+      else if (e.isFile()) out.push([r, fs.statSync(path.join(dir, r)).mtimeMs]);
+    }
+  };
+  walk('');
+  return out.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+}
+
+/** Recreate `dir` empty; it must not exist (the previous session cleaned it up). */
+function recreateDir(dir: string, what: string): string {
+  try {
+    fs.mkdirSync(dir);
+  } catch (e) {
+    throw new Error(
+      `prepareArmSession: cannot recreate the warm ${what} at ${dir}: ${(e as Error).message}`,
+    );
+  }
+  return dir;
+}
+
 /**
  * Prepare ONE arm session: fresh workspace, index db (cc only), the sandbox
  * opencode.json (ALWAYS), and the minimal agent env. The single function
@@ -148,10 +225,35 @@ function buildIndexDb(ws: string): IndexInfo {
  */
 export function prepareArmSession(opts: PrepareArmOpts): PreparedArm {
   const tmpdir = opts.tmpdir ?? os.tmpdir();
-  const nonce = randomUUID();
+  const fixture = opts.fixture ?? 'sample';
+  const warm = opts.warmFrom;
+  if (warm && opts.seed) throw new Error('prepareArmSession: seed and warmFrom exclude each other');
+  if (
+    warm &&
+    (warm.provider !== opts.provider || warm.arm !== opts.arm || warm.fixture !== fixture)
+  ) {
+    throw new Error(
+      `prepareArmSession: warm seed is for ${warm.provider}/${warm.arm}/${warm.fixture}, not ${opts.provider}/${opts.arm}/${fixture}`,
+    );
+  }
+  // Warm: the SAME nonce as the cold session, so the provider prompt prefix matches.
+  const nonce = warm ? warm.nonce : randomUUID();
 
-  const ws = fs.mkdtempSync(path.join(tmpdir, 'bench-ws-'));
-  copyFixture(opts.fixture ?? 'sample', ws);
+  // Warm: a FRESH fixture copy at the SAME path (cwd is part of the agent's
+  // system prompt and the index stores absolute paths), with the cold copy's
+  // mtimes restored so the server's freshness check finds nothing stale.
+  const ws = warm
+    ? recreateDir(warm.ws, 'workspace')
+    : fs.mkdtempSync(path.join(tmpdir, 'bench-ws-'));
+  copyFixture(fixture, ws);
+  if (warm) {
+    for (const [rel, mtimeMs] of warm.mtimes) {
+      const abs = path.join(ws, rel);
+      const t = new Date(mtimeMs);
+      fs.utimesSync(abs, t, t);
+    }
+  }
+  const mtimes = opts.seed ? fileMtimes(ws) : [];
 
   const mcpCommand = [process.execPath, opts.distServer, path.join(ws, 'context.db')];
   const configOpts: WriteOpencodeConfigOpts = { nonce };
@@ -159,9 +261,24 @@ export function prepareArmSession(opts: PrepareArmOpts): PreparedArm {
   const withServer = opts.arm !== 'vanilla';
   const guidance = opts.arm === 'cc-guided' ? CC_GUIDANCE : undefined;
   if (guidance) configOpts.guidance = guidance;
-  if (withServer) {
+  let seedDir: string | undefined;
+  let seedDb: string | undefined;
+  if (withServer && warm) {
+    // Reuse the cold session's index: copy, never re-index (index_ms = 0).
+    if (!warm.indexDb) throw new Error('prepareArmSession: warm seed has no index snapshot');
+    fs.copyFileSync(warm.indexDb, path.join(ws, 'context.db'));
+    indexInfo = { indexMs: 0, dbBytes: fs.statSync(path.join(ws, 'context.db')).size };
+    configOpts.mcp = { command: mcpCommand };
+  } else if (withServer) {
     indexInfo = buildIndexDb(ws);
     configOpts.mcp = { command: mcpCommand };
+    if (opts.seed) {
+      // Snapshot BEFORE the agent runs: the server may re-index files the
+      // agent edits, and those edits must not leak into the warm repeats.
+      seedDir = fs.mkdtempSync(path.join(tmpdir, 'bench-seed-'));
+      seedDb = path.join(seedDir, 'context.db');
+      fs.copyFileSync(path.join(ws, 'context.db'), seedDb);
+    }
   }
   if (opts.provider === 'deepseek') {
     configOpts.includeDeepseekProvider = true; // model resolution only
@@ -180,7 +297,10 @@ export function prepareArmSession(opts: PrepareArmOpts): PreparedArm {
     }
   }
 
-  const fakeHome = fs.mkdtempSync(path.join(tmpdir, 'bench-home-'));
+  // Warm: a FRESH HOME at the SAME path (the task prompt names it).
+  const fakeHome = warm
+    ? recreateDir(warm.fakeHome, 'HOME')
+    : fs.mkdtempSync(path.join(tmpdir, 'bench-home-'));
   // A real file outside the workspace: probe reads of `$HOME/…` must be
   // refused by external_directory, not pass because the path is missing.
   fs.writeFileSync(path.join(fakeHome, '.profile'), '# bench sandbox home\n');
@@ -230,9 +350,13 @@ export function prepareArmSession(opts: PrepareArmOpts): PreparedArm {
         'stream-json',
       ],
     };
+    // Cold: no prompt caching at all — the only switch that guarantees a
+    // first call without cache reads (Claude Code's static system prompt and
+    // tool list are identical across sessions). Warm: caching on, so repeats
+    // read what earlier warm sessions of the same prefix wrote.
     extra = {
       CLAUDE_CONFIG_DIR: claudeDir,
-      DISABLE_PROMPT_CACHING: '1',
+      ...(warm ? {} : { DISABLE_PROMPT_CACHING: '1' }),
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
       DISABLE_AUTOUPDATER: '1',
     };
@@ -249,6 +373,22 @@ export function prepareArmSession(opts: PrepareArmOpts): PreparedArm {
     ...(opts.allowedRoots ? { allowedRoots: opts.allowedRoots } : {}),
   });
 
+  const seed: WarmSeed | undefined = opts.seed
+    ? {
+        provider: opts.provider,
+        arm: opts.arm,
+        fixture,
+        nonce,
+        ws,
+        fakeHome,
+        mtimes,
+        ...(seedDb && indexInfo ? { indexDb: seedDb, dbBytes: indexInfo.dbBytes } : {}),
+        dispose: () => {
+          if (seedDir) fs.rmSync(seedDir, { recursive: true, force: true });
+        },
+      }
+    : undefined;
+
   return {
     ws,
     configPath,
@@ -257,6 +397,8 @@ export function prepareArmSession(opts: PrepareArmOpts): PreparedArm {
     env,
     command,
     nonce,
+    cachePhase: warm ? 'warm' : 'cold',
+    ...(seed ? { seed } : {}),
     cleanup: () => {
       fs.rmSync(ws, { recursive: true, force: true });
       fs.rmSync(fakeHome, { recursive: true, force: true });

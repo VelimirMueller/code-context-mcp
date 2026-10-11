@@ -2,7 +2,17 @@
  * `npm run bench:live` — real agent benchmark (PLAN.md task 8).
  *
  * CLI: npm run bench:live -- --provider glm|deepseek|opus [--tasks L1,L2,L3]
- *      [--repeats 1] [--timeout 300] [--data-dir <dir>]
+ *      [--repeats 1] [--timeout 300] [--data-dir <dir>] [--cache-mode cold|cold-warm]
+ *
+ * --cache-mode cold (default): every session starts cold (below).
+ * --cache-mode cold-warm: per (task, arm), repeat 1 is cold — fresh index,
+ * new nonce, the strict first-call cache check — and its index build time is
+ * added to its wall_ms (also recorded as index_ms). Repeats 2..N run right
+ * after it and are warm for every arm alike: same nonce, same workspace and
+ * HOME paths (fresh contents), the cold session's index snapshot instead of a
+ * re-index, Claude Code prompt caching on; cache reads are expected, so the
+ * strict check is skipped. Sessions carry cache_phase; the run JSON adds
+ * aggregate.by_phase. See prepare.mts for the mechanism.
  *
  * For every task × arm (vanilla, cc), the ONE preparation path
  * (prepare.mts prepareArmSession) builds a fresh temp copy of the fixture
@@ -38,14 +48,27 @@ import { formatStamp } from '../lib/stamp.mts';
 import {
   normalizeLive,
   RUN_ID_PREFIX,
+  type AgentAggregate,
+  type ByPhaseAgg,
   type LiveProvider,
   type LiveSessions,
+  type PhaseAgg,
+  type PhaseArmAgg,
 } from '../normalize-live.mts';
 import { DEFAULT_LIVE_TASKS, tasksByIds, renderPrompt, type LiveTask } from './tasks.mts';
 import { runChecker } from './checkers.mts';
 import { parseEventStream, type SessionUsage } from './parse-events.mts';
 import { parseClaudeStream } from './parse-claude.mts';
-import { ARMS, prepareArmSession, type Arm, type PreparedArm } from './prepare.mts';
+import {
+  ARMS,
+  CACHE_MODES,
+  cachePhaseFor,
+  prepareArmSession,
+  type Arm,
+  type CacheMode,
+  type PreparedArm,
+  type WarmSeed,
+} from './prepare.mts';
 import { stripProviderKeys } from './sandbox.mts';
 import type { SessionResult } from '../lib/types.mts';
 
@@ -103,6 +126,7 @@ function parseArgs(argv: string[]): {
   repeats: number;
   timeoutSec: number;
   dataDir: string;
+  cacheMode: CacheMode;
 } {
   const out = {
     provider: '',
@@ -110,6 +134,7 @@ function parseArgs(argv: string[]): {
     repeats: 1,
     timeoutSec: 300,
     dataDir: path.join(repoRoot, 'data'),
+    cacheMode: 'cold' as CacheMode,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -133,7 +158,16 @@ function parseArgs(argv: string[]): {
     else if (a === '--repeats') out.repeats = whole(1);
     else if (a === '--timeout') out.timeoutSec = whole(1);
     else if (a === '--data-dir') out.dataDir = path.resolve(next());
-    else fail(`unknown argument ${a} (--provider, --tasks, --repeats, --timeout, --data-dir)`);
+    else if (a === '--cache-mode') {
+      const m = next();
+      if (!(CACHE_MODES as readonly string[]).includes(m)) {
+        fail(`--cache-mode must be ${CACHE_MODES.join('|')} (got "${m}")`);
+      }
+      out.cacheMode = m as CacheMode;
+    } else
+      fail(
+        `unknown argument ${a} (--provider, --tasks, --repeats, --timeout, --data-dir, --cache-mode)`,
+      );
   }
   if (!Object.hasOwn(PROVIDERS, out.provider)) {
     fail('--provider glm|deepseek|opus is required');
@@ -144,6 +178,7 @@ function parseArgs(argv: string[]): {
     repeats: number;
     timeoutSec: number;
     dataDir: string;
+    cacheMode: CacheMode;
   };
 }
 
@@ -322,6 +357,33 @@ async function runSession(opts: {
   };
 }
 
+/** Cold vs warm per arm, per-session means (cold-warm runs). */
+function printPhaseSummary(phases: ByPhaseAgg): void {
+  const per = (a: PhaseArmAgg | undefined, f: (x: PhaseArmAgg) => number): string =>
+    a && a.sessions > 0 ? String(Math.round(f(a) / a.sessions)) : '–';
+  console.log('cold vs warm (means per session; cold wall includes the index build):');
+  console.log(
+    `  ${'arm'.padEnd(10)} ${'phase'.padEnd(5)} ${'n'.padStart(3)} ${'tokens'.padStart(9)} ${'uncached'.padStart(9)} ${'calls'.padStart(6)} ${'mcp'.padStart(5)} ${'wall s'.padStart(7)} ${'success'.padStart(8)}`,
+  );
+  const armKeys: Array<[string, keyof PhaseAgg]> = [
+    ['vanilla', 'vanilla'],
+    ['cc', 'cc'],
+    ['cc-guided', 'cc_guided'],
+  ];
+  for (const [label, key] of armKeys) {
+    for (const phase of ['cold', 'warm'] as const) {
+      const a = phases[phase]?.[key];
+      if (!a) continue;
+      console.log(
+        `  ${label.padEnd(10)} ${phase.padEnd(5)} ${String(a.sessions).padStart(3)} ` +
+          `${per(a, (x) => x.tokens.total).padStart(9)} ${per(a, (x) => x.uncached_tokens).padStart(9)} ` +
+          `${per(a, (x) => x.tool_calls).padStart(6)} ${per(a, (x) => x.mcp_tool_calls).padStart(5)} ` +
+          `${(a.wall_ms_mean / 1000).toFixed(1).padStart(7)} ${`${Math.round(a.success_rate * 100)} %`.padStart(8)}`,
+      );
+    }
+  }
+}
+
 async function main(): Promise<void> {
   if (process.platform === 'win32') {
     fail('bench:live requires a POSIX platform — timeout handling kills whole process groups.');
@@ -376,8 +438,10 @@ async function main(): Promise<void> {
   process.env.CODE_CONTEXT_ALLOWED_ROOTS = allowedRoots;
 
   const artefactDir = fs.mkdtempSync(path.join(os.tmpdir(), `bench-live-${runId}-`));
+  const coldWarm = args.cacheMode === 'cold-warm';
   console.log(
-    `run:      ${runId} (${providerMeta.model}, tasks ${tasks.map((t) => t.id).join(',')}, repeats ${args.repeats})`,
+    `run:      ${runId} (${providerMeta.model}, tasks ${tasks.map((t) => t.id).join(',')}, repeats ${args.repeats}` +
+      `${coldWarm ? ', cache mode cold-warm' : ''})`,
   );
   console.log(`artefacts: ${artefactDir}`);
 
@@ -391,82 +455,122 @@ async function main(): Promise<void> {
   const firstCallCacheReads: number[] = [];
   let reportedModel: string | null = null;
 
+  // Session order. cold: task → repeat → arm (unchanged). cold-warm:
+  // task → arm → repeat, so the warm repeats follow their cold session
+  // directly and the provider caches (Anthropic: 5 min TTL) are still alive.
+  const schedule: Array<{ task: LiveTask; r: number; arm: Arm }> = [];
   for (const task of tasks) {
-    for (let r = 1; r <= args.repeats; r++) {
+    if (coldWarm) {
       for (const arm of ARMS) {
-        // The ONE preparation path — every arm gets its sandbox opencode.json
-        // here (prepare.mts), before the ONE spawn site below consumes it.
-        const prep = prepareArmSession({
-          provider: args.provider,
-          arm,
-          model: providerMeta.model,
-          fixture: task.fixture ?? 'sample',
-          distServer: DIST_SERVER,
-          keyExportName: providerMeta.exportAs,
-          key,
-          allowedRoots: process.env.CODE_CONTEXT_ALLOWED_ROOTS,
-        });
-
-        const suffix = args.repeats > 1 ? `-r${r}` : '';
-        let outcome: SessionOutcome;
-        try {
-          outcome = await runSession({
-            task,
-            prep,
-            timeoutSec: args.timeoutSec,
-            costKnown: args.provider !== 'glm',
-            eventsFile: path.join(artefactDir, `${arm}-${task.id}${suffix}.jsonl`),
-            stderrFile: path.join(artefactDir, `${arm}-${task.id}${suffix}.stderr.log`),
-          });
-        } finally {
-          prep.cleanup();
-        }
-        if (prep.indexInfo) {
-          indexMsSamples.push(prep.indexInfo.indexMs);
-          dbBytesSamples.push(prep.indexInfo.dbBytes);
-        }
-        bucket[arm].push(outcome.result);
-        if (outcome.model) {
-          if (reportedModel && reportedModel !== outcome.model) {
-            fail(
-              `${arm} ${task.id}: model changed mid-run (${reportedModel} → ${outcome.model}). No run file written.`,
-            );
-          }
-          reportedModel = outcome.model;
-        }
-
-        const res = outcome.result;
-        // A provider error or a session in which the model never answered is
-        // not a model FAIL: it voids the run, so a rate limit can never be
-        // published as "the model failed" (Opus ladder 2026-10-11: a plan
-        // session limit turned 29 of 45 sessions into 0-call FAILs).
-        if (outcome.providerError || outcome.modelCalls === 0) {
-          fail(
-            `${arm} ${task.id}: ${outcome.providerError ? `provider error: ${outcome.providerError}` : 'the model never answered (0 model calls)'}. ` +
-              `No run file written. Artefacts: ${artefactDir}`,
-          );
-        }
-        const firstRead = res.first_call_cache_read ?? 0;
-        firstCallCacheReads.push(firstRead);
-        // Fresh-session rule: a session whose FIRST model call reads cache did
-        // not start cold. For strict providers that voids the whole run — no
-        // run file is written, nothing can be published by accident.
-        if (providerMeta.strictCache && firstRead > 0) {
-          fail(
-            `${arm} ${task.id}: first model call read ${firstRead} cached tokens — the session did not start fresh. ` +
-              `No run file written. Artefacts: ${artefactDir}`,
-          );
-        }
-        console.log(
-          `  ${arm.padEnd(9)} ${task.id}${suffix ? ` r${r}` : ''}  ` +
-            `${res.success ? 'PASS' : res.timeout ? 'TIMEOUT' : 'FAIL'}  ` +
-            `tok ${res.tokens.input}+${res.tokens.cache_read}c→${res.tokens.output} (1st call cache ${firstRead})  ` +
-            `tools ${res.tool_calls} (mcp ${res.mcp_tool_calls})  ` +
-            (typeof res.cost_usd === 'number' ? `$${res.cost_usd.toFixed(4)}  ` : '') +
-            `${(res.wall_ms / 1000).toFixed(1)}s  — ${outcome.checkDetail}`,
-        );
+        for (let r = 1; r <= args.repeats; r++) schedule.push({ task, r, arm });
+      }
+    } else {
+      for (let r = 1; r <= args.repeats; r++) {
+        for (const arm of ARMS) schedule.push({ task, r, arm });
       }
     }
+  }
+  // Warm seeds per (task, arm): the cold session's nonce, paths and index snapshot.
+  const seeds = new Map<string, WarmSeed>();
+  process.on('exit', () => {
+    for (const s of seeds.values()) s.dispose();
+  });
+
+  for (const { task, r, arm } of schedule) {
+    const phase = cachePhaseFor(args.cacheMode, r);
+    const seedKey = `${task.id}|${arm}`;
+    const warmFrom = phase === 'warm' ? seeds.get(seedKey) : undefined;
+    if (phase === 'warm' && !warmFrom) fail(`${arm} ${task.id} r${r}: no cold seed to warm from`);
+    // The ONE preparation path — every arm gets its sandbox opencode.json
+    // here (prepare.mts), before the ONE spawn site below consumes it.
+    const prep = prepareArmSession({
+      provider: args.provider,
+      arm,
+      model: providerMeta.model,
+      fixture: task.fixture ?? 'sample',
+      distServer: DIST_SERVER,
+      keyExportName: providerMeta.exportAs,
+      key,
+      allowedRoots: process.env.CODE_CONTEXT_ALLOWED_ROOTS,
+      ...(coldWarm && phase === 'cold' && args.repeats > 1 ? { seed: true } : {}),
+      ...(warmFrom ? { warmFrom } : {}),
+    });
+    if (prep.seed) seeds.set(seedKey, prep.seed);
+
+    const suffix = args.repeats > 1 ? `-r${r}` : '';
+    let outcome: SessionOutcome;
+    try {
+      outcome = await runSession({
+        task,
+        prep,
+        timeoutSec: args.timeoutSec,
+        costKnown: args.provider !== 'glm',
+        eventsFile: path.join(artefactDir, `${arm}-${task.id}${suffix}.jsonl`),
+        stderrFile: path.join(artefactDir, `${arm}-${task.id}${suffix}.stderr.log`),
+      });
+    } finally {
+      prep.cleanup();
+    }
+    if (r === args.repeats) {
+      seeds.get(seedKey)?.dispose(); // last repeat of this (task, arm)
+      seeds.delete(seedKey);
+    }
+    // Index stats: fresh builds only (a warm session copies the cold one's db).
+    if (prep.indexInfo && phase === 'cold') {
+      indexMsSamples.push(prep.indexInfo.indexMs);
+      dbBytesSamples.push(prep.indexInfo.dbBytes);
+    }
+    if (coldWarm) {
+      // First-time cost belongs to the cold session: its index build
+      // counts in its wall time. Warm sessions reuse the index (0).
+      const indexMs = phase === 'cold' && prep.indexInfo ? prep.indexInfo.indexMs : 0;
+      outcome.result.wall_ms += indexMs;
+      outcome.result.cache_phase = phase;
+      outcome.result.index_ms = indexMs;
+    }
+    bucket[arm].push(outcome.result);
+    if (outcome.model) {
+      if (reportedModel && reportedModel !== outcome.model) {
+        fail(
+          `${arm} ${task.id}: model changed mid-run (${reportedModel} → ${outcome.model}). No run file written.`,
+        );
+      }
+      reportedModel = outcome.model;
+    }
+
+    const res = outcome.result;
+    // A provider error or a session in which the model never answered is
+    // not a model FAIL: it voids the run, so a rate limit can never be
+    // published as "the model failed" (Opus ladder 2026-10-11: a plan
+    // session limit turned 29 of 45 sessions into 0-call FAILs).
+    if (outcome.providerError || outcome.modelCalls === 0) {
+      fail(
+        `${arm} ${task.id}: ${outcome.providerError ? `provider error: ${outcome.providerError}` : 'the model never answered (0 model calls)'}. ` +
+          `No run file written. Artefacts: ${artefactDir}`,
+      );
+    }
+    const firstRead = res.first_call_cache_read ?? 0;
+    if (phase === 'cold') firstCallCacheReads.push(firstRead);
+    // Fresh-session rule: a session whose FIRST model call reads cache did
+    // not start cold. For strict providers that voids the whole run — no
+    // run file is written, nothing can be published by accident. Warm
+    // sessions (cold-warm mode) are meant to read cache: not checked.
+    if (phase === 'cold' && providerMeta.strictCache && firstRead > 0) {
+      fail(
+        `${arm} ${task.id}: first model call read ${firstRead} cached tokens — the session did not start fresh. ` +
+          `No run file written. Artefacts: ${artefactDir}`,
+      );
+    }
+    console.log(
+      `  ${arm.padEnd(9)} ${task.id}${suffix ? ` r${r}` : ''}${coldWarm ? ` ${phase}` : ''}  ` +
+        `${res.success ? 'PASS' : res.timeout ? 'TIMEOUT' : 'FAIL'}  ` +
+        `tok ${res.tokens.input}+${res.tokens.cache_read}c→${res.tokens.output} (1st call cache ${firstRead})  ` +
+        `tools ${res.tool_calls} (mcp ${res.mcp_tool_calls})  ` +
+        (typeof res.cost_usd === 'number' ? `$${res.cost_usd.toFixed(4)}  ` : '') +
+        `${(res.wall_ms / 1000).toFixed(1)}s` +
+        (coldWarm && res.index_ms ? ` (index ${res.index_ms} ms)` : '') +
+        `  — ${outcome.checkDetail}`,
+    );
   }
 
   // Indexing stats: mean over every cc workspace built for this run (each
@@ -484,12 +588,23 @@ async function main(): Promise<void> {
     version: string;
   };
   const firstCallCacheTotal = firstCallCacheReads.reduce((a, b) => a + b, 0);
-  const freshNote =
+  const coldFreshNote =
     agentBin === 'claude'
       ? 'fresh sessions: new fixture copy, HOME, TMPDIR and empty CLAUDE_CONFIG_DIR per session; DISABLE_PROMPT_CACHING=1; only the MCP servers on the command line; first-call cache read 0 in every session (enforced)'
       : providerMeta.strictCache
         ? 'fresh sessions: new fixture copy, HOME and TMPDIR per session; per-session nonce first in the system prompt; first-call cache read 0 in every session (enforced)'
         : `fresh sessions: new fixture copy, HOME and TMPDIR per session; per-session nonce first in the system prompt. The provider caches tool definitions across sessions and offers no off switch: ${firstCallCacheTotal} cached tokens read on first calls (both arms)`;
+  const cacheNotes = coldWarm
+    ? [
+        `cache mode: cold-warm — per task and arm, repeat 1 is cold and repeats 2..${args.repeats} are warm (sessions carry cache_phase; aggregate.by_phase compares them)`,
+        `cold sessions (repeat 1): ${coldFreshNote.replace(/^fresh sessions: /, '').replace(/ in every session \(enforced\)/, ' in every cold session (enforced)')}`,
+        agentBin === 'claude'
+          ? 'warm sessions (repeats 2..N): fresh fixture copy and HOME at the cold session’s paths, the cold session’s index reused (copied, not rebuilt), prompt caching ON; first-call cache reads expected and not checked'
+          : 'warm sessions (repeats 2..N): fresh fixture copy and HOME at the cold session’s paths, the cold session’s nonce and index reused (copied, not rebuilt); first-call cache reads expected and not checked',
+        'wall_ms of a cold cc session includes its index build (index_ms); warm sessions index_ms 0; aggregate wall means cover both phases',
+        'session order: task → arm → repeat (warm repeats run right after their cold session)',
+      ]
+    : [coldFreshNote];
   const run = normalizeLive(args.provider, reportedModel ?? providerMeta.model, tasks, sessions, {
     trigger: 'manual',
     git: {
@@ -503,11 +618,13 @@ async function main(): Promise<void> {
     agentVersion,
     agentName: agentBin === 'claude' ? 'claude-code' : 'opencode',
     notes: [
-      freshNote,
+      ...cacheNotes,
       'arms: vanilla (no server) · cc (server attached, no hint) · cc-guided (server + "use code-context first" in the system prompt); both cc arms run CODE_CONTEXT_TOOLSETS=code (11 tools)',
       'task prompts are neutral: they name no tools, only that bash is disabled',
       agentBin === 'claude'
-        ? 'cost: Claude Code total_cost_usd at list price with prompt caching off (upper bound)'
+        ? coldWarm
+          ? 'cost: Claude Code total_cost_usd at list price; prompt caching off in cold sessions (upper bound), on in warm sessions'
+          : 'cost: Claude Code total_cost_usd at list price with prompt caching off (upper bound)'
         : args.provider === 'glm'
           ? 'cost: not known (GLM coding plan is a subscription)'
           : 'cost: opencode step cost',
@@ -572,6 +689,8 @@ async function main(): Promise<void> {
     );
   }
   console.log('└───────────────────────────────────┘');
+  const phases = (run.aggregate as AgentAggregate).by_phase;
+  if (phases) printPhaseSummary(phases);
   console.log(`run:    ${path.relative(process.cwd(), runPath)}`);
   console.log(
     `index:  ${path.relative(process.cwd(), path.join(args.dataDir, 'index.json'))} (${index.runs.length} run${index.runs.length === 1 ? '' : 's'})`,

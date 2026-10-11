@@ -12,11 +12,16 @@ import { describe, it, expect, afterEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import Database from 'better-sqlite3';
+import { toISOLocal } from '../src/server/indexer.js';
 import {
   ARMS,
   CLAUDE_TOOLS,
+  cachePhaseFor,
   prepareArmSession,
+  type PrepareArmOpts,
   type PreparedArm,
+  type WarmSeed,
 } from '../scripts/bench/live/prepare.mts';
 import {
   CC_GUIDANCE,
@@ -35,11 +40,13 @@ const KEY_BY_PROVIDER: Record<LiveProvider, { keyExportName: string; key: string
 };
 
 let prepped: PreparedArm[] = [];
+const seeds: WarmSeed[] = [];
 let tmpRoot = '';
 let allowedRootsSnapshot: string | undefined;
 
 afterEach(() => {
   for (const p of prepped.splice(0)) p.cleanup();
+  for (const s of seeds.splice(0)) s.dispose();
   if (tmpRoot) {
     fs.rmSync(tmpRoot, { recursive: true, force: true });
     tmpRoot = '';
@@ -49,7 +56,11 @@ afterEach(() => {
   else process.env.CODE_CONTEXT_ALLOWED_ROOTS = allowedRootsSnapshot;
 });
 
-const prepare = (provider: LiveProvider, arm: (typeof ARMS)[number]): PreparedArm => {
+const prepare = (
+  provider: LiveProvider,
+  arm: (typeof ARMS)[number],
+  extra: Pick<PrepareArmOpts, 'seed' | 'warmFrom'> = {},
+): PreparedArm => {
   if (!tmpRoot) {
     tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bench-prepare-'));
     // run.mts widens the indexer sandbox to the temp dir before preparing;
@@ -68,9 +79,33 @@ const prepare = (provider: LiveProvider, arm: (typeof ARMS)[number]): PreparedAr
     ...KEY_BY_PROVIDER[provider],
     allowedRoots: tmpRoot,
     tmpdir: tmpRoot,
+    ...extra,
   });
   prepped.push(p);
+  if (p.seed) seeds.push(p.seed);
   return p;
+};
+
+/** Run.mts order: a session's cleanup() runs before the next one is prepared. */
+const finish = (p: PreparedArm): void => {
+  p.cleanup();
+  prepped = prepped.filter((x) => x !== p);
+};
+
+const promptOf = (p: PreparedArm): string =>
+  (
+    JSON.parse(fs.readFileSync(p.configPath, 'utf-8')) as {
+      agent?: { build?: { prompt?: string } };
+    }
+  ).agent?.build?.prompt ?? '';
+
+const fileRows = (db: string): unknown[] => {
+  const h = new Database(db, { readonly: true });
+  try {
+    return h.prepare('SELECT path, size_bytes, modified_at FROM files ORDER BY path').all();
+  } finally {
+    h.close();
+  }
 };
 
 describe('prepareArmSession — every arm carries the sandbox config', () => {
@@ -289,5 +324,133 @@ describe('CC_GUIDANCE names only tools the code toolset lists', () => {
     const named = CC_GUIDANCE.match(/\b[a-z]+_[a-z_]+\b/g) ?? [];
     expect(named.length).toBeGreaterThan(0);
     for (const n of named) expect(CODE_TOOLS).toContain(n);
+  });
+});
+
+describe('cold-warm cache mode (2026-10-11)', () => {
+  it('cachePhaseFor: cold mode is always cold; cold-warm is cold on repeat 1 only', () => {
+    expect([1, 2, 3].map((r) => cachePhaseFor('cold', r))).toEqual(['cold', 'cold', 'cold']);
+    expect([1, 2, 3].map((r) => cachePhaseFor('cold-warm', r))).toEqual(['cold', 'warm', 'warm']);
+  });
+
+  it('default (cold mode) preparation has no seed and a new nonce every time', () => {
+    const a = prepare('deepseek', 'cc');
+    const b = prepare('deepseek', 'cc');
+    expect(a.seed).toBeUndefined();
+    expect(a.cachePhase).toBe('cold');
+    expect(a.nonce).not.toBe(b.nonce);
+    expect(a.ws).not.toBe(b.ws);
+  });
+
+  it('warm reuses the cold nonce, paths and index — no re-index, index_ms 0', () => {
+    for (const provider of PROVIDERS) {
+      for (const arm of ['cc', 'cc-guided'] as const) {
+        const cold = prepare(provider, arm, { seed: true });
+        const seed = cold.seed!;
+        expect(cold.cachePhase).toBe('cold');
+        expect(cold.indexInfo!.indexMs).toBeGreaterThanOrEqual(0);
+        expect(seed.indexDb && fs.existsSync(seed.indexDb)).toBe(true);
+        const coldPrompt = promptOf(cold);
+        const coldRows = fileRows(path.join(cold.ws, 'context.db'));
+        const coldConfig = fs.readFileSync(cold.configPath, 'utf-8');
+        finish(cold);
+
+        const warm = prepare(provider, arm, { warmFrom: seed });
+        expect(warm.cachePhase).toBe('warm');
+        expect(warm.nonce).toBe(cold.nonce);
+        expect(promptOf(warm)).toBe(coldPrompt); // identical prompt prefix
+        expect(warm.ws).toBe(cold.ws);
+        expect(warm.fakeHome).toBe(cold.fakeHome);
+        expect(warm.indexInfo).toEqual({ indexMs: 0, dbBytes: seed.dbBytes });
+        expect(fileRows(path.join(warm.ws, 'context.db'))).toEqual(coldRows);
+        // byte-identical config: same nonce, same MCP command and db path
+        expect(fs.readFileSync(warm.configPath, 'utf-8')).toBe(coldConfig);
+        finish(warm);
+      }
+    }
+  });
+
+  it('warm sessions get a FRESH fixture copy and HOME: edits from repeat 1 cannot leak', () => {
+    const cold = prepare('glm', 'cc', { seed: true });
+    const helpers = path.join(cold.ws, 'src', 'utils', 'helpers.ts');
+    const original = fs.readFileSync(helpers, 'utf-8');
+    const mtime = fs.statSync(helpers).mtimeMs;
+    // the agent edits a file, adds one, touches HOME and the db
+    fs.writeFileSync(helpers, '// edited by repeat 1\n');
+    fs.writeFileSync(path.join(cold.ws, 'leak.ts'), 'export const x = 1;\n');
+    fs.writeFileSync(path.join(cold.fakeHome, 'leak'), 'x');
+    const h = new Database(path.join(cold.ws, 'context.db'));
+    h.exec('CREATE TABLE leaked (x INTEGER)');
+    h.close();
+    const seed = cold.seed!;
+    finish(cold);
+
+    const warm = prepare('glm', 'cc', { warmFrom: seed });
+    expect(fs.readFileSync(helpers, 'utf-8')).toBe(original);
+    // mtimes restored: the server's freshness check sees the indexed files unchanged
+    expect(Math.trunc(fs.statSync(helpers).mtimeMs)).toBe(Math.trunc(mtime));
+    const rows = fileRows(path.join(warm.ws, 'context.db')) as Array<{
+      path: string;
+      size_bytes: number;
+      modified_at: string;
+    }>;
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      const st = fs.statSync(row.path); // the indexed absolute path exists again
+      expect(st.size, row.path).toBe(row.size_bytes);
+      expect(toISOLocal(st.mtime), row.path).toBe(row.modified_at);
+    }
+    expect(fs.existsSync(path.join(warm.ws, 'leak.ts'))).toBe(false);
+    expect(fs.existsSync(path.join(warm.fakeHome, 'leak'))).toBe(false);
+    expect(fs.readFileSync(path.join(warm.fakeHome, '.profile'), 'utf-8')).toContain('bench');
+    const db = new Database(path.join(warm.ws, 'context.db'), { readonly: true });
+    const leaked = db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'leaked'")
+      .all();
+    db.close();
+    expect(leaked).toEqual([]); // snapshot was taken before the agent ran
+  });
+
+  it('vanilla warm: same nonce and paths, still no index', () => {
+    const cold = prepare('deepseek', 'vanilla', { seed: true });
+    expect(cold.seed!.indexDb).toBeUndefined();
+    const seed = cold.seed!;
+    finish(cold);
+    const warm = prepare('deepseek', 'vanilla', { warmFrom: seed });
+    expect(warm.nonce).toBe(seed.nonce);
+    expect(warm.ws).toBe(seed.ws);
+    expect(warm.indexInfo).toBeUndefined();
+    expect(fs.existsSync(path.join(warm.ws, 'context.db'))).toBe(false);
+  });
+
+  it('opus: cold keeps DISABLE_PROMPT_CACHING=1, warm turns caching on with identical args', () => {
+    for (const arm of ARMS) {
+      const cold = prepare('opus', arm, { seed: true });
+      expect(cold.env.DISABLE_PROMPT_CACHING).toBe('1');
+      const coldArgs = [...cold.command.args];
+      const seed = cold.seed!;
+      finish(cold);
+      const warm = prepare('opus', arm, { warmFrom: seed });
+      expect(warm.env.DISABLE_PROMPT_CACHING).toBeUndefined();
+      expect(warm.command.args).toEqual(coldArgs); // same cwd, mcp config path, system prompt
+      expect(warm.env.CLAUDE_CONFIG_DIR).toBe(path.join(seed.fakeHome, '.claude'));
+      expect(fs.readdirSync(warm.env.CLAUDE_CONFIG_DIR as string)).toEqual([]);
+      finish(warm);
+    }
+  });
+
+  it('refuses a warm session while the cold workspace still exists, or for another arm', () => {
+    const cold = prepare('glm', 'cc', { seed: true });
+    expect(() => prepare('glm', 'cc', { warmFrom: cold.seed! })).toThrow(/cannot recreate/);
+    expect(() => prepare('glm', 'cc-guided', { warmFrom: cold.seed! })).toThrow(/warm seed is for/);
+    expect(() => prepare('glm', 'cc', { seed: true, warmFrom: cold.seed! })).toThrow(/exclude/);
+  });
+
+  it('dispose() removes the index snapshot', () => {
+    const cold = prepare('glm', 'cc', { seed: true });
+    const db = cold.seed!.indexDb!;
+    expect(fs.existsSync(db)).toBe(true);
+    cold.seed!.dispose();
+    expect(fs.existsSync(db)).toBe(false);
   });
 });

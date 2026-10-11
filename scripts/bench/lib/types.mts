@@ -71,7 +71,23 @@ export interface SessionResult {
   cost_usd?: number | null;
   tool_calls: number;
   mcp_tool_calls: number;
+  /**
+   * Session wall time. In cold-warm runs a cold cc session's index build is
+   * included (see index_ms); otherwise the index build is not part of it.
+   */
   wall_ms: number;
+  /**
+   * Cache phase in cold-warm runs (`--cache-mode cold-warm`, since
+   * 2026-10-11): repeat 1 of each (task, arm) is 'cold', repeats 2..N 'warm'.
+   * Absent in cold-only runs.
+   */
+  cache_phase?: 'cold' | 'warm';
+  /**
+   * Index build time already contained in wall_ms (cold-warm runs only):
+   * the fresh build for a cold cc session, 0 for warm sessions (the index is
+   * reused) and for vanilla.
+   */
+  index_ms?: number;
   session_id: string;
   events_path: string;
 }

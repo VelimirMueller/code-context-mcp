@@ -83,6 +83,37 @@ export interface AgentAggregate {
   cost_usd: { vanilla: number | null; cc: number | null; cc_guided?: number | null };
   wall_ms: { vanilla_mean: number; cc_mean: number; cc_guided_mean?: number };
   per_task: PerTaskRow[];
+  /** Cold vs warm per arm (cold-warm runs only). */
+  by_phase?: ByPhaseAgg;
+}
+
+/** One arm in one cache phase (cold-warm runs). Means are per session. */
+export interface PhaseArmAgg {
+  sessions: number;
+  success_rate: number;
+  /** total = input + cache_read + output (as everywhere else). */
+  tokens: TokenAgg;
+  /** input + output + cache_write: the tokens a cache could not serve. */
+  uncached_tokens: number;
+  tool_calls: number;
+  mcp_tool_calls: number;
+  /** Cold cc sessions include their index build (index_ms). */
+  wall_ms_mean: number;
+  /** Mean index build time contained in wall_ms_mean. */
+  index_ms_mean: number;
+  cost_usd: number | null;
+}
+
+export interface PhaseAgg {
+  vanilla: PhaseArmAgg;
+  cc: PhaseArmAgg;
+  cc_guided?: PhaseArmAgg;
+}
+
+/** `aggregate.by_phase` — present only when sessions carry cache_phase. */
+export interface ByPhaseAgg {
+  cold?: PhaseAgg;
+  warm?: PhaseAgg;
 }
 
 export interface AgentArms {
@@ -158,6 +189,47 @@ function perTaskArm(results: SessionResult[]): PerTaskArmAgg {
     mcp_tool_calls: results.reduce((s, r) => s + r.mcp_tool_calls, 0),
     wall_ms_mean: n > 0 ? Math.round(results.reduce((s, r) => s + r.wall_ms, 0) / n) : 0,
   };
+}
+
+function phaseArm(results: SessionResult[]): PhaseArmAgg {
+  const n = results.length;
+  const sum = (f: (r: SessionResult) => number): number => results.reduce((s, r) => s + f(r), 0);
+  const meanOf = (f: (r: SessionResult) => number): number => (n > 0 ? Math.round(sum(f) / n) : 0);
+  return {
+    sessions: n,
+    success_rate: n > 0 ? results.filter((r) => r.success).length / n : 0,
+    tokens: tokensOf(results),
+    uncached_tokens: sum((r) => r.tokens.input + r.tokens.output + r.tokens.cache_write),
+    tool_calls: sum((r) => r.tool_calls),
+    mcp_tool_calls: sum((r) => r.mcp_tool_calls),
+    wall_ms_mean: meanOf((r) => r.wall_ms),
+    index_ms_mean: meanOf((r) => r.index_ms ?? 0),
+    cost_usd: costOf(results),
+  };
+}
+
+/**
+ * Cold vs warm per arm. Undefined when no session carries cache_phase (a
+ * cold-only run), so those run files stay byte-identical to before.
+ */
+export function byPhase(
+  vanilla: SessionResult[],
+  cc: SessionResult[],
+  ccGuided: SessionResult[],
+): ByPhaseAgg | undefined {
+  const all = [...vanilla, ...cc, ...ccGuided];
+  if (!all.some((r) => r.cache_phase)) return undefined;
+  const out: ByPhaseAgg = {};
+  for (const phase of ['cold', 'warm'] as const) {
+    const of = (rs: SessionResult[]): SessionResult[] => rs.filter((r) => r.cache_phase === phase);
+    if (!all.some((r) => r.cache_phase === phase)) continue;
+    out[phase] = {
+      vanilla: phaseArm(of(vanilla)),
+      cc: phaseArm(of(cc)),
+      ...(ccGuided.length > 0 ? { cc_guided: phaseArm(of(ccGuided)) } : {}),
+    };
+  }
+  return out;
 }
 
 export function normalizeLive(
@@ -236,6 +308,8 @@ export function normalizeLive(
     },
     per_task,
   };
+  const phases = byPhase(sessions.vanilla, sessions.cc, guided);
+  if (phases) aggregate.by_phase = phases;
 
   const arms: AgentArms = {
     vanilla: { results: sessions.vanilla },
