@@ -105,3 +105,22 @@ describe('parseEventStream — first-call cache read', () => {
     expect(parseEventStream([]).firstCallCacheRead).toBe(0);
   });
 });
+
+describe('parseEventStream — cost', () => {
+  const step = (id: string, cost?: number) =>
+    JSON.stringify({
+      type: 'step_finish',
+      part: {
+        id,
+        type: 'step-finish',
+        ...(cost === undefined ? {} : { cost }),
+        tokens: { input: 1, output: 1 },
+      },
+    });
+  it('sums the step costs opencode reports', () => {
+    expect(parseEventStream([step('a', 0.0013), step('b', 0.0003)]).costUsd).toBeCloseTo(0.0016, 6);
+  });
+  it('is null when no step carries a cost', () => {
+    expect(parseEventStream([step('a')]).costUsd).toBeNull();
+  });
+});

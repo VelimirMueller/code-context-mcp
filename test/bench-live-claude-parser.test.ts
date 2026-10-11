@@ -93,3 +93,15 @@ describe('parseClaudeStream — totals from the result event', () => {
     expect(u.outputTokens).toBe(7);
   });
 });
+
+describe('parseClaudeStream — cost', () => {
+  it('reads total_cost_usd from the result event', () => {
+    const u = parseClaudeStream([
+      ev({ type: 'result', result: 'x', usage: usage(1, 1, 0, 0), total_cost_usd: 0.2273 }),
+    ]);
+    expect(u.costUsd).toBe(0.2273);
+  });
+  it('is null without a result event', () => {
+    expect(parseClaudeStream([]).costUsd).toBeNull();
+  });
+});

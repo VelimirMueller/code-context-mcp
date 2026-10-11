@@ -58,6 +58,8 @@ export interface SessionUsage {
   cacheWriteTokens: number;
   /** cache.read of the FIRST model call — 0 means the session started cold. */
   firstCallCacheRead: number;
+  /** Cost the agent CLI reported, summed over calls; null when it reports none. */
+  costUsd: number | null;
   toolCalls: number;
   mcpToolCalls: number;
   assistantText: string;
@@ -70,6 +72,7 @@ interface StreamPart {
   type?: string;
   text?: string;
   tool?: string;
+  cost?: number;
   tokens?: {
     input?: number;
     output?: number;
@@ -128,6 +131,7 @@ export function parseEventStream(lines: string[]): SessionUsage {
   let cacheReadTokens = 0;
   let cacheWriteTokens = 0;
   let firstCallCacheRead: number | null = null;
+  let costUsd: number | null = null;
   let toolCalls = 0;
   let mcpToolCalls = 0;
   const texts: string[] = [];
@@ -145,6 +149,8 @@ export function parseEventStream(lines: string[]): SessionUsage {
       outputTokens += num(t?.output) + num(t?.reasoning);
       cacheReadTokens += num(t?.cache?.read);
       if (firstCallCacheRead === null) firstCallCacheRead = num(t?.cache?.read); // parts keep stream order
+      if (typeof part.cost === 'number' && Number.isFinite(part.cost))
+        costUsd = (costUsd ?? 0) + part.cost;
       cacheWriteTokens += num(t?.cache?.write);
     }
   }
@@ -155,6 +161,7 @@ export function parseEventStream(lines: string[]): SessionUsage {
     cacheReadTokens,
     cacheWriteTokens,
     firstCallCacheRead: firstCallCacheRead ?? 0,
+    costUsd,
     toolCalls,
     mcpToolCalls,
     assistantText: texts.join('\n\n'),

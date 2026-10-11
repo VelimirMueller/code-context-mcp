@@ -72,8 +72,11 @@ export interface LiveTask {
   size?: TaskSize;
 }
 
-const TOOLS_NOTE =
-  'Use the built-in file tools (read, grep, glob, edit) — the bash tool is disabled in this environment.';
+// Neutral on purpose (2026-10-11): the prompts used to say "use the built-in
+// file tools", which steered the cc arm away from code-context (0 MCP calls in
+// 30 sessions). Only the environment fact stays; which tools to use is up to
+// the agent and, in the cc-guided arm, its system prompt.
+const TOOLS_NOTE = 'The bash tool is disabled in this environment.';
 
 export const LIVE_TASKS: LiveTask[] = [
   {
@@ -81,7 +84,7 @@ export const LIVE_TASKS: LiveTask[] = [
     size: 'S',
     prompt:
       'Which file exports `formatDate`, and what does it depend on? Answer with file paths. ' +
-      'Use the built-in file tools (read, grep, glob) — the bash tool is disabled in this environment.',
+      TOOLS_NOTE,
     checker: {
       type: 'answer',
       answerMustMatch: [
@@ -95,8 +98,8 @@ export const LIVE_TASKS: LiveTask[] = [
     prompt:
       'Add `slugify(text: string): string` to the utils module of this project ' +
       '(src/utils/helpers.ts) and export it from the utils barrel (src/utils/index.ts). ' +
-      'Keep the existing code style. Use the built-in file tools (read, edit) — ' +
-      'the bash tool is disabled in this environment.',
+      'Keep the existing code style. ' +
+      TOOLS_NOTE,
     checker: {
       type: 'symbol',
       symbol: 'slugify',
@@ -111,7 +114,7 @@ export const LIVE_TASKS: LiveTask[] = [
       '(src/utils/helpers.ts) and export it from the utils barrel (src/utils/index.ts). ' +
       'It parses durations: "90s" → 90000 ms, "1h 30m" → 5400000 ms, ' +
       '"1h30m" → 5400000 ms, "not a duration" → null. Match the existing code style. ' +
-      'Use the built-in file tools (read, edit) — the bash tool is disabled in this environment.',
+      TOOLS_NOTE,
     checker: {
       type: 'tests',
       checkFile: 'parse-duration.check.test.ts',

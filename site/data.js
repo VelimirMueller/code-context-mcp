@@ -216,6 +216,14 @@
           : isNum(h.tool_calls_saved_pct)
             ? h.tool_calls_saved_pct
             : null,
+      // cc-guided arm (runs since 2026-10-11); null on older runs.
+      successCcGuidedPct: isNum(h.success_cc_guided_pct) ? h.success_cc_guided_pct : null,
+      guidedTokensSavedPct:
+        isObj(agg.tokens) && isNum(agg.tokens.guided_saved_pct)
+          ? agg.tokens.guided_saved_pct
+          : null,
+      mcpCalls: isObj(agg.mcp_tool_calls) ? agg.mcp_tool_calls : null,
+      cost: isObj(agg.cost_usd) ? agg.cost_usd : null,
       tokens: isObj(agg.tokens) ? agg.tokens : null,
       toolCalls: isObj(agg.tool_calls) ? agg.tool_calls : null,
       wall: isObj(agg.wall_ms) ? agg.wall_ms : null,

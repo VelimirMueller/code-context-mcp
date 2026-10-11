@@ -63,6 +63,12 @@ export interface SessionResult {
    * opus a value above 0 aborts the run, so a published run always has 0.
    */
   first_call_cache_read?: number;
+  /**
+   * Cost in USD as the agent CLI reported it (opencode step cost, Claude Code
+   * total_cost_usd). null = not known (e.g. a subscription plan such as the
+   * GLM coding plan). Absent in runs before 2026-10-11.
+   */
+  cost_usd?: number | null;
   tool_calls: number;
   mcp_tool_calls: number;
   wall_ms: number;
@@ -75,6 +81,9 @@ export interface AgentHeadline {
   success_cc_pct: number;
   tokens_saved_pct: number;
   tool_calls_saved_pct: number;
+  /** cc-guided arm (runs since 2026-10-11). */
+  success_cc_guided_pct?: number;
+  guided_tokens_saved_pct?: number;
 }
 
 export interface AgentRun extends RunEnvelope {

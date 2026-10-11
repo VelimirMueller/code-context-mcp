@@ -91,14 +91,26 @@ export const DEEPSEEK_PROVIDER_CONFIG: Record<string, unknown> = {
  * (measured: DeepSeek 0). `agent.build.prompt` replaces opencode's default
  * provider prompt, so the nonce really is first.
  */
-export function benchAgentPrompt(nonce: string): string {
+export function benchAgentPrompt(nonce: string, guidance?: string): string {
   return [
     `bench-session ${nonce}`,
     'You are a software engineering agent working in the current directory.',
     'Use the available tools to inspect and edit files in this directory.',
     'Do the task in the user message, then answer briefly and precisely.',
+    ...(guidance ? [guidance] : []),
   ].join('\n');
 }
+
+/**
+ * The cc-guided arm's instruction — the same rule the owner's rig gives every
+ * Claude session (global CLAUDE.md: code-context lookups come before any Read).
+ * Identical text for opencode (system prompt) and Claude Code
+ * (--append-system-prompt).
+ */
+export const CC_GUIDANCE =
+  'A code-context MCP server has indexed this project. Before you read or search files, use its tools: ' +
+  'search_files, find_symbol and get_file_context (repo-relative paths work). ' +
+  'Fall back to read, grep and glob only for what they do not answer.';
 
 export interface WriteOpencodeConfigOpts {
   /** Register code-context as the only MCP server, running `command`. */
@@ -107,6 +119,8 @@ export interface WriteOpencodeConfigOpts {
   includeDeepseekProvider?: boolean;
   /** Per-session nonce; the default `build` agent gets benchAgentPrompt(nonce). */
   nonce?: string;
+  /** Extra system-prompt line (the cc-guided arm). */
+  guidance?: string;
 }
 
 /**
@@ -122,7 +136,7 @@ export function writeOpencodeConfig(
     permission: SANDBOX_PERMISSIONS,
   };
   if (opts.nonce) {
-    config.agent = { build: { prompt: benchAgentPrompt(opts.nonce) } };
+    config.agent = { build: { prompt: benchAgentPrompt(opts.nonce, opts.guidance) } };
   }
   if (opts.includeDeepseekProvider) {
     config.provider = { deepseek: DEEPSEEK_PROVIDER_CONFIG };
@@ -132,6 +146,8 @@ export function writeOpencodeConfig(
       [CODE_CONTEXT_SERVER_ALIAS]: {
         type: 'local',
         command: opts.mcp.command,
+        // Code tools only (CODE_CONTEXT_TOOLSETS=code): ~1.3k instead of ~12.3k tokens of definitions.
+        environment: { CODE_CONTEXT_TOOLSETS: 'code' },
       },
     };
   }

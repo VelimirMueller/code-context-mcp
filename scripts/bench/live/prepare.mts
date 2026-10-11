@@ -34,7 +34,11 @@ import Database from 'better-sqlite3';
 import { initSchema } from '../../../src/server/schema.js';
 import { indexDirectory } from '../../../src/server/indexer.js';
 import type { LiveProvider } from '../normalize-live.mts';
-import { writeOpencodeConfig, type WriteOpencodeConfigOpts } from './opencode-config.mts';
+import {
+  CC_GUIDANCE,
+  writeOpencodeConfig,
+  type WriteOpencodeConfigOpts,
+} from './opencode-config.mts';
 import { agentSpawnEnv } from './sandbox.mts';
 import { CODE_CONTEXT_SERVER_ALIAS } from './parse-events.mts';
 import type { FixtureKind } from './tasks.mts';
@@ -72,7 +76,12 @@ export function copyFixture(kind: FixtureKind, ws: string): void {
 }
 
 /** Every bench arm — run.mts iterates this; tests enumerate it exhaustively. */
-export const ARMS = ['vanilla', 'cc'] as const;
+/**
+ * vanilla = no server; cc = server attached, no hint; cc-guided = server
+ * attached plus the rig's rule to use it first (CC_GUIDANCE). Both cc arms
+ * load the code tools only (CODE_CONTEXT_TOOLSETS=code).
+ */
+export const ARMS = ['vanilla', 'cc', 'cc-guided'] as const;
 export type Arm = (typeof ARMS)[number];
 
 export interface PrepareArmOpts {
@@ -147,7 +156,10 @@ export function prepareArmSession(opts: PrepareArmOpts): PreparedArm {
   const mcpCommand = [process.execPath, opts.distServer, path.join(ws, 'context.db')];
   const configOpts: WriteOpencodeConfigOpts = { nonce };
   let indexInfo: IndexInfo | undefined;
-  if (opts.arm === 'cc') {
+  const withServer = opts.arm !== 'vanilla';
+  const guidance = opts.arm === 'cc-guided' ? CC_GUIDANCE : undefined;
+  if (guidance) configOpts.guidance = guidance;
+  if (withServer) {
     indexInfo = buildIndexDb(ws);
     configOpts.mcp = { command: mcpCommand };
   }
@@ -185,10 +197,15 @@ export function prepareArmSession(opts: PrepareArmOpts): PreparedArm {
     const claudeDir = path.join(fakeHome, '.claude');
     fs.mkdirSync(claudeDir);
     const mcpConfigPath = path.join(fakeHome, 'mcp.json');
-    const servers =
-      opts.arm === 'cc'
-        ? { [CODE_CONTEXT_SERVER_ALIAS]: { command: mcpCommand[0], args: mcpCommand.slice(1) } }
-        : {};
+    const servers = withServer
+      ? {
+          [CODE_CONTEXT_SERVER_ALIAS]: {
+            command: mcpCommand[0],
+            args: mcpCommand.slice(1),
+            env: { CODE_CONTEXT_TOOLSETS: 'code' },
+          },
+        }
+      : {};
     fs.writeFileSync(mcpConfigPath, `${JSON.stringify({ mcpServers: servers }, null, 2)}\n`);
     // Variadic options (--mcp-config, --tools, --allowedTools) are always
     // followed by another option, so the prompt run.mts appends stays positional.
@@ -200,7 +217,8 @@ export function prepareArmSession(opts: PrepareArmOpts): PreparedArm {
         mcpConfigPath,
         '--tools',
         ...CLAUDE_TOOLS,
-        ...(opts.arm === 'cc' ? ['--allowedTools', `mcp__${CODE_CONTEXT_SERVER_ALIAS}`] : []),
+        ...(withServer ? ['--allowedTools', `mcp__${CODE_CONTEXT_SERVER_ALIAS}`] : []),
+        ...(guidance ? ['--append-system-prompt', guidance] : []),
         '--strict-mcp-config',
         '--permission-mode',
         'acceptEdits',
