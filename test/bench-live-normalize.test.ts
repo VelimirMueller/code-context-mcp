@@ -219,13 +219,14 @@ describe('normalizeLive', () => {
 
 describe('normalizeLive — cold-warm cache mode (2026-10-11)', () => {
   it('cold-only runs are byte-identical to the pre-cold-warm output (no by_phase)', () => {
-    // Hash pinned from the normalizer before cold-warm existed (origin/main 3fcf2ec).
+    // Hash pinned from the normalizer before cold-warm existed (origin/main 3fcf2ec),
+    // re-pinned for the CCA-07 checker specs (L1 pattern, L4 rule) that the run JSON embeds.
     const run = normalizeLive('glm', 'zai-coding-plan/glm-5.3', [L1, L2], sessions, ctx);
     expect('by_phase' in (run.aggregate as object)).toBe(false);
     const hash = createHash('sha256')
       .update(JSON.stringify(run, null, 2))
       .digest('hex');
-    expect(hash).toBe('2ca068a1f12f5a0726e0b63f87fb1b64da07cefe09690f4b2b42d3eaff877d16');
+    expect(hash).toBe('2080d56c787c7162bf55ef0d31da81cdbec3464006bee310557fb2b15bba817a');
   });
 
   const phased = (r: SessionResult, phase: 'cold' | 'warm', indexMs = 0): SessionResult => ({
