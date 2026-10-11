@@ -13,7 +13,7 @@ import { archiveEntity, unarchiveEntity, type ArchivableEntity } from "../scrum/
 import { seedDefaults } from "../scrum/defaults.js";
 import { resolveDashboardToken, isAuthorized, isAllowedHost, isAllowedOrigin } from "./auth.js";
 import { makeWatchIgnorePredicate, WATCH_DIR_WARN_THRESHOLD } from "../shared/ignore.js";
-import { codeHandlers, sprintHandlers } from "./handlers/index.js";
+import { codeHandlers, sprintHandlers, benchHandlers } from "./handlers/index.js";
 import { log as slog, errorClass, logThrottled } from "../sessionlog.js";
 
 /** Rejected-request breadcrumb, at most one per status+path per minute (anyone local can trigger these). */
@@ -79,6 +79,11 @@ if (seeded.agents + seeded.skills > 0) {
 }
 // Rebuild marketing stats on startup so cached values are fresh
 try { rebuildMarketingStats(); } catch {}
+
+/** Bench source inputs; the package root is two levels up from src|dist/dashboard. */
+function benchOpts() {
+  return { dbPath, packageDir: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..") };
+}
 
 // SSE clients
 const sseClients = new Set<http.ServerResponse>();
@@ -1177,6 +1182,16 @@ const server = http.createServer(async (req, res) => {
         } catch {
           data = null;
         }
+      }
+      // Real bench runs (ccc-bench/1); source resolution lives in handlers/bench.ts.
+      else if (url.pathname === "/api/bench/index") {
+        data = await benchHandlers.apiBenchIndex(benchOpts());
+      }
+      else if (url.pathname.startsWith("/api/bench/run/")) {
+        let runId: string;
+        try { runId = decodeURIComponent(url.pathname.slice("/api/bench/run/".length)); }
+        catch { throw new benchHandlers.BenchError("invalid run id", 400); }
+        data = await benchHandlers.apiBenchRun(benchOpts(), runId);
       }
       else if (url.pathname === "/api/token-usage") {
         try { data = writeDb.prepare(`SELECT * FROM token_usage ORDER BY created_at DESC LIMIT 100`).all(); }

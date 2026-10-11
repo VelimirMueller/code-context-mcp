@@ -210,4 +210,36 @@ describe('bench:publish', () => {
     expect(res.runIds).toEqual(['sim-20261010-120000']);
     expect(() => show(c, 'origin/bench-results', 'data/runs/stray.json')).toThrow();
   });
+
+  it('copies the merged data/ to CODE_CONTEXT_BENCH_DIR, replacing the old copy', () => {
+    const origin = makeOrigin(true);
+    const c = clone(origin);
+    const dash = path.join(tmpDir('bench-dash-'), 'bench');
+    fs.mkdirSync(path.join(dash, 'runs'), { recursive: true });
+    fs.writeFileSync(path.join(dash, 'runs', 'gone.json'), '{}');
+    writeRun(c, simulatedRun('sim-20261010-120000', '2026-10-10T12:00:00+0200'));
+
+    const res = publish({ repoDir: c, env: { ...GIT_ENV, CODE_CONTEXT_BENCH_DIR: dash } });
+    expect(res.mirrored).toBe(dash);
+    expect(fs.readdirSync(path.join(dash, 'runs')).sort()).toEqual([
+      'legacy-1.json',
+      'sim-20261010-120000.json',
+    ]);
+    const index = JSON.parse(fs.readFileSync(path.join(dash, 'index.json'), 'utf-8'));
+    expect(index.runs.map((r: { run_id: string }) => r.run_id)).toEqual(['sim-20261010-120000', 'legacy-1']);
+    expect(fs.existsSync(path.join(dash, 'latest.json'))).toBe(true);
+  });
+
+  it('does not copy without CODE_CONTEXT_BENCH_DIR or inside GitHub Actions', () => {
+    const dash = path.join(tmpDir('bench-dash-'), 'bench');
+    const c1 = clone(makeOrigin(true));
+    writeRun(c1, simulatedRun('sim-20261010-120000', '2026-10-10T12:00:00+0200'));
+    expect(publish({ repoDir: c1, env: GIT_ENV }).mirrored).toBeNull();
+
+    const c2 = clone(makeOrigin(true));
+    writeRun(c2, simulatedRun('sim-20261010-120000', '2026-10-10T12:00:00+0200'));
+    const env = { ...GIT_ENV, CODE_CONTEXT_BENCH_DIR: dash, GITHUB_ACTIONS: 'true' };
+    expect(publish({ repoDir: c2, env }).mirrored).toBeNull();
+    expect(fs.existsSync(dash)).toBe(false);
+  });
 });

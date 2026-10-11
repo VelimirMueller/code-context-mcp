@@ -37,6 +37,8 @@ export interface PublishResult {
   commitMessage: string;
   files: string[];
   pushed: boolean;
+  /** Dashboard bench dir the published data/ was copied to, or null. */
+  mirrored: string | null;
 }
 
 interface LocalRun {
@@ -124,6 +126,41 @@ function remoteRunStems(
   );
 }
 
+/**
+ * Copy the published data/ (index.json, latest.json, runs/) into the dir the
+ * code-context dashboard reads, so its Benchmark page shows the new run
+ * without a manual copy. The dashboard reads CODE_CONTEXT_BENCH_DIR first
+ * (src/dashboard/handlers/bench.ts), so the same variable names the target.
+ *
+ * `srcDataDir` is the merged branch data/ (all runs, not only the new ones).
+ * Returns the target dir, or null when nothing was copied. A failure here
+ * must not fail the publish: the branch commit and push already happened.
+ */
+export function mirrorToDashboard(srcDataDir: string, env: NodeJS.ProcessEnv | undefined): string | null {
+  const e = env ?? process.env;
+  // Opt-in: only a machine that runs the dashboard sets the variable; Actions
+  // has no dashboard to feed.
+  const target = e.CODE_CONTEXT_BENCH_DIR?.trim();
+  if (!target || e.GITHUB_ACTIONS === 'true') return null;
+  const dst = path.resolve(target);
+  // Copy beside the target, then replace it: the dashboard treats a dir with
+  // an index.json as complete, so it must never see a half-written runs/.
+  // Between rm and rename the dir is briefly absent; a request then falls
+  // through to the next source, which is harmless.
+  const staging = `${dst}.tmp-${process.pid}`;
+  try {
+    fs.rmSync(staging, { recursive: true, force: true });
+    fs.cpSync(srcDataDir, staging, { recursive: true });
+    fs.rmSync(dst, { recursive: true, force: true });
+    fs.renameSync(staging, dst);
+    return dst;
+  } catch (err) {
+    fs.rmSync(staging, { recursive: true, force: true });
+    console.warn(`bench:publish: could not copy data/ to ${dst}: ${(err as Error).message}`);
+    return null;
+  }
+}
+
 export function publish(opts: PublishOptions = {}): PublishResult {
   const cwd = opts.repoDir ? path.resolve(opts.repoDir) : toplevel(process.cwd());
   const remote = opts.remote ?? 'origin';
@@ -161,7 +198,7 @@ export function publish(opts: PublishOptions = {}): PublishResult {
   const files = newRuns.map((r) => `data/runs/${r.runId}.json`);
 
   if (opts.dryRun) {
-    return { dryRun: true, runIds, commitMessage, files, pushed: false };
+    return { dryRun: true, runIds, commitMessage, files, pushed: false, mirrored: null };
   }
 
   const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'bench-publish-')));
@@ -224,12 +261,17 @@ export function publish(opts: PublishOptions = {}): PublishResult {
       pushed = true;
     }
 
+    // Copy the merged branch data/ to the dashboard while the temp worktree
+    // still exists; `finally` removes it.
+    const mirrored = mirrorToDashboard(path.join(tmp, 'data'), env);
+
     return {
       dryRun: false,
       runIds,
       commitMessage,
       files: [...files, 'data/index.json', 'data/latest.json'],
       pushed,
+      mirrored,
     };
   } finally {
     runMaybe(cwd, env, ['worktree', 'remove', '--force', tmp]);
@@ -267,6 +309,7 @@ if (isMain()) {
       for (const f of res.files) console.log(`  ${f}`);
     } else {
       console.log(`published ${res.runIds.join(', ')} (${res.files.length} files)`);
+      if (res.mirrored) console.log(`dashboard: copied data/ to ${res.mirrored}`);
       if (res.pushed && rebuildSite) {
         try {
           execFileSync('gh', ['workflow', 'run', 'pages.yml', '--ref', 'main'], {
