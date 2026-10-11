@@ -51,7 +51,7 @@ Stop at three rounds if the user answers "defaults": fill the rest from the rada
 Marketplace name is `frontendskills`; install id is `<plugin>@frontendskills`. Map profile → plugins with the table in [wizard-reference.md](wizard-reference.md). Always `devcore`. Print the exact commands:
 
 ```
-/plugin marketplace add VelimirMueller/lab-claude-skills
+/plugin marketplace add VelimirMueller/claude-skills
 /plugin install devcore@frontendskills
 /plugin install <other>@frontendskills
 ```
