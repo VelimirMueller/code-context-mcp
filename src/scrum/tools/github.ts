@@ -8,6 +8,8 @@ import {
   getProject,
   listProjectNames,
   liveSyncRefusal,
+  MAX_ADOPT_ISSUES,
+  MAX_ADOPT_MILESTONES,
   projectHasSynced,
   syncAuth,
   syncGithub,
@@ -128,23 +130,25 @@ export function registerGithubTools(server: McpServer, db: Database.Database, ga
 
   server.tool(
     "sync_github",
-    "One-way sync of ONE project's milestones and tickets to its GitHub repo and Project board: creates/updates the milestone and issues (title '<ref>: <title>', Why/Done when body, priority/type/origin labels, owner assignee), sets the board Status from the ticket status and closes DONE issues. Idempotent via the stored issue number; never touches other projects. Updates only issues/milestones whose GitHub text carries this sync's hidden marker (project + ticket); others are skipped. adopt=[N…] takes over unmarked issues linked by a ticket whose GitHub title starts with '<ticket_ref>:'; adopt_milestones maps a local milestone to a GitHub number. dry_run=true prints the plan (offline=true: no GitHub read at all). A live run needs the exact target in the server env CODE_CONTEXT_GITHUB_SYNC_REPOS (owner/repo; owner/repo@board-owner/N for a board) and an assignee that is the repo owner or in CODE_CONTEXT_GITHUB_SYNC_ASSIGNEES (no tool sets either). Texts holding a secret or a local path are refused.",
+    "One-way sync of ONE project's milestones and tickets to its GitHub repo and Project board: creates/updates the milestone and issues (title '<ref>: <title>', Why/Done when body, priority/type/origin labels, owner assignee), sets the board Status from the ticket status and closes DONE issues. Idempotent via the stored issue number; never touches other projects. Updates only issues/milestones whose GitHub text carries this sync's hidden marker (project + ticket), that the gh user created and whose node id matches the one recorded; others are skipped. adopt=[N…] takes over unmarked issues linked by a ticket whose GitHub title starts with '<ticket_ref>:'; adopt_milestones maps a local milestone to a GitHub number. dry_run=true prints the plan (offline=true: no GitHub read at all). A live run needs the exact target in the server env CODE_CONTEXT_GITHUB_SYNC_REPOS (owner/repo; owner/repo@board-owner/N for a board) and an assignee that is the repo owner or in CODE_CONTEXT_GITHUB_SYNC_ASSIGNEES (no tool sets either). Texts holding a secret or a local path are refused.",
     {
       project: z.string().describe("Project key (see set_project)"),
       dry_run: z.boolean().optional().describe("Print the plan, write nothing"),
-      offline: z.boolean().optional().describe("With dry_run: plan from the local db only, no GitHub read"),
+      offline: z.boolean().optional().describe("Needs dry_run=true: plan from the local db only, no GitHub read"),
       max_writes: z.number().int().positive().optional().describe("Refuse when the plan needs more writes (default 100)"),
       adopt: z
         .array(z.number().int().positive())
-        .max(500)
+        .max(MAX_ADOPT_ISSUES)
         .optional()
-        .describe("Issue numbers to take over although they carry no sync marker. Each must be linked by one ticket of the project (github_issue) and its GitHub title must start with '<ticket_ref>:'. Live runs need the allowlist; dry runs only plan it."),
+        .describe("Issue numbers to take over although they carry no sync marker. Each must be opened by the gh user, linked by one ticket (github_issue) and its GitHub title must start with '<ticket_ref>:'. Live runs need the allowlist; dry runs only plan it."),
       adopt_milestones: z
         .array(z.object({ milestone_id: z.number().int().positive(), github_milestone: z.number().int().positive() }))
-        .max(100)
+        .max(MAX_ADOPT_MILESTONES)
         .optional()
-        .describe("Explicit mapping local milestone id → GitHub milestone number, to take over an unmarked milestone. A title match never links."),
+        .describe("Explicit mapping local milestone id → GitHub milestone number, to take over an unmarked milestone created by the gh user whose GitHub title is the local name. A title match alone never links."),
     },
+    // Every gate (allowlist, board, assignee, ownership, adopt rules, option
+    // checks) lives in syncGithub, so this tool and the CLI cannot diverge.
     async ({ project, dry_run, offline, max_writes, adopt, adopt_milestones }) => {
       if (!getProject(db, project)) {
         const known = listProjectNames(db);

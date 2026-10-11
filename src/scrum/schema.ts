@@ -66,6 +66,7 @@ export function initScrumSchema(db: Database.Database): void {
       origin TEXT DEFAULT NULL CHECK (origin IS NULL OR origin IN ('ai', 'human')),
       github_issue INTEGER DEFAULT NULL,
       github_repo TEXT DEFAULT NULL,
+      github_node_id TEXT DEFAULT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (sprint_id) REFERENCES sprints(id) ON DELETE CASCADE,
@@ -159,6 +160,7 @@ export function initScrumSchema(db: Database.Database): void {
       archived_at TEXT DEFAULT NULL,
       project TEXT DEFAULT NULL,
       github_milestone INTEGER DEFAULT NULL,
+      github_node_id TEXT DEFAULT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -949,6 +951,10 @@ export function runMigrations(
   addCol("tickets", "github_issue", "INTEGER DEFAULT NULL");
   addCol("tickets", "github_repo", "TEXT DEFAULT NULL");
   addCol("milestones", "github_milestone", "INTEGER DEFAULT NULL");
+  // CCA-14: GitHub node id of the issue / milestone the sync created or adopted.
+  // A stored number is written only while the remote node id still matches.
+  addCol("tickets", "github_node_id", "TEXT DEFAULT NULL");
+  addCol("milestones", "github_node_id", "TEXT DEFAULT NULL");
   createProjectIndexes(db);
   // One-off: parse `GitHub: owner/repo#N` notes into github_issue (only on the
   // upgrade to v26, so a number cleared later is not re-filled on every boot).

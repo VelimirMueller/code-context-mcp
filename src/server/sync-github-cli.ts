@@ -6,10 +6,13 @@
 //       [--milestone <id>[=<github number>]]... [--adopt N[-M][,…]]... [--max-writes N] [--force]
 //
 // The sync updates only issues / milestones whose GitHub text carries its
-// hidden marker. --adopt takes over unmarked issues (each linked by one ticket
-// of the project, GitHub title starting with "<ticket_ref>:"); --milestone
-// <id>=<N> is the explicit mapping that adopts milestone N. Both are honoured
-// on a live run only after the allowlist check; a dry run only plans them.
+// hidden marker, that the gh user created and whose node id matches the one
+// recorded. --adopt takes over unmarked issues (each linked by one ticket,
+// opened by the gh user, GitHub title starting with "<ticket_ref>:");
+// --milestone <id>=<N> is the explicit mapping that adopts milestone N (created
+// by the gh user, title = local name). Both go through the same engine gate as
+// the MCP tool: honoured on a live run only after the allowlist check; a dry
+// run only plans them. The mapping is stored only when the adopt succeeds.
 //
 // A live run writes only to the exact targets listed in
 // CODE_CONTEXT_GITHUB_SYNC_REPOS in this process's env (comma-separated
@@ -30,7 +33,7 @@ import os from "node:os";
 import fs from "node:fs";
 import Database from "better-sqlite3";
 import { initScrumSchema, runMigrations, peekSchemaVersion, LATEST_SCHEMA_VERSION } from "../scrum/schema.js";
-import { syncGithub, getProject, liveSyncRefusal, syncAuth, syncTargetOf, type GitHubGateway } from "../scrum/github-sync.js";
+import { syncGithub, getProject, liveSyncGate, syncAuth, type GitHubGateway } from "../scrum/github-sync.js";
 import { GhGateway } from "../scrum/github-gateway.js";
 import { upsertProject } from "../scrum/tools/github.js";
 import { log as slog } from "../sessionlog.js";
@@ -141,8 +144,10 @@ export function snapshotDb(file: string): Database.Database {
   }
 }
 
-/** Apply the setup flags (project row + milestone links) to db. Returns an error or null.
- *  A dry run edits an in-memory copy, so the re-point rule does not apply there. */
+/** Apply the setup flags (project row + milestone project keys) to db. Returns
+ *  an error or null. A dry run edits an in-memory copy, so the re-point rule
+ *  does not apply there. `--milestone <id>=<N>` is NOT stored here: it is an
+ *  adopt, and the engine stores N only when its ownership gate passes. */
 export function applySetup(db: Database.Database, a: Args): string | null {
   if (a.repo !== undefined || a.projectNumber !== undefined || a.projectOwner !== undefined || a.assignee !== undefined || !getProject(db, a.project)) {
     if (!getProject(db, a.project) && a.repo === undefined) return `project "${a.project}" is not registered — pass --repo owner/name`;
@@ -156,9 +161,7 @@ export function applySetup(db: Database.Database, a: Args): string | null {
     if (typeof r === "string") return r;
   }
   for (const m of a.milestones) {
-    const res = db
-      .prepare(`UPDATE milestones SET project = ?${m.github !== null ? ", github_milestone = ?" : ""}, updated_at = datetime('now') WHERE id = ?`)
-      .run(...(m.github !== null ? [a.project, m.github, m.id] : [a.project, m.id]));
+    const res = db.prepare("UPDATE milestones SET project = ?, updated_at = datetime('now') WHERE id = ?").run(a.project, m.id);
     if (res.changes === 0) return `milestone ${m.id} not found`;
   }
   return null;
@@ -191,8 +194,10 @@ export async function run(a: Args, gateway: GitHubGateway = new GhGateway(), out
     db.exec("BEGIN");
     let err = applySetup(db, a);
     if (!err && !a.dryRun) {
+      // The engine's own gate (syncGithub re-checks it): refused here first so
+      // the setup flags roll back with the refusal.
       const p = getProject(db, a.project);
-      if (p?.repo) err = liveSyncRefusal(syncTargetOf(p), syncAuth());
+      if (p) err = liveSyncGate(p, syncAuth());
     }
     if (err) {
       db.exec("ROLLBACK");
