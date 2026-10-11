@@ -10,6 +10,7 @@ import {
   type BenchIndexEntry,
   type BenchRun,
   type BenchArmStats,
+  type BenchPhaseArmStats,
   type AgentHeadline,
   type SimulatedHeadline,
   type LegacyHeadline,
@@ -442,6 +443,11 @@ const ARMS = [
   { key: 'cc_guided', label: 'cc-guided' },
 ] as const;
 
+const th: CSSProperties = { ...sectionLabel, textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid var(--border)' };
+const td: CSSProperties = { fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text2)', padding: '6px 8px', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' };
+const thNum: CSSProperties = { ...th, textAlign: 'right' };
+const tdNum: CSSProperties = { ...td, textAlign: 'right' };
+
 function PerTaskTable({ run }: { run: BenchRun }) {
   const perTask = run.aggregate?.per_task ?? [];
   if (perTask.length === 0) return null;
@@ -449,8 +455,6 @@ function PerTaskTable({ run }: { run: BenchRun }) {
   const sizes = new Map((run.tasks ?? []).map((t) => [t.id, t.size]));
   const cell = (s: BenchArmStats | undefined) =>
     s ? `${Math.round(s.success_rate * 100)}% · ${s.tokens.total.toLocaleString()} tok · ${s.tool_calls} calls` : '—';
-  const th: CSSProperties = { ...sectionLabel, textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid var(--border)' };
-  const td: CSSProperties = { fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text2)', padding: '6px 8px', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' };
   return (
     <div style={{ overflowX: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -467,6 +471,59 @@ function PerTaskTable({ run }: { run: BenchRun }) {
                 {t.task_id}{sizes.get(t.task_id) ? <span style={{ color: 'var(--text3)', fontWeight: 400 }}> {sizes.get(t.task_id)}</span> : null}
               </td>
               {arms.map((a) => <td key={a.key} style={td}>{cell(t[a.key])}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const PHASES = ['cold', 'warm'] as const;
+
+/** Cold vs warm per arm (only `--cache-mode cold-warm` runs carry aggregate.by_phase). */
+function PhaseTable({ run }: { run: BenchRun }) {
+  const byPhase = run.aggregate?.by_phase;
+  if (!byPhase) return null;
+  const rows: Array<{ arm: string; phase: string; s: BenchPhaseArmStats }> = [];
+  for (const a of ARMS) {
+    for (const p of PHASES) {
+      const s = byPhase[p]?.[a.key];
+      if (s) rows.push({ arm: a.label, phase: p, s });
+    }
+  }
+  if (rows.length === 0) return null;
+  const showCost = rows.some((r) => typeof r.s.cost_usd === 'number');
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <table aria-label="Cold vs warm" style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr>
+            <th style={th}>Arm</th>
+            <th style={th}>Phase</th>
+            <th style={thNum}>Success</th>
+            <th style={thNum}>Tokens</th>
+            <th style={thNum}>Uncached</th>
+            <th style={thNum}>Calls</th>
+            <th style={thNum}>MCP calls</th>
+            <th style={thNum}>Wall s</th>
+            {showCost && <th style={thNum}>Cost</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(({ arm, phase, s }) => (
+            <tr key={`${arm}-${phase}`}>
+              <td style={{ ...td, color: 'var(--text)', fontWeight: 600 }}>{arm}</td>
+              <td style={{ ...td, color: phase === 'cold' ? 'var(--accent)' : 'var(--text3)' }}>
+                {phase}<span style={{ color: 'var(--text3)' }}> n={s.sessions}</span>
+              </td>
+              <td style={tdNum}>{Math.round(s.success_rate * 100)}%</td>
+              <td style={tdNum}>{s.tokens.total.toLocaleString()}</td>
+              <td style={tdNum}>{s.uncached_tokens.toLocaleString()}</td>
+              <td style={tdNum}>{s.tool_calls}</td>
+              <td style={tdNum}>{s.mcp_tool_calls}</td>
+              <td style={tdNum}>{(s.wall_ms_mean / 1000).toFixed(1)}</td>
+              {showCost && <td style={tdNum}>{typeof s.cost_usd === 'number' ? `$${s.cost_usd.toFixed(4)}` : '—'}</td>}
             </tr>
           ))}
         </tbody>
@@ -513,6 +570,13 @@ function RunDetail({ entry, run, error }: { entry: BenchIndexEntry; run: BenchRu
           <div style={{ ...sectionLabel, marginBottom: 6 }}>Per task (success · tokens · tool calls)</div>
           <PerTaskTable run={run} />
         </>
+      )}
+
+      {run?.aggregate?.by_phase && (
+        <div style={{ marginTop: 14 }}>
+          <div style={{ ...sectionLabel, marginBottom: 6 }}>Cold vs warm (totals per phase · wall = mean per session)</div>
+          <PhaseTable run={run} />
+        </div>
       )}
     </div>
   );
