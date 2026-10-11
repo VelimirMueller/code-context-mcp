@@ -95,6 +95,21 @@
           Every published run, newest first, across all kinds. History is append-only: runs are
           never rewritten or deleted.
         </p>
+        <div class="note" id="history-caveat">
+          <strong>Agent runs before 2026-10-11 00:00 UTC are not comparable.</strong>
+          <ul>
+            <li>
+              Their task prompts told every arm to "use the built-in file tools", so the cc arm
+              never called code-context (0 calls in 30 sessions). Their cc token figures measure
+              the cost of loading the tool list, not of using the server.
+            </li>
+            <li>
+              Runs since then use neutral prompts, a third arm <em>cc-guided</em> (the server plus
+              the instruction to use it first) and the 11-tool code profile.
+            </li>
+            <li>Tokens show as <em>N× vanilla</em>: below 1× is a saving.</li>
+          </ul>
+        </div>
         <div id="history-body"></div>
       </section>
 
