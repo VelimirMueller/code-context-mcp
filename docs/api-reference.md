@@ -1,6 +1,6 @@
 # MCP Tools API Reference
 
-Key tool reference for `vlm-code-context-mcp`. The server exposes **99 MCP tools total** — 11 codebase-context tools (registered in `src/server/index.ts`) and 88 scrum/workflow tools (registered in `src/scrum/tools.ts` and `src/scrum/tools/`). This page documents the most commonly used tools; for the full list use the MCP tool inspector or browse the source directly.
+Key tool reference for `vlm-code-context-mcp`. The server exposes **101 MCP tools total** — 13 codebase-context tools (registered in `src/server/index.ts`) and 88 scrum/workflow tools (registered in `src/scrum/tools.ts` and `src/scrum/tools/`). This page documents the most commonly used tools; for the full list use the MCP tool inspector or browse the source directly.
 
 ## Table of Contents
 
@@ -1067,7 +1067,7 @@ Restore database from a JSON dump file on disk.
 
 ## Full Reference
 
-The server registers **99 tools** in total (11 codebase-context + 88 scrum). This page covers the key tools; the authoritative source for the full set is the source code:
+The server registers **101 tools** in total (13 codebase-context + 88 scrum). This page covers the key tools; the authoritative source for the full set is the source code:
 
 - Codebase tools: `src/server/index.ts` (11 tools: `index_directory`, `search_files`, `get_file_context`, `find_symbol`, `get_changes`, `query`, `execute`, `set_description`, `set_directory_description`, `set_change_reason`, `health`)
 - Scrum/workflow tools: `src/scrum/tools.ts` + `src/scrum/tools/` (88 tools)

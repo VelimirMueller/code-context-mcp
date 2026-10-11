@@ -117,8 +117,8 @@ describe("toolFilter — the code profile (2026-10-11)", () => {
     for (const t of CODE_TOOLS) expect(f.has(t)).toBe(false);
     for (const t of ["create_ticket", "plan_sprint", "record_mood", "send_claude_output"]) expect(f.has(t)).toBe(true);
   });
-  it("code is the four reading tools; maintenance tools need code-admin", () => {
-    expect([...CODE_TOOLS].sort()).toEqual(["find_symbol", "get_file_context", "query", "search_files"]);
+  it("code is the reading tools; maintenance tools need code-admin", () => {
+    expect([...CODE_TOOLS].sort()).toEqual(["exports_in", "find_symbol", "get_file_context", "query", "search_files", "who_imports"]);
     const f = toolFilter("code");
     for (const t of CODE_ADMIN_TOOLS) expect(f.has(t)).toBe(true);
     const admin = toolFilter("code, +code-admin");

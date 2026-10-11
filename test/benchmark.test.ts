@@ -22,7 +22,7 @@
  *   - Each task is self-contained — no cross-task state leakage
  *   - Token estimation uses whitespace+symbol splitting (conservative)
  *
- * Fixture: test/fixtures/sample-project (11 files, 5 TypeScript, 19 exports, 3 dep edges)
+ * Fixture: test/fixtures/sample-project (11 files, 5 TypeScript, 19 exports, 5 dep edges)
  *
  * Task categories (10 tasks):
  *   1. Single-file lookup         (1pt) — find and understand one file
@@ -46,10 +46,11 @@ import { resolveBenchmarkOutputPath } from "./helpers/benchmark-output.js";
 import {
   FIXTURE_DIR,
   canonicalPath,
+  simFileContext,
+  simFindSymbol,
+  simSearchFiles,
   hasMachineDependentText,
   CANONICAL_ROOT,
-  CANONICAL_MODIFIED_AT,
-  CANONICAL_INDEXED_AT,
 } from "./helpers/benchmark-fixture.js";
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -72,18 +73,13 @@ function estimateTokens(text: string): number {
 // Shared DB helpers
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return bytes + " B";
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-  return (bytes / (1024 * 1024)).toFixed(1) + " MB";
-}
-
 function queryFile(db: Database.Database, fp: string) {
   const file = db
     .prepare("SELECT * FROM files WHERE path = ?")
     .get(fp) as any;
   if (!file) return null;
   return {
+    db,
     file,
     exports: db
       .prepare("SELECT name, kind FROM exports WHERE file_id = ?")
@@ -112,27 +108,7 @@ function resolvePath(db: Database.Database, pattern: string): string {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function mcpFileContext(d: NonNullable<ReturnType<typeof queryFile>>): string {
-  const { file: f, exports: e, deps, dependents: dep } = d;
-  return [
-    `# ${canonicalPath(f.path)}`,
-    `${f.language} | ${formatSize(f.size_bytes)} | ${f.line_count} lines | modified ${CANONICAL_MODIFIED_AT} | indexed ${CANONICAL_INDEXED_AT}`,
-    f.summary,
-    f.description && f.description !== f.summary ? f.description : "",
-    e.length > 0
-      ? `## Exports (${e.length})\n${e.map((x: any) => `- ${x.name} (${x.kind})`).join("\n")}`
-      : "",
-    f.external_imports
-      ? `## External packages\n${f.external_imports}`
-      : "",
-    deps.length > 0
-      ? `## Imports from (${deps.length})\n${deps.map((x: any) => `- ${canonicalPath(x.path)} [${x.symbols}]`).join("\n")}`
-      : "",
-    dep.length > 0
-      ? `## Imported by (${dep.length})\n${dep.map((x: any) => `- ${canonicalPath(x.path)} [${x.symbols}]`).join("\n")}`
-      : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
+  return simFileContext(d.db, d.file.path);
 }
 
 function mcpIndexDir(db: Database.Database, root: string): string {
@@ -194,31 +170,11 @@ function mcpIndexDir(db: Database.Database, root: string): string {
 }
 
 function mcpFindSymbol(db: Database.Database, name: string): string {
-  const rows = db
-    .prepare(
-      "SELECT e.name, e.kind, f.path, f.summary FROM exports e JOIN files f ON e.file_id = f.id WHERE e.name LIKE ? ORDER BY e.name",
-    )
-    .all(name) as any[];
-  if (!rows.length) return `No exports matching "${name}" found.`;
-  return rows
-    .map((r: any) => `${r.name} (${r.kind}) — ${canonicalPath(r.path)}\n  ${r.summary} | indexed ${CANONICAL_INDEXED_AT}`)
-    .join("\n\n");
+  return simFindSymbol(db, name);
 }
 
 function mcpSearchFiles(db: Database.Database, q: string): string {
-  const p = q.includes("%") ? q : `%${q}%`;
-  const rows = db
-    .prepare(
-      "SELECT path, language, line_count, summary, (SELECT COUNT(*) FROM exports WHERE file_id = files.id) as ec, (SELECT COUNT(*) FROM dependencies WHERE source_id = files.id) as dc FROM files WHERE path LIKE ? OR summary LIKE ? ORDER BY path LIMIT 25",
-    )
-    .all(p, p) as any[];
-  if (!rows.length) return `No files matching "${q}".`;
-  return rows
-    .map(
-      (r: any) =>
-        `${canonicalPath(r.path)} (${r.language}, ${r.line_count} lines, ${r.ec} exports, ${r.dc} deps)\n  Modified: ${CANONICAL_MODIFIED_AT} | indexed ${CANONICAL_INDEXED_AT} | ${r.summary}`,
-    )
-    .join("\n\n");
+  return simSearchFiles(db, q);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1691,7 +1647,7 @@ describe("MCP vs Vanilla benchmark — 10 tasks", () => {
 
   // ── Path independence ─────────────────────────────────────────────────────
 
-  it("simulated outputs use a fixed canonical root (contain CANONICAL_ROOT, never the real fixture dir)", () => {
+  it("simulated outputs never carry the real fixture dir; MCP outputs print project-relative paths", () => {
     const outputs = allTasks.flatMap((t) =>
       [...t.mcp.steps, ...t.vanilla.steps].map((s) => s.output),
     );
@@ -1700,8 +1656,8 @@ describe("MCP vs Vanilla benchmark — 10 tasks", () => {
       expect(hasMachineDependentText(out)).toBe(false);
       expect(out).not.toContain(FIXTURE_DIR);
     }
-    // The path-bearing MCP tools must render realistic absolute paths (not strip
-    // them) — otherwise the simulated MCP output understates its real token cost.
+    // The path-bearing MCP tools print project-relative paths, as the real tools
+    // do since #116 — never stripped (that would understate their token cost).
     const mcpPathOutputs = allTasks.flatMap((t) =>
       t.mcp.steps
         .filter(
@@ -1716,7 +1672,8 @@ describe("MCP vs Vanilla benchmark — 10 tasks", () => {
     for (const out of mcpPathOutputs) {
       // Empty-result messages ("No files matching …") carry no path by design.
       if (/^No (files|exports) matching/.test(out)) continue;
-      expect(out).toContain(CANONICAL_ROOT);
+      expect(out).not.toContain(CANONICAL_ROOT);
+      expect(out).not.toMatch(/(^|[\s(])\/[\w.-]+\//); // no absolute path anywhere
     }
   });
 });
