@@ -594,9 +594,11 @@ function walkDir(dir: string, rootDir?: string, gitignorePatterns?: GitignorePat
  * file all apply), filtered by the hard policy. Outside git it is the walk.
  */
 export function listIndexableFiles(rootDir: string): string[] {
-  const root = path.resolve(rootDir);
-  let realRoot: string;
-  try { realRoot = fs.realpathSync(root); } catch { return []; }
+  // Listed under the realpath, so every returned path is one (the walk and the
+  // policy skip symlinks below the root).
+  let root: string;
+  try { root = fs.realpathSync(path.resolve(rootDir)); } catch { return []; }
+  const realRoot = root;
   const listed = gitListFiles(root) ?? walkDir(root);
   return listed.filter((f) => admitFile(f, root, realRoot).ok).sort();
 }
@@ -1108,11 +1110,19 @@ export function refreshFiles(
   rootDir: string,
   isIgnored?: (file: string) => boolean,
 ): { reindexed: number; dropped: number } {
-  const root = path.resolve(rootDir);
-  const unique = Array.from(new Set(filePaths.map((p) => path.resolve(p)))).filter((p) => isPathInside(p, root));
+  // Rows are keyed by realpath (CCA-01): a caller may hand in the root or the
+  // files under their symlinked spelling; both are rebased onto the realpath.
+  const lexRoot = path.resolve(rootDir);
+  let root: string;
+  try { root = fs.realpathSync(lexRoot); } catch { return { reindexed: 0, dropped: 0 }; }
+  const realRoot = root;
+  const rebase = (p: string): string => {
+    const abs = path.resolve(p);
+    if (isPathInside(abs, root)) return abs;
+    return isPathInside(abs, lexRoot) ? path.join(root, path.relative(lexRoot, abs)) : abs;
+  };
+  const unique = Array.from(new Set(filePaths.map(rebase))).filter((p) => isPathInside(p, root));
   if (unique.length === 0) return { reindexed: 0, dropped: 0 };
-  let realRoot: string;
-  try { realRoot = fs.realpathSync(root); } catch { return { reindexed: 0, dropped: 0 }; }
   const before = snapshotFromDb(db, { paths: unique });
   const st0 = prepareFileStatements(db);
   const keep: { path: string; content: string }[] = [];
@@ -1143,16 +1153,95 @@ export function recordIndexedRoot(db: Database.Database, rootDir: string, head: 
   db.prepare(`
     INSERT INTO indexed_repos (root, head, indexed_at, file_count) VALUES (?, ?, datetime('now'), ?)
     ON CONFLICT(root) DO UPDATE SET head=excluded.head, indexed_at=excluded.indexed_at, file_count=excluded.file_count
-  `).run(path.resolve(rootDir), head, fileCount);
+  `).run(realPathOf(rootDir), head, fileCount);
 }
 
-export function indexDirectory(db: Database.Database, dirPath: string): { files: number; exports: number; deps: number; prunedFiles: number; prunedDirs: number } {
-  const rootDir = path.resolve(dirPath);
+/** realpath of `p`, or `p` resolved when it cannot be resolved (missing, EACCES). */
+export function realPathOf(p: string): string {
+  try { return fs.realpathSync(p); } catch { return path.resolve(p); }
+}
+
+/**
+ * Move every row stored under `fromRoot` (an unresolved spelling, e.g.
+ * /var/folders/…) to the same path under `toRoot` (its realpath). Databases
+ * written before 2.12 keyed rows by the root as given; without this a
+ * re-index would add a second, differently-spelled row per file. When the
+ * realpath row already exists the old row is dropped (same file, newer row
+ * wins). Manual descriptions and change history move with their rows.
+ * Returns the number of file rows moved or dropped.
+ */
+export function rebaseIndexedRoot(db: Database.Database, fromRoot: string, toRoot: string): number {
+  const from = path.resolve(fromRoot);
+  const to = path.resolve(toRoot);
+  if (from === to) return 0;
+  const prefix = from + path.sep;
+  const moved = (p: string): string => (p === from ? to : to + p.slice(from.length));
+  const under = `path = ? OR substr(path, 1, ?) = ?`;
+  let n = 0;
+  db.transaction(() => {
+    const fileRows = db.prepare(`SELECT id, path FROM files WHERE ${under}`).all(from, prefix.length, prefix) as { id: number; path: string }[];
+    const exists = db.prepare(`SELECT id FROM files WHERE path = ?`);
+    const setPath = db.prepare(`UPDATE files SET path = ? WHERE id = ?`);
+    const dupes: string[] = [];
+    for (const r of fileRows) {
+      const target = moved(r.path);
+      if (exists.get(target)) dupes.push(r.path);
+      else setPath.run(target, r.id);
+      n++;
+    }
+    removeFiles(db, dupes);
+
+    const dirRows = db.prepare(`SELECT id, path, parent_path FROM directories WHERE ${under}`).all(from, prefix.length, prefix) as { id: number; path: string; parent_path: string | null }[];
+    const dirExists = db.prepare(`SELECT id FROM directories WHERE path = ?`);
+    const setDir = db.prepare(`UPDATE directories SET path = ?, parent_path = ? WHERE id = ?`);
+    const delDir = db.prepare(`DELETE FROM directories WHERE id = ?`);
+    for (const d of dirRows) {
+      const target = moved(d.path);
+      const parent = d.parent_path && (d.parent_path === from || d.parent_path.startsWith(prefix)) ? moved(d.parent_path) : d.parent_path;
+      if (dirExists.get(target)) delDir.run(d.id);
+      else setDir.run(target, parent, d.id);
+    }
+
+    db.prepare(`UPDATE changes SET file_path = ? || substr(file_path, ?) WHERE substr(file_path, 1, ?) = ?`)
+      .run(to, from.length + 1, prefix.length, prefix);
+
+    const repo = db.prepare(`SELECT root FROM indexed_repos WHERE root = ?`);
+    if (repo.get(from)) {
+      if (repo.get(to)) db.prepare(`DELETE FROM indexed_repos WHERE root = ?`).run(from);
+      else db.prepare(`UPDATE indexed_repos SET root = ? WHERE root = ?`).run(to, from);
+    }
+  })();
+  return n;
+}
+
+/**
+ * Boot-time migration: every indexed root stored under a spelling that is not
+ * its realpath is rebased onto the realpath (rebaseIndexedRoot). Roots that no
+ * longer exist are left alone (reindex --prune-missing owns those).
+ */
+export function migrateUnresolvedRoots(db: Database.Database): { roots: number; files: number } {
+  let roots: { root: string }[];
+  try { roots = db.prepare(`SELECT root FROM indexed_repos`).all() as { root: string }[]; } catch { return { roots: 0, files: 0 }; }
+  const out = { roots: 0, files: 0 };
+  for (const { root } of roots) {
+    let real: string;
+    try { real = fs.realpathSync(root); } catch { continue; }
+    if (real === root) continue;
+    out.files += rebaseIndexedRoot(db, root, real);
+    out.roots++;
+  }
+  return out;
+}
+
+export function indexDirectory(db: Database.Database, dirPath: string): { files: number; exports: number; deps: number; prunedFiles: number; prunedDirs: number; root: string } {
+  let rootDir = path.resolve(dirPath);
   const roots = allowedIndexRoots();
   // Lexical AND resolved: a symlinked root pointing outside the sandbox is refused.
   const realOf = (p: string): string => { try { return fs.realpathSync(p); } catch { return p; } };
   const realRootDir = realOf(rootDir);
-  if (!roots.some(r => isPathInside(rootDir, r) && isPathInside(realRootDir, realOf(r)))) {
+  // The given path may use either spelling of an allowed root (/var/… or
+  // /private/var/…): agents pass the realpath they resolved their cwd to.
+  if (!roots.some(r => (isPathInside(rootDir, r) || isPathInside(rootDir, realOf(r))) && isPathInside(realRootDir, realOf(r)))) {
     throw new Error(
       `Refusing to index '${rootDir}': outside the allowed sandbox. ` +
         `Allowed roots: ${roots.join(", ")}. Set CODE_CONTEXT_ALLOWED_ROOTS ` +
@@ -1162,6 +1251,13 @@ export function indexDirectory(db: Database.Database, dirPath: string): { files:
   if (!fs.existsSync(rootDir)) throw new Error(`Directory not found: ${rootDir}`);
   const stat = fs.statSync(rootDir);
   if (!stat.isDirectory()) throw new Error(`Path is not a directory: ${rootDir}`);
+  // Store the realpath (CCA-01): a symlinked root and its target index
+  // identically, and agents that resolve their cwd can read the paths back.
+  // Rows from an older index under the symlinked spelling move over first.
+  if (realRootDir !== rootDir) {
+    rebaseIndexedRoot(db, rootDir, realRootDir);
+    rootDir = realRootDir;
+  }
 
   // HEAD is read before the listing: a commit landing mid-index then shows up
   // as a HEAD change on the next read and gets diffed, never silently skipped.
@@ -1287,5 +1383,5 @@ export function indexDirectory(db: Database.Database, dirPath: string): { files:
 
   recordIndexedRoot(db, rootDir, head, filePaths.length);
 
-  return { files: filePaths.length, exports: exportCount, deps: depCount, prunedFiles: pruned.files, prunedDirs: pruned.dirs };
+  return { files: filePaths.length, exports: exportCount, deps: depCount, prunedFiles: pruned.files, prunedDirs: pruned.dirs, root: rootDir };
 }

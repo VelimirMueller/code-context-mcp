@@ -21,7 +21,8 @@ afterAll(() => {
 });
 
 function createTempProject(files: Record<string, string>): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "parser-test-"));
+  // realpath: the index stores realpaths (CCA-01); os.tmpdir() is a symlink on macOS.
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "parser-test-")));
   for (const [filePath, content] of Object.entries(files)) {
     const full = path.join(dir, filePath);
     fs.mkdirSync(path.dirname(full), { recursive: true });

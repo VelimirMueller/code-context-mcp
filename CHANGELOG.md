@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Tool results print project-relative paths.** `find_symbol`, `get_file_context`, `search_files`, `get_changes` and `set_description` show `src/utils/helpers.ts` for files under the indexed root that holds the server's working directory (or under the working directory, when it sits above the indexed roots). Files of other repos in a shared database stay absolute, so a relative path is never ambiguous. `absolute_paths: true` or `CODE_CONTEXT_ABSOLUTE_PATHS=1` restores absolute output. (#116)
+
+### Fixed
+- **The index stores realpaths.** A symlinked root and its target index identically, one row per file. On macOS `os.tmpdir()` is `/var/folders/…` (a symlink to `/private/var/folders/…`); agents resolve their cwd to the realpath and refused every path copied from a result as outside the workspace. Rows an older version stored under the symlinked spelling move to the realpath at server boot and on the next `index_directory`, with descriptions and change history. Tools accept the relative form, the realpath and the old spelling. `index_directory` accepts either spelling of an allowed root. (#116)
+
 ## [2.11.0] - 2026-10-11
 
 ### Added

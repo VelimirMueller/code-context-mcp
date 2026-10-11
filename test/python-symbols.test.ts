@@ -1,6 +1,6 @@
 import { describe, test, it, expect, beforeEach, afterEach } from "vitest";
 import path from "path";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import Database from "better-sqlite3";
 import { parsePythonExports, parsePythonImports, resolvePythonImport, resolvePythonImportTargets, indexDirectory } from "../src/server/indexer";
@@ -220,7 +220,7 @@ describe("resolvePythonImport", () => {
   };
 
   beforeEach(() => {
-    tmp = mkdtempSync(path.join(tmpdir(), "cc-py-res-"));
+    tmp = realpathSync(mkdtempSync(path.join(tmpdir(), "cc-py-res-"))); // index stores realpaths (CCA-01)
     root = path.join(tmp, "root");
     write(root, "app.py");
     write(root, "pkg/__init__.py");
@@ -299,7 +299,7 @@ describe("Python end-to-end index", () => {
     ).get(src, tgt) as { symbols: string } | undefined);
 
   beforeEach(() => {
-    root = mkdtempSync(path.join(tmpdir(), "cc-py-e2e-"));
+    root = realpathSync(mkdtempSync(path.join(tmpdir(), "cc-py-e2e-"))); // index stores realpaths (CCA-01)
     process.env.CODE_CONTEXT_ALLOWED_ROOTS = root;
     db = createTestDb();
   });
@@ -373,7 +373,7 @@ describe("resolvePythonImportTargets — submodules get their own edge", () => {
     return full;
   };
   beforeEach(() => {
-    tmp = mkdtempSync(path.join(tmpdir(), "cc-py-tgt-"));
+    tmp = realpathSync(mkdtempSync(path.join(tmpdir(), "cc-py-tgt-"))); // index stores realpaths (CCA-01)
     root = path.join(tmp, "root");
     for (const f of ["app.py", "pkg/__init__.py", "pkg/a.py", "pkg/b.py", "pkg/c/__init__.py", "x/__init__.py", "x/y.py"]) write(f);
     process.env.CODE_CONTEXT_ALLOWED_ROOTS = root; // the indexer refuses roots outside its sandbox
