@@ -100,6 +100,16 @@ pages/       → Benchmark, CodeExplorer, Dashboard, ProjectManagement, Retro, T
 | `POST /api/sprints/plan` | POST | Create sprint and assign tickets in one call |
 | `PUT /api/vision` | PUT | Update PRODUCT_VISION skill content |
 
+### Benchmark
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `GET /api/bench/index` | GET | Real bench runs index (`ccc-bench-index/1`) + source; `index: null` and a how-to `message` when no data |
+| `GET /api/bench/run/:id` | GET | One run file (`ccc-bench/1`); id must match `^[a-z0-9][a-z0-9-]{0,80}$` and be listed in the index |
+| `GET /api/benchmark`, `GET /api/benchmark-stochastic` | GET | Simulated June 2026 benchmark (the "Simulated (2026-06)" tab) |
+
+Bench source order (`src/dashboard/handlers/bench.ts`): env `CODE_CONTEXT_BENCH_DIR` → `<dirname(dbPath)>/bench/` → `git show origin/bench-results:data/…` in the dashboard package's own checkout (local ref only, no fetch, 5 min cache) → empty state.
+
 ## Build Pipeline
 
 ```

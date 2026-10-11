@@ -189,6 +189,8 @@ const OTHER_ROUTES: Route[] = [
   { method: "GET", path: "/api/comparison" },
   { method: "GET", path: "/api/benchmark" },
   { method: "GET", path: "/api/benchmark-stochastic" },
+  { method: "GET", path: "/api/bench/index" },
+  { method: "GET", path: "/api/bench/run/sim-1" },
   { method: "GET", path: "/api/token-usage" },
   { method: "GET", path: "/api/trash" },
   { method: "GET", path: "/api/dump" },
@@ -246,7 +248,7 @@ describe("dashboard route-parity: every golden route is served", () => {
     // Bumping this requires consciously editing the golden table above — it is the
     // tripwire for an accidental route addition/removal during a later slice.
     expect(SCRUM_ROUTES.length).toBe(26);
-    expect(ALL_ROUTES.length).toBe(80);
+    expect(ALL_ROUTES.length).toBe(82);
   });
 
   it("control: a genuinely unknown path DOES hit the unknown-endpoint sentinel", async () => {

@@ -336,3 +336,59 @@ describe('planningStore', () => {
     expect(toasts[0].message).toMatch(/only completed milestones/);
   });
 });
+
+// ─── benchmarkStore (real bench runs) ─────────────────────────────────
+
+describe('benchmarkStore bench runs', () => {
+  let useBenchmarkStore: typeof import('@/stores/benchmarkStore').useBenchmarkStore;
+  let latestPerKind: typeof import('@/stores/benchmarkStore').latestPerKind;
+
+  const entry = (run_id: string, kind: string, date: string) => ({
+    run_id, kind, date, ts: `${date}T00:00:00Z`, model: null, trigger: 'manual', headline: null,
+  });
+  const runs = [
+    entry('glm-2', 'agent-glm', '2026-10-11'),
+    entry('opus-1', 'agent-opus', '2026-10-10'),
+    entry('glm-1', 'agent-glm', '2026-10-09'),
+  ];
+
+  beforeEach(async () => {
+    const mod = await import('@/stores/benchmarkStore');
+    useBenchmarkStore = mod.useBenchmarkStore;
+    latestPerKind = mod.latestPerKind;
+    useBenchmarkStore.setState({ benchRuns: [], runDetails: {}, runErrors: {}, selectedRunId: null, benchMessage: null });
+    mockFetch.mockReset();
+  });
+
+  it('latestPerKind keeps the newest run of each kind', () => {
+    expect(latestPerKind(runs as never).map((r) => r.run_id)).toEqual(['glm-2', 'opus-1']);
+  });
+
+  it('fetchBenchIndex selects the newest run and loads the latest run file per kind', async () => {
+    mockFetch.mockImplementation((path: string) =>
+      Promise.resolve({
+        ok: true,
+        json: async () =>
+          path === '/api/bench/index'
+            ? { source: { type: 'dir', label: 'env' }, index: { schema: 'ccc-bench-index/1', runs } }
+            : { run: { run_id: path.split('/').pop(), notes: ['n'] } },
+      }),
+    );
+    await useBenchmarkStore.getState().fetchBenchIndex();
+    const s = useBenchmarkStore.getState();
+    expect(s.selectedRunId).toBe('glm-2');
+    expect(Object.keys(s.runDetails).sort()).toEqual(['glm-2', 'opus-1']);
+  });
+
+  it('keeps an explicit empty state with the server message', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ source: { type: 'none', label: 'none' }, index: null, message: 'No benchmark runs found.' }),
+    });
+    await useBenchmarkStore.getState().fetchBenchIndex();
+    const s = useBenchmarkStore.getState();
+    expect(s.benchRuns).toEqual([]);
+    expect(s.selectedRunId).toBeNull();
+    expect(s.benchMessage).toBe('No benchmark runs found.');
+  });
+});
