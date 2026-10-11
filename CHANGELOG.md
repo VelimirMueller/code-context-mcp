@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **`bench:live` timeouts end a session at the limit.** The deadline runs on the wall clock, and SIGTERM then SIGKILL reach the agent's whole process tree; the runner no longer waits on output pipes a leftover process holds. A timed-out session keeps its partial usage. Root cause of the ~900 s sessions: the Mac idle-slept on battery, and the old monotonic timer stopped in sleep. The runner now holds `caffeinate -i` on macOS. (#146)
+
+### Changed
+- **`bench:live` retries a failed session once.** A provider error, 0 model calls or a machine sleep during the session gets one retry with a fresh workspace and HOME; the run notes list every retry. The run is void only when the retry fails too. A timeout with model calls stays a model FAIL. (#146)
+
 ## [2.12.0] - 2026-10-11
 
 ### Highlights

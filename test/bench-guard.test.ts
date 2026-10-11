@@ -77,12 +77,22 @@ describe('bench guard — every agent arm spawns through the sandbox prepare pat
   const runSrc = () => readFileSync(join(LIVE_DIR, 'run.mts'), 'utf-8');
   const prepareSrc = () => readFileSync(join(LIVE_DIR, 'prepare.mts'), 'utf-8');
 
-  it('run.mts has exactly ONE spawn site and it runs the command prepare.mts built', () => {
+  it('run.mts has exactly ONE agent spawn site and it runs the command prepare.mts built', () => {
     const src = runSrc();
-    const spawns = [...src.matchAll(/\bspawn\(/g)];
-    expect(spawns.length, 'run.mts must have exactly one spawn() call').toBe(1);
-    expect(src).toContain('spawn(\n    opts.prep.command.bin,');
+    // CCA-15: the child is owned by session.mts runAgentProcess (process
+    // group, wall-clock deadline, tree kill); run.mts spawns nothing itself.
+    expect([...src.matchAll(/\bspawn\(/g)].length, 'run.mts must not call spawn() itself').toBe(0);
+    expect(
+      [...src.matchAll(/\brunAgentProcess\(/g)].length,
+      'run.mts must start the agent exactly once',
+    ).toBe(1);
+    expect(src).toContain('bin: opts.prep.command.bin,');
     expect(src).toContain('[...opts.prep.command.args,');
+    // session.mts: one spawn of the given command, one of caffeinate.
+    const session = readFileSync(join(LIVE_DIR, 'session.mts'), 'utf-8');
+    expect([...session.matchAll(/\bspawn\(/g)].length).toBe(2);
+    expect(session).toContain('spawn(opts.bin, opts.args,');
+    expect(session).toContain("spawn('caffeinate',");
   });
 
   it('run.mts never writes or references the agent config itself — only prepare.mts may', () => {
@@ -140,5 +150,11 @@ describe('bench guard — provider errors void the run (2026-10-11)', () => {
   it('run.mts aborts on a provider error or a session with 0 model calls', () => {
     const src = readFileSync(join(LIVE_DIR, 'run.mts'), 'utf-8');
     expect(src).toContain('outcome.providerError || outcome.modelCalls === 0');
+    // CCA-15: the rule lives in attemptFault; one retry, then the run is void.
+    expect(src).toContain('const fault = attemptFault({');
+    expect(src).toContain('No run file written.');
+    const session = readFileSync(join(LIVE_DIR, 'session.mts'), 'utf-8');
+    expect(session).toContain('if (a.providerError) return');
+    expect(session).toContain('if (a.modelCalls === 0)');
   });
 });
