@@ -45,7 +45,7 @@ import { DEFAULT_LIVE_TASKS, tasksByIds, renderPrompt, type LiveTask } from './t
 import { runChecker } from './checkers.mts';
 import { parseEventStream, type SessionUsage } from './parse-events.mts';
 import { parseClaudeStream } from './parse-claude.mts';
-import { ARMS, prepareArmSession, type PreparedArm } from './prepare.mts';
+import { ARMS, prepareArmSession, type Arm, type PreparedArm } from './prepare.mts';
 import { stripProviderKeys } from './sandbox.mts';
 import type { SessionResult } from '../lib/types.mts';
 
@@ -376,6 +376,8 @@ async function main(): Promise<void> {
   const vanilla: SessionResult[] = [];
   const cc: SessionResult[] = [];
   const ccGuided: SessionResult[] = [];
+  // Typed per arm: adding an arm to ARMS without a bucket is a compile error.
+  const bucket: Record<Arm, SessionResult[]> = { vanilla, cc, 'cc-guided': ccGuided };
   const indexMsSamples: number[] = [];
   const dbBytesSamples: number[] = [];
   const firstCallCacheReads: number[] = [];
@@ -415,7 +417,7 @@ async function main(): Promise<void> {
           indexMsSamples.push(prep.indexInfo.indexMs);
           dbBytesSamples.push(prep.indexInfo.dbBytes);
         }
-        ({ vanilla, cc, 'cc-guided': ccGuided })[arm].push(outcome.result);
+        bucket[arm].push(outcome.result);
         if (outcome.model) {
           if (reportedModel && reportedModel !== outcome.model) {
             fail(

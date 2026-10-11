@@ -282,3 +282,12 @@ describe('prepareArmSession — fair arms (2026-10-11)', () => {
     }
   });
 });
+
+describe('CC_GUIDANCE names only tools the code toolset lists', () => {
+  it('every tool it names exists in CODE_TOOLS', async () => {
+    const { CODE_TOOLS } = await import('../src/server/tool-wrap.js');
+    const named = CC_GUIDANCE.match(/\b[a-z]+_[a-z_]+\b/g) ?? [];
+    expect(named.length).toBeGreaterThan(0);
+    for (const n of named) expect(CODE_TOOLS).toContain(n);
+  });
+});
