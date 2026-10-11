@@ -1,42 +1,38 @@
 {
   "schema": "ccc-bench/1",
-  "run_id": "opus-20261011-134112",
-  "kind": "agent-opus",
+  "run_id": "dsk-20261011-193311",
+  "kind": "agent-deepseek",
   "date": "2026-10-11",
-  "ts": "2026-10-11T13:41:12Z",
+  "ts": "2026-10-11T19:33:11Z",
   "trigger": "manual",
-  "duration_ms": 107179,
-  "code_context_version": "2.11.0",
+  "duration_ms": 1752069,
+  "code_context_version": "2.12.0",
   "git": {
-    "commit": "3d265a9fd377179f56445d5d6cc4ce14196cb87f",
+    "commit": "8823af7ff508e706ce9958022528ece47b8d14ec",
     "branch": "main",
-    "dirty": false
+    "dirty": true
   },
   "notes": [
-    "cache mode: cold-warm — per task and arm, repeat 1 is cold and repeats 2..2 are warm (sessions carry cache_phase; aggregate.by_phase compares them)",
-    "cold sessions (repeat 1): new fixture copy, HOME, TMPDIR and empty CLAUDE_CONFIG_DIR per session; per-session nonce first in --append-system-prompt; only the MCP servers on the command line; prompt caching ON as in real Claude Code use (no DISABLE_PROMPT_CACHING). First-call cache reads are not enforced to 0: Claude Code's built-in system prompt and tool definitions are identical in every session, so that static prefix can be read from cache; the nonce and fresh paths stop any match beyond it. 8032 cached tokens read on first calls (all arms, cold sessions); cache writes (cache_write) are the honest cold cost and count as uncached tokens",
-    "warm sessions (repeats 2..N): fresh fixture copy and HOME at the cold session’s paths, the cold session’s nonce and index reused (copied, not rebuilt), same args and env as cold; first-call cache reads expected and not checked",
-    "wall_ms of a cold cc session includes its index build (index_ms); warm sessions index_ms 0; aggregate wall means cover both phases",
-    "session order: task → arm → repeat (warm repeats run right after their cold session)",
-    "arms run: vanilla, cc — vanilla (no server) · cc (server attached, no hint) · cc-guided (server + \"use code-context first\" in the system prompt); every cc arm runs CODE_CONTEXT_TOOLSETS=code (6 tools)",
+    "fresh sessions: new fixture copy, HOME and TMPDIR per session; per-session nonce first in the system prompt; first-call cache read 0 in every session (enforced)",
+    "session timeout 300 s on the wall clock: SIGTERM, then SIGKILL to the agent's whole process tree; a timed-out session keeps its partial usage (timeout: true). A provider error, 0 model calls or a machine sleep during the session is retried once with a fresh workspace and HOME; the retry replaces the attempt, and a second failure voids the run",
+    "retries: none",
+    "arms run: vanilla, cc, cc-guided — vanilla (no server) · cc (server attached, no hint) · cc-guided (server + \"use code-context first\" in the system prompt); every cc arm runs CODE_CONTEXT_TOOLSETS=code (6 tools)",
     "task prompts are neutral: they name no tools, only that bash is disabled",
-    "cost: Claude Code total_cost_usd (result event) at list price with prompt caching ON in every session: cache writes at the cache-write rate (1.25x input, 5-min TTL), cache reads at the cache-read rate (0.1x input), so the per-call overhead of the static prefix and tool definitions is priced at cache-read rates after the call that wrote it. Runs before CCA-10 (#125) had caching off and overstate that overhead about 10x",
-    "agent prompt: Claude Code default system prompt",
+    "cost: opencode step cost",
+    "agent prompt: bench prompt (opencode-config.mts benchAgentPrompt), not the opencode default",
     "tokens total = input + cache_read + output (every token the model processed)",
-    "tokens from Claude Code stream-json: totals from the final result event usage (input_tokens, output_tokens, cache_read_input_tokens → cache_read, cache_creation_input_tokens → cache_write); per-message usage (once per API message id) only when a stream has no result event",
-    "key CLAUDE_CODE_OAUTH_TOKEN exported to claude as CLAUDE_CODE_OAUTH_TOKEN",
-    "artefacts retained by the runner for run opus-20261011-134112",
-    "rescored 2026-10-11 (CCA-07) with the current answer checkers: 1 session(s) changed; edit-task results kept as recorded",
-    "renormalized 2026-10-11 (CCA-08): aggregate and headline recomputed from the recorded sessions (uncached tokens, cost, per-PASS, paired deltas)"
+    "tokens from opencode step-finish events; reasoning tokens folded into output",
+    "key DEEPSEEK_API_KEY exported to opencode as DEEPSEEK_API_KEY",
+    "artefacts retained by the runner for run dsk-20261011-193311"
   ],
-  "model": "claude-opus-5-5",
+  "model": "deepseek/deepseek-v4-pro",
   "agent_cli": {
-    "name": "claude-code",
-    "version": "2.1.296 (Claude Code)"
+    "name": "opencode",
+    "version": "1.18.30"
   },
   "fixture": "per task",
   "auth": {
-    "keyEnv": "CLAUDE_CODE_OAUTH_TOKEN"
+    "keyEnv": "DEEPSEEK_API_KEY"
   },
   "tasks": [
     {
@@ -53,6 +49,16 @@
       }
     },
     {
+      "id": "L2",
+      "fixture": "test/fixtures/sample-project",
+      "prompt": "Add `slugify(text: string): string` to the utils module of this project (src/utils/helpers.ts) and export it from the utils barrel (src/utils/index.ts). Keep the existing code style. The bash tool is disabled in this environment.",
+      "checker": {
+        "type": "symbol",
+        "symbol": "slugify",
+        "barrel": "src/utils/index.ts"
+      }
+    },
+    {
       "id": "I1",
       "size": "L",
       "fixture": "large synthetic (683 files)",
@@ -65,6 +71,71 @@
           "src/platform/http/retry.ts"
         ]
       }
+    },
+    {
+      "id": "I2",
+      "size": "L",
+      "fixture": "large synthetic (683 files)",
+      "prompt": "This is the source tree of a TypeScript project. The module src/orders/model/order-line.ts is going to move. List every file that has an import, `import type`, `export … from` or dynamic `import()` statement whose module specifier resolves to src/orders/model/order-line.ts — the statements that will need a new path. Files that reach it only through another module do not count. Answer with the file paths relative to the project root, one per line. The bash tool is disabled in this environment.",
+      "checker": {
+        "type": "pinned-paths",
+        "key": "orderLineImporters",
+        "maxExtra": 1,
+        "ignore": [
+          "src/orders/model/order-line.ts"
+        ]
+      }
+    },
+    {
+      "id": "I3",
+      "size": "L",
+      "fixture": "large synthetic (683 files)",
+      "prompt": "This is the source tree of a TypeScript project. Which files import the function `formatMoney` that src/core/money.ts declares? Count a file when one of its import statements binds `formatMoney` (under its own name or an alias), either from src/core/money.ts or from a barrel that re-exports it. Barrels that only re-export it, files that import other names only, and files that merely mention the name do not count. Answer with the file paths relative to the project root, one per line. The bash tool is disabled in this environment.",
+      "checker": {
+        "type": "pinned-paths",
+        "key": "formatMoneyImporters",
+        "maxExtra": 1,
+        "ignore": [
+          "src/core/money.ts"
+        ]
+      }
+    },
+    {
+      "id": "I4",
+      "size": "XL",
+      "fixture": "large synthetic (683 files)",
+      "prompt": "This is the source tree of a TypeScript project. Find the unused exports of the files directly in src/catalog/utils/. An export is used when a file other than its own imports it: by name, through a barrel that re-exports it (the re-export alone is not a use; a file must import the name from the barrel), or by importing its whole module (`import * as …`, or an `import()` without destructuring). Comments, same-named local variables or functions in other files, and uses inside its own file do not count. Cover every export form (functions, constants, classes, interfaces, types). List each unused export on its own line, formatted `file: name`. The bash tool is disabled in this environment.",
+      "checker": {
+        "type": "pinned-exports",
+        "key": "catalogUtilsUnused",
+        "maxExtra": 1
+      }
+    },
+    {
+      "id": "I5",
+      "size": "ML",
+      "fixture": "large synthetic (683 files)",
+      "prompt": "This is the source tree of a TypeScript project. Several files mention `resolveTaxRate`. Which file contains the declaration of the exported function `resolveTaxRate` (not a re-export, an import or a same-named local)? Answer with that file path relative to the project root on the first line. The bash tool is disabled in this environment.",
+      "checker": {
+        "type": "pinned-paths",
+        "key": "resolveTaxRateDefinition",
+        "maxExtra": 0,
+        "first": true
+      }
+    },
+    {
+      "id": "I6",
+      "size": "XL",
+      "fixture": "large synthetic (683 files)",
+      "prompt": "This is the source tree of a TypeScript project. Which files depend on src/loyalty/utils/points-math.ts directly or through exactly one intermediate file? File A depends directly on module M when A has an import, `import type`, `export … from` or dynamic `import()` statement whose module specifier resolves to M. List every file that depends directly on points-math.ts, plus every file that depends directly on one of those files. Do not list points-math.ts itself. Answer with the file paths relative to the project root, one per line. The bash tool is disabled in this environment.",
+      "checker": {
+        "type": "pinned-paths",
+        "key": "pointsMathTwoHop",
+        "maxExtra": 1,
+        "ignore": [
+          "src/loyalty/utils/points-math.ts"
+        ]
+      }
     }
   ],
   "arms": {
@@ -75,80 +146,432 @@
           "success": true,
           "timeout": false,
           "tokens": {
-            "input": 6,
-            "output": 394,
-            "cache_read": 10949,
-            "cache_write": 6065
+            "input": 3707,
+            "output": 439,
+            "cache_read": 6272,
+            "cache_write": 0
           },
           "first_call_cache_read": 0,
-          "cost_usd": 0.058613799999999994,
-          "tool_calls": 2,
+          "cost_usd": 0.002017211,
+          "tool_calls": 3,
           "mcp_tool_calls": 0,
-          "wall_ms": 7166,
-          "session_id": "55d219ad-cc93-41b7-b57b-17990c0e8dd8",
-          "events_path": "vanilla-L1-r1.jsonl",
-          "cache_phase": "cold",
-          "index_ms": 0
+          "wall_ms": 6684,
+          "session_id": "ses_ed38b8c32ffeTl6Df4BbEX2On7",
+          "events_path": "vanilla-L1-r1.jsonl"
         },
         {
           "task_id": "L1",
           "success": true,
           "timeout": false,
           "tokens": {
-            "input": 6,
-            "output": 424,
-            "cache_read": 16322,
-            "cache_write": 692
+            "input": 3557,
+            "output": 395,
+            "cache_read": 6272,
+            "cache_write": 0
           },
-          "first_call_cache_read": 5373,
-          "cost_usd": 0.017304399999999998,
+          "first_call_cache_read": 0,
+          "cost_usd": 0.001913681,
           "tool_calls": 2,
           "mcp_tool_calls": 0,
-          "wall_ms": 6896,
-          "session_id": "ab1e1317-e1bd-4083-8b1b-47f34f39e96f",
-          "events_path": "vanilla-L1-r2.jsonl",
-          "cache_phase": "warm",
-          "index_ms": 0
+          "wall_ms": 7175,
+          "session_id": "ses_ed38b24cdffe0cLyq9mSJEv2C4",
+          "events_path": "vanilla-L1-r2.jsonl"
         },
         {
-          "task_id": "I1",
-          "success": true,
+          "task_id": "L1",
+          "success": false,
           "timeout": false,
           "tokens": {
-            "input": 12,
-            "output": 1558,
-            "cache_read": 37637,
-            "cache_write": 4987
+            "input": 3685,
+            "output": 636,
+            "cache_read": 6272,
+            "cache_write": 0
           },
-          "first_call_cache_read": 3358,
-          "cost_usd": 0.0786314,
-          "tool_calls": 6,
-          "mcp_tool_calls": 0,
-          "wall_ms": 23719,
-          "session_id": "223203cd-5aa8-4211-86c0-dc5cf4226d46",
-          "events_path": "vanilla-I1-r1.jsonl",
-          "cache_phase": "cold",
-          "index_ms": 0
-        },
-        {
-          "task_id": "I1",
-          "success": true,
-          "timeout": false,
-          "tokens": {
-            "input": 6,
-            "output": 1183,
-            "cache_read": 18639,
-            "cache_write": 2697
-          },
-          "first_call_cache_read": 5473,
-          "cost_usd": 0.0489878,
+          "first_call_cache_read": 0,
+          "cost_usd": 0.002179031,
           "tool_calls": 3,
           "mcp_tool_calls": 0,
-          "wall_ms": 14354,
-          "session_id": "03fe964a-1ba8-4856-bae7-eff288d38102",
-          "events_path": "vanilla-I1-r2.jsonl",
-          "cache_phase": "warm",
-          "index_ms": 0
+          "wall_ms": 8452,
+          "session_id": "ses_ed38abad0ffeRi3f9x07JuXHo7",
+          "events_path": "vanilla-L1-r3.jsonl"
+        },
+        {
+          "task_id": "L2",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 4669,
+            "output": 990,
+            "cache_read": 16256,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.0029512429999999997,
+          "tool_calls": 8,
+          "mcp_tool_calls": 0,
+          "wall_ms": 11651,
+          "session_id": "ses_ed38a502bffezDtrfRYnx6JKcP",
+          "events_path": "vanilla-L2-r1.jsonl"
+        },
+        {
+          "task_id": "L2",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 3743,
+            "output": 902,
+            "cache_read": 11264,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.002453777,
+          "tool_calls": 6,
+          "mcp_tool_calls": 0,
+          "wall_ms": 10221,
+          "session_id": "ses_ed3899f00ffeCfAMnCsnTuip66",
+          "events_path": "vanilla-L2-r2.jsonl"
+        },
+        {
+          "task_id": "L2",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 3560,
+            "output": 735,
+            "cache_read": 7040,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.0022135699999999998,
+          "tool_calls": 4,
+          "mcp_tool_calls": 0,
+          "wall_ms": 8418,
+          "session_id": "ses_ed38934c3ffeD9nSZ4CrRMM6M0",
+          "events_path": "vanilla-L2-r3.jsonl"
+        },
+        {
+          "task_id": "I1",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 8531,
+            "output": 3157,
+            "cache_read": 39424,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.006600487,
+          "tool_calls": 13,
+          "mcp_tool_calls": 0,
+          "wall_ms": 24562,
+          "session_id": "ses_ed3889e00ffeL3NalXO2lEemdP",
+          "events_path": "vanilla-I1-r1.jsonl"
+        },
+        {
+          "task_id": "I1",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 5959,
+            "output": 2118,
+            "cache_read": 13056,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.004482153,
+          "tool_calls": 7,
+          "mcp_tool_calls": 0,
+          "wall_ms": 16838,
+          "session_id": "ses_ed387d943ffe0wZqLA9mXV58DV",
+          "events_path": "vanilla-I1-r2.jsonl"
+        },
+        {
+          "task_id": "I1",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 14485,
+            "output": 3570,
+            "cache_read": 50304,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.009589226999999999,
+          "tool_calls": 12,
+          "mcp_tool_calls": 0,
+          "wall_ms": 28689,
+          "session_id": "ses_ed387154effeg8IuV6zoEOK3Ad",
+          "events_path": "vanilla-I1-r3.jsonl"
+        },
+        {
+          "task_id": "I2",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 12006,
+            "output": 4290,
+            "cache_read": 28288,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.009057454,
+          "tool_calls": 8,
+          "mcp_tool_calls": 0,
+          "wall_ms": 28466,
+          "session_id": "ses_ed3861d6fffeLnL46wLKh0xDhz",
+          "events_path": "vanilla-I2-r1.jsonl"
+        },
+        {
+          "task_id": "I2",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 10953,
+            "output": 3340,
+            "cache_read": 36096,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.007801203,
+          "tool_calls": 8,
+          "mcp_tool_calls": 0,
+          "wall_ms": 27076,
+          "session_id": "ses_ed3851fceffepiONmVAO5nscvY",
+          "events_path": "vanilla-I2-r2.jsonl"
+        },
+        {
+          "task_id": "I2",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 16625,
+            "output": 3684,
+            "cache_read": 53888,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.010632298999999998,
+          "tool_calls": 18,
+          "mcp_tool_calls": 0,
+          "wall_ms": 30038,
+          "session_id": "ses_ed38417d1ffeNmqhmAA0M20SuS",
+          "events_path": "vanilla-I2-r3.jsonl"
+        },
+        {
+          "task_id": "I3",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 11476,
+            "output": 3154,
+            "cache_read": 36608,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.007868744,
+          "tool_calls": 6,
+          "mcp_tool_calls": 0,
+          "wall_ms": 26716,
+          "session_id": "ses_ed38319aaffeKvsJ63VWaIsZi3",
+          "events_path": "vanilla-I3-r1.jsonl"
+        },
+        {
+          "task_id": "I3",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 23353,
+            "output": 4614,
+            "cache_read": 70400,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.014427935,
+          "tool_calls": 11,
+          "mcp_tool_calls": 0,
+          "wall_ms": 32686,
+          "session_id": "ses_ed3821e2fffejGZx34pnIkW44l",
+          "events_path": "vanilla-I3-r2.jsonl"
+        },
+        {
+          "task_id": "I3",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 15039,
+            "output": 3803,
+            "cache_read": 50944,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.010035246999999999,
+          "tool_calls": 10,
+          "mcp_tool_calls": 0,
+          "wall_ms": 30674,
+          "session_id": "ses_ed380daffffevmHXEq3YnzPdsX",
+          "events_path": "vanilla-I3-r3.jsonl"
+        },
+        {
+          "task_id": "I4",
+          "success": false,
+          "timeout": false,
+          "tokens": {
+            "input": 16796,
+            "output": 5083,
+            "cache_read": 56320,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.011932630000000001,
+          "tool_calls": 19,
+          "mcp_tool_calls": 0,
+          "wall_ms": 37791,
+          "session_id": "ses_ed37fa4caffebjveKKgjXP75hV",
+          "events_path": "vanilla-I4-r1.jsonl"
+        },
+        {
+          "task_id": "I4",
+          "success": false,
+          "timeout": false,
+          "tokens": {
+            "input": 19316,
+            "output": 8100,
+            "cache_read": 71936,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.015710228,
+          "tool_calls": 23,
+          "mcp_tool_calls": 0,
+          "wall_ms": 57231,
+          "session_id": "ses_ed37de5eaffeOUcllyA4HRoIV2",
+          "events_path": "vanilla-I4-r2.jsonl"
+        },
+        {
+          "task_id": "I4",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 18020,
+            "output": 8155,
+            "cache_read": 130688,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.015407293999999998,
+          "tool_calls": 29,
+          "mcp_tool_calls": 0,
+          "wall_ms": 57216,
+          "session_id": "ses_ed37b1b51ffeGVFMpgIS2OctoP",
+          "events_path": "vanilla-I4-r3.jsonl"
+        },
+        {
+          "task_id": "I5",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 4213,
+            "output": 366,
+            "cache_read": 7040,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.002176595,
+          "tool_calls": 2,
+          "mcp_tool_calls": 0,
+          "wall_ms": 6288,
+          "session_id": "ses_ed378f83effeqAIDKkPsuSVm0p",
+          "events_path": "vanilla-I5-r1.jsonl"
+        },
+        {
+          "task_id": "I5",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 4302,
+            "output": 297,
+            "cache_read": 6912,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.002154816,
+          "tool_calls": 2,
+          "mcp_tool_calls": 0,
+          "wall_ms": 6011,
+          "session_id": "ses_ed378a8a3ffe0t79mVbc3qV5HG",
+          "events_path": "vanilla-I5-r2.jsonl"
+        },
+        {
+          "task_id": "I5",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 4223,
+            "output": 267,
+            "cache_read": 6912,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.002094351,
+          "tool_calls": 2,
+          "mcp_tool_calls": 0,
+          "wall_ms": 5914,
+          "session_id": "ses_ed3785b78ffexMyqkAoyajNT0V",
+          "events_path": "vanilla-I5-r3.jsonl"
+        },
+        {
+          "task_id": "I6",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 11951,
+            "output": 9053,
+            "cache_read": 77056,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.013354123,
+          "tool_calls": 22,
+          "mcp_tool_calls": 0,
+          "wall_ms": 63038,
+          "session_id": "ses_ed3780f2fffeb4PpPKU4yfT90d",
+          "events_path": "vanilla-I6-r1.jsonl"
+        },
+        {
+          "task_id": "I6",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 19182,
+            "output": 7661,
+            "cache_read": 151424,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.015558152,
+          "tool_calls": 23,
+          "mcp_tool_calls": 0,
+          "wall_ms": 62331,
+          "session_id": "ses_ed375dea1ffeXWgLEC9DyyCKYN",
+          "events_path": "vanilla-I6-r2.jsonl"
+        },
+        {
+          "task_id": "I6",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 24316,
+            "output": 12623,
+            "cache_read": 166528,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.022163134,
+          "tool_calls": 25,
+          "mcp_tool_calls": 0,
+          "wall_ms": 89947,
+          "session_id": "ses_ed373a2a9ffeDXfbZruYSNar47",
+          "events_path": "vanilla-I6-r3.jsonl"
         }
       ]
     },
@@ -159,194 +582,1092 @@
           "success": true,
           "timeout": false,
           "tokens": {
-            "input": 8,
-            "output": 490,
-            "cache_read": 21181,
-            "cache_write": 7632
+            "input": 4616,
+            "output": 428,
+            "cache_read": 16896,
+            "cache_write": 0
           },
           "first_call_cache_read": 0,
-          "cost_usd": 0.0751242,
-          "tool_calls": 3,
-          "mcp_tool_calls": 2,
-          "wall_ms": 13620,
-          "session_id": "b6f414ec-bb53-4ae1-8f4c-91c7350d049c",
-          "events_path": "cc-L1-r1.jsonl",
-          "cache_phase": "cold",
-          "index_ms": 22
+          "cost_usd": 0.002441568,
+          "tool_calls": 4,
+          "mcp_tool_calls": 3,
+          "wall_ms": 9115,
+          "session_id": "ses_ed38b7134ffeJD3h8IrorApuv7",
+          "events_path": "cc-L1-r1.jsonl"
         },
         {
           "task_id": "L1",
           "success": true,
           "timeout": false,
           "tokens": {
-            "input": 8,
-            "output": 475,
-            "cache_read": 28519,
-            "cache_write": 296
+            "input": 4540,
+            "output": 307,
+            "cache_read": 12416,
+            "cache_write": 0
           },
-          "first_call_cache_read": 6845,
-          "cost_usd": 0.017603800000000003,
+          "first_call_cache_read": 0,
+          "cost_usd": 0.002286998,
           "tool_calls": 3,
           "mcp_tool_calls": 2,
-          "wall_ms": 7164,
-          "session_id": "8b3a38bd-abb1-44d6-b840-617c34f8552b",
-          "events_path": "cc-L1-r2.jsonl",
-          "cache_phase": "warm",
-          "index_ms": 0
+          "wall_ms": 7841,
+          "session_id": "ses_ed38b0820ffeaAgtjvDl0oy9LM",
+          "events_path": "cc-L1-r2.jsonl"
         },
         {
-          "task_id": "I1",
+          "task_id": "L1",
           "success": true,
           "timeout": false,
           "tokens": {
-            "input": 6,
-            "output": 1136,
-            "cache_read": 23233,
-            "cache_write": 7904
+            "input": 4750,
+            "output": 371,
+            "cache_read": 12672,
+            "cache_write": 0
           },
-          "first_call_cache_read": 4674,
-          "cost_usd": 0.0906226,
+          "first_call_cache_read": 0,
+          "cost_usd": 0.002434956,
+          "tool_calls": 4,
+          "mcp_tool_calls": 2,
+          "wall_ms": 8239,
+          "session_id": "ses_ed38a98faffeMHMmuIwwHOLpCd",
+          "events_path": "cc-L1-r3.jsonl"
+        },
+        {
+          "task_id": "L2",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 7077,
+            "output": 2073,
+            "cache_read": 58112,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.005092661,
+          "tool_calls": 16,
+          "mcp_tool_calls": 2,
+          "wall_ms": 24671,
+          "session_id": "ses_ed38a21dfffe7xpFZNb0EbVTpv",
+          "events_path": "cc-L2-r1.jsonl"
+        },
+        {
+          "task_id": "L2",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 4522,
+            "output": 684,
+            "cache_read": 9088,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.002595094,
           "tool_calls": 4,
           "mcp_tool_calls": 0,
-          "wall_ms": 13825,
-          "session_id": "a5cd4d8b-e80e-4cc8-b0c4-9eca7d0af5fb",
-          "events_path": "cc-I1-r1.jsonl",
-          "cache_phase": "cold",
-          "index_ms": 136
+          "wall_ms": 8320,
+          "session_id": "ses_ed3897639ffe9bOmxmEh4ZTH9q",
+          "events_path": "cc-L2-r2.jsonl"
+        },
+        {
+          "task_id": "L2",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 5644,
+            "output": 1164,
+            "cache_read": 25088,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.0035587640000000003,
+          "tool_calls": 8,
+          "mcp_tool_calls": 0,
+          "wall_ms": 15176,
+          "session_id": "ses_ed3891314ffeSIlkoEzppgineD",
+          "events_path": "cc-L2-r3.jsonl"
         },
         {
           "task_id": "I1",
           "success": true,
           "timeout": false,
           "tokens": {
-            "input": 10,
-            "output": 1574,
-            "cache_read": 43645,
-            "cache_write": 6778
+            "input": 5782,
+            "output": 1531,
+            "cache_read": 9600,
+            "cache_write": 0
           },
-          "first_call_cache_read": 6949,
-          "cost_usd": 0.09447300000000002,
-          "tool_calls": 8,
+          "first_call_cache_read": 0,
+          "cost_usd": 0.0038819399999999995,
+          "tool_calls": 3,
+          "mcp_tool_calls": 1,
+          "wall_ms": 13291,
+          "session_id": "ses_ed3883c6affeF8A73x1GgviXo3",
+          "events_path": "cc-I1-r1.jsonl"
+        },
+        {
+          "task_id": "I1",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 6475,
+            "output": 2353,
+            "cache_read": 16128,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.0049221989999999995,
+          "tool_calls": 4,
+          "mcp_tool_calls": 1,
+          "wall_ms": 18658,
+          "session_id": "ses_ed38795eeffeZEdeZtafMDZcPT",
+          "events_path": "cc-I1-r2.jsonl"
+        },
+        {
+          "task_id": "I1",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 7015,
+            "output": 1523,
+            "cache_read": 9344,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.004410407,
+          "tool_calls": 6,
+          "mcp_tool_calls": 1,
+          "wall_ms": 13361,
+          "session_id": "ses_ed386a3b2ffe1WItfEo6nwYMlD",
+          "events_path": "cc-I1-r3.jsonl"
+        },
+        {
+          "task_id": "I2",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 7339,
+            "output": 1936,
+            "cache_read": 9984,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.004912977000000001,
+          "tool_calls": 12,
+          "mcp_tool_calls": 1,
+          "wall_ms": 14860,
+          "session_id": "ses_ed385ac88ffe2xs615S4ME2YJY",
+          "events_path": "cc-I2-r1.jsonl"
+        },
+        {
+          "task_id": "I2",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 19663,
+            "output": 2569,
+            "cache_read": 21760,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.010867314999999999,
+          "tool_calls": 4,
+          "mcp_tool_calls": 1,
+          "wall_ms": 19056,
+          "session_id": "ses_ed384b483ffeX5xHy3uKB1YpPK",
+          "events_path": "cc-I2-r2.jsonl"
+        },
+        {
+          "task_id": "I2",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 6155,
+            "output": 1914,
+            "cache_read": 9088,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.004375549,
+          "tool_calls": 3,
+          "mcp_tool_calls": 1,
+          "wall_ms": 16358,
+          "session_id": "ses_ed383a0f0ffe4961Ib95P4WZ60",
+          "events_path": "cc-I2-r3.jsonl"
+        },
+        {
+          "task_id": "I3",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 6856,
+            "output": 2731,
+            "cache_read": 9856,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.005394058,
+          "tool_calls": 4,
           "mcp_tool_calls": 0,
-          "wall_ms": 19957,
-          "session_id": "b32c4f49-82bb-4e11-ab0e-1e9d45962ab0",
-          "events_path": "cc-I1-r2.jsonl",
-          "cache_phase": "warm",
-          "index_ms": 0
+          "wall_ms": 18748,
+          "session_id": "ses_ed382afc3ffefhMe370j72VUIQ",
+          "events_path": "cc-I3-r1.jsonl"
+        },
+        {
+          "task_id": "I3",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 8416,
+            "output": 2574,
+            "cache_read": 20736,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.005975508,
+          "tool_calls": 6,
+          "mcp_tool_calls": 1,
+          "wall_ms": 19053,
+          "session_id": "ses_ed3819cf7ffeuxjGN5XV2lLXB9",
+          "events_path": "cc-I3-r2.jsonl"
+        },
+        {
+          "task_id": "I3",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 10272,
+            "output": 4869,
+            "cache_read": 22784,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.008786941999999999,
+          "tool_calls": 9,
+          "mcp_tool_calls": 1,
+          "wall_ms": 32127,
+          "session_id": "ses_ed3806133ffe126BoV17Diw7b5",
+          "events_path": "cc-I3-r3.jsonl"
+        },
+        {
+          "task_id": "I4",
+          "success": false,
+          "timeout": false,
+          "tokens": {
+            "input": 8705,
+            "output": 4872,
+            "cache_read": 37504,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.008161267,
+          "tool_calls": 28,
+          "mcp_tool_calls": 0,
+          "wall_ms": 33992,
+          "session_id": "ses_ed37f0fa1ffea6XxUgrowWdxqU",
+          "events_path": "cc-I4-r1.jsonl"
+        },
+        {
+          "task_id": "I4",
+          "success": false,
+          "timeout": false,
+          "tokens": {
+            "input": 18365,
+            "output": 14028,
+            "cache_read": 67968,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.020439519,
+          "tool_calls": 27,
+          "mcp_tool_calls": 0,
+          "wall_ms": 98642,
+          "session_id": "ses_ed37d04e4ffeenmnaxbiBv4HDl",
+          "events_path": "cc-I4-r2.jsonl"
+        },
+        {
+          "task_id": "I4",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 7653,
+            "output": 6286,
+            "cache_read": 36736,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.008931043,
+          "tool_calls": 21,
+          "mcp_tool_calls": 0,
+          "wall_ms": 41709,
+          "session_id": "ses_ed37a3a26ffeL1Mv4o66QQ4TQV",
+          "events_path": "cc-I4-r3.jsonl"
+        },
+        {
+          "task_id": "I5",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 4422,
+            "output": 267,
+            "cache_read": 8192,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.002185556,
+          "tool_calls": 2,
+          "mcp_tool_calls": 2,
+          "wall_ms": 6184,
+          "session_id": "ses_ed378de1bffe6mjmV4ZQxxK90i",
+          "events_path": "cc-I5-r1.jsonl"
+        },
+        {
+          "task_id": "I5",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 4332,
+            "output": 169,
+            "cache_read": 8064,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.002060682,
+          "tool_calls": 2,
+          "mcp_tool_calls": 2,
+          "wall_ms": 5762,
+          "session_id": "ses_ed3788fa0ffeT1XP3pMDDppCW0",
+          "events_path": "cc-I5-r2.jsonl"
+        },
+        {
+          "task_id": "I5",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 4381,
+            "output": 197,
+            "cache_read": 8064,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.0021063569999999997,
+          "tool_calls": 2,
+          "mcp_tool_calls": 2,
+          "wall_ms": 6199,
+          "session_id": "ses_ed37842f8ffeK6BKZMkjGa5lIX",
+          "events_path": "cc-I5-r3.jsonl"
+        },
+        {
+          "task_id": "I6",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 9006,
+            "output": 7322,
+            "cache_read": 28544,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.010391222,
+          "tool_calls": 13,
+          "mcp_tool_calls": 1,
+          "wall_ms": 47900,
+          "session_id": "ses_ed377175cffe2TEWBaJG6neOVc",
+          "events_path": "cc-I6-r1.jsonl"
+        },
+        {
+          "task_id": "I6",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 6770,
+            "output": 5215,
+            "cache_read": 16896,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.007543248000000001,
+          "tool_calls": 11,
+          "mcp_tool_calls": 0,
+          "wall_ms": 34592,
+          "session_id": "ses_ed374e993ffekyvrd5sKTWUTyS",
+          "events_path": "cc-I6-r2.jsonl"
+        },
+        {
+          "task_id": "I6",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 8748,
+            "output": 5729,
+            "cache_read": 19200,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.00885921,
+          "tool_calls": 9,
+          "mcp_tool_calls": 1,
+          "wall_ms": 44508,
+          "session_id": "ses_ed37241beffe6wVvesSVroQxzh",
+          "events_path": "cc-I6-r3.jsonl"
         }
       ],
-      "index_ms": 79,
-      "db_bytes": 1275904
+      "index_ms": 100,
+      "db_bytes": 1862656
+    },
+    "cc_guided": {
+      "results": [
+        {
+          "task_id": "L1",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 4996,
+            "output": 604,
+            "cache_read": 18048,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.002764164,
+          "tool_calls": 4,
+          "mcp_tool_calls": 3,
+          "wall_ms": 10009,
+          "session_id": "ses_ed38b4cc8ffe6znJ5PPjvjEaXN",
+          "events_path": "cc-guided-L1-r1.jsonl"
+        },
+        {
+          "task_id": "L1",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 4983,
+            "output": 715,
+            "cache_read": 17920,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.0028546149999999996,
+          "tool_calls": 5,
+          "mcp_tool_calls": 4,
+          "wall_ms": 11550,
+          "session_id": "ses_ed38ae8aeffefLYC7g6ClXHodS",
+          "events_path": "cc-guided-L1-r2.jsonl"
+        },
+        {
+          "task_id": "L1",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 5048,
+            "output": 578,
+            "cache_read": 17280,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.0027613800000000003,
+          "tool_calls": 5,
+          "mcp_tool_calls": 4,
+          "wall_ms": 10012,
+          "session_id": "ses_ed38a7803ffeVElU0zMLALYz5e",
+          "events_path": "cc-guided-L1-r3.jsonl"
+        },
+        {
+          "task_id": "L2",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 4635,
+            "output": 806,
+            "cache_read": 9216,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.002750853,
+          "tool_calls": 4,
+          "mcp_tool_calls": 0,
+          "wall_ms": 8425,
+          "session_id": "ses_ed389c0b5ffeEXMevUzMee74Nv",
+          "events_path": "cc-guided-L2-r1.jsonl"
+        },
+        {
+          "task_id": "L2",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 4638,
+            "output": 622,
+            "cache_read": 9088,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.002591614,
+          "tool_calls": 4,
+          "mcp_tool_calls": 0,
+          "wall_ms": 8057,
+          "session_id": "ses_ed38954fdffe8kXBXxRC1pbMUk",
+          "events_path": "cc-guided-L2-r2.jsonl"
+        },
+        {
+          "task_id": "L2",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 5889,
+            "output": 993,
+            "cache_read": 24960,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.0035161050000000003,
+          "tool_calls": 8,
+          "mcp_tool_calls": 0,
+          "wall_ms": 14345,
+          "session_id": "ses_ed388d6fdffexO2dCNcNQOSHWU",
+          "events_path": "cc-guided-L2-r3.jsonl"
+        },
+        {
+          "task_id": "I1",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 5920,
+            "output": 1174,
+            "cache_read": 8704,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.003628132,
+          "tool_calls": 3,
+          "mcp_tool_calls": 1,
+          "wall_ms": 11446,
+          "session_id": "ses_ed38806efffeNkpiyw53bFl4jr",
+          "events_path": "cc-guided-I1-r1.jsonl"
+        },
+        {
+          "task_id": "I1",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 5799,
+            "output": 1641,
+            "cache_read": 9856,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.003985963,
+          "tool_calls": 3,
+          "mcp_tool_calls": 1,
+          "wall_ms": 13604,
+          "session_id": "ses_ed3874b82ffelS6bt97fTPZnmn",
+          "events_path": "cc-guided-I1-r2.jsonl"
+        },
+        {
+          "task_id": "I1",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 6999,
+            "output": 2560,
+            "cache_read": 17920,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.0053367250000000005,
+          "tool_calls": 5,
+          "mcp_tool_calls": 1,
+          "wall_ms": 20347,
+          "session_id": "ses_ed3866df3ffeXgcRzsuw3RiSkE",
+          "events_path": "cc-guided-I1-r3.jsonl"
+        },
+        {
+          "task_id": "I2",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 21500,
+            "output": 2620,
+            "cache_read": 42368,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.011785484,
+          "tool_calls": 6,
+          "mcp_tool_calls": 1,
+          "wall_ms": 20511,
+          "session_id": "ses_ed38570f5ffeFkwlFQk4gSp9Jh",
+          "events_path": "cc-guided-I2-r1.jsonl"
+        },
+        {
+          "task_id": "I2",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 9072,
+            "output": 2021,
+            "cache_read": 33152,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.0058247659999999995,
+          "tool_calls": 8,
+          "mcp_tool_calls": 4,
+          "wall_ms": 20401,
+          "session_id": "ses_ed384687fffepChPxFxe9hIayC",
+          "events_path": "cc-guided-I2-r2.jsonl"
+        },
+        {
+          "task_id": "I2",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 6868,
+            "output": 2126,
+            "cache_read": 17408,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.004900303999999999,
+          "tool_calls": 5,
+          "mcp_tool_calls": 1,
+          "wall_ms": 17609,
+          "session_id": "ses_ed3835f7dffeglkQMwkRjR9Zfp",
+          "events_path": "cc-guided-I2-r3.jsonl"
+        },
+        {
+          "task_id": "I3",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 8682,
+            "output": 2461,
+            "cache_read": 11904,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.005960892,
+          "tool_calls": 5,
+          "mcp_tool_calls": 2,
+          "wall_ms": 17863,
+          "session_id": "ses_ed38264f2ffe0RLNhwA9Nuatmg",
+          "events_path": "cc-guided-I3-r1.jsonl"
+        },
+        {
+          "task_id": "I3",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 7588,
+            "output": 4250,
+            "cache_read": 18176,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.007064167999999999,
+          "tool_calls": 6,
+          "mcp_tool_calls": 1,
+          "wall_ms": 29935,
+          "session_id": "ses_ed38150fbffe0A5y0fRepW0Era",
+          "events_path": "cc-guided-I3-r2.jsonl"
+        },
+        {
+          "task_id": "I3",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 6858,
+            "output": 1882,
+            "cache_read": 10112,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.004657226,
+          "tool_calls": 3,
+          "mcp_tool_calls": 1,
+          "wall_ms": 15465,
+          "session_id": "ses_ed37fe248ffeSUOkYfR4ADF1g8",
+          "events_path": "cc-guided-I3-r3.jsonl"
+        },
+        {
+          "task_id": "I4",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 10244,
+            "output": 5936,
+            "cache_read": 39040,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.00976198,
+          "tool_calls": 18,
+          "mcp_tool_calls": 2,
+          "wall_ms": 41529,
+          "session_id": "ses_ed37e8949ffeCcJhVD6diIZehV",
+          "events_path": "cc-guided-I4-r1.jsonl"
+        },
+        {
+          "task_id": "I4",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 6607,
+            "output": 2721,
+            "cache_read": 40064,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.005386547,
+          "tool_calls": 13,
+          "mcp_tool_calls": 5,
+          "wall_ms": 26024,
+          "session_id": "ses_ed37b81ffffedyP9AtYkiyiVtu",
+          "events_path": "cc-guided-I4-r2.jsonl"
+        },
+        {
+          "task_id": "I4",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 8497,
+            "output": 5836,
+            "cache_read": 36736,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.008906683,
+          "tool_calls": 26,
+          "mcp_tool_calls": 0,
+          "wall_ms": 40026,
+          "session_id": "ses_ed37995a9ffez3rm7QgptNmy74",
+          "events_path": "cc-guided-I4-r3.jsonl"
+        },
+        {
+          "task_id": "I5",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 4596,
+            "output": 309,
+            "cache_read": 8576,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.002299178,
+          "tool_calls": 3,
+          "mcp_tool_calls": 1,
+          "wall_ms": 6852,
+          "session_id": "ses_ed378c45effeXo9JVLTmLszqtc",
+          "events_path": "cc-guided-I5-r1.jsonl"
+        },
+        {
+          "task_id": "I5",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 4419,
+            "output": 297,
+            "cache_read": 8448,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.002211279,
+          "tool_calls": 3,
+          "mcp_tool_calls": 3,
+          "wall_ms": 6927,
+          "session_id": "ses_ed3787792ffeSAZgy2reGgpgyX",
+          "events_path": "cc-guided-I5-r2.jsonl"
+        },
+        {
+          "task_id": "I5",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 4371,
+            "output": 205,
+            "cache_read": 8320,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.0021098949999999997,
+          "tool_calls": 3,
+          "mcp_tool_calls": 3,
+          "wall_ms": 6400,
+          "session_id": "ses_ed3782930ffewW0VW139fJ0KiC",
+          "events_path": "cc-guided-I5-r3.jsonl"
+        },
+        {
+          "task_id": "I6",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 10305,
+            "output": 4518,
+            "cache_read": 27904,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.008514487,
+          "tool_calls": 11,
+          "mcp_tool_calls": 1,
+          "wall_ms": 31503,
+          "session_id": "ses_ed3765ab7ffewtnrrSdTQkjxLD",
+          "events_path": "cc-guided-I6-r1.jsonl"
+        },
+        {
+          "task_id": "I6",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 8116,
+            "output": 7492,
+            "cache_read": 19584,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.010119492,
+          "tool_calls": 12,
+          "mcp_tool_calls": 1,
+          "wall_ms": 48437,
+          "session_id": "ses_ed37460ebffe1grpG8FVMlTKn3",
+          "events_path": "cc-guided-I6-r2.jsonl"
+        },
+        {
+          "task_id": "I6",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 22163,
+            "output": 7192,
+            "cache_read": 69504,
+            "cache_write": 0
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.016149897,
+          "tool_calls": 13,
+          "mcp_tool_calls": 5,
+          "wall_ms": 49440,
+          "session_id": "ses_ed371925cffeoU6kVJlGaTHbUL",
+          "events_path": "cc-guided-I6-r3.jsonl"
+        }
+      ]
     }
   },
   "aggregate": {
     "success_rate": {
-      "vanilla": 1,
-      "cc": 1
+      "vanilla": 0.875,
+      "cc": 0.9166666666666666,
+      "cc_guided": 1
     },
     "per_pass": {
       "vanilla": {
-        "sessions": 4,
-        "passes": 4,
-        "tokens_total": 87136,
-        "uncached_tokens": 18030,
-        "cost_usd": 0.203537,
-        "tokens_per_pass": 21784,
-        "uncached_per_pass": 4508,
-        "cost_per_pass": 0.050884
+        "sessions": 24,
+        "passes": 21,
+        "tokens_total": 1458299,
+        "uncached_tokens": 351099,
+        "cost_usd": 0.194775,
+        "tokens_per_pass": 69443,
+        "uncached_per_pass": 16719,
+        "cost_per_pass": 0.009275
       },
       "cc": {
-        "sessions": 4,
-        "passes": 4,
-        "tokens_total": 120285,
-        "uncached_tokens": 26317,
-        "cost_usd": 0.277824,
-        "tokens_per_pass": 30071,
-        "uncached_per_pass": 6579,
-        "cost_per_pass": 0.069456
+        "sessions": 24,
+        "passes": 22,
+        "tokens_total": 747336,
+        "uncached_tokens": 252616,
+        "cost_usd": 0.142615,
+        "tokens_per_pass": 33970,
+        "uncached_per_pass": 11483,
+        "cost_per_pass": 0.006483
+      },
+      "cc_guided": {
+        "sessions": 24,
+        "passes": 24,
+        "tokens_total": 772640,
+        "uncached_tokens": 248352,
+        "cost_usd": 0.135842,
+        "tokens_per_pass": 32193,
+        "uncached_per_pass": 10348,
+        "cost_per_pass": 0.00566
       }
     },
     "uncached_tokens": {
-      "vanilla": 18030,
-      "cc": 26317,
-      "saved_pct": -46,
+      "vanilla": 351099,
+      "cc": 252616,
+      "saved_pct": 28,
       "spread": {
-        "min": -82.5,
-        "max": -31.9,
-        "repeats": 2
+        "min": 14.3,
+        "max": 42.5,
+        "repeats": 3
+      },
+      "cc_guided": 248352,
+      "guided_saved_pct": 29.3,
+      "guided_spread": {
+        "min": 10.6,
+        "max": 39.7,
+        "repeats": 3
       }
     },
     "cost_saved_pct": {
-      "cc": -36.5
+      "cc": 26.8,
+      "cc_guided": 30.3
     },
     "tokens": {
       "vanilla": {
-        "input": 30,
-        "cache_read": 83547,
-        "output": 3559,
-        "total": 87136
+        "input": 263667,
+        "cache_read": 1107200,
+        "output": 87432,
+        "total": 1458299
       },
       "cc": {
-        "input": 32,
-        "cache_read": 116578,
-        "output": 3675,
-        "total": 120285
+        "input": 181504,
+        "cache_read": 494720,
+        "output": 71112,
+        "total": 747336
       },
-      "saved_pct": -38
+      "saved_pct": 48.8,
+      "cc_guided": {
+        "input": 188793,
+        "cache_read": 524288,
+        "output": 59559,
+        "total": 772640
+      },
+      "guided_saved_pct": 47
     },
     "tool_calls": {
-      "vanilla": 13,
-      "cc": 18,
-      "saved_pct": -38.5
+      "vanilla": 266,
+      "cc": 205,
+      "saved_pct": 22.9,
+      "cc_guided": 176,
+      "guided_saved_pct": 33.8
     },
     "mcp_tool_calls": {
-      "cc": 4
+      "cc": 25,
+      "cc_guided": 45
     },
     "cost_usd": {
-      "vanilla": 0.203537,
-      "cc": 0.277824
+      "vanilla": 0.194775,
+      "cc": 0.142615,
+      "cc_guided": 0.135842
     },
     "wall_ms": {
-      "vanilla_mean": 13034,
-      "cc_mean": 13642
+      "vanilla_mean": 28505,
+      "cc_mean": 23265,
+      "cc_guided_mean": 20280
     },
     "per_task": [
       {
         "task_id": "L1",
         "vanilla": {
-          "success_rate": 1,
+          "success_rate": 0.6666666666666666,
           "tokens": {
-            "input": 12,
-            "cache_read": 27271,
-            "output": 818,
-            "total": 28101
+            "input": 10949,
+            "cache_read": 18816,
+            "output": 1470,
+            "total": 31235
           },
-          "uncached_tokens": 7587,
-          "cost_usd": 0.075918,
-          "tool_calls": 4,
+          "uncached_tokens": 12419,
+          "cost_usd": 0.00611,
+          "tool_calls": 8,
           "mcp_tool_calls": 0,
-          "wall_ms_mean": 7031
+          "wall_ms_mean": 7437
         },
         "cc": {
           "success_rate": 1,
           "tokens": {
-            "input": 16,
-            "cache_read": 49700,
-            "output": 965,
-            "total": 50681
+            "input": 13906,
+            "cache_read": 41984,
+            "output": 1106,
+            "total": 56996
           },
-          "uncached_tokens": 8909,
-          "cost_usd": 0.092728,
-          "tool_calls": 6,
-          "mcp_tool_calls": 4,
-          "wall_ms_mean": 10392
+          "uncached_tokens": 15012,
+          "cost_usd": 0.007164,
+          "tool_calls": 11,
+          "mcp_tool_calls": 7,
+          "wall_ms_mean": 8398
+        },
+        "cc_guided": {
+          "success_rate": 1,
+          "tokens": {
+            "input": 15027,
+            "cache_read": 53248,
+            "output": 1897,
+            "total": 70172
+          },
+          "uncached_tokens": 16924,
+          "cost_usd": 0.00838,
+          "tool_calls": 14,
+          "mcp_tool_calls": 11,
+          "wall_ms_mean": 10524
         },
         "delta": {
           "cc": {
-            "pairs": 2,
-            "saved_pct": -17.4,
-            "min": -25.8,
-            "max": 30.6
+            "pairs": 3,
+            "saved_pct": -20.9,
+            "min": -22.6,
+            "max": -18.5
+          },
+          "cc_guided": {
+            "pairs": 3,
+            "saved_pct": -36.3,
+            "min": -44.2,
+            "max": -30.2
+          }
+        }
+      },
+      {
+        "task_id": "L2",
+        "vanilla": {
+          "success_rate": 1,
+          "tokens": {
+            "input": 11972,
+            "cache_read": 34560,
+            "output": 2627,
+            "total": 49159
+          },
+          "uncached_tokens": 14599,
+          "cost_usd": 0.007619,
+          "tool_calls": 18,
+          "mcp_tool_calls": 0,
+          "wall_ms_mean": 10097
+        },
+        "cc": {
+          "success_rate": 1,
+          "tokens": {
+            "input": 17243,
+            "cache_read": 92288,
+            "output": 3921,
+            "total": 113452
+          },
+          "uncached_tokens": 21164,
+          "cost_usd": 0.011247,
+          "tool_calls": 28,
+          "mcp_tool_calls": 2,
+          "wall_ms_mean": 16056
+        },
+        "cc_guided": {
+          "success_rate": 1,
+          "tokens": {
+            "input": 15162,
+            "cache_read": 43264,
+            "output": 2421,
+            "total": 60847
+          },
+          "uncached_tokens": 17583,
+          "cost_usd": 0.008859,
+          "tool_calls": 16,
+          "mcp_tool_calls": 0,
+          "wall_ms_mean": 10276
+        },
+        "delta": {
+          "cc": {
+            "pairs": 3,
+            "saved_pct": -45,
+            "min": -61.7,
+            "max": -12.1
+          },
+          "cc_guided": {
+            "pairs": 3,
+            "saved_pct": -20.4,
+            "min": -60.2,
+            "max": 3.9
           }
         }
       },
@@ -355,127 +1676,382 @@
         "vanilla": {
           "success_rate": 1,
           "tokens": {
-            "input": 18,
-            "cache_read": 56276,
-            "output": 2741,
-            "total": 59035
+            "input": 28975,
+            "cache_read": 102784,
+            "output": 8845,
+            "total": 140604
           },
-          "uncached_tokens": 10443,
-          "cost_usd": 0.127619,
-          "tool_calls": 9,
+          "uncached_tokens": 37820,
+          "cost_usd": 0.020672,
+          "tool_calls": 32,
           "mcp_tool_calls": 0,
-          "wall_ms_mean": 19037
+          "wall_ms_mean": 23363
         },
         "cc": {
           "success_rate": 1,
           "tokens": {
-            "input": 16,
-            "cache_read": 66878,
-            "output": 2710,
-            "total": 69604
+            "input": 19272,
+            "cache_read": 35072,
+            "output": 5407,
+            "total": 59751
           },
-          "uncached_tokens": 17408,
-          "cost_usd": 0.185096,
-          "tool_calls": 12,
-          "mcp_tool_calls": 0,
-          "wall_ms_mean": 16891
+          "uncached_tokens": 24679,
+          "cost_usd": 0.013215,
+          "tool_calls": 13,
+          "mcp_tool_calls": 3,
+          "wall_ms_mean": 15103
+        },
+        "cc_guided": {
+          "success_rate": 1,
+          "tokens": {
+            "input": 18718,
+            "cache_read": 36480,
+            "output": 5375,
+            "total": 60573
+          },
+          "uncached_tokens": 24093,
+          "cost_usd": 0.012951,
+          "tool_calls": 11,
+          "mcp_tool_calls": 3,
+          "wall_ms_mean": 15132
         },
         "delta": {
           "cc": {
-            "pairs": 2,
-            "saved_pct": -66.7,
-            "min": -115.2,
-            "max": -38
+            "pairs": 3,
+            "saved_pct": 34.7,
+            "min": -9.3,
+            "max": 52.7
+          },
+          "cc_guided": {
+            "pairs": 3,
+            "saved_pct": 36.3,
+            "min": 7.9,
+            "max": 47.1
+          }
+        }
+      },
+      {
+        "task_id": "I2",
+        "vanilla": {
+          "success_rate": 1,
+          "tokens": {
+            "input": 39584,
+            "cache_read": 118272,
+            "output": 11314,
+            "total": 169170
+          },
+          "uncached_tokens": 50898,
+          "cost_usd": 0.027491,
+          "tool_calls": 34,
+          "mcp_tool_calls": 0,
+          "wall_ms_mean": 28527
+        },
+        "cc": {
+          "success_rate": 1,
+          "tokens": {
+            "input": 33157,
+            "cache_read": 40832,
+            "output": 6419,
+            "total": 80408
+          },
+          "uncached_tokens": 39576,
+          "cost_usd": 0.020156,
+          "tool_calls": 19,
+          "mcp_tool_calls": 3,
+          "wall_ms_mean": 16758
+        },
+        "cc_guided": {
+          "success_rate": 1,
+          "tokens": {
+            "input": 37440,
+            "cache_read": 92928,
+            "output": 6767,
+            "total": 137135
+          },
+          "uncached_tokens": 44207,
+          "cost_usd": 0.022511,
+          "tool_calls": 19,
+          "mcp_tool_calls": 6,
+          "wall_ms_mean": 19507
+        },
+        "delta": {
+          "cc": {
+            "pairs": 3,
+            "saved_pct": 22.2,
+            "min": -55.5,
+            "max": 60.3
+          },
+          "cc_guided": {
+            "pairs": 3,
+            "saved_pct": 13.1,
+            "min": -48,
+            "max": 55.7
+          }
+        }
+      },
+      {
+        "task_id": "I3",
+        "vanilla": {
+          "success_rate": 1,
+          "tokens": {
+            "input": 49868,
+            "cache_read": 157952,
+            "output": 11571,
+            "total": 219391
+          },
+          "uncached_tokens": 61439,
+          "cost_usd": 0.032332,
+          "tool_calls": 27,
+          "mcp_tool_calls": 0,
+          "wall_ms_mean": 30025
+        },
+        "cc": {
+          "success_rate": 1,
+          "tokens": {
+            "input": 25544,
+            "cache_read": 53376,
+            "output": 10174,
+            "total": 89094
+          },
+          "uncached_tokens": 35718,
+          "cost_usd": 0.020157,
+          "tool_calls": 19,
+          "mcp_tool_calls": 2,
+          "wall_ms_mean": 23309
+        },
+        "cc_guided": {
+          "success_rate": 1,
+          "tokens": {
+            "input": 23128,
+            "cache_read": 40192,
+            "output": 8593,
+            "total": 71913
+          },
+          "uncached_tokens": 31721,
+          "cost_usd": 0.017682,
+          "tool_calls": 14,
+          "mcp_tool_calls": 4,
+          "wall_ms_mean": 21088
+        },
+        "delta": {
+          "cc": {
+            "pairs": 3,
+            "saved_pct": 41.9,
+            "min": 19.6,
+            "max": 60.7
+          },
+          "cc_guided": {
+            "pairs": 3,
+            "saved_pct": 48.4,
+            "min": 23.8,
+            "max": 57.7
+          }
+        }
+      },
+      {
+        "task_id": "I4",
+        "vanilla": {
+          "success_rate": 0.3333333333333333,
+          "tokens": {
+            "input": 54132,
+            "cache_read": 258944,
+            "output": 21338,
+            "total": 334414
+          },
+          "uncached_tokens": 75470,
+          "cost_usd": 0.04305,
+          "tool_calls": 71,
+          "mcp_tool_calls": 0,
+          "wall_ms_mean": 50746
+        },
+        "cc": {
+          "success_rate": 0.3333333333333333,
+          "tokens": {
+            "input": 34723,
+            "cache_read": 142208,
+            "output": 25186,
+            "total": 202117
+          },
+          "uncached_tokens": 59909,
+          "cost_usd": 0.037532,
+          "tool_calls": 76,
+          "mcp_tool_calls": 0,
+          "wall_ms_mean": 58114
+        },
+        "cc_guided": {
+          "success_rate": 1,
+          "tokens": {
+            "input": 25348,
+            "cache_read": 115840,
+            "output": 14493,
+            "total": 155681
+          },
+          "uncached_tokens": 39841,
+          "cost_usd": 0.024055,
+          "tool_calls": 57,
+          "mcp_tool_calls": 7,
+          "wall_ms_mean": 35860
+        },
+        "delta": {
+          "cc": {
+            "pairs": 3,
+            "saved_pct": 20.6,
+            "min": -18.2,
+            "max": 46.7
+          },
+          "cc_guided": {
+            "pairs": 3,
+            "saved_pct": 47.2,
+            "min": 26,
+            "max": 66
+          }
+        }
+      },
+      {
+        "task_id": "I5",
+        "vanilla": {
+          "success_rate": 1,
+          "tokens": {
+            "input": 12738,
+            "cache_read": 20864,
+            "output": 930,
+            "total": 34532
+          },
+          "uncached_tokens": 13668,
+          "cost_usd": 0.006426,
+          "tool_calls": 6,
+          "mcp_tool_calls": 0,
+          "wall_ms_mean": 6071
+        },
+        "cc": {
+          "success_rate": 1,
+          "tokens": {
+            "input": 13135,
+            "cache_read": 24320,
+            "output": 633,
+            "total": 38088
+          },
+          "uncached_tokens": 13768,
+          "cost_usd": 0.006353,
+          "tool_calls": 6,
+          "mcp_tool_calls": 6,
+          "wall_ms_mean": 6048
+        },
+        "cc_guided": {
+          "success_rate": 1,
+          "tokens": {
+            "input": 13386,
+            "cache_read": 25344,
+            "output": 811,
+            "total": 39541
+          },
+          "uncached_tokens": 14197,
+          "cost_usd": 0.00662,
+          "tool_calls": 9,
+          "mcp_tool_calls": 7,
+          "wall_ms_mean": 6726
+        },
+        "delta": {
+          "cc": {
+            "pairs": 3,
+            "saved_pct": -0.7,
+            "min": -2.4,
+            "max": 2.1
+          },
+          "cc_guided": {
+            "pairs": 3,
+            "saved_pct": -3.9,
+            "min": -7.1,
+            "max": -1.9
+          }
+        }
+      },
+      {
+        "task_id": "I6",
+        "vanilla": {
+          "success_rate": 1,
+          "tokens": {
+            "input": 55449,
+            "cache_read": 395008,
+            "output": 29337,
+            "total": 479794
+          },
+          "uncached_tokens": 84786,
+          "cost_usd": 0.051075,
+          "tool_calls": 70,
+          "mcp_tool_calls": 0,
+          "wall_ms_mean": 71772
+        },
+        "cc": {
+          "success_rate": 1,
+          "tokens": {
+            "input": 24524,
+            "cache_read": 64640,
+            "output": 18266,
+            "total": 107430
+          },
+          "uncached_tokens": 42790,
+          "cost_usd": 0.026794,
+          "tool_calls": 33,
+          "mcp_tool_calls": 2,
+          "wall_ms_mean": 42333
+        },
+        "cc_guided": {
+          "success_rate": 1,
+          "tokens": {
+            "input": 40584,
+            "cache_read": 116992,
+            "output": 19202,
+            "total": 176778
+          },
+          "uncached_tokens": 59786,
+          "cost_usd": 0.034784,
+          "tool_calls": 36,
+          "mcp_tool_calls": 7,
+          "wall_ms_mean": 43127
+        },
+        "delta": {
+          "cc": {
+            "pairs": 3,
+            "saved_pct": 49.5,
+            "min": 22.3,
+            "max": 60.8
+          },
+          "cc_guided": {
+            "pairs": 3,
+            "saved_pct": 29.5,
+            "min": 20.5,
+            "max": 41.9
           }
         }
       }
-    ],
-    "by_phase": {
-      "cold": {
-        "vanilla": {
-          "sessions": 2,
-          "success_rate": 1,
-          "tokens": {
-            "input": 18,
-            "cache_read": 48586,
-            "output": 1952,
-            "total": 50556
-          },
-          "uncached_tokens": 13022,
-          "tool_calls": 8,
-          "mcp_tool_calls": 0,
-          "wall_ms_mean": 15443,
-          "index_ms_mean": 0,
-          "cost_usd": 0.137245
-        },
-        "cc": {
-          "sessions": 2,
-          "success_rate": 1,
-          "tokens": {
-            "input": 14,
-            "cache_read": 44414,
-            "output": 1626,
-            "total": 46054
-          },
-          "uncached_tokens": 17176,
-          "tool_calls": 7,
-          "mcp_tool_calls": 2,
-          "wall_ms_mean": 13723,
-          "index_ms_mean": 79,
-          "cost_usd": 0.165747
-        }
-      },
-      "warm": {
-        "vanilla": {
-          "sessions": 2,
-          "success_rate": 1,
-          "tokens": {
-            "input": 12,
-            "cache_read": 34961,
-            "output": 1607,
-            "total": 36580
-          },
-          "uncached_tokens": 5008,
-          "tool_calls": 5,
-          "mcp_tool_calls": 0,
-          "wall_ms_mean": 10625,
-          "index_ms_mean": 0,
-          "cost_usd": 0.066292
-        },
-        "cc": {
-          "sessions": 2,
-          "success_rate": 1,
-          "tokens": {
-            "input": 18,
-            "cache_read": 72164,
-            "output": 2049,
-            "total": 74231
-          },
-          "uncached_tokens": 9141,
-          "tool_calls": 11,
-          "mcp_tool_calls": 2,
-          "wall_ms_mean": 13561,
-          "index_ms_mean": 0,
-          "cost_usd": 0.112077
-        }
-      }
-    }
+    ]
   },
   "headline": {
-    "success_vanilla_pct": 100,
-    "success_cc_pct": 100,
-    "uncached_saved_pct": -46,
+    "success_vanilla_pct": 87.5,
+    "success_cc_pct": 91.7,
+    "success_cc_guided_pct": 100,
+    "uncached_saved_pct": 28,
+    "guided_uncached_saved_pct": 29.3,
     "uncached_saved_spread": {
-      "min": -82.5,
-      "max": -31.9,
-      "repeats": 2
+      "min": 14.3,
+      "max": 42.5,
+      "repeats": 3
     },
-    "cost_saved_pct": -36.5,
+    "guided_uncached_saved_spread": {
+      "min": 10.6,
+      "max": 39.7,
+      "repeats": 3
+    },
+    "cost_saved_pct": 26.8,
+    "guided_cost_saved_pct": 30.3,
     "uncached_per_pass": {
-      "vanilla": 4508,
-      "cc": 6579
+      "vanilla": 16719,
+      "cc": 11483,
+      "cc_guided": 10348
     },
-    "tokens_saved_pct": -38,
-    "tool_calls_saved_pct": -38.5
+    "tokens_saved_pct": 48.8,
+    "tool_calls_saved_pct": 22.9,
+    "guided_tokens_saved_pct": 47
   }
 }

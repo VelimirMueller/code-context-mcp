@@ -2,6 +2,118 @@
   "schema": "ccc-bench-index/1",
   "runs": [
     {
+      "run_id": "dsk-20261011-193311",
+      "kind": "agent-deepseek",
+      "date": "2026-10-11",
+      "ts": "2026-10-11T19:33:11Z",
+      "model": "deepseek/deepseek-v4-pro",
+      "trigger": "manual",
+      "headline": {
+        "success_vanilla_pct": 87.5,
+        "success_cc_pct": 91.7,
+        "success_cc_guided_pct": 100,
+        "uncached_saved_pct": 28,
+        "guided_uncached_saved_pct": 29.3,
+        "uncached_saved_spread": {
+          "min": 14.3,
+          "max": 42.5,
+          "repeats": 3
+        },
+        "guided_uncached_saved_spread": {
+          "min": 10.6,
+          "max": 39.7,
+          "repeats": 3
+        },
+        "cost_saved_pct": 26.8,
+        "guided_cost_saved_pct": 30.3,
+        "uncached_per_pass": {
+          "vanilla": 16719,
+          "cc": 11483,
+          "cc_guided": 10348
+        },
+        "tokens_saved_pct": 48.8,
+        "tool_calls_saved_pct": 22.9,
+        "guided_tokens_saved_pct": 47
+      }
+    },
+    {
+      "run_id": "glm-20261011-184607",
+      "kind": "agent-glm",
+      "date": "2026-10-11",
+      "ts": "2026-10-11T18:46:07Z",
+      "model": "zai-coding-plan/glm-5.3",
+      "trigger": "manual",
+      "headline": {
+        "success_vanilla_pct": 95.8,
+        "success_cc_pct": 87.5,
+        "success_cc_guided_pct": 87.5,
+        "uncached_saved_pct": 27.8,
+        "guided_uncached_saved_pct": 38.4,
+        "uncached_saved_spread": {
+          "min": 19.4,
+          "max": 40.4,
+          "repeats": 3
+        },
+        "guided_uncached_saved_spread": {
+          "min": 33.4,
+          "max": 43.5,
+          "repeats": 3
+        },
+        "cost_saved_pct": null,
+        "guided_cost_saved_pct": null,
+        "uncached_per_pass": {
+          "vanilla": 8919,
+          "cc": 7054,
+          "cc_guided": 6020
+        },
+        "tokens_saved_pct": 13.5,
+        "tool_calls_saved_pct": 3.7,
+        "guided_tokens_saved_pct": 18
+      }
+    },
+    {
+      "run_id": "sim-20261011-145451",
+      "kind": "simulated",
+      "date": "2026-10-11",
+      "ts": "2026-10-11T14:54:51Z",
+      "model": null,
+      "trigger": "manual",
+      "headline": {
+        "tokensSavedPct": 43.7,
+        "callsSavedPct": 27.9,
+        "mcpWinsPct": 92.5,
+        "wilcoxonP": 0,
+        "effectSizeR": 0.955
+      }
+    },
+    {
+      "run_id": "opus-20261011-145449",
+      "kind": "agent-opus",
+      "date": "2026-10-11",
+      "ts": "2026-10-11T14:54:49Z",
+      "model": "claude-opus-5-5",
+      "trigger": "manual",
+      "headline": {
+        "success_vanilla_pct": 75,
+        "success_cc_pct": 75,
+        "success_cc_guided_pct": 87.5,
+        "uncached_saved_pct": 11.2,
+        "guided_uncached_saved_pct": 15.4,
+        "uncached_saved_spread": null,
+        "guided_uncached_saved_spread": null,
+        "cost_saved_pct": 7.9,
+        "guided_cost_saved_pct": 13.5,
+        "uncached_per_pass": {
+          "vanilla": 10070,
+          "cc": 8946,
+          "cc_guided": 7306
+        },
+        "tokens_saved_pct": -19.7,
+        "tool_calls_saved_pct": -5.6,
+        "guided_tokens_saved_pct": -16.2
+      }
+    },
+    {
       "run_id": "opus-20261011-134112",
       "kind": "agent-opus",
       "date": "2026-10-11",
