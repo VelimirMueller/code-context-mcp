@@ -22,7 +22,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "node scripts/compile-skills.mjs && tsc && cp src/dashboard/dashboard.html dist/dashboard/ && cd src/dashboard/app && npx vite build",
+    "build": "node scripts/compile-skills.mjs && tsc && cp src/dashboard/dashboard.html dist/dashboard/ && node -e \"require('fs').rmSync('dist/dashboard/assets',{recursive:true,force:true})\" && cd src/dashboard/app && npx vite build",
     "start": "node dist/server/index.js",
     "dev": "tsx src/dashboard/dashboard.ts",
     "dashboard": "tsx src/dashboard/dashboard.ts",
