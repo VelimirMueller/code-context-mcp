@@ -46,7 +46,12 @@ describe('ladder', () => {
   it('runs S → XL in order via "ladder"', () => {
     const t = tasksByIds(['ladder']);
     expect(t.map((x) => x.id).join(',')).toBe(LADDER_TASKS);
-    expect(t.map((x) => x.size)).toEqual(['S', 'M', 'ML', 'L', 'XL']);
+    expect(t.map((x) => x.size)).toEqual(['S', 'M', 'ML', 'XL']);
+  });
+
+  it('L5 (grep + edit, the same in every arm) left the ladder but runs by id (CCA-09)', () => {
+    expect(LADDER_TASKS.split(',')).not.toContain('L5');
+    expect(tasksByIds(['L5']).map((x) => x.id)).toEqual(['L5']);
   });
 
   it('the src fixture copies src/ without node_modules or dist', () => {

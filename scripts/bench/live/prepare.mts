@@ -53,6 +53,7 @@ import {
   type WriteOpencodeConfigOpts,
 } from './opencode-config.mts';
 import { agentSpawnEnv } from './sandbox.mts';
+import { writeLargeFixture } from './large-fixture/generate.mts';
 import { CODE_CONTEXT_SERVER_ALIAS } from './parse-events.mts';
 import type { FixtureKind } from './tasks.mts';
 
@@ -71,12 +72,18 @@ const FIXTURE = path.join(repoRoot, 'test', 'fixtures', 'sample-project');
 /**
  * Copy the task's source into a fresh workspace. 'sample' = the 10-file
  * fixture; 'src' = this repo's src/ (≈160 files) plus package.json and
- * tsconfig.json — a real codebase for the larger ladder tasks. node_modules
- * and build output are never copied.
+ * tsconfig.json — a real codebase for the larger ladder tasks; 'large' = the
+ * generated ~680-file fixture of the index-shaped tasks (CCA-09), written
+ * from the deterministic generator and refused when its sha256 differs from
+ * the pinned one. node_modules and build output are never copied.
  */
 export function copyFixture(kind: FixtureKind, ws: string): void {
   if (kind === 'sample') {
     fs.cpSync(FIXTURE, ws, { recursive: true });
+    return;
+  }
+  if (kind === 'large') {
+    writeLargeFixture(ws);
     return;
   }
   fs.cpSync(path.join(repoRoot, 'src'), path.join(ws, 'src'), {

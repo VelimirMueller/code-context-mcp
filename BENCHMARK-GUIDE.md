@@ -27,6 +27,10 @@ npm run bench:live -- --provider glm       # reads ZAI_API_KEY
 npm run bench:live -- --provider deepseek  # reads DEEPSEEK_API_KEY
 npm run bench:live -- --provider opus      # Claude Code headless, reads CLAUDE_CODE_OAUTH_TOKEN
 npm run bench:live -- --provider glm --tasks L1,L2   # narrower task set
+npm run bench:live -- --provider glm --tasks index   # named set: smoke, index, ladder, default
+
+# Free dry check of the index-shaped tasks: no model, no key (needs the build)
+npm run bench:dry
 
 # Publish: commit data/ to the bench-results branch and push (builds the site)
 npm run bench:publish
@@ -54,6 +58,45 @@ Where each kind runs:
 - Run the ladder with 3 repeats: `npm run bench:live -- --provider <p> --tasks ladder --repeats 3 --timeout 900`.
 - **Cost** comes from the agent CLI: opencode's step cost (DeepSeek), Claude Code's `total_cost_usd` (Opus, at list price with prompt caching off, so an upper bound). GLM's coding plan is a subscription, so its cost is `null`.
 - **Ratios:** the site shows `cc = N× vanilla` for uncached tokens and cost. Below 1× is a saving. See [Metrics](#metrics).
+
+## Live task set
+
+Three fixtures, three task groups. `--tasks` takes ids, set names, or both (`--tasks smoke,I4`).
+
+| Set      | Tasks             | Fixture                                         | Purpose                                                   |
+| -------- | ----------------- | ----------------------------------------------- | --------------------------------------------------------- |
+| `smoke`  | L1, L2            | `test/fixtures/sample-project` (10 files)       | The harness works end to end: one lookup, one edit.       |
+| `index`  | I1–I6             | generated large fixture (683 files, 597k chars) | Questions an import graph answers and grep answers badly. |
+| `ladder` | L1, L3, L4, L6    | sample project, then a copy of this repo's src/ | Size ladder S → XL.                                       |
+| default  | `smoke` + `index` |                                                 | What `npm run bench:live` runs without `--tasks`.         |
+
+- **L5 left the ladder (2026-10-11, CCA-09).** It is a rename: grep plus edits, the same work in every arm, so it cannot show an index. It still runs by id: `--tasks L5`. S1 (sandbox probe) also runs by id only.
+
+### Why a large fixture
+
+- The sample project has 10 files (215 lines). Two reads beat any index there.
+- Only L4 and L6 (on this repo's `src/`) were index-shaped; their answers move with every commit.
+- The large fixture is a **generated** TypeScript codebase: 20 business domains under `src/<domain>/` (model, repo, service, api, helpers, events, validation, jobs, tests, an `index.ts` barrel), a shared kernel `src/core/` with a barrel, platform layers `src/platform/`, a composition root `src/app/`. It has `export *` and `export { … } from` barrels, `import type`, `.js` specifiers, namespace imports, dynamic `import()`, cross-domain import cycles and many dead exports. It type-checks under `tsc --strict`.
+- **Why generated, not a vendored open-source repo:** the answers must be exact and fixed, the git repo must not grow by megabytes, and unit tests must run offline. The generator (`scripts/bench/live/large-fixture/generate.mts`) is seeded; it writes the same bytes on every machine in about 70 ms. No third-party code is in it, so the repo's licence covers it. The cost: the code is plausible but repetitive.
+- **Pinned:** `large-fixture/answers.json` holds the file count, the sha256 of the tree, and every answer. The workspace preparation refuses a tree whose hash differs.
+- **Independent answers:** `large-fixture/answer-key.mts` computes the answers with the TypeScript compiler API (its parser, `ts.resolveModuleName` with Bundler resolution, and the checker's alias resolution through barrels). It never uses code-context's parser, resolver or index.
+- **Change the generator:** run `npx tsx scripts/bench/live/large-fixture/answer-key.mts --write`, review the `answers.json` diff, commit both. A unit test fails when you forget.
+
+### The index-shaped tasks
+
+Prompts name no tools. Each defines its terms, because "imports" and "unused" are ambiguous without that. Path answers are scored with the CCA-07 `answerPaths` rules: lines that start with a path are the claims, commentary does not count.
+
+| Id  | Question                                                                   | Answer size | Traps                                                                                                                 | Checker               |
+| --- | -------------------------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| I1  | Files whose import statements name `src/platform/http/retry.ts` (it moves) | 11 files    | type-only and `.js` imports, an `export … from`, a dynamic `import()`, sibling `retry-budget.ts`, a local `withRetry` | all, ≤ 1 extra        |
+| I2  | Same for `src/orders/model/order-line.ts`                                  | 10 files    | the orders barrel re-exports it: files that import through the barrel are wrong                                       | all, ≤ 1 extra        |
+| I3  | Files that import the function `formatMoney`, directly or through a barrel | 12 files    | 8 of 12 import through `src/core/index.ts`, one under an alias; `formatMoneyRange` importers; a same-named local      | all, ≤ 1 extra        |
+| I4  | Unused exports of `src/catalog/utils/`                                     | 7 of 17     | a barrel re-export nobody imports, a whole-module `import()`, a type-only use, a comment mention, same-named locals   | all, ≤ 1 wrong        |
+| I5  | The file that declares the exported function `resolveTaxRate`              | 1 file      | 2 same-named locals, an interface member, a barrel re-export, a stale comment that names the wrong file               | first path must be it |
+| I6  | Files that depend on `src/loyalty/utils/points-math.ts` in 1 or 2 hops     | 16 files    | an import cycle back into the target; "via re-export" files are 3 hops                                                | all, ≤ 1 extra        |
+
+- **What grep costs here** (measured 2026-10-11): grepping each task's key string and reading every hit is 5k–27k characters (I2 27k, I3 23k, I4 19k, I1 17k, I5 12k, I6 5k), plus the turns to chase barrels and hops. The matching graph-tool output is 0.25k–3.6k characters. The traps decide correctness more than the reading cost decides tokens; expect the arms to differ mostly in success rate and turns.
+- **Dry check** (`npm run bench:dry`, free): builds a real cc workspace per I-task with the same preparation path as a live run, starts `dist/server/index.js` over stdio in it, calls `who_imports`, `exports_in` or `find_symbol`, and compares the result with the pinned answers and the task's checker. It proves that the server can answer each task; it says nothing about whether a model will.
 
 ## Fresh sessions
 
@@ -129,7 +172,8 @@ For local runs, use throwaway provider keys with spending limits: the checker ex
 ## Cost
 
 - `simulated` costs nothing. No model runs.
-- `bench:live` spends real tokens. Each task runs twice: once without the server, once with it. The default task set is small on purpose. Use `--tasks` to cut it further. A full run costs task count × 2 sessions of prompt and tool traffic.
+- `bench:live` spends real tokens. Each task runs once per arm (vanilla, cc, cc-guided) and repeat. The default set has 8 tasks (smoke + index), so a default run is 24 sessions per repeat. Use `--tasks` to cut it (`--tasks smoke`, `--tasks I3,I4`).
+- `npm run bench:dry` costs nothing: no model runs.
 - Single-repeat agent numbers show a direction, not a distribution. Use `--repeats` for more, and expect the cost to scale.
 
 ---

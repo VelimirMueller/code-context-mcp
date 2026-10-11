@@ -1,7 +1,10 @@
 /**
- * Live bench task set (PLAN.md task 6).
+ * Live bench task set (PLAN.md task 6; index-shaped set CCA-09, #124).
  *
- * Three small tasks against test/fixtures/sample-project. Each task pairs a
+ * Three fixtures: the 10-file sample project (smoke tasks L1–L3), a copy of
+ * this repo's src/ (ladder tasks L4–L6) and the generated ~680-file large
+ * fixture (index-shaped tasks I1–I6, scripts/bench/live/large-fixture/,
+ * answers pinned in answers.json). Each task pairs a
  * prompt (what the agent sees) with a deterministic checker (what the bench
  * believes). Hidden check files under scripts/bench/live/checks/ are never
  * shown to the agent.
@@ -14,7 +17,8 @@
  * the workspace — only `external_directory: deny` can stop it.
  *
  * L1 is the smallest task — `npm run bench:live -- --tasks L1` runs just it.
- * S1 is the opt-in sandbox probe (not part of DEFAULT_LIVE_TASKS, so it
+ * Named sets: smoke (L1,L2), index (I1–I6), ladder (L1,L3,L4,L6); the
+ * default is smoke + index. S1 is the opt-in sandbox probe (not part of DEFAULT_LIVE_TASKS, so it
  * never pollutes benchmark metrics).
  */
 
@@ -55,10 +59,40 @@ export type CheckerSpec =
       dir: string;
       minRecall: number;
       minPrecision: number;
+    }
+  | {
+      /**
+       * Large fixture: the answer's claimed paths (answerPaths, CCA-07 rules)
+       * must cover the pinned list in large-fixture/answers.json. `first`:
+       * only the first claimed path counts and must be the (single) answer.
+       */
+      type: 'pinned-paths';
+      key: PinnedPathKey;
+      maxExtra: number;
+      /** Paths never counted as extra (the subject file itself). */
+      ignore?: string[];
+      first?: boolean;
+    }
+  | {
+      /** Large fixture: unused exports named as `file: name` lines vs the pinned list. */
+      type: 'pinned-exports';
+      key: 'catalogUtilsUnused';
+      maxExtra: number;
     };
 
-/** Workspace source: the small sample project or a copy of this repo's src/. */
-export type FixtureKind = 'sample' | 'src';
+/** Pinned path answers of the large fixture (keys of answers.json `answers`). */
+export type PinnedPathKey =
+  | 'retryImporters'
+  | 'orderLineImporters'
+  | 'formatMoneyImporters'
+  | 'resolveTaxRateDefinition'
+  | 'pointsMathTwoHop';
+
+/**
+ * Workspace source: the small sample project, a copy of this repo's src/, or
+ * the generated large fixture (CCA-09).
+ */
+export type FixtureKind = 'sample' | 'src' | 'large';
 
 /** Ladder size, shown in results (S, M, ML, L, XL). */
 export type TaskSize = 'S' | 'M' | 'ML' | 'L' | 'XL';
@@ -77,6 +111,20 @@ export interface LiveTask {
 // 30 sessions). Only the environment fact stays; which tools to use is up to
 // the agent and, in the cc-guided arm, its system prompt.
 const TOOLS_NOTE = 'The bash tool is disabled in this environment.';
+
+const TREE = 'This is the source tree of a TypeScript project. ';
+const ONE_PER_LINE = 'Answer with the file paths relative to the project root, one per line. ';
+/** What "file A imports module M" means in the I-tasks: any static, type, re-export or dynamic form. */
+const IMPORT_FORMS =
+  'an import, `import type`, `export … from` or dynamic `import()` statement whose module specifier resolves to';
+
+/** I1/I2: the direct importers of a module that is about to move. */
+const movePrompt = (file: string): string =>
+  TREE +
+  `The module ${file} is going to move. List every file that has ${IMPORT_FORMS} ${file} — ` +
+  'the statements that will need a new path. Files that reach it only through another module do not count. ' +
+  ONE_PER_LINE +
+  TOOLS_NOTE;
 
 export const LIVE_TASKS: LiveTask[] = [
   {
@@ -168,6 +216,112 @@ export const LIVE_TASKS: LiveTask[] = [
       TOOLS_NOTE,
     checker: { type: 'dead-exports', dir: 'src/server', minRecall: 0.8, minPrecision: 0.8 },
   },
+  // ---- index-shaped tasks on the large fixture (CCA-09, #124) ----
+  // ~680 generated files, ~600k chars: reading or grepping the whole tree costs
+  // far more than 50k chars, so an import graph can pay off. Answers come from
+  // the TypeScript compiler API (large-fixture/answer-key.mts), never from
+  // code-context, and are pinned in large-fixture/answers.json.
+  {
+    // Direct importers, no barrel involved; type-only, `.js`, re-export and
+    // dynamic-import forms, plus a similarly named sibling (retry-budget.ts).
+    id: 'I1',
+    size: 'L',
+    fixture: 'large',
+    prompt: movePrompt('src/platform/http/retry.ts'),
+    checker: {
+      type: 'pinned-paths',
+      key: 'retryImporters',
+      maxExtra: 1,
+      ignore: ['src/platform/http/retry.ts'],
+    },
+  },
+  {
+    // Direct importers of a module that a barrel also re-exports: files that
+    // import it through the barrel must be left out.
+    id: 'I2',
+    size: 'L',
+    fixture: 'large',
+    prompt: movePrompt('src/orders/model/order-line.ts'),
+    checker: {
+      type: 'pinned-paths',
+      key: 'orderLineImporters',
+      maxExtra: 1,
+      ignore: ['src/orders/model/order-line.ts'],
+    },
+  },
+  {
+    // Importers of a symbol, directly, aliased or through the core barrel;
+    // decoys: formatMoneyRange importers, a same-named local function.
+    id: 'I3',
+    size: 'L',
+    fixture: 'large',
+    prompt:
+      TREE +
+      'Which files import the function `formatMoney` that src/core/money.ts declares? Count a file when ' +
+      'one of its import statements binds `formatMoney` (under its own name or an alias), either from ' +
+      'src/core/money.ts or from a barrel that re-exports it. Barrels that only re-export it, files that ' +
+      'import other names only, and files that merely mention the name do not count. ' +
+      ONE_PER_LINE +
+      TOOLS_NOTE,
+    checker: {
+      type: 'pinned-paths',
+      key: 'formatMoneyImporters',
+      maxExtra: 1,
+      ignore: ['src/core/money.ts'],
+    },
+  },
+  {
+    // Unused exports with every trap: a barrel re-export nobody imports, a
+    // whole-module import(), a type-only use, comment and local-name decoys.
+    id: 'I4',
+    size: 'XL',
+    fixture: 'large',
+    prompt:
+      TREE +
+      'Find the unused exports of the files directly in src/catalog/utils/. An export is used when a file ' +
+      'other than its own imports it: by name, through a barrel that re-exports it (the re-export alone is ' +
+      'not a use; a file must import the name from the barrel), or by importing its whole module ' +
+      '(`import * as …`, or an `import()` without destructuring). Comments, same-named local variables or ' +
+      'functions in other files, and uses inside its own file do not count. Cover every export form ' +
+      '(functions, constants, classes, interfaces, types). List each unused export on its own line, ' +
+      'formatted `file: name`. ' +
+      TOOLS_NOTE,
+    checker: { type: 'pinned-exports', key: 'catalogUtilsUnused', maxExtra: 1 },
+  },
+  {
+    // Definition lookup with decoys: two same-named locals, an interface
+    // member, a stale comment that names the wrong file, a prefix name.
+    id: 'I5',
+    size: 'ML',
+    fixture: 'large',
+    prompt:
+      TREE +
+      'Several files mention `resolveTaxRate`. Which file contains the declaration of the exported ' +
+      'function `resolveTaxRate` (not a re-export, an import or a same-named local)? Answer with that ' +
+      'file path relative to the project root on the first line. ' +
+      TOOLS_NOTE,
+    checker: { type: 'pinned-paths', key: 'resolveTaxRateDefinition', maxExtra: 0, first: true },
+  },
+  {
+    // Two hops, with an import cycle back into the target.
+    id: 'I6',
+    size: 'XL',
+    fixture: 'large',
+    prompt:
+      TREE +
+      'Which files depend on src/loyalty/utils/points-math.ts directly or through exactly one ' +
+      `intermediate file? File A depends directly on module M when A has ${IMPORT_FORMS} M. ` +
+      'List every file that depends directly on points-math.ts, plus every file that depends directly on ' +
+      'one of those files. Do not list points-math.ts itself. ' +
+      ONE_PER_LINE +
+      TOOLS_NOTE,
+    checker: {
+      type: 'pinned-paths',
+      key: 'pointsMathTwoHop',
+      maxExtra: 1,
+      ignore: ['src/loyalty/utils/points-math.ts'],
+    },
+  },
   {
     // Opt-in sandbox probe (verification for the 2026-10-10 security audit):
     // forces the attempts whose refusals prove the sandbox holds. Not in
@@ -195,10 +349,29 @@ export const LIVE_TASKS: LiveTask[] = [
   },
 ];
 
-export const DEFAULT_LIVE_TASKS = 'L1,L2';
+/** Smoke set: the small sample-project tasks (one read, one edit). */
+export const SMOKE_TASKS = 'L1,L2';
 
-/** The size ladder S → XL: `npm run bench:live -- --provider <p> --tasks ladder`. */
-export const LADDER_TASKS = 'L1,L3,L4,L5,L6';
+/** Index-shaped set on the large fixture (CCA-09): where an import graph can beat grep + read. */
+export const INDEX_TASKS = 'I1,I2,I3,I4,I5,I6';
+
+/** `npm run bench:live` without --tasks: the index-shaped set plus the smoke set. */
+export const DEFAULT_LIVE_TASKS = `${SMOKE_TASKS},${INDEX_TASKS}`;
+
+/**
+ * The size ladder S → XL: `npm run bench:live -- --provider <p> --tasks ladder`.
+ * L5 (a rename: grep + edit, the same in every arm) is not in it any more
+ * (CCA-09); it stays runnable by id (`--tasks L5`).
+ */
+export const LADDER_TASKS = 'L1,L3,L4,L6';
+
+/** Named task sets `--tasks` accepts, alone or mixed with ids (`--tasks smoke,I4`). */
+export const TASK_SETS: Readonly<Record<string, string>> = {
+  smoke: SMOKE_TASKS,
+  index: INDEX_TASKS,
+  ladder: LADDER_TASKS,
+  default: DEFAULT_LIVE_TASKS,
+};
 
 /** Per-session values a task prompt may reference. */
 export interface PromptContext {
@@ -215,13 +388,13 @@ export function renderPrompt(task: LiveTask, ctx: PromptContext): string {
 }
 
 export function tasksByIds(ids: string[]): LiveTask[] {
-  if (ids.length === 1 && ids[0] === 'ladder') ids = LADDER_TASKS.split(',');
+  ids = ids.flatMap((id) => (Object.hasOwn(TASK_SETS, id) ? TASK_SETS[id].split(',') : [id]));
   const found: LiveTask[] = [];
   for (const id of ids) {
     const t = LIVE_TASKS.find((x) => x.id === id);
     if (!t)
       throw new Error(
-        `bench:live: unknown task id ${id} (known: ${LIVE_TASKS.map((x) => x.id).join(', ')})`,
+        `bench:live: unknown task id ${id} (known: ${LIVE_TASKS.map((x) => x.id).join(', ')}; sets: ${Object.keys(TASK_SETS).join(', ')})`,
       );
     found.push(t);
   }

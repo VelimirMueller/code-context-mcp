@@ -80,11 +80,27 @@ afterAll(() => {
 });
 
 describe('task set', () => {
-  it('defines L1–L6 with prompts and checkers', () => {
-    expect(LIVE_TASKS.map((t) => t.id)).toEqual(['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'S1']);
+  it('defines L1–L6 and I1–I6 with prompts and checkers', () => {
+    expect(LIVE_TASKS.map((t) => t.id)).toEqual([
+      'L1',
+      'L2',
+      'L3',
+      'L4',
+      'L5',
+      'L6',
+      'I1',
+      'I2',
+      'I3',
+      'I4',
+      'I5',
+      'I6',
+      'S1',
+    ]);
     for (const t of LIVE_TASKS) {
       expect(t.prompt.length).toBeGreaterThan(20);
-      expect(t.checker.type).toMatch(/^(answer|symbol|tests|importers|rename|dead-exports)$/);
+      expect(t.checker.type).toMatch(
+        /^(answer|symbol|tests|importers|rename|dead-exports|pinned-paths|pinned-exports)$/,
+      );
     }
   });
 
