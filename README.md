@@ -1,6 +1,6 @@
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="assets/banner/hero-v3-light.svg">
-  <img alt="code-context-mcp. Read less. Know more. Stable, v2.10.0. MCP, code index, sprints, dashboard." src="assets/banner/hero-v3-dark.svg" width="100%">
+  <img alt="code-context-mcp. Read less. Know more. Stable, v2.11.0. MCP, code index, sprints, dashboard." src="assets/banner/hero-v3-dark.svg" width="100%">
 </picture>
 
 <p align="center">
@@ -305,10 +305,10 @@ npm run dashboard:dev
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/readme/status-v3-dark.svg">
-  <img alt="Release: 2.10.0 on npm. Python index: since 2.8. Tests: 1014, vitest. Dashboard: 7 pages, live. Fun + stream: hidden unless opted in" src="assets/readme/status-v3-light.svg" width="100%">
+  <img alt="Release: 2.11.0 on npm. Python index: since 2.8. Tests: 1052, vitest. Dashboard: 7 pages, live. Fun + stream: hidden unless opted in" src="assets/readme/status-v3-light.svg" width="100%">
 </picture>
 
-- **Stable.** 2.10.0 on npm. The npm badge shows the live version.
+- **Stable.** 2.11.0 on npm. The npm badge shows the live version.
 - Tests: `npm test` (backend) · `npm run test:all` (backend + frontend).
 - Changes: [`CHANGELOG.md`](CHANGELOG.md). Release highlights 2.0 to 2.8: [docs/REFERENCE.md](docs/REFERENCE.md#release-highlights).
 - License: MIT.
