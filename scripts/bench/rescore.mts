@@ -30,6 +30,7 @@ import { runChecker } from './live/checkers.mts';
 import { parseClaudeStream } from './live/parse-claude.mts';
 import { parseEventStream } from './live/parse-events.mts';
 import { LIVE_TASKS, type LiveTask } from './live/tasks.mts';
+import { renormalizeProblem, renormalizeRun } from './renormalize.mts';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -172,6 +173,12 @@ export async function rescoreRun(input: RunJson, opts: RescoreOpts): Promise<Res
     if (cur && RESCORABLE.has(cur.checker.type)) t.checker = cur.checker;
   }
 
+  // A full run file: success feeds the per-PASS metrics (CCA-08), so
+  // recompute aggregate + headline from the (rescored) sessions.
+  const full = run as unknown as { aggregate: { tokens?: unknown } };
+  if (full.aggregate.tokens && renormalizeProblem(run) === null) {
+    return { run: renormalizeRun(run).run, changes, kept, rates };
+  }
   return { run, changes, kept, rates };
 }
 

@@ -281,6 +281,26 @@
     return isNum(x) ? '$' + x.toFixed(x < 1 ? 4 : 2) : 'n/a';
   }
 
+  // "a–b× vanilla" from a saved-% spread (min saved = the highest ratio).
+  function spreadText(sp) {
+    return sp && isNum(sp.min) && isNum(sp.max)
+      ? (1 - sp.max / 100).toFixed(2) + '–' + (1 - sp.min / 100).toFixed(2) + '×'
+      : null;
+  }
+  function perPassText(pp, guided) {
+    pp = pp || {};
+    return (
+      'vanilla ' +
+      rawfmt(pp.vanilla) +
+      ' · cc ' +
+      rawfmt(pp.cc) +
+      (guided ? ' · guided ' + rawfmt(pp.cc_guided) : '')
+    );
+  }
+
+  // Headline (CCA-08): success, uncached tokens (input + output + cache
+  // write), cost, uncached tokens per PASS. The all-tokens total is mostly
+  // cache reads (billed at ~1 % of input), so it lives in the detail only.
   function headlineAgent(run, box) {
     var a = D.agentOf(run);
     var guided = isNum(a.successCcGuidedPct);
@@ -289,9 +309,29 @@
       { label: 'SUCCESS CC', value: pct1(a.successCcPct) },
     ];
     if (guided) tiles.push({ label: 'SUCCESS GUIDED', value: pct1(a.successCcGuidedPct) });
-    tiles.push({ label: 'TOKENS CC', value: ratioText(a.tokensSavedPct) });
-    if (guided) tiles.push({ label: 'TOKENS GUIDED', value: ratioText(a.guidedTokensSavedPct) });
+    tiles.push({ label: 'UNCACHED CC', value: ratioText(a.uncachedSavedPct) });
+    if (guided)
+      tiles.push({ label: 'UNCACHED GUIDED', value: ratioText(a.guidedUncachedSavedPct) });
+    tiles.push({ label: 'COST CC', value: ratioText(a.costSavedPct) });
+    if (guided) tiles.push({ label: 'COST GUIDED', value: ratioText(a.guidedCostSavedPct) });
     box.appendChild(framesNode(tiles));
+    var sp = spreadText(a.uncachedSpread);
+    var gsp = guided ? spreadText(a.guidedUncachedSpread) : null;
+    box.appendChild(
+      el('p', { class: 'sub' }, [
+        'Uncached tokens per PASS: ' +
+          perPassText(a.uncachedPerPass, guided) +
+          '.' +
+          (sp
+            ? ' Uncached over ' +
+              a.uncachedSpread.repeats +
+              ' repeats: cc ' +
+              sp +
+              (gsp ? ', guided ' + gsp : '') +
+              ' vanilla.'
+            : ''),
+      ]),
+    );
     if (a.mcpCalls && isNum(a.mcpCalls.cc)) {
       box.appendChild(
         el('p', { class: 'sub' }, [
@@ -316,7 +356,8 @@
         wall +
           (guided
             ? 'Same agent, same tasks: without the server, with it, and with it plus the instruction to use it first.'
-            : 'Same agent, same tasks, once without and once with the code-context MCP server.'),
+            : 'Same agent, same tasks, once without and once with the code-context MCP server.') +
+          ' Uncached = input + output + cache write; all tokens incl. cache reads are in the detail.',
       ]),
     );
   }
@@ -493,12 +534,21 @@
         (isNum(h.success_cc_guided_pct)
           ? ' / ' + pct1(h.success_cc_guided_pct).trim() + ' guided'
           : '') +
-        ' success · cc ' +
-        ratioText(h.tokens_saved_pct) +
-        (isNum(h.guided_tokens_saved_pct)
-          ? ' · guided ' + ratioText(h.guided_tokens_saved_pct)
-          : '') +
-        ' tokens'
+        ' success · ' +
+        (isNum(h.uncached_saved_pct)
+          ? 'uncached cc ' +
+            ratioText(h.uncached_saved_pct) +
+            (isNum(h.guided_uncached_saved_pct)
+              ? ' · guided ' + ratioText(h.guided_uncached_saved_pct)
+              : '') +
+            (isNum(h.cost_saved_pct) ? ' · cost cc ' + ratioText(h.cost_saved_pct) : '')
+          : // pre-CCA-08 index entry: only the all-tokens figure exists
+            'cc ' +
+            ratioText(h.tokens_saved_pct) +
+            (isNum(h.guided_tokens_saved_pct)
+              ? ' · guided ' + ratioText(h.guided_tokens_saved_pct)
+              : '') +
+            ' tokens')
       );
     var v =
       isNum(h.nv_lo) && h.nv_lo > 0
@@ -767,59 +817,78 @@
     var a = D.agentOf(run);
     var raw = run.raw || {};
     var rows = a.perTask.length ? a.perTask : [];
+    var guided = rows.some(function (p) {
+      return p && p.cc_guided;
+    });
     // Ladder size per task (S, M, ML, L, XL) from the run's task list, when present.
     var sizeOf = {};
     (Array.isArray(raw.tasks) ? raw.tasks : []).forEach(function (t) {
       if (t && typeof t.id === 'string' && typeof t.size === 'string') sizeOf[t.id] = t.size;
     });
+    // Success per task: success_rate (repeats) or a boolean (single-repeat demo runs).
+    function okCell(o) {
+      o = o || {};
+      var r = isNum(o.success_rate)
+        ? o.success_rate
+        : o.success === true
+          ? 1
+          : o.success === false
+            ? 0
+            : null;
+      if (r === null) return el('td', null, ['n/a']);
+      var txt = isNum(o.success_rate) ? Math.round(r * 100) + ' %' : r === 1 ? 'yes' : 'no';
+      return el('td', { class: r === 1 ? 'pos' : 'neg' }, [txt]);
+    }
+    // Paired uncached delta vs vanilla, with the min–max over repeats.
+    // Green = the arm used fewer uncached tokens, red = more.
+    function deltaCell(d) {
+      if (!d || !isNum(d.saved_pct)) return el('td', null, ['n/a']);
+      var txt =
+        sgn(d.saved_pct, 1) +
+        ' %' +
+        (d.pairs > 1 ? ' [' + sgn(d.min, 1) + ' … ' + sgn(d.max, 1) + ']' : '');
+      return el('td', { class: d.saved_pct > 0 ? 'pos' : d.saved_pct < 0 ? 'neg' : null }, [txt]);
+    }
     if (rows.length) {
       var tb = el('table');
       var hd = el('tr');
-      [
-        'Task',
-        'OK vanilla',
-        'OK cc',
-        'Tok in van',
-        'Tok out van',
-        'Tok in cc',
-        'Tok out cc',
-        'Calls van',
-        'Calls cc',
-        'MCP calls',
-        'Wall van',
-        'Wall cc',
-      ].forEach(function (t) {
+      var heads = ['Task', 'OK vanilla', 'OK cc'];
+      if (guided) heads.push('OK guided');
+      heads.push('Uncached van', 'Uncached cc', 'Δ uncached cc (min … max)');
+      if (guided) heads.push('Uncached guided', 'Δ uncached guided');
+      heads.push('Calls van', 'Calls cc', 'MCP calls', 'Wall van', 'Wall cc');
+      heads.forEach(function (t) {
         hd.appendChild(el('th', null, [t]));
       });
       tb.appendChild(hd);
       rows.forEach(function (p) {
         var v = p.vanilla || {};
         var c = p.cc || {};
-        function tf(o, k) {
-          return o && o.tokens && isNum(o.tokens[k]) ? rawfmt(o.tokens[k]) : 'n/a';
-        }
-        tb.appendChild(
-          el('tr', null, [
-            el('td', null, [
-              String(p.task_id) + (sizeOf[p.task_id] ? ' · ' + sizeOf[p.task_id] : ''),
-            ]),
-            el('td', { class: v.success === true ? 'pos' : 'neg' }, [
-              v.success === true ? 'yes' : v.success === false ? 'no' : 'n/a',
-            ]),
-            el('td', { class: c.success === true ? 'pos' : 'neg' }, [
-              c.success === true ? 'yes' : c.success === false ? 'no' : 'n/a',
-            ]),
-            el('td', null, [tf(v, 'input')]),
-            el('td', null, [tf(v, 'output')]),
-            el('td', null, [tf(c, 'input')]),
-            el('td', null, [tf(c, 'output')]),
-            el('td', null, [rawfmt(v.tool_calls)]),
-            el('td', null, [rawfmt(c.tool_calls)]),
-            el('td', null, [rawfmt(c.mcp_tool_calls)]),
-            el('td', null, [msFmt(v.wall_ms)]),
-            el('td', null, [msFmt(c.wall_ms)]),
+        var hv = D.taskHonestOf(run, p, 'vanilla');
+        var hc = D.taskHonestOf(run, p, 'cc');
+        var hg = guided ? D.taskHonestOf(run, p, 'cc_guided') : null;
+        var cells = [
+          el('td', null, [
+            String(p.task_id) + (sizeOf[p.task_id] ? ' · ' + sizeOf[p.task_id] : ''),
           ]),
+          okCell(v),
+          okCell(c),
+        ];
+        if (guided) cells.push(okCell(p.cc_guided));
+        cells.push(
+          el('td', null, [rawfmt(hv.uncached)]),
+          el('td', null, [rawfmt(hc.uncached)]),
+          deltaCell(hc.delta),
         );
+        if (guided) cells.push(el('td', null, [rawfmt(hg.uncached)]), deltaCell(hg.delta));
+        cells.push(
+          el('td', null, [rawfmt(v.tool_calls)]),
+          el('td', null, [rawfmt(c.tool_calls)]),
+          el('td', null, [rawfmt(c.mcp_tool_calls)]),
+          el('td', null, [msFmt(isNum(v.wall_ms_mean) ? v.wall_ms_mean : v.wall_ms)]),
+          el('td', null, [msFmt(isNum(c.wall_ms_mean) ? c.wall_ms_mean : c.wall_ms)]),
+        );
+        tb.appendChild(el('tr', null, cells));
       });
       box.appendChild(el('div', { class: 'tablewrap' }, [tb]));
     }
@@ -849,12 +918,63 @@
     var tv = tk.vanilla || {};
     var tc = tk.cc || {};
     var cl = a.toolCalls || {};
-    row('Tokens (vanilla)', tokLine(tv));
-    row('Tokens (cc)', tokLine(tc));
-    row('Tokens cc', ratioText(a.tokensSavedPct));
+    var un = a.uncached || {};
+    var g = isNum(a.successCcGuidedPct) || !!tk.cc_guided;
+    row(
+      'Uncached tokens',
+      'vanilla ' +
+        rawfmt(un.vanilla) +
+        ' · cc ' +
+        rawfmt(un.cc) +
+        ' (' +
+        ratioText(a.uncachedSavedPct) +
+        (spreadText(a.uncachedSpread)
+          ? ', ' + spreadText(a.uncachedSpread) + ' over repeats'
+          : '') +
+        ')' +
+        (g
+          ? ' · guided ' +
+            rawfmt(un.cc_guided) +
+            ' (' +
+            ratioText(a.guidedUncachedSavedPct) +
+            (spreadText(a.guidedUncachedSpread)
+              ? ', ' + spreadText(a.guidedUncachedSpread) + ' over repeats'
+              : '') +
+            ')'
+          : ''),
+    );
+    row('Uncached per PASS', perPassText(a.uncachedPerPass, g));
+    var pp = a.perPass || {};
+    if (pp.vanilla && isNum(pp.vanilla.passes)) {
+      var passes = function (o) {
+        return o ? rawfmt(o.passes) + '/' + rawfmt(o.sessions) : 'n/a';
+      };
+      row(
+        'PASS / sessions',
+        'vanilla ' +
+          passes(pp.vanilla) +
+          ' · cc ' +
+          passes(pp.cc) +
+          (g ? ' · guided ' + passes(pp.cc_guided) : ''),
+      );
+      if (isNum(pp.vanilla.tokens_per_pass) || isNum(pp.cc && pp.cc.tokens_per_pass))
+        row(
+          'All tokens per PASS',
+          'vanilla ' +
+            rawfmt(pp.vanilla.tokens_per_pass) +
+            ' · cc ' +
+            rawfmt(pp.cc && pp.cc.tokens_per_pass) +
+            (g ? ' · guided ' + rawfmt(pp.cc_guided && pp.cc_guided.tokens_per_pass) : ''),
+        );
+    }
+    // All tokens = input + cache_read + output: mostly cache reads, which
+    // providers bill at ~1 % of input. Shown for completeness, not as a result.
+    row('All tokens (vanilla)', tokLine(tv));
+    row('All tokens (cc)', tokLine(tc));
+    row('All tokens cc', ratioText(a.tokensSavedPct));
     if (tk.cc_guided) {
-      row('Tokens (guided)', tokLine(tk.cc_guided));
-      row('Tokens guided', ratioText(a.guidedTokensSavedPct));
+      row('All tokens (guided)', tokLine(tk.cc_guided));
+      row('All tokens guided', ratioText(a.guidedTokensSavedPct));
     }
     if (a.mcpCalls && isNum(a.mcpCalls.cc)) {
       row(
@@ -871,8 +991,22 @@
           usd(a.cost.vanilla) +
           ' · cc ' +
           usd(a.cost.cc) +
-          (tk.cc_guided ? ' · guided ' + usd(a.cost.cc_guided) : ''),
+          (isNum(a.costSavedPct) ? ' (' + ratioText(a.costSavedPct) + ')' : '') +
+          (tk.cc_guided
+            ? ' · guided ' +
+              usd(a.cost.cc_guided) +
+              (isNum(a.guidedCostSavedPct) ? ' (' + ratioText(a.guidedCostSavedPct) + ')' : '')
+            : ''),
       );
+      if (pp.vanilla && (isNum(pp.vanilla.cost_per_pass) || isNum(pp.cc && pp.cc.cost_per_pass)))
+        row(
+          'Cost per PASS',
+          'vanilla ' +
+            usd(pp.vanilla.cost_per_pass) +
+            ' · cc ' +
+            usd(pp.cc && pp.cc.cost_per_pass) +
+            (g ? ' · guided ' + usd(pp.cc_guided && pp.cc_guided.cost_per_pass) : ''),
+        );
     }
     row(
       'Tool calls',

@@ -132,16 +132,25 @@ describe('headline per kind (latest.json)', () => {
       '50.0 %',
       'SUCCESS CC',
       '100.0 %',
-      'TOKENS CC',
-      '0.62× vanilla', // saved 38.4 % → cc uses 0.62× the vanilla tokens
+      // CCA-08: uncached tokens (input + output + cache_write), derived from the
+      // sessions of this pre-CCA-08 fixture: 91,550 → 55,400 = saved 39.5 % → 0.60×
+      'UNCACHED CC',
+      '0.60× vanilla',
+      'COST CC',
+      'Uncached tokens per PASS: vanilla 91,550 · cc 27,700', // 1 vs 2 passes
     ])
       expect(t).toContain(s);
+    // The all-tokens total (mostly cache reads) is not a headline tile any more.
+    expect(t).not.toContain('TOKENS CC');
     expect(t).toContain('zai-coding-plan/glm-5.3');
     expect(t).toContain('glm-20261010-153000');
     const d = w.document.getElementById('detail-body').textContent;
     expect(d).toContain('L1');
     expect(d).toContain('yes');
     expect(d).toContain('Index build'); // arm aggregate notes the cc index
+    expect(d).toContain('Δ uncached cc (min … max)');
+    expect(d).toContain('All tokens (vanilla)'); // demoted to the detail
+    expect(d).toContain('Uncached per PASS');
   });
   it('agent-claude (legacy): verdict + criteria, never misread as a new kind', async () => {
     const w = load({
@@ -429,7 +438,16 @@ function w0() {
 describe('agent runs with a cc-guided arm (2026-10-11)', () => {
   it('shows the guided tiles, MCP calls and cost, and five tiles stay within 78 columns', async () => {
     const run = glm();
-    run.headline = { ...run.headline, success_cc_guided_pct: 100, guided_tokens_saved_pct: -20 };
+    run.headline = {
+      ...run.headline,
+      success_cc_guided_pct: 100,
+      guided_tokens_saved_pct: -20,
+      uncached_saved_pct: 39.5,
+      guided_uncached_saved_pct: -20,
+      cost_saved_pct: null,
+      guided_cost_saved_pct: null,
+      uncached_per_pass: { vanilla: 91_550, cc: 27_700, cc_guided: 30_000 },
+    };
     run.aggregate = {
       ...run.aggregate,
       tokens: {
@@ -445,8 +463,10 @@ describe('agent runs with a cc-guided arm (2026-10-11)', () => {
     const t = w.document.getElementById('latest-body').textContent;
     for (const s of [
       'SUCCESS GUIDED',
-      'TOKENS GUIDED',
+      'UNCACHED GUIDED',
       '1.20× vanilla',
+      'COST GUIDED',
+      'guided 30,000',
       'code-context calls: cc 0, guided 7',
       'guided n/a',
     ])
@@ -455,5 +475,44 @@ describe('agent runs with a cc-guided arm (2026-10-11)', () => {
       .map((p: any) => p.textContent)
       .join('\n');
     expect(pre.split('\n').every((l: string) => l.length <= 78)).toBe(true);
+  });
+});
+
+describe('honest headline with spread (CCA-08)', () => {
+  it('shows the uncached spread over repeats and signed per-task deltas with min … max', async () => {
+    const run = glm();
+    run.headline = {
+      success_vanilla_pct: 66.7,
+      success_cc_pct: 93.3,
+      uncached_saved_pct: 9.3,
+      uncached_saved_spread: { min: -4.2, max: 28.2, repeats: 3 },
+      cost_saved_pct: -2.8,
+      uncached_per_pass: { vanilla: 47_056, cc: 30_495 },
+      tokens_saved_pct: -25.7,
+      tool_calls_saved_pct: -31.9,
+    };
+    run.aggregate = {
+      ...run.aggregate,
+      per_task: [
+        {
+          ...run.aggregate.per_task[0],
+          delta: { cc: { pairs: 3, saved_pct: -12.5, min: -30, max: 4.1 } },
+        },
+      ],
+    };
+    const w = load({ latest: run, index: { runs: [run] }, runs: { [run.run_id]: run } });
+    await tick();
+    const t = w.document.getElementById('latest-body').textContent;
+    expect(t).toContain('0.91× vanilla'); // uncached
+    expect(t).toContain('1.03× vanilla'); // cost
+    expect(t).toContain('Uncached over 3 repeats: cc 0.72–1.04× vanilla');
+    expect(t).toContain('vanilla 47,056 · cc 30,495');
+    const cell = [...w.document.querySelectorAll('#detail-body td')].find((td: any) =>
+      td.textContent.startsWith('−12.5 %'),
+    ) as any;
+    expect(cell.textContent).toBe('−12.5 % [−30.0 … +4.1]');
+    expect(cell.className).toBe('neg'); // red = more uncached tokens than vanilla
+    const hist = w.document.getElementById('history-body').textContent;
+    expect(hist).toContain('uncached cc 0.91× vanilla · cost cc 1.03× vanilla');
   });
 });

@@ -92,13 +92,41 @@ export interface SessionResult {
   events_path: string;
 }
 
+/** Min–max of a per-repeat saved % (CCA-08). */
+export interface SavedSpread {
+  min: number;
+  max: number;
+  repeats: number;
+}
+
+/**
+ * Agent-run headline. Reading order (CCA-08): success per arm, uncached
+ * tokens saved %, cost saved %, uncached tokens per PASS per arm. The
+ * CCA-08 fields are optional: run files from before 2026-10-11 lack them
+ * until `npm run bench:renormalize` recomputes them from the sessions.
+ */
 export interface AgentHeadline {
   success_vanilla_pct: number;
   success_cc_pct: number;
-  tokens_saved_pct: number;
-  tool_calls_saved_pct: number;
   /** cc-guided arm (runs since 2026-10-11). */
   success_cc_guided_pct?: number;
+  /** (vanilla − cc) / vanilla on input + output + cache_write. */
+  uncached_saved_pct?: number;
+  guided_uncached_saved_pct?: number;
+  /** Min–max of uncached_saved_pct over repeats; null with one repeat. */
+  uncached_saved_spread?: SavedSpread | null;
+  guided_uncached_saved_spread?: SavedSpread | null;
+  /** (vanilla − cc) / vanilla on reported USD; null when any cost is unknown. */
+  cost_saved_pct?: number | null;
+  guided_cost_saved_pct?: number | null;
+  /** Uncached tokens of all sessions / passing sessions; null when none passed. */
+  uncached_per_pass?: { vanilla: number | null; cc: number | null; cc_guided?: number | null };
+  /**
+   * Demoted (CCA-08): on input + cache_read + output, so mostly cache-read
+   * volume, which providers bill at about 1 % of input. Kept for old consumers.
+   */
+  tokens_saved_pct: number;
+  tool_calls_saved_pct: number;
   guided_tokens_saved_pct?: number;
 }
 

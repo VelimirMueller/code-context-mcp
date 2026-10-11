@@ -53,7 +53,7 @@ Where each kind runs:
 - Task prompts are neutral: they name no tools, only that bash is disabled. Runs before 2026-10-11 told every arm to use the built-in file tools; they are not comparable.
 - Run the ladder with 3 repeats: `npm run bench:live -- --provider <p> --tasks ladder --repeats 3 --timeout 900`.
 - **Cost** comes from the agent CLI: opencode's step cost (DeepSeek), Claude Code's `total_cost_usd` (Opus, at list price with prompt caching off, so an upper bound). GLM's coding plan is a subscription, so its cost is `null`.
-- **Token ratio:** the site shows `cc tokens = N× vanilla`. Below 1× is a saving.
+- **Ratios:** the site shows `cc = N× vanilla` for uncached tokens and cost. Below 1× is a saving. See [Metrics](#metrics).
 
 ## Fresh sessions
 
@@ -66,7 +66,44 @@ Every agent session starts with nothing to read from. Vanilla and cc never share
   - **Opus:** `DISABLE_PROMPT_CACHING=1`. Same hard check.
   - **GLM:** z.ai caches the tool definitions across sessions, and no prompt change reaches them. GLM runs with the nonce; the run notes give the cached first-call tokens. It hits both arms on the same built-in tools.
 - Inside one session, later calls may still read the session's own earlier prefix from cache. It changes cost and speed, not the answer.
-- **Token metric:** `total = input + cache_read + output`, every token the model processed. Runs before 2026-10-11 count `input + output`.
+- **Token metric:** `total = input + cache_read + output`, every token the model processed. Runs before 2026-10-11 count `input + output`. It is not the headline; see [Metrics](#metrics).
+
+## Metrics
+
+The headline of an agent run (since CCA-08) reads in this order: success per arm, uncached tokens saved, cost saved, uncached tokens per PASS per arm.
+
+| Field | Definition |
+|---|---|
+| `success_<arm>_pct` | Passing sessions / sessions of the arm, × 100. |
+| uncached tokens | `input + output + cache_write` per session: the tokens no cache served. |
+| `uncached_saved_pct` | `(vanilla − cc) / vanilla × 100` on uncached tokens, summed over all sessions. `guided_uncached_saved_pct` is the same for cc-guided. |
+| `uncached_saved_spread` | `{ min, max, repeats }`: the same saved % computed per repeat (repeat k of every task, both arms), min and max over repeats. `null` with one repeat. |
+| `cost_saved_pct` | `(vanilla − cc) / vanilla × 100` on the USD the agent CLI reports. `null` when any session of either arm has no cost (GLM coding plan). |
+| `uncached_per_pass` | Uncached tokens of all sessions of an arm / its passing sessions. `null` when no session passed. Failed sessions count in the numerator: an arm that fails more is not cheaper. |
+| `tokens_saved_pct` | Demoted. Saved % on `total = input + cache_read + output`. Kept for old consumers. |
+
+`aggregate` also carries:
+
+- `per_pass.<arm>`: `sessions`, `passes`, `tokens_total`, `uncached_tokens`, `cost_usd`, `tokens_per_pass`, `uncached_per_pass`, `cost_per_pass`.
+- `uncached_tokens`: per-arm sums, `saved_pct`, `spread` (and the guided values).
+- `cost_saved_pct`: `{ cc, cc_guided }`.
+- `per_task[i].uncached_tokens` per arm, and `per_task[i].delta.<arm>` = `{ pairs, saved_pct, min, max }`: repeat k of the arm against repeat k of vanilla (by the `-rN` suffix of the events file), saved % on the summed pairs, min and max over the pairs.
+
+Why not the total:
+
+- Providers bill a cache read at about 1 % of an input token (DeepSeek: about $0.004/M against $0.435/M). The total is mostly cache-read volume. Total-token savings of −13 % and −26 % came with costs equal within 3 %.
+- At 3 repeats, differences in total tokens below about 30 % are inside the run-to-run spread (L6 totals 202k–918k within one arm). Read the spread before the mean.
+
+Old run files keep their recorded fields. `data/index.json` derives the uncached, cost and per-PASS headline fields from the sessions of an older run, so the site and dashboard show them without a rewrite. To recompute a run file itself:
+
+```bash
+# Recompute aggregate + headline from the recorded sessions. No API calls.
+npm run bench:renormalize -- --out <dir> data/runs/glm-*.json data/runs/dsk-*.json
+```
+
+- Session facts (tokens, success, cost, calls) stay as recorded; only derived fields change. `--out` never writes over an input file.
+- A pre-2026-10-11 run gets `total = input + cache_read + output` like every newer run.
+- `bench:rescore` recomputes the same fields after it changes a verdict.
 
 The opus provider needs a long-lived token: run `claude setup-token` and store it as `CLAUDE_CODE_OAUTH_TOKEN`. It uses your Claude plan quota.
 

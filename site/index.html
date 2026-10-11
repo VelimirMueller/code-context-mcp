@@ -107,7 +107,15 @@
               Runs since then use neutral prompts, a third arm <em>cc-guided</em> (the server plus
               the instruction to use it first) and the 11-tool code profile.
             </li>
-            <li>Tokens show as <em>N× vanilla</em>: below 1× is a saving.</li>
+            <li>
+              Uncached tokens (input + output + cache write) and cost show as
+              <em>N× vanilla</em>: below 1× is a saving. All tokens incl. cache reads are mostly
+              cache volume, billed at about 1 % of input, so they stay in the run detail.
+            </li>
+            <li>
+              Per PASS divides an arm's tokens by its passing sessions: an arm that fails more is
+              not cheaper. At 3 repeats, read the min–max spread before the mean.
+            </li>
           </ul>
         </div>
         <div id="history-body"></div>

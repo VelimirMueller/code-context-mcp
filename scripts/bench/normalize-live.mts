@@ -6,9 +6,19 @@
  * deterministic and unit-testable without a model, opencode or network.
  * The result never carries key VALUES — `auth` holds the env NAME only.
  */
-import type { AgentRun, GitRef, SessionResult } from './lib/types.mts';
+import type { AgentHeadline, AgentRun, GitRef, SessionResult } from './lib/types.mts';
 import type { LiveTask } from './live/tasks.mts';
 import { formatDate, formatStamp, formatTs } from './lib/stamp.mts';
+import {
+  costOf,
+  honestMetrics,
+  pairedDelta,
+  round1,
+  savedPct,
+  uncachedOf,
+  type HonestAggregate,
+  type PairedDelta,
+} from './lib/metrics.mts';
 
 export type LiveProvider = 'glm' | 'deepseek' | 'opus';
 
@@ -48,6 +58,8 @@ export interface TokenAgg {
 export interface PerTaskArmAgg {
   success_rate: number;
   tokens: TokenAgg;
+  /** input + output + cache_write (CCA-08; absent in older runs). */
+  uncached_tokens?: number;
   /** Sum of reported session costs; null when any session's cost is unknown. */
   cost_usd: number | null;
   tool_calls: number;
@@ -60,9 +72,14 @@ export interface PerTaskRow {
   vanilla: PerTaskArmAgg;
   cc: PerTaskArmAgg;
   cc_guided?: PerTaskArmAgg;
+  /**
+   * Paired uncached-token delta vs vanilla, repeat k against repeat k, with
+   * the min–max over repeats (CCA-08; absent in older runs). null = no pair.
+   */
+  delta?: { cc: PairedDelta | null; cc_guided?: PairedDelta | null };
 }
 
-export interface AgentAggregate {
+export interface AgentAggregate extends Partial<HonestAggregate> {
   success_rate: { vanilla: number; cc: number; cc_guided?: number };
   tokens: {
     vanilla: TokenAgg;
@@ -153,14 +170,6 @@ export const RUN_ID_PREFIX: Record<LiveProvider, string> = {
   opus: PROVIDER_META.opus.prefix,
 };
 
-function round1(n: number): number {
-  return Math.round(n * 10) / 10;
-}
-
-function savedPct(vanilla: number, cc: number): number {
-  return vanilla > 0 ? round1(((vanilla - cc) / vanilla) * 100) : 0;
-}
-
 function tokensOf(results: SessionResult[]): TokenAgg {
   const input = results.reduce((s, r) => s + r.tokens.input, 0);
   const cacheRead = results.reduce((s, r) => s + r.tokens.cache_read, 0);
@@ -168,22 +177,12 @@ function tokensOf(results: SessionResult[]): TokenAgg {
   return { input, cache_read: cacheRead, output, total: input + cacheRead + output };
 }
 
-/** Sum of session costs; null when there are none or any one is unknown. */
-function costOf(results: SessionResult[]): number | null {
-  if (results.length === 0) return null;
-  let sum = 0;
-  for (const r of results) {
-    if (typeof r.cost_usd !== 'number') return null;
-    sum += r.cost_usd;
-  }
-  return Math.round(sum * 1e6) / 1e6;
-}
-
 function perTaskArm(results: SessionResult[]): PerTaskArmAgg {
   const n = results.length;
   return {
     success_rate: n > 0 ? results.filter((r) => r.success).length / n : 0,
     tokens: tokensOf(results),
+    uncached_tokens: results.reduce((s, r) => s + uncachedOf(r), 0),
     cost_usd: costOf(results),
     tool_calls: results.reduce((s, r) => s + r.tool_calls, 0),
     mcp_tool_calls: results.reduce((s, r) => s + r.mcp_tool_calls, 0),
@@ -232,24 +231,17 @@ export function byPhase(
   return out;
 }
 
-export function normalizeLive(
-  provider: LiveProvider,
-  model: string,
-  tasks: LiveTask[],
-  sessions: LiveSessions,
-  ctx: NormalizeLiveCtx,
-): AgentRun {
-  const meta = PROVIDER_META[provider];
-  const knownIds = new Set(tasks.map((t) => t.id));
+/**
+ * Aggregate + headline from the session results alone (no envelope). Shared by
+ * normalizeLive and `bench:renormalize`, so an old run file recomputed from
+ * its sessions gets exactly what a new run would get.
+ */
+export function aggregateLive(
+  taskIds: string[],
+  sessions: Pick<LiveSessions, 'vanilla' | 'cc' | 'ccGuided'>,
+): { aggregate: AgentAggregate; headline: AgentHeadline } {
   const guided = sessions.ccGuided ?? [];
   const hasGuided = guided.length > 0;
-  for (const r of [...sessions.vanilla, ...sessions.cc, ...guided]) {
-    if (!knownIds.has(r.task_id)) {
-      throw new Error(`normalizeLive: session result has unknown task_id ${r.task_id}`);
-    }
-  }
-
-  const now = ctx.now ?? new Date();
   const rate = (results: SessionResult[]): number =>
     results.length > 0 ? results.filter((r) => r.success).length / results.length : 0;
 
@@ -261,16 +253,25 @@ export function normalizeLive(
     results.length > 0
       ? Math.round(results.reduce((s, r) => s + r.wall_ms, 0) / results.length)
       : 0;
+  const ofTask = (rs: SessionResult[], id: string): SessionResult[] =>
+    rs.filter((r) => r.task_id === id);
 
-  const per_task: PerTaskRow[] = tasks.map((t) => ({
-    task_id: t.id,
-    vanilla: perTaskArm(sessions.vanilla.filter((r) => r.task_id === t.id)),
-    cc: perTaskArm(sessions.cc.filter((r) => r.task_id === t.id)),
-    ...(hasGuided ? { cc_guided: perTaskArm(guided.filter((r) => r.task_id === t.id)) } : {}),
+  const per_task: PerTaskRow[] = taskIds.map((id) => ({
+    task_id: id,
+    vanilla: perTaskArm(ofTask(sessions.vanilla, id)),
+    cc: perTaskArm(ofTask(sessions.cc, id)),
+    ...(hasGuided ? { cc_guided: perTaskArm(ofTask(guided, id)) } : {}),
+    delta: {
+      cc: pairedDelta(ofTask(sessions.vanilla, id), ofTask(sessions.cc, id)),
+      ...(hasGuided
+        ? { cc_guided: pairedDelta(ofTask(sessions.vanilla, id), ofTask(guided, id)) }
+        : {}),
+    },
   }));
   const gTokens = tokensOf(guided);
   const gCalls = guided.reduce((s, r) => s + r.tool_calls, 0);
   const mcpCalls = (rs: SessionResult[]): number => rs.reduce((s, r) => s + r.mcp_tool_calls, 0);
+  const honest = honestMetrics(taskIds, sessions.vanilla, sessions.cc, guided);
 
   const aggregate: AgentAggregate = {
     success_rate: {
@@ -278,6 +279,8 @@ export function normalizeLive(
       cc: rate(sessions.cc),
       ...(hasGuided ? { cc_guided: rate(guided) } : {}),
     },
+    // Honest metrics first (CCA-08): uncached tokens, cost and per-PASS values.
+    ...honest.aggregate,
     tokens: {
       vanilla: vanTokens,
       cc: ccTokens,
@@ -311,6 +314,43 @@ export function normalizeLive(
   const phases = byPhase(sessions.vanilla, sessions.cc, guided);
   if (phases) aggregate.by_phase = phases;
 
+  // Order is the reading order: success, then the honest numbers; the
+  // all-tokens figure (mostly cache reads) stays for old consumers, last.
+  const headline: AgentHeadline = {
+    success_vanilla_pct: round1(rate(sessions.vanilla) * 100),
+    success_cc_pct: round1(rate(sessions.cc) * 100),
+    ...(hasGuided ? { success_cc_guided_pct: round1(rate(guided) * 100) } : {}),
+    ...honest.headline,
+    tokens_saved_pct: aggregate.tokens.saved_pct,
+    tool_calls_saved_pct: aggregate.tool_calls.saved_pct,
+    ...(hasGuided ? { guided_tokens_saved_pct: aggregate.tokens.guided_saved_pct } : {}),
+  };
+  return { aggregate, headline };
+}
+
+export function normalizeLive(
+  provider: LiveProvider,
+  model: string,
+  tasks: LiveTask[],
+  sessions: LiveSessions,
+  ctx: NormalizeLiveCtx,
+): AgentRun {
+  const meta = PROVIDER_META[provider];
+  const knownIds = new Set(tasks.map((t) => t.id));
+  const guided = sessions.ccGuided ?? [];
+  const hasGuided = guided.length > 0;
+  for (const r of [...sessions.vanilla, ...sessions.cc, ...guided]) {
+    if (!knownIds.has(r.task_id)) {
+      throw new Error(`normalizeLive: session result has unknown task_id ${r.task_id}`);
+    }
+  }
+
+  const now = ctx.now ?? new Date();
+  const { aggregate, headline } = aggregateLive(
+    tasks.map((t) => t.id),
+    sessions,
+  );
+
   const arms: AgentArms = {
     vanilla: { results: sessions.vanilla },
     cc: { results: sessions.cc, index_ms: sessions.indexMs, db_bytes: sessions.dbBytes },
@@ -341,17 +381,6 @@ export function normalizeLive(
     })),
     arms,
     aggregate,
-    headline: {
-      success_vanilla_pct: round1(rate(sessions.vanilla) * 100),
-      success_cc_pct: round1(rate(sessions.cc) * 100),
-      tokens_saved_pct: aggregate.tokens.saved_pct,
-      tool_calls_saved_pct: aggregate.tool_calls.saved_pct,
-      ...(hasGuided
-        ? {
-            success_cc_guided_pct: round1(rate(guided) * 100),
-            guided_tokens_saved_pct: aggregate.tokens.guided_saved_pct,
-          }
-        : {}),
-    },
+    headline,
   };
 }

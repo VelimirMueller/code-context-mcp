@@ -126,12 +126,23 @@ describe('normalizeLive', () => {
     };
     expect(agg.success_rate).toEqual({ vanilla: 0.5, cc: 1 });
     expect(agg.wall_ms).toEqual({ vanilla_mean: 40_000, cc_mean: 22_500 });
+    // CCA-08: success first, then uncached (input + output + cache_write),
+    // cost and uncached per PASS; the all-tokens figure is demoted, last.
     expect(run.headline).toEqual({
       success_vanilla_pct: 50,
       success_cc_pct: 100,
+      uncached_saved_pct: 56.6, // vanilla 6400 + 11000, cc 2150 + 5400
+      uncached_saved_spread: null, // one repeat
+      cost_saved_pct: null, // fixture sessions carry no cost
+      uncached_per_pass: { vanilla: 17_400, cc: 3_775 }, // 1 pass vs 2 passes
       tokens_saved_pct: 56.3,
       tool_calls_saved_pct: 58.3,
     });
+    expect(Object.keys(run.headline).slice(0, 3)).toEqual([
+      'success_vanilla_pct',
+      'success_cc_pct',
+      'uncached_saved_pct',
+    ]);
   });
 
   it('builds per-task rows grouping repeats per arm', () => {
@@ -220,13 +231,15 @@ describe('normalizeLive', () => {
 describe('normalizeLive — cold-warm cache mode (2026-10-11)', () => {
   it('cold-only runs are byte-identical to the pre-cold-warm output (no by_phase)', () => {
     // Hash pinned from the normalizer before cold-warm existed (origin/main 3fcf2ec),
-    // re-pinned for the CCA-07 checker specs (L1 pattern, L4 rule) that the run JSON embeds.
+    // re-pinned for the CCA-07 checker specs (L1 pattern, L4 rule) that the run JSON embeds,
+    // re-pinned for CCA-08: the headline leads with uncached / cost / per-PASS fields and the
+    // aggregate gains per_pass, uncached_tokens, cost_saved_pct and per-task paired deltas.
     const run = normalizeLive('glm', 'zai-coding-plan/glm-5.3', [L1, L2], sessions, ctx);
     expect('by_phase' in (run.aggregate as object)).toBe(false);
     const hash = createHash('sha256')
       .update(JSON.stringify(run, null, 2))
       .digest('hex');
-    expect(hash).toBe('2080d56c787c7162bf55ef0d31da81cdbec3464006bee310557fb2b15bba817a');
+    expect(hash).toBe('f35f0a66aa8dddf70e055a5df7c2c624c3a2ac52ba5c58d5a9c855b0bfa216df');
   });
 
   const phased = (r: SessionResult, phase: 'cold' | 'warm', indexMs = 0): SessionResult => ({

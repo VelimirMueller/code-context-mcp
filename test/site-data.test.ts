@@ -162,6 +162,32 @@ describe('site/data kind accessors', () => {
     expect(a.keyEnv).toBe('ZAI_API_KEY');
     expect(D.agentOf(fx('simulated.run.json'))).toBeNull();
   });
+  it('agentOf derives the honest metrics from sessions for a pre-CCA-08 run', () => {
+    const a = D.agentOf(fx('agent-glm.run.json'));
+    // uncached = input + output + cache_write: vanilla 91,550 (1 PASS), cc 55,400 (2 PASS)
+    expect(a.uncached).toEqual({ vanilla: 91_550, cc: 55_400, cc_guided: null });
+    expect(a.uncachedSavedPct).toBe(39.5);
+    expect(a.uncachedPerPass).toEqual({ vanilla: 91_550, cc: 27_700, cc_guided: null });
+    expect(a.costSavedPct).toBeNull(); // no session reports a cost
+    expect(a.uncachedSpread).toBeNull(); // one repeat
+    const row = a.perTask[0];
+    const h = D.taskHonestOf(fx('agent-glm.run.json'), row, 'cc');
+    expect(h.uncached).toBeTypeOf('number');
+    expect(h.delta.pairs).toBe(1);
+  });
+  it('agentOf prefers the stored CCA-08 headline fields', () => {
+    const raw = fx('agent-glm.run.json');
+    raw.headline = {
+      ...raw.headline,
+      uncached_saved_pct: 1.5,
+      cost_saved_pct: -2,
+      uncached_per_pass: { vanilla: 10, cc: 9 },
+    };
+    const a = D.agentOf(raw);
+    expect(a.uncachedSavedPct).toBe(1.5);
+    expect(a.costSavedPct).toBe(-2);
+    expect(a.uncachedPerPass).toEqual({ vanilla: 10, cc: 9, cc_guided: null });
+  });
   it('legacyOf exposes the pre-registration story fields', () => {
     const L = D.legacyOf(fx('agent-claude.run.json'));
     expect(L.preregVersion).toBe('v1');
