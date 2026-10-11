@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import {
   hiddenTools, toolFilter, CODE_TOOLS, CODE_ADMIN_TOOLS, instrumentTools, decorate, flairHeader, flairFooter, looksLikeJson, OPTIONAL_TOOLSETS,
+  flairEnabled, isCodeProfile, showTimestamps, serverInstructions, MAX_INSTRUCTIONS_CHARS,
 } from "../src/server/tool-wrap.js";
 
 type Handler = (...a: unknown[]) => unknown;
@@ -17,8 +18,11 @@ function fakeServer() {
   return { server, registered };
 }
 
+const savedToolsets = process.env.CODE_CONTEXT_TOOLSETS;
 afterEach(() => {
   process.env.OVERDRIVE_FLAIR = "0";
+  if (savedToolsets === undefined) delete process.env.CODE_CONTEXT_TOOLSETS;
+  else process.env.CODE_CONTEXT_TOOLSETS = savedToolsets;
 });
 
 describe("toolsets", () => {
@@ -143,5 +147,74 @@ describe("toolFilter — the code profile (2026-10-11)", () => {
       (server.tool as (...a: unknown[]) => unknown)(n, "d", {}, async () => ({}));
     }
     expect(registered).toEqual(["find_symbol", "get_file_context"]);
+  });
+});
+
+describe("flair default per profile (CCA-06, #121)", () => {
+  it("default profile: on unless OVERDRIVE_FLAIR=0", () => {
+    expect(flairEnabled("", "")).toBe(true);
+    expect(flairEnabled("", "fun,stream")).toBe(true);
+    expect(flairEnabled("0", "")).toBe(false);
+    expect(flairEnabled("", "code,all")).toBe(true);
+  });
+  it("code profile: off unless OVERDRIVE_FLAIR=1", () => {
+    expect(flairEnabled("", "code")).toBe(false);
+    expect(flairEnabled("", "code,code-admin")).toBe(false);
+    expect(flairEnabled("1", "code")).toBe(true);
+    expect(flairEnabled("yes", "code")).toBe(true);
+    expect(flairEnabled("0", "code")).toBe(false);
+  });
+  it("isCodeProfile: code without all", () => {
+    expect(isCodeProfile("code")).toBe(true);
+    expect(isCodeProfile(" +code , code-admin")).toBe(true);
+    expect(isCodeProfile("code,all")).toBe(false);
+    expect(isCodeProfile("")).toBe(false);
+  });
+  it("decorate follows the profile: no art under code, art with OVERDRIVE_FLAIR=1", () => {
+    process.env.CODE_CONTEXT_TOOLSETS = "code";
+    delete process.env.OVERDRIVE_FLAIR;
+    const r = { content: [{ type: "text", text: "body" }] };
+    expect(decorate(r, "find_symbol", 5)).toBe(r);
+    process.env.OVERDRIVE_FLAIR = "1";
+    expect((decorate(r, "find_symbol", 5) as any).content[0].text).toMatch(/^● code-context ▸ find_symbol ░▒▓\nbody\n.+ 5 ms$/);
+  });
+});
+
+describe("timestamps switch (CCA-06, #121)", () => {
+  it("off unless CODE_CONTEXT_TIMESTAMPS is truthy", () => {
+    expect(showTimestamps("")).toBe(false);
+    expect(showTimestamps("")).toBe(false);
+    expect(showTimestamps("0")).toBe(false);
+    expect(showTimestamps("1")).toBe(true);
+    expect(showTimestamps("TRUE")).toBe(true);
+  });
+});
+
+describe("server instructions (CCA-06, #121)", () => {
+  it("are short and plain, and route the graph questions", () => {
+    const text = serverInstructions(toolFilter("code"), false)!;
+    expect(text.length).toBeLessThanOrEqual(MAX_INSTRUCTIONS_CHARS);
+    expect(Math.ceil(text.length / 4)).toBeLessThanOrEqual(100); // ~80-95 tokens
+    for (const t of ["who_imports", "find_symbol", "get_file_context", "exports_in", "snippet:true", "grep", "project-relative"]) {
+      expect(text).toContain(t);
+    }
+    expect(text).toMatch(/never hold full code/);
+    expect(text).not.toMatch(/[░▒▓●]|\n/);
+  });
+  it("the default profile lists the same code tools, so the same text", () => {
+    expect(serverInstructions(toolFilter(undefined), false)).toBe(serverInstructions(toolFilter("code"), false));
+  });
+  it("name only listed tools; nothing when no code tool is listed", () => {
+    const noGraph = serverInstructions({ has: (n: string) => n === "who_imports" || n === "exports_in" }, false)!;
+    expect(noGraph).not.toContain("who_imports");
+    expect(noGraph).not.toContain("exports_in");
+    expect(noGraph).toContain("find_symbol");
+    const noFileContext = serverInstructions({ has: (n: string) => n === "get_file_context" }, false)!;
+    expect(noFileContext).not.toContain("get_file_context");
+    expect(noFileContext).not.toContain("snippet");
+    expect(serverInstructions({ has: () => true }, false)).toBeUndefined();
+  });
+  it("do not claim relative paths when CODE_CONTEXT_ABSOLUTE_PATHS is on", () => {
+    expect(serverInstructions(toolFilter("code"), true)).not.toContain("project-relative");
   });
 });

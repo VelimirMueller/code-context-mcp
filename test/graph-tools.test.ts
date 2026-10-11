@@ -332,11 +332,16 @@ describe("who_imports and exports_in over MCP stdio (code profile)", () => {
     initSchema(db);
     indexInto(db, proj, base);
     db.close();
+    // No OVERDRIVE_FLAIR and no CODE_CONTEXT_TIMESTAMPS: the code profile's
+    // defaults (no flair, no timestamps, CCA-06 #121) are what the sim mirrors.
+    const env = { ...(process.env as Record<string, string>), CODE_CONTEXT_TOOLSETS: "code", CODE_CONTEXT_ALLOWED_ROOTS: base, CODE_CONTEXT_ABSOLUTE_PATHS: "" };
+    delete env.OVERDRIVE_FLAIR;
+    delete env.CODE_CONTEXT_TIMESTAMPS;
     const transport = new StdioClientTransport({
       command: process.execPath,
       args: [TSX_CLI, SERVER_ENTRY, dbPath],
       cwd: proj,
-      env: { ...(process.env as Record<string, string>), CODE_CONTEXT_TOOLSETS: "code", CODE_CONTEXT_ALLOWED_ROOTS: base, OVERDRIVE_FLAIR: "0", CODE_CONTEXT_ABSOLUTE_PATHS: "" },
+      env,
       stderr: "ignore",
     });
     client = new Client({ name: "cca05-test", version: "0.0.0" });
@@ -355,18 +360,18 @@ describe("who_imports and exports_in over MCP stdio (code profile)", () => {
 
   it("the simulated benchmark output (test/helpers/benchmark-fixture.ts) equals the real tool output", async () => {
     // The benchmarks index the fixture in place; the server here reads a copy.
-    // Only the timestamps differ (the sim prints fixed canonical ones).
+    // Since CCA-06 (#121) neither side prints timestamps or flair, so the
+    // texts must be equal byte for byte.
     const local = new Database(":memory:");
     initSchema(local);
     indexDirectory(local, SAMPLE);
-    const stamps = (t: string) => t.replace(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/g, "<ts>");
-    const real = async (name: string, args: Record<string, unknown>) => stamps(text(await client.callTool({ name, arguments: args })));
+    const real = async (name: string, args: Record<string, unknown>) => text(await client.callTool({ name, arguments: args }));
     try {
       for (const f of ["src/index.ts", "src/types.ts", "src/services/api.ts", "src/utils/helpers.ts", "src/utils/index.ts"]) {
-        expect(stamps(simFileContext(local, path.join(SAMPLE, f))), f).toBe(await real("get_file_context", { path: f }));
+        expect(simFileContext(local, path.join(SAMPLE, f)), f).toBe(await real("get_file_context", { path: f }));
       }
-      expect(stamps(simFindSymbol(local, "ApiClient"))).toBe(await real("find_symbol", { name: "ApiClient" }));
-      expect(stamps(simSearchFiles(local, "api"))).toBe(await real("search_files", { query: "api" }));
+      expect(simFindSymbol(local, "ApiClient")).toBe(await real("find_symbol", { name: "ApiClient" }));
+      expect(simSearchFiles(local, "api")).toBe(await real("search_files", { query: "api" }));
     } finally {
       local.close();
     }
