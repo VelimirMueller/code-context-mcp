@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`CODE_CONTEXT_TOOLSETS=code`**: a profile that lists only the 11 code-index tools (`index_directory`, `find_symbol`, `get_file_context`, `search_files`, `get_changes`, `query`, `execute`, `health`, `set_description`, `set_directory_description`, `set_change_reason`). Tool definitions drop from about 12,300 to about 1,300 tokens per model call. For sessions that read code but never run the sprint process. `all` still wins. The default does not change.
+
+### Fixed
+
+- **Repo-relative paths work.** `get_file_context` and `set_description` accept `src/server/schema.ts` as well as absolute paths: relative to the server's working directory first, then a unique suffix match in the index. With several repos in one database, the match under the working directory wins, otherwise the tool lists the candidates. Before, a relative path answered "not in index", and agents fell back to grep.
+
 ## [2.10.0] - 2026-10-11
 
 ### Added

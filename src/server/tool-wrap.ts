@@ -25,6 +25,46 @@ export const OPTIONAL_TOOLSETS: Readonly<Record<string, readonly string[]>> = {
 };
 
 /**
+ * The code-index tools (src/server/index.ts). The `code` profile keeps only
+ * these: about 1.3k tokens of tool definitions instead of about 12.3k for all
+ * tools — for sessions that read code but never run the sprint process
+ * (benchmarks, OpenCode workers, one-off agents).
+ */
+export const CODE_TOOLS: readonly string[] = [
+  "index_directory",
+  "find_symbol",
+  "get_file_context",
+  "set_description",
+  "set_directory_description",
+  "set_change_reason",
+  "get_changes",
+  "search_files",
+  "query",
+  "execute",
+  "health",
+];
+
+/** Anything with `has(toolName)`: a Set of hidden names, or a profile rule. */
+export interface ToolFilter {
+  has(name: string): boolean;
+}
+
+/**
+ * The filter `instrumentTools` uses by default. `CODE_CONTEXT_TOOLSETS=code`
+ * hides every tool outside CODE_TOOLS (non-breaking opt-in profile, 2026-10-11);
+ * `all` still wins and hides nothing. Otherwise the optional-toolset rules of
+ * hiddenTools apply unchanged.
+ */
+export function toolFilter(env: string | undefined = process.env.CODE_CONTEXT_TOOLSETS): ToolFilter {
+  const wanted = (env ?? "").split(",").map((s) => s.trim().toLowerCase());
+  if (wanted.includes("code") && !wanted.includes("all")) {
+    const keep = new Set(CODE_TOOLS);
+    return { has: (name: string) => !keep.has(name) };
+  }
+  return hiddenTools(env);
+}
+
+/**
  * Parse `CODE_CONTEXT_TOOLSETS`: a comma list of optional toolsets to enable
  * (`fun,stream`), or `all`. Unset/empty/`default` = none of them. Unknown
  * names are ignored. Returns the set of tool names to hide.
@@ -113,7 +153,7 @@ const patched = new WeakSet<object>();
  * Patch `server.tool(...)` so hidden tools are never registered and every
  * other handler is timed, logged and decorated. Idempotent per server.
  */
-export function instrumentTools(server: object, hidden: Set<string> = hiddenTools()): void {
+export function instrumentTools(server: object, hidden: ToolFilter = toolFilter()): void {
   if (patched.has(server)) return;
   const target = server as { tool?: unknown };
   if (typeof target.tool !== "function") return;

@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import {
-  hiddenTools, instrumentTools, decorate, flairHeader, flairFooter, looksLikeJson, OPTIONAL_TOOLSETS,
+  hiddenTools, toolFilter, CODE_TOOLS, instrumentTools, decorate, flairHeader, flairFooter, looksLikeJson, OPTIONAL_TOOLSETS,
 } from "../src/server/tool-wrap.js";
 
 type Handler = (...a: unknown[]) => unknown;
@@ -108,5 +108,27 @@ describe("flair", () => {
     (server as any).tool("a", "d", {}, () => ({ content: [{ type: "text", text: "x" }] }));
     const out = registered.get("a")!({}) as any;
     expect(out.content[0].text.match(/░▒▓/g)).toHaveLength(1);
+  });
+});
+
+describe("toolFilter — the code profile (2026-10-11)", () => {
+  it("code keeps exactly the code tools", () => {
+    const f = toolFilter("code");
+    for (const t of CODE_TOOLS) expect(f.has(t)).toBe(false);
+    for (const t of ["create_ticket", "plan_sprint", "record_mood", "send_claude_output"]) expect(f.has(t)).toBe(true);
+  });
+  it("all wins over code; no env keeps today's default", () => {
+    expect(toolFilter("code,all").has("create_ticket")).toBe(false);
+    expect(toolFilter(undefined).has("create_ticket")).toBe(false);
+    expect(toolFilter(undefined).has("record_mood")).toBe(true);
+  });
+  it("instrumentTools registers only code tools under the code profile", () => {
+    const registered: string[] = [];
+    const server = { tool: (name: string) => { registered.push(name); return {}; } };
+    instrumentTools(server, toolFilter("code"));
+    for (const n of ["find_symbol", "create_ticket", "get_file_context", "log_decision"]) {
+      (server.tool as (...a: unknown[]) => unknown)(n, "d", {}, async () => ({}));
+    }
+    expect(registered).toEqual(["find_symbol", "get_file_context"]);
   });
 });

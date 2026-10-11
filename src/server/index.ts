@@ -15,6 +15,7 @@ import { syncSkillsFromUpstream } from "../scrum/skill-sync.js";
 import { log as slog, errorClass, logToolExceptions } from "../sessionlog.js";
 import { FreshnessGuard, freshnessNotice, type FreshRow } from "./freshness.js";
 import { instrumentTools } from "./tool-wrap.js";
+import { resolveToolPath } from "./path-resolve.js";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const DB_PATH = process.argv[2] ?? "./context.db";
@@ -242,11 +243,22 @@ server.tool(
   "get_file_context",
   "Get a file's summary, its exports, what it imports (dependencies), and what imports it (dependents). Pass include_changes=true only when debugging (adds recent change history with diffs).",
   {
-    path: z.string().describe("Absolute file path"),
+    path: z.string().describe("File path: absolute, or relative to the project root (e.g. src/server/schema.ts)"),
     include_changes: z.boolean().optional().describe("Include recent change history with diffs (default: false — C1 token diet; enable when debugging)"),
     change_limit: z.number().optional().describe("Max number of recent changes to include (default: 3)"),
   },
-  async ({ path: filePath, include_changes, change_limit }) => {
+  async ({ path: rawPath, include_changes, change_limit }) => {
+    const resolved = resolveToolPath(db, rawPath);
+    if (resolved.kind === "ambiguous") {
+      return {
+        content: [{
+          type: "text",
+          text: `"${rawPath}" matches ${resolved.candidates.length} indexed files. Pass one of these absolute paths:\n${resolved.candidates.map((c) => `- ${c}`).join("\n")}`,
+        }],
+        isError: true,
+      };
+    }
+    const filePath = resolved.path;
     const getFile = () => db.prepare(`SELECT * FROM files WHERE path = ?`).get(filePath) as any | undefined;
     const repo = fresh.checkRepos();
     let file = getFile();
@@ -344,10 +356,18 @@ server.tool(
   "set_description",
   "Set a manual description for a file (persists across re-indexes)",
   {
-    path: z.string().describe("Absolute file path"),
+    path: z.string().describe("File path: absolute, or relative to the project root"),
     description: z.string().describe("Description of what the file does"),
   },
-  async ({ path: filePath, description }) => {
+  async ({ path: rawPath, description }) => {
+    const resolved = resolveToolPath(db, rawPath);
+    if (resolved.kind === "ambiguous") {
+      return {
+        content: [{ type: "text", text: `"${rawPath}" matches ${resolved.candidates.length} indexed files. Pass one of these absolute paths:\n${resolved.candidates.map((c) => `- ${c}`).join("\n")}` }],
+        isError: true,
+      };
+    }
+    const filePath = resolved.path;
     const result = db.prepare(`UPDATE files SET description = ? WHERE path = ?`).run(description, filePath);
     if (result.changes === 0) {
       return { content: [{ type: "text", text: `File "${filePath}" not in index.` }], isError: true };
