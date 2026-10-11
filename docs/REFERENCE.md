@@ -83,11 +83,12 @@ Since 2.2, the QA gate also checks **commit discipline**: a ticket can't reach `
 
 - **Project key.** `set_project` maps a short key to a GitHub repo and Project board. Milestones, sprints, epics and tickets take `project`; tickets inherit it from their sprint, milestone or epic. The list tools filter by it. Schema v26 leaves existing rows unassigned.
 - **`sync_github`** mirrors one project's milestones and tickets to GitHub: issues with `P0`–`P2`, type and origin labels, the owner as assignee, board Status from the ticket status, closed when DONE. Idempotent through `tickets.github_issue`; `dry_run: true` prints the plan. About 2 GitHub reads per run. Details: [sync_github](tools/sync-github.md).
-- **Live writes need an allowlist outside MCP.** A live sync writes only to repos in `CODE_CONTEXT_GITHUB_SYNC_REPOS`; no tool sets it. `set_project` refuses to re-point a project that already synced, unless `force: true` and the new repo is allowlisted. Dry runs need nothing. Every published text is scrubbed of local paths in any encoding (`file://`, `%2F`, `&#47;`, `\/`, `C:/Users/…`), and an independent guard refuses what survives.
+- **Live writes need an allowlist outside MCP.** A live sync writes only to the exact targets in `CODE_CONTEXT_GITHUB_SYNC_REPOS`; no tool sets it. A board needs the exact `owner/repo@board-owner/N` entry. The assignee must be the repo owner or listed in `CODE_CONTEXT_GITHUB_SYNC_ASSIGNEES`. `set_project` refuses to re-point a project that already synced, unless `force: true` and the new target is allowlisted. Dry runs need nothing. A text that holds a secret (API keys, tokens, JWTs, private keys, credentials; raw or encoded) is refused with the field and secret type named. Every published text is scrubbed of local paths in any encoding (`file://`, `%2F`, `&#47;`, `\/`, `C:/Users/…`), and an independent guard refuses what survives.
 
   | Env var | Default | Effect |
   |---|---|---|
-  | `CODE_CONTEXT_GITHUB_SYNC_REPOS` | unset: every live `sync_github` / `code-context-sync-github` run is refused | `owner/repo[,owner/repo…]`: live sync allowed to these repos and to boards of their owners |
+  | `CODE_CONTEXT_GITHUB_SYNC_REPOS` | unset: every live `sync_github` / `code-context-sync-github` run is refused | `owner/repo`: issues and milestones in that repo, no board. `owner/repo@board-owner/N`: also that one Project board. Comma or space separated. |
+  | `CODE_CONTEXT_GITHUB_SYNC_ASSIGNEES` | unset: only the repo owner may be assigned | `login[,login…]`: these logins may also be the project's issue assignee |
 
 ### New in 2.8 — Python in the Index 🐍
 

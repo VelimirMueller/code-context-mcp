@@ -15,11 +15,15 @@
  *   changed milestone/issue, Project adds and Status changes batched as aliased
  *   GraphQL mutations (20 per request). Content-creating calls are paced.
  * - Secret hygiene: no token is read or stored (gh holds it); every text that
- *   leaves the machine is scrubbed of local absolute paths and refused when a
- *   path or a token pattern survives (assertPublishable, which normalizes
- *   encodings on its own and does not trust the scrubber).
- * - Authorization: a live (non-dry-run) sync writes only to repos listed in
- *   CODE_CONTEXT_GITHUB_SYNC_REPOS, set in the process env, never by a tool.
+ *   leaves the machine is refused when it holds a secret (API keys, tokens,
+ *   JWTs, private keys, credentials — raw or encoded), and scrubbed of local
+ *   absolute paths, refused when a path survives (assertPublishable, which
+ *   normalizes encodings on its own and does not trust the scrubber).
+ * - Authorization: a live (non-dry-run) sync writes only to the exact targets
+ *   listed in CODE_CONTEXT_GITHUB_SYNC_REPOS (`owner/repo`, or
+ *   `owner/repo@board-owner/N` to also write that one board) and assigns only
+ *   the repo owner or a login in CODE_CONTEXT_GITHUB_SYNC_ASSIGNEES. Both are
+ *   set in the process env, never by a tool.
  */
 import type Database from "better-sqlite3";
 
@@ -47,11 +51,16 @@ const LOCAL_ROOT_RE =
 /** Roots whose next segment is a user name (never kept as the "last segment"). */
 const USER_ROOT_RE = /(?:\/(?:Users|home)\/|[a-z]:\/(?:Users|Documents and Settings)\/)$/i;
 const FILE_URL_RE = /\bfile:\//i;
-const TOKEN_RE = /\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/;
-/** Characters that end a token for the guard's URL check (more = stricter). */
-const GUARD_DELIM = /[\s`'"<>()[\]{}|]/;
-/** Tokens the scrubber rewrites: runs without these characters. */
-const SCRUB_TOKEN_RE = /[^\s`'"<>()[\]{}|,*]+/g;
+/**
+ * Characters that end a token, shared by the scrubber (SCRUB_TOKEN_RE) and the
+ * guard (findLocalRoot's URL-context check). One set, so the two can never
+ * disagree on where a token starts: a root the scrubber sees as its own token
+ * is never treated by the guard as part of an http(s) URL in front of it.
+ */
+const TOKEN_DELIMS = "\\s`'\"<>()[\\]{}|,*";
+const GUARD_DELIM = new RegExp(`[${TOKEN_DELIMS}]`);
+/** Tokens the scrubber rewrites: runs without delimiter characters. */
+const SCRUB_TOKEN_RE = new RegExp(`[^${TOKEN_DELIMS}]+`, "g");
 /** Windows "Documents and Settings" holds spaces; join it so it stays one token. */
 const DOCS_AND_SETTINGS_RE = /(?<=[\\/;]|%2f|%5c)Documents and Settings(?=[\\/&%])/gi;
 const TRAILING_PUNCT = /[.,:;!?]+$/;
@@ -79,13 +88,23 @@ function safeChar(cp: number, fallback: string): string {
  * slashes collapsed except right after a scheme colon.
  */
 export function normalizeForGuard(text: string): string {
+  return decodeAll(text).replace(/\\/g, "/").replace(/(?<!:)\/{2,}/g, "/");
+}
+
+/** Invisible / format characters a renderer drops (soft hyphen, zero-width,
+ *  bidi controls, word joiners, BOM, variation selectors, Hangul fillers). */
+const INVISIBLE_RE =
+  /[\u00AD\u061C\u115F\u1160\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u206F\u3164\uFEFF\uFFA0]|\u034F|\u17B4|\u17B5|\u180B|\u180C|\u180D|\u180F|\uFE00|\uFE01|\uFE02|\uFE03|\uFE04|\uFE05|\uFE06|\uFE07|\uFE08|\uFE09|\uFE0A|\uFE0B|\uFE0C|\uFE0D|\uFE0E|\uFE0F/g;
+
+/** Invisible characters dropped, NFKC, every escape decoded (up to 4 layers). */
+function decodeAll(text: string): string {
   let s = text;
   for (let i = 0; i < 4; i++) {
-    const next = decodeOnce(s.replace(/[\u00AD\u180E\u200B-\u200F\u2060-\u2064\uFEFF]/g, "").normalize("NFKC"));
+    const next = decodeOnce(s.replace(INVISIBLE_RE, "").normalize("NFKC"));
     if (next === s) break;
     s = next;
   }
-  return s.replace(/\\/g, "/").replace(/(?<!:)\/{2,}/g, "/");
+  return s;
 }
 
 /** True when `pre` (token text right before a root) is `http(s)://host[/…]`. */
@@ -136,16 +155,92 @@ function scrubToken(tok: string): string {
   return `…/${rest[rest.length - 1]}${suffix}`;
 }
 
-/** Throws when text still holds a local absolute path (in any encoding GitHub
- *  renders) or a token. Independent of the scrubber. Call on every string sent
- *  to GitHub, after scrubbing. */
-export function assertPublishable(text: string, what: string): void {
-  if (hasLocalPath(text)) throw new Error(`${what} holds a local absolute path — refusing to publish`);
-  if (TOKEN_RE.test(text) || TOKEN_RE.test(normalizeForGuard(text))) throw new Error(`${what} holds a token-like string — refusing to publish`);
+// ─── Secret detection ────────────────────────────────────────────────────────
+//
+// Secrets are never scrubbed: a text that holds one is refused, and the error
+// names the field and the secret type, never the value. The check runs on the
+// raw text, on the decoded copy (entities, percent, `\u`/`\x` escapes,
+// invisible characters removed) and on that copy without markdown emphasis
+// and code-span marks, so no encoding or formatting hides a secret.
+
+/** A value that looks like key material, not a word, a number or a placeholder. */
+function keyLike(v: string, min: number): boolean {
+  if (v.length < min) return false;
+  if (/^\d+$/.test(v)) return false; // counts, ids, timestamps
+  if (/^[a-z]+(?:[-_./][a-z]+)*$/.test(v)) return false; // lower-case words: "see-the-vault-entry"
+  if (/^[\w.-]+(?:\/[\w.-]+)+\.[a-z]{1,5}$/i.test(v)) return false; // repo file path: src/auth/token.ts
+  if (/^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/.test(v) && /_/.test(v)) return false; // ENV_VAR_NAME reference
+  if (/^(?:x+|\*+|\.+|_+|-+|0+)$/i.test(v)) return false;
+  if (/^(?:changeme|redacted|placeholder|example|dummy|your[-_]|<|\$\{?)/i.test(v)) return false;
+  return true;
 }
 
-/** Scrub, then guard. */
+interface SecretDetector {
+  type: string;
+  re: RegExp;
+  /** Extra check on the match (group 1 when present, else the whole match). */
+  ok?: (value: string) => boolean;
+}
+
+const KEY_NAME = String.raw`[A-Za-z0-9_.-]*(?:key|secret|token|password|passwd|api[_-]?key)[A-Za-z0-9_.-]*`;
+
+export const SECRET_DETECTORS: readonly SecretDetector[] = [
+  { type: "GitHub token", re: /(?<![A-Za-z0-9_])(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})/ },
+  { type: "Anthropic API key", re: /(?<![A-Za-z0-9_-])sk-ant-[A-Za-z0-9_-]{20,}/ },
+  // `sk-` must start a word: `dsk-20261011-090622` and `task-…` pass.
+  { type: "OpenAI API key", re: /(?<![A-Za-z0-9_-])sk-(?!ant-)((?:proj-|svcacct-|admin-)?[A-Za-z0-9_-]{20,})/, ok: (v) => /\d/.test(v) && /[A-Za-z]/.test(v) },
+  { type: "AWS access key id", re: /(?<![A-Za-z0-9])(?:AKIA|ASIA|ABIA|ACCA)[A-Z0-9]{16}(?![A-Za-z0-9])/ },
+  { type: "AWS secret access key", re: /aws.{0,20}?(?:secret|sk).{0,20}?["']?\s*[:=]\s*["']?([A-Za-z0-9/+=]{40})(?![A-Za-z0-9/+=])/i },
+  { type: "Slack token", re: /(?<![A-Za-z0-9])xox[abeoprs]-[A-Za-z0-9-]{10,}/ },
+  { type: "Slack webhook URL", re: /hooks\.slack\.com\/services\/T[A-Za-z0-9]+\/B[A-Za-z0-9]+\/[A-Za-z0-9]{8,}/ },
+  { type: "Google API key", re: /(?<![A-Za-z0-9])AIza[0-9A-Za-z_-]{35}/ },
+  { type: "Stripe key", re: /(?<![A-Za-z0-9])(?:sk|rk|pk)_(?:live|test)_[A-Za-z0-9]{16,}/ },
+  { type: "JWT", re: /(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/ },
+  { type: "private key block", re: /-----BEGIN[ A-Z0-9]*PRIVATE KEY(?: BLOCK)?-----/ },
+  { type: "Authorization header", re: /\b(?:Bearer|Basic)\s+([A-Za-z0-9._~+/-]{16,}=*)/i, ok: (v) => keyLike(v, 16) },
+  { type: "credentials in URL", re: /\b[a-z][a-z0-9+.-]*:\/\/[^\s/:@]+:([^\s/@]{3,})@/i, ok: (v) => !/^(?:\*+|x+|\.+|<.*>|\$\{?.*)$/i.test(v) },
+  // UPPER_CASE env names anywhere in a line (not only at its start): a lower bar (8 chars).
+  { type: ".env secret", re: /(?<![A-Za-z0-9_])[A-Z][A-Z0-9_]*(?:KEY|SECRET|TOKEN|PASSWORD|PASSWD|CREDENTIALS?)[A-Z0-9_]*[ \t]*=[ \t]*["']?([^\s"'#`*|{}(),<>[\]]+)/, ok: (v) => keyLike(v, 8) },
+  {
+    type: "secret assignment",
+    re: new RegExp(String.raw`(?<![A-Za-z0-9])${KEY_NAME}["']?[ \t]*[:=][ \t]*["']?([A-Za-z0-9_\-+/=.~]{16,})`, "i"),
+    ok: (v) => keyLike(v, 16),
+  },
+];
+
+/** The secret type found in text (raw, decoded, or decoded without markdown marks), or null. */
+export function findSecret(text: string): string | null {
+  const decoded = decodeAll(text);
+  const variants = [text, decoded, decoded.replace(/[`*]/g, "")];
+  for (const d of SECRET_DETECTORS) {
+    for (const v of variants) {
+      const re = new RegExp(d.re.source, d.re.flags.includes("g") ? d.re.flags : `${d.re.flags}g`);
+      for (let m = re.exec(v); m; m = re.exec(v)) {
+        if (!d.ok || d.ok(m[1] ?? m[0])) return d.type;
+        if (m[0].length === 0) re.lastIndex++;
+      }
+    }
+  }
+  return null;
+}
+
+/** Throws (naming the field and the secret type, never the value) when text holds a secret. */
+export function assertNoSecret(text: string, what: string): void {
+  const type = findSecret(text);
+  if (type) throw new Error(`${what} holds a secret (${type}) — refusing to publish; remove it from the local text`);
+}
+
+/** Throws when text holds a secret, or still holds a local absolute path (in
+ *  any encoding GitHub renders). Independent of the scrubber. Call on every
+ *  string sent to GitHub, after scrubbing. */
+export function assertPublishable(text: string, what: string): void {
+  assertNoSecret(text, what);
+  if (hasLocalPath(text)) throw new Error(`${what} holds a local absolute path — refusing to publish`);
+}
+
+/** Secret check on the input (the scrubber must never hide a secret), scrub, then guard. */
 export function publishable(text: string, what: string): string {
+  assertNoSecret(text, what);
   const out = scrubLocalPaths(text);
   assertPublishable(out, what);
   return out;
@@ -156,18 +251,61 @@ export function publishable(text: string, what: string): string {
 // Any MCP client can call set_project and sync_github, and an agent can be
 // steered by prompt-injected content. So a live sync writes only to repos the
 // user allowed OUTSIDE the MCP channel: the env of the server / CLI process.
-// No tool can set it. Dry runs (online or offline) need no permission.
+// No tool can set it. Each entry pins exact targets: a repo, and optionally the
+// one Project board of it. The assignee is pinned too (repo owner, or a login
+// in CODE_CONTEXT_GITHUB_SYNC_ASSIGNEES). Dry runs (online or offline) need no
+// permission.
 
 export const SYNC_ALLOWLIST_ENV = "CODE_CONTEXT_GITHUB_SYNC_REPOS";
-const ALLOW_ENTRY_RE = /^[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9._-]+$/;
+export const SYNC_ASSIGNEES_ENV = "CODE_CONTEXT_GITHUB_SYNC_ASSIGNEES";
+const LOGIN = "[A-Za-z0-9][A-Za-z0-9-]*";
+/** `owner/repo` or `owner/repo@board-owner/N`. */
+const GRANT_RE = new RegExp(`^(${LOGIN}/[A-Za-z0-9._-]+)(?:@(${LOGIN})/([1-9]\\d{0,8}))?$`);
+const LOGIN_ONLY_RE = new RegExp(`^${LOGIN}$`);
 
-/** Allowed `owner/repo` entries (lower case) from CODE_CONTEXT_GITHUB_SYNC_REPOS
- *  (comma or whitespace separated). Malformed entries and wildcards are ignored. */
-export function syncAllowlist(env: NodeJS.ProcessEnv = process.env): string[] {
-  return (env[SYNC_ALLOWLIST_ENV] ?? "")
-    .split(/[\s,]+/)
-    .map((e) => e.trim().toLowerCase())
-    .filter((e) => ALLOW_ENTRY_RE.test(e));
+/** One allowlist entry: a repo (issues + milestones) and, optionally, the one
+ *  Project board it may also write to. Lower case. */
+export interface SyncGrant {
+  repo: string;
+  board: { owner: string; number: number } | null;
+}
+
+/** What a live sync may touch, read from the process env (never from a tool). */
+export interface SyncAuth {
+  grants: SyncGrant[];
+  /** Extra assignee logins (lower case); the repo owner is always allowed. */
+  assignees: string[];
+}
+
+/** The exact GitHub targets one project's sync writes to. */
+export interface SyncTarget {
+  repo: string;
+  board: { owner: string; number: number } | null;
+  assignee: string;
+}
+
+/** Parse CODE_CONTEXT_GITHUB_SYNC_REPOS-style entries (comma or whitespace
+ *  separated). Malformed entries and wildcards are ignored (fail closed). */
+export function parseSyncGrants(raw: string | readonly string[]): SyncGrant[] {
+  const parts = typeof raw === "string" ? raw.split(/[\s,]+/) : raw.flatMap((e) => e.split(/[\s,]+/));
+  const out: SyncGrant[] = [];
+  for (const p of parts) {
+    const m = GRANT_RE.exec(p.trim());
+    if (!m) continue;
+    out.push({ repo: m[1].toLowerCase(), board: m[2] ? { owner: m[2].toLowerCase(), number: Number(m[3]) } : null });
+  }
+  return out;
+}
+
+/** Allowlist + assignee list from the env of this process. */
+export function syncAuth(env: NodeJS.ProcessEnv = process.env): SyncAuth {
+  return {
+    grants: parseSyncGrants(env[SYNC_ALLOWLIST_ENV] ?? ""),
+    assignees: (env[SYNC_ASSIGNEES_ENV] ?? "")
+      .split(/[\s,]+/)
+      .map((e) => e.trim().toLowerCase())
+      .filter((e) => LOGIN_ONLY_RE.test(e)),
+  };
 }
 
 /** Board owner a project writes to, or null without a board. */
@@ -176,17 +314,43 @@ export function boardOwnerOf(p: Pick<ProjectRow, "repo" | "github_project_number
   return p.github_project_owner || (p.repo ? repoOwner(p.repo) : null);
 }
 
+/** The targets a project row resolves to (repo must be set). */
+export function syncTargetOf(p: Pick<ProjectRow, "repo" | "github_project_number" | "github_project_owner" | "github_assignee">): SyncTarget {
+  const repo = p.repo!;
+  const owner = boardOwnerOf(p);
+  return {
+    repo,
+    board: owner !== null && p.github_project_number !== null ? { owner, number: p.github_project_number } : null,
+    assignee: p.github_assignee || repoOwner(repo),
+  };
+}
+
+function grantText(g: SyncGrant): string {
+  return g.board ? `${g.repo}@${g.board.owner}/${g.board.number}` : g.repo;
+}
+
 /**
- * Error text when a live sync to `repo` (and its board owner) is not allowed,
- * else null. The repo must be listed; the board owner must own a listed repo.
+ * Error text when a live sync to `t` is not allowed, else null.
+ * - The repo must be listed.
+ * - With a board, the exact `repo@board-owner/N` pair must be listed: a repo
+ *   grant never extends to other boards of the same owner.
+ * - The assignee must be the repo owner or listed in CODE_CONTEXT_GITHUB_SYNC_ASSIGNEES.
  */
-export function liveSyncRefusal(repo: string, boardOwner: string | null, allowed: readonly string[]): string | null {
-  const how = `Allow it outside the MCP session: add it to ${SYNC_ALLOWLIST_ENV} (comma-separated owner/repo) in the environment of the code-context server or the code-context-sync-github CLI, then restart the server. dry_run works without it.`;
-  if (!allowed.includes(repo.toLowerCase())) {
-    return `Live sync to ${repo} is not authorized: ${repo} is not in ${SYNC_ALLOWLIST_ENV}${allowed.length ? ` (allowed: ${allowed.join(", ")})` : " (unset)"}. ${how}`;
+export function liveSyncRefusal(t: SyncTarget, auth: SyncAuth): string | null {
+  const how = `Allow it outside the MCP session: set ${SYNC_ALLOWLIST_ENV} (owner/repo for issues + milestones, owner/repo@board-owner/N to also write that Project board; comma-separated) in the environment of the code-context server or the code-context-sync-github CLI, then restart the server. dry_run works without it.`;
+  const repo = t.repo.toLowerCase();
+  const listed = auth.grants.length ? ` (allowed: ${auth.grants.map(grantText).join(", ")})` : " (unset)";
+  const forRepo = auth.grants.filter((g) => g.repo === repo);
+  if (!forRepo.length) return `Live sync to ${t.repo} is not authorized: ${t.repo} is not in ${SYNC_ALLOWLIST_ENV}${listed}. ${how}`;
+  if (t.board) {
+    const want = { owner: t.board.owner.toLowerCase(), number: t.board.number };
+    if (!forRepo.some((g) => g.board && g.board.owner === want.owner && g.board.number === want.number)) {
+      return `Live sync to the Project board ${t.board.owner}/${t.board.number} is not authorized for ${t.repo}: ${SYNC_ALLOWLIST_ENV} has no entry ${repo}@${want.owner}/${want.number}${listed}. Add that exact entry, or unset the project's github_project_number to sync without a board. ${how}`;
+    }
   }
-  if (boardOwner !== null && !allowed.some((e) => e.split("/")[0] === boardOwner.toLowerCase())) {
-    return `Live sync to the Project board of ${boardOwner} is not authorized: no repo of ${boardOwner} is in ${SYNC_ALLOWLIST_ENV}. ${how}`;
+  const assignee = t.assignee.toLowerCase();
+  if (assignee !== repoOwner(repo) && !auth.assignees.includes(assignee)) {
+    return `Live sync with assignee ${t.assignee} is not authorized: only the repo owner (${repoOwner(t.repo)}) or a login in ${SYNC_ASSIGNEES_ENV}${auth.assignees.length ? ` (${auth.assignees.join(", ")})` : " (unset)"} may be assigned. Add the login to ${SYNC_ASSIGNEES_ENV} in the server or CLI env, or unset the project's github_assignee.`;
   }
   return null;
 }
@@ -325,12 +489,15 @@ export function statusFor(t: Pick<SyncTicket, "status" | "review_status" | "spri
 }
 
 export function issueTitle(t: Pick<SyncTicket, "ticket_ref" | "title">): string {
+  assertNoSecret(t.title, "ticket title");
   return publishable(t.ticket_ref ? `${t.ticket_ref}: ${t.title}` : t.title, "issue title");
 }
 
 /** Issue body: `## Why` from the description before "Done when:", `## Done when`
  *  from the rest plus acceptance criteria. Scrubbed and guarded. */
 export function buildIssueBody(t: Pick<SyncTicket, "description" | "acceptance_criteria">): string {
+  assertNoSecret(t.description ?? "", "ticket description");
+  assertNoSecret(t.acceptance_criteria ?? "", "acceptance criteria");
   const desc = (t.description ?? "").trim();
   const split = /(^|\n)\s*(?:#+\s*)?Done when:?\s*/i.exec(desc);
   let why = desc;
@@ -368,16 +535,19 @@ export function labelRule(t: Pick<SyncTicket, "priority" | "type" | "origin">, c
   const managed: string[] = [...PRIORITY_LABELS];
   const desired: string[] = [];
   if ((PRIORITY_LABELS as readonly string[]).includes(t.priority)) desired.push(t.priority);
-  if (t.type) {
+  if (t.type && (TYPE_LABELS as readonly string[]).includes(t.type)) {
     managed.push(...TYPE_LABELS);
     desired.push(t.type);
   }
   const origin = t.origin ?? (creating ? "ai" : null);
-  if (origin) {
+  if (origin && origin in ORIGIN_LABELS) {
     managed.push(...Object.values(ORIGIN_LABELS));
     desired.push(ORIGIN_LABELS[origin]);
   }
-  return { managed, desired };
+  // Only the fixed label set is ever sent: GitHub creates a missing label on
+  // the fly, so an unexpected value must never become a new label.
+  const known = new Set<string>([...managed]);
+  return { managed, desired: desired.filter((l) => known.has(l)) };
 }
 
 export function applyLabelRule(existing: string[], rule: LabelRule): string[] {
@@ -766,7 +936,7 @@ function cachedMeta(p: ProjectRow): ProjectMeta | null {
 }
 
 /** All GitHub reads one sync needs: ≤1 REST (milestones) + 1 GraphQL per 50 issues. */
-export async function readRemote(db: Database.Database, gw: GitHubGateway, project: ProjectRow): Promise<RemoteState> {
+export async function readRemote(db: Database.Database, gw: GitHubGateway, project: ProjectRow, opts: { trustCache?: boolean } = {}): Promise<RemoteState> {
   const repo = project.repo!;
   const milestones = loadProjectMilestones(db, project.name).length ? await gw.listMilestones(repo) : null;
   const numbers = loadProjectTickets(db, project.name)
@@ -776,7 +946,10 @@ export async function readRemote(db: Database.Database, gw: GitHubGateway, proje
     project.github_project_number !== null
       ? { owner: project.github_project_owner || repoOwner(repo), number: project.github_project_number }
       : null;
-  const cached = cachedMeta(project);
+  // A live run never trusts the cached Project id: any db writer (the `execute`
+  // tool included) could point it at another board. It resolves the id from
+  // the authorized owner/number in the same GraphQL read.
+  const cached = opts.trustCache === false ? null : cachedMeta(project);
   const r = numbers.length || (board && !cached) ? await gw.readIssues(repo, board, numbers, cached) : { meta: cached, issues: new Map(), missing: [] };
   return { ...r, meta: r.meta ?? cached, milestones };
 }
@@ -786,9 +959,9 @@ export interface SyncOptions {
   /** Dry run without any GitHub read. */
   offline?: boolean;
   maxWrites?: number;
-  /** Allowed `owner/repo` list for a live run. Default: syncAllowlist(process.env).
+  /** Live-sync authorization. Default: syncAuth(process.env).
    *  Code callers only (tests); no MCP tool or CLI flag sets it. */
-  allowedRepos?: readonly string[];
+  auth?: SyncAuth;
   /** Pause between content-creating calls (GitHub secondary limits). Default 1000 ms. */
   pauseMs?: number;
   sleep?: (ms: number) => Promise<void>;
@@ -809,7 +982,7 @@ export async function syncGithub(db: Database.Database, gw: GitHubGateway, proje
   if (!project.repo) throw new Error(`Project "${projectName}" has no repo — set_project repo=owner/name first`);
 
   if (!opts.dryRun) {
-    const refusal = liveSyncRefusal(project.repo, boardOwnerOf(project), opts.allowedRepos ?? syncAllowlist());
+    const refusal = liveSyncRefusal(syncTargetOf(project), opts.auth ?? syncAuth());
     if (refusal) throw new Error(refusal);
   }
 
@@ -817,7 +990,7 @@ export async function syncGithub(db: Database.Database, gw: GitHubGateway, proje
     const plan = planSync(db, project, null);
     return { plan, text: formatPlan(plan, `sync_github ${projectName} — dry run (offline)`), writes: 0, error: null };
   }
-  const remote = await readRemote(db, gw, project);
+  const remote = await readRemote(db, gw, project, { trustCache: !!opts.dryRun });
   const plan = planSync(db, project, remote);
   if (opts.dryRun) return { plan, text: formatPlan(plan, `sync_github ${projectName} — dry run`), writes: 0, error: null };
 

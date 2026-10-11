@@ -5,10 +5,13 @@
 //       [--repo owner/name] [--project-number N] [--project-owner login] [--assignee login]
 //       [--milestone <id>[=<github number>]]... [--max-writes N] [--force]
 //
-// A live run writes only to repos listed in CODE_CONTEXT_GITHUB_SYNC_REPOS
-// (comma-separated owner/repo) in this process's env; --repo alone never
-// authorizes a write. --force re-points a project that already synced, and
-// only to an allowlisted repo. A refused live run leaves the db unchanged.
+// A live run writes only to the exact targets listed in
+// CODE_CONTEXT_GITHUB_SYNC_REPOS in this process's env (comma-separated
+// `owner/repo`, or `owner/repo@board-owner/N` to also write that Project
+// board), and assigns only the repo owner or a login in
+// CODE_CONTEXT_GITHUB_SYNC_ASSIGNEES. --repo / --project-number / --assignee
+// never authorize a write. --force re-points a project that already synced,
+// and only to an allowlisted target. A refused live run leaves the db unchanged.
 //
 // --dry-run works on an in-memory copy of the db: the file is opened read-only,
 // never migrated and never written, so it is safe against a db that an older
@@ -21,13 +24,13 @@ import os from "node:os";
 import fs from "node:fs";
 import Database from "better-sqlite3";
 import { initScrumSchema, runMigrations, peekSchemaVersion, LATEST_SCHEMA_VERSION } from "../scrum/schema.js";
-import { syncGithub, getProject, liveSyncRefusal, boardOwnerOf, syncAllowlist, type GitHubGateway } from "../scrum/github-sync.js";
+import { syncGithub, getProject, liveSyncRefusal, syncAuth, syncTargetOf, type GitHubGateway } from "../scrum/github-sync.js";
 import { GhGateway } from "../scrum/github-gateway.js";
 import { upsertProject } from "../scrum/tools/github.js";
 import { log as slog } from "../sessionlog.js";
 
 export const USAGE =
-  "usage: code-context-sync-github --project <name> [--db <file>] [--dry-run [--offline]] [--repo owner/name] [--project-number N] [--project-owner login] [--assignee login] [--milestone <id>[=<gh number>]]... [--max-writes N] [--force]\n\nA live run needs the repo in CODE_CONTEXT_GITHUB_SYNC_REPOS=owner/repo[,owner/repo…].";
+  "usage: code-context-sync-github --project <name> [--db <file>] [--dry-run [--offline]] [--repo owner/name] [--project-number N] [--project-owner login] [--assignee login] [--milestone <id>[=<gh number>]]... [--max-writes N] [--force]\n\nA live run needs the exact target in CODE_CONTEXT_GITHUB_SYNC_REPOS=owner/repo[@board-owner/N][,…] (a board needs the @board-owner/N form)\nand an assignee that is the repo owner or in CODE_CONTEXT_GITHUB_SYNC_ASSIGNEES=login[,login…].";
 
 export interface Args {
   db: string;
@@ -162,7 +165,7 @@ export async function run(a: Args, gateway: GitHubGateway = new GhGateway(), out
     let err = applySetup(db, a);
     if (!err && !a.dryRun) {
       const p = getProject(db, a.project);
-      if (p?.repo) err = liveSyncRefusal(p.repo, boardOwnerOf(p), syncAllowlist());
+      if (p?.repo) err = liveSyncRefusal(syncTargetOf(p), syncAuth());
     }
     if (err) {
       db.exec("ROLLBACK");
