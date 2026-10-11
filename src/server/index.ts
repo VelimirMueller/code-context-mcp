@@ -255,6 +255,7 @@ server.tool(
           type: "text",
           text: `"${rawPath}" matches ${resolved.candidates.length} indexed files. Pass one of these absolute paths:\n${resolved.candidates.map((c) => `- ${c}`).join("\n")}`,
         }],
+        isError: true,
       };
     }
     const filePath = resolved.path;
