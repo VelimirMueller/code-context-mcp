@@ -8,8 +8,8 @@ import { HeroText } from '@/components/molecules/HeroText';
 import { pageVariants, pageTransition } from '@/lib/motion';
 
 const MCP_COLOR = '#10b981';
-const VANILLA_COLOR = '#f59e0b';
-const STAT_COLOR = '#8b5cf6';
+const VANILLA_COLOR = '#fbbf24';
+const STAT_COLOR = '#818cf8';
 
 const CATEGORY_ICONS: Record<string, string> = {
   retrieval: 'search', analysis: 'diagram', exploration: 'compass',
@@ -285,7 +285,7 @@ export function Benchmark() {
 
   if (error && !data) {
     return (
-      <div style={{ padding: 40, textAlign: 'center', color: 'var(--red, #ef4444)', fontSize: 13 }}>
+      <div style={{ padding: 40, textAlign: 'center', color: 'var(--red, #f87171)', fontSize: 13 }}>
         Failed to load benchmark data: {error}
         <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text3)' }}>
           Run <code style={{ fontFamily: 'var(--mono)', background: 'var(--surface2)', padding: '2px 6px', borderRadius: 4 }}>npm test -- test/benchmark.test.ts</code> to generate benchmark-results.json

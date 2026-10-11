@@ -9,16 +9,16 @@ interface Props {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  discovered: '#6b7280', planned: '#3b82f6', implemented: '#22c55e', dropped: '#ef4444',
+  discovered: '#6b6b84', planned: '#60a5fa', implemented: '#10b981', dropped: '#f87171',
 };
 
 const PRIORITY_COLORS: Record<string, string> = {
-  P0: '#ef4444', P1: '#f59e0b', P2: '#3b82f6', P3: '#6b7280',
+  P0: '#f87171', P1: '#fbbf24', P2: '#60a5fa', P3: '#6b6b84',
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
-  architecture: '#8b5cf6', ux: '#ec4899', performance: '#10b981',
-  testing: '#f59e0b', integration: '#3b82f6', general: '#6b7280',
+  architecture: '#818cf8', ux: '#ec4899', performance: '#10b981',
+  testing: '#fbbf24', integration: '#60a5fa', general: '#6b6b84',
 };
 
 export function DiscoveryRow({ discovery, onLinkTicket, onClickTicket }: Props) {
@@ -32,10 +32,10 @@ export function DiscoveryRow({ discovery, onLinkTicket, onClickTicket }: Props) 
       onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4, background: (STATUS_COLORS[discovery.status] || '#6b7280') + '22', color: STATUS_COLORS[discovery.status] || '#6b7280' }}>
+        <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4, background: (STATUS_COLORS[discovery.status] || '#6b6b84') + '22', color: STATUS_COLORS[discovery.status] || '#6b6b84' }}>
           {discovery.status}
         </span>
-        <span style={{ fontSize: 11, fontWeight: 600, color: PRIORITY_COLORS[discovery.priority] || '#6b7280', padding: '1px 6px', borderRadius: 4, border: `1px solid ${PRIORITY_COLORS[discovery.priority] || '#6b7280'}` }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: PRIORITY_COLORS[discovery.priority] || '#6b6b84', padding: '1px 6px', borderRadius: 4, border: `1px solid ${PRIORITY_COLORS[discovery.priority] || '#6b6b84'}` }}>
           {discovery.priority}
         </span>
         <span style={{ flex: 1, fontSize: 13, color: 'var(--text-1)', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: expanded ? 'normal' : 'nowrap' }}>
@@ -58,7 +58,7 @@ export function DiscoveryRow({ discovery, onLinkTicket, onClickTicket }: Props) 
             </span>
           )
         )}
-        <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: (CATEGORY_COLORS[discovery.category] || '#6b7280') + '22', color: CATEGORY_COLORS[discovery.category] || '#6b7280' }}>
+        <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: (CATEGORY_COLORS[discovery.category] || '#6b6b84') + '22', color: CATEGORY_COLORS[discovery.category] || '#6b6b84' }}>
           {discovery.category}
         </span>
       </div>
@@ -78,7 +78,7 @@ export function DiscoveryRow({ discovery, onLinkTicket, onClickTicket }: Props) 
               </div>
             )}
             {discovery.drop_reason && (
-              <div style={{ marginTop: 4, color: '#ef4444' }}>Drop reason: {discovery.drop_reason}</div>
+              <div style={{ marginTop: 4, color: '#f87171' }}>Drop reason: {discovery.drop_reason}</div>
             )}
             <div style={{ marginTop: 4, opacity: 0.6 }}>
               By: {discovery.created_by || '\u2014'} | {discovery.created_at}

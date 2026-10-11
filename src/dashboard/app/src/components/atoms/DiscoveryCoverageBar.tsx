@@ -7,10 +7,10 @@ interface Props {
 }
 
 const COLORS: Record<string, string> = {
-  implemented: '#22c55e',
-  planned: '#3b82f6',
-  discovered: '#6b7280',
-  dropped: '#ef4444',
+  implemented: '#10b981',
+  planned: '#60a5fa',
+  discovered: '#6b6b84',
+  dropped: '#f87171',
 };
 
 export function DiscoveryCoverageBar({ coverage, height = 24 }: Props) {

@@ -7,14 +7,17 @@
  *   light: page #fafafa  text #0a0a0b  sub #52525b  faint #71717a
  *          line #e4e4e7   grid #18181b at 5 % alpha   green #047857
  *
- * Fonts: no webfont is loaded — the page makes zero third-party requests.
- * Space Mono is used when installed locally; otherwise the system mono stack
- * takes over (owner decision, PLAN risk 10).
+ * Fonts: Inter and Space Mono (vm-brand §3) are served from assets/fonts on the
+ * same origin, so the page still makes zero third-party requests.
  */
+@font-face { font-family: Inter; font-weight: 400; font-display: swap; src: url('assets/fonts/inter-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: Inter; font-weight: 600; font-display: swap; src: url('assets/fonts/inter-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Space Mono'; font-weight: 400; font-display: swap; src: url('assets/fonts/space-mono-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Space Mono'; font-weight: 700; font-display: swap; src: url('assets/fonts/space-mono-latin-700-normal.woff2') format('woff2'); }
 :root {
   --accent: #6366f1;
   --font-mono: 'Space Mono', ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
-  --font-sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-sans: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
   /* light theme (default) */
   --page: #fafafa;
   --text: #0a0a0b;

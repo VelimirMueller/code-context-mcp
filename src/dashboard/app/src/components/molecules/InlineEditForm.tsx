@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const PRESET_COLORS = ['#3b82f6', '#10b981', '#a78bfa', '#f59e0b', '#ec4899', '#ef4444', '#06b6d4', '#84cc16'];
+const PRESET_COLORS = ['#60a5fa', '#10b981', '#a5b4fc', '#fbbf24', '#ec4899', '#f87171', '#06b6d4', '#84cc16'];
 
 export interface InlineEditField {
   name: string;

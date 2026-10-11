@@ -33,10 +33,10 @@ const PRIORITY_OPTIONS = ['P0', 'P1', 'P2', 'P3'];
 
 const statusDot: Record<string, string> = {
   TODO: 'var(--text3)',
-  IN_PROGRESS: '#3b82f6',
+  IN_PROGRESS: '#60a5fa',
   DONE: 'var(--green)',
-  BLOCKED: '#ef4444',
-  PARTIAL: '#f59e0b',
+  BLOCKED: '#f87171',
+  PARTIAL: '#fbbf24',
 };
 
 const inputStyle: React.CSSProperties = {
@@ -374,7 +374,7 @@ export function SprintPlanningView() {
                 </span>
                 <span style={{
                   fontSize: 10, fontFamily: 'var(--mono)', fontWeight: 600,
-                  color: ticket.priority === 'P0' ? '#ef4444' : ticket.priority === 'P1' ? '#f59e0b' : 'var(--text3)',
+                  color: ticket.priority === 'P0' ? '#f87171' : ticket.priority === 'P1' ? '#fbbf24' : 'var(--text3)',
                 }}>
                   {ticket.priority}
                 </span>

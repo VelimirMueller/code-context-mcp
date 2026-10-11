@@ -30,8 +30,10 @@ export function Button({ variant = 'primary', children, style, ...props }: Butto
     fontWeight: 500,
     transition: 'background .15s, color .15s',
     ...(variant === 'primary' && {
-      background: 'var(--accent)',
-      color: '#000',
+      background: 'var(--pill-bg)',
+      color: 'var(--pill-fg)',
+      borderRadius: 'var(--radius-pill)',
+      fontWeight: 600,
     }),
     ...(variant === 'secondary' && {
       background: 'var(--surface3)',

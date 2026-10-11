@@ -52,13 +52,13 @@ const STEP_ICONS: Record<string, string> = {
 };
 
 const STEP_COLORS: Record<string, string> = {
-  vision: '#8b5cf6',
-  discovery: '#3b82f6',
+  vision: '#818cf8',
+  discovery: '#60a5fa',
   milestone: '#10b981',
-  epics: '#f59e0b',
+  epics: '#fbbf24',
   tickets: '#ec4899',
   sprint_launch: '#06b6d4',
-  retro: '#ef4444',
+  retro: '#f87171',
 };
 
 // Animation variants
@@ -173,7 +173,7 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
 
   const current = steps[currentIndex];
   const isLast = currentIndex === steps.length - 1;
-  const accentColor = STEP_COLORS[current?.step] ?? '#3b82f6';
+  const accentColor = STEP_COLORS[current?.step] ?? '#60a5fa';
   const icon = STEP_ICONS[current?.step] ?? '◈';
 
   // Listen for step progress events via SSE
@@ -661,7 +661,7 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                     exit={{ opacity: 0, height: 0, y: -10 }}
                     style={{
                       fontSize: 12,
-                      color: '#ef4444',
+                      color: '#f87171',
                       padding: '8px 12px',
                       background: 'rgba(239, 68, 68, 0.1)',
                       borderRadius: 6,

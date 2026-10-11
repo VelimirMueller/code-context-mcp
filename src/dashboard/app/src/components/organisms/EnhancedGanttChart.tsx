@@ -12,11 +12,11 @@ import { AnimatedNumber } from '@/components/atoms/AnimatedNumber';
 /* ─── Constants ───────────────────────────────────────────────────────────── */
 
 const STATUS_COLORS: Record<string, string> = {
-  TODO: '#636474',
-  IN_PROGRESS: '#3b82f6',
+  TODO: '#6b6b84',
+  IN_PROGRESS: '#60a5fa',
   DONE: '#10b981',
-  BLOCKED: '#ef4444',
-  PARTIAL: '#f59e0b',
+  BLOCKED: '#f87171',
+  PARTIAL: '#fbbf24',
 };
 
 const ROW_HEIGHT = 36;
@@ -101,7 +101,7 @@ export function EnhancedGanttChart() {
       return {
         ...s,
         milestoneName: ms?.name,
-        milestoneColor: ms?.status === 'completed' ? '#10b981' : ms?.status === 'in_progress' ? '#3b82f6' : '#8b5cf6',
+        milestoneColor: ms?.status === 'completed' ? '#10b981' : ms?.status === 'in_progress' ? '#60a5fa' : '#818cf8',
       };
     });
   }, [ganttData, milestones]);
@@ -653,7 +653,7 @@ function GanttSprintRow({
 
                   {/* Ticket bars in timeline */}
                   {memberTickets.map((t, ti) => {
-                    const color = STATUS_COLORS[t.status] || '#636474';
+                    const color = STATUS_COLORS[t.status] || '#6b6b84';
                     return (
                       <div
                         key={t.id}

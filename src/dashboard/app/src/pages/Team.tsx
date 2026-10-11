@@ -28,7 +28,7 @@ function WorkloadView() {
           const active = a.active_tickets || 0;
           const blocked = a.blocked_tickets || 0;
           const pct = (active / maxActive) * 100;
-          const barColor = active > 3 ? '#ef4444' : active >= 1 ? 'var(--green)' : 'var(--text3)';
+          const barColor = active > 3 ? '#f87171' : active >= 1 ? 'var(--green)' : 'var(--text3)';
           return (
             <div key={a.role} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ width: 140, fontSize: 12, fontWeight: 600, color: 'var(--text2)', fontFamily: 'var(--mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</div>
@@ -43,7 +43,7 @@ function WorkloadView() {
         })}
       </div>
       {agents.some((a) => (a.active_tickets || 0) > 3) && (
-        <div style={{ marginTop: 16, padding: 12, background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.2)', borderRadius: 8, fontSize: 12, color: '#ef4444', fontWeight: 600 }}>
+        <div style={{ marginTop: 16, padding: 12, background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.2)', borderRadius: 8, fontSize: 12, color: '#f87171', fontWeight: 600 }}>
           Overloaded — {agents.filter((a) => (a.active_tickets || 0) > 3).length} agent(s) with more than 3 active tickets.
         </div>
       )}
@@ -59,7 +59,7 @@ function MoodView() {
       <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, color: 'var(--text)' }}>Team Mood</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
         {agents.map((a) => {
-          const moodColor = a.mood >= 60 ? '#10b981' : a.mood >= 40 ? '#f59e0b' : '#ef4444';
+          const moodColor = a.mood >= 60 ? '#10b981' : a.mood >= 40 ? '#fbbf24' : '#f87171';
           return (
             <div key={a.role} style={{ padding: 12, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ fontSize: 24 }}>{a.mood_emoji || '😐'}</span>
@@ -73,7 +73,7 @@ function MoodView() {
         })}
       </div>
       {agents.some((a) => a.mood < 40) && (
-        <div style={{ marginTop: 16, padding: 12, background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.2)', borderRadius: 8, fontSize: 12, color: '#ef4444', fontWeight: 600 }}>
+        <div style={{ marginTop: 16, padding: 12, background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.2)', borderRadius: 8, fontSize: 12, color: '#f87171', fontWeight: 600 }}>
           Burnout risk detected — {agents.filter((a) => a.mood < 40).length} agent(s) with low mood. Reduce workload next sprint.
         </div>
       )}

@@ -408,8 +408,8 @@ function BurndownMetricsCard({ data, sprintName }: { data: BurndownData; sprintN
 
   const riskConfig = {
     low: { bg: 'var(--accent)15', border: 'var(--accent)40', text: 'var(--accent)', label: 'Low Risk' },
-    medium: { bg: '#f59e0b15', border: '#f59e0b40', text: '#f59e0b', label: 'Medium Risk' },
-    high: { bg: '#ef444415', border: '#ef444440', text: '#ef4444', label: 'High Risk' },
+    medium: { bg: '#fbbf2415', border: '#fbbf2440', text: '#fbbf24', label: 'Medium Risk' },
+    high: { bg: '#f8717115', border: '#f8717140', text: '#f87171', label: 'High Risk' },
   };
 
   const r = analysis ? riskConfig[analysis.risk] : riskConfig.low;
@@ -463,7 +463,7 @@ function BurndownMetricsCard({ data, sprintName }: { data: BurndownData; sprintN
             label="Scope Change"
             value={`${analysis.scopeNet > 0 ? '+' : ''}${analysis.scopeNet} pts`}
             sub={`${analysis.scopeAdded} added, ${analysis.scopeRemoved} removed`}
-            color={analysis.scopeNet > 0 ? '#f59e0b' : analysis.scopeNet < 0 ? 'var(--green)' : 'var(--text3)'}
+            color={analysis.scopeNet > 0 ? '#fbbf24' : analysis.scopeNet < 0 ? 'var(--green)' : 'var(--text3)'}
           />
         </div>
       )}
@@ -487,7 +487,7 @@ function BurndownMetricsCard({ data, sprintName }: { data: BurndownData; sprintN
                     <td style={{ padding: '6px 8px', color: 'var(--text)', fontFamily: 'var(--mono)' }}>{m.date.slice(5)}</td>
                     <td style={{ padding: '6px 8px', textAlign: 'right', color: 'var(--text)', fontFamily: 'var(--mono)' }}>{m.remaining_points}</td>
                     <td style={{ padding: '6px 8px', textAlign: 'right', color: 'var(--green)', fontFamily: 'var(--mono)' }}>+{m.completed_points}</td>
-                    <td style={{ padding: '6px 8px', textAlign: 'right', color: '#f59e0b', fontFamily: 'var(--mono)' }}>+{m.added_points}</td>
+                    <td style={{ padding: '6px 8px', textAlign: 'right', color: '#fbbf24', fontFamily: 'var(--mono)' }}>+{m.added_points}</td>
                     <td style={{ padding: '6px 8px', textAlign: 'right', color: 'var(--blue)', fontFamily: 'var(--mono)' }}>-{m.removed_points}</td>
                   </tr>
                 ))}
@@ -519,7 +519,7 @@ function MultiSprintComparison({ entries }: { entries: SprintBurndownEntry[] }) 
     );
   }
 
-  const colors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'];
+  const colors = ['#60a5fa', '#10b981', '#fbbf24', '#818cf8'];
 
   // Build a normalized comparison chart (percentage of total completed over time)
   const W = 700;
@@ -619,8 +619,8 @@ function MultiSprintComparison({ entries }: { entries: SprintBurndownEntry[] }) 
                   </td>
                   <td style={{ padding: '8px', textAlign: 'right', fontFamily: 'var(--mono)', color: 'var(--text)' }}>{total}</td>
                   <td style={{ padding: '8px', textAlign: 'right', fontFamily: 'var(--mono)', color: 'var(--green)' }}>{current.completed}</td>
-                  <td style={{ padding: '8px', textAlign: 'right', fontFamily: 'var(--mono)', color: pct >= 80 ? 'var(--green)' : '#f59e0b' }}>{pct}%</td>
-                  <td style={{ padding: '8px', textAlign: 'right', fontFamily: 'var(--mono)', color: scopeNet > 0 ? '#f59e0b' : scopeNet < 0 ? 'var(--green)' : 'var(--text3)' }}>
+                  <td style={{ padding: '8px', textAlign: 'right', fontFamily: 'var(--mono)', color: pct >= 80 ? 'var(--green)' : '#fbbf24' }}>{pct}%</td>
+                  <td style={{ padding: '8px', textAlign: 'right', fontFamily: 'var(--mono)', color: scopeNet > 0 ? '#fbbf24' : scopeNet < 0 ? 'var(--green)' : 'var(--text3)' }}>
                     {scopeNet > 0 ? '+' : ''}{scopeNet}
                   </td>
                 </tr>

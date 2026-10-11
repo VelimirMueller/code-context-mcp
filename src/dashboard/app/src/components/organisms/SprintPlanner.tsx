@@ -140,10 +140,10 @@ export function SprintPlanner({ onClose }: SprintPlannerProps) {
   };
 
   const btnPrimary: React.CSSProperties = {
-    background: 'var(--accent)',
-    color: '#000',
+    background: 'var(--pill-bg)',
+    color: 'var(--pill-fg)',
     border: 'none',
-    borderRadius: 8,
+    borderRadius: 'var(--radius-pill)',
     padding: '9px 22px',
     fontSize: 13,
     fontWeight: 600,

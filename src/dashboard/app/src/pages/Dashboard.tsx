@@ -43,9 +43,9 @@ function ActivityFeed() {
   const actionColor = (action: string) => {
     switch (action) {
       case 'created': return '#10b981';
-      case 'status_changed': return '#3b82f6';
-      case 'updated': return '#f59e0b';
-      case 'deleted': return '#ef4444';
+      case 'status_changed': return '#60a5fa';
+      case 'updated': return '#fbbf24';
+      case 'deleted': return '#f87171';
       default: return 'var(--text3)';
     }
   };
@@ -66,7 +66,7 @@ function ActivityFeed() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
         {[
           { label: 'Sprints Closed', value: closedCount, color: '#10b981' },
-          { label: 'Active Sprints', value: activeCount, color: '#3b82f6' },
+          { label: 'Active Sprints', value: activeCount, color: '#60a5fa' },
           { label: 'Total Tickets', value: totalTickets, color: 'var(--text)' },
           { label: 'Done Tickets', value: doneTickets, color: '#10b981' },
         ].map((card) => (

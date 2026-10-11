@@ -9,10 +9,10 @@ import { PHASE_COLORS, PHASE_ORDER, getPhaseStyle, mapLegacyPhase } from '@/lib/
 /* ─── Status Styles ────────────────────────────────────────────────────────── */
 
 const ticketStatusColor: Record<string, string> = {
-  TODO: '#636474',
-  IN_PROGRESS: '#3b82f6',
+  TODO: '#6b6b84',
+  IN_PROGRESS: '#60a5fa',
   DONE: '#10b981',
-  BLOCKED: '#ef4444',
+  BLOCKED: '#f87171',
 };
 
 /* ─── Sprint Bar ───────────────────────────────────────────────────────────── */
@@ -116,9 +116,9 @@ function SprintRow({ sprint, leftPct, widthPct, isLast, tickets, expanded, onTog
                       borderRadius: 3, fontSize: 9, fontFamily: 'var(--mono)', fontWeight: 600,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       padding: '0 6px',
-                      background: `${ticketStatusColor[t.status] ?? '#636474'}20`,
+                      background: `${ticketStatusColor[t.status] ?? '#6b6b84'}20`,
                       color: ticketStatusColor[t.status] ?? 'var(--text3)',
-                      border: `1px solid ${ticketStatusColor[t.status] ?? '#636474'}40`,
+                      border: `1px solid ${ticketStatusColor[t.status] ?? '#6b6b84'}40`,
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     }}
                   >
@@ -344,11 +344,11 @@ export function GanttChart() {
           );
         })}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ width: 12, height: 12, borderRadius: 3, background: '#3b82f620', border: '1px solid #3b82f640' }} />
+          <div style={{ width: 12, height: 12, borderRadius: 3, background: '#60a5fa20', border: '1px solid #60a5fa40' }} />
           <span style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 500 }}>IN_PROGRESS (parallel)</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ width: 12, height: 12, borderRadius: 3, background: '#63647420', border: '1px solid #63647440' }} />
+          <div style={{ width: 12, height: 12, borderRadius: 3, background: '#6b6b8420', border: '1px solid #6b6b8440' }} />
           <span style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 500 }}>TODO (sequential/queued)</span>
         </div>
       </div>

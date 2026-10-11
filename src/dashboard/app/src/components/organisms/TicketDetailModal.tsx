@@ -17,7 +17,7 @@ interface TicketDetailModalProps {
 }
 
 const priorityColor: Record<string, string> = {
-  P0: 'var(--red)', P1: 'var(--orange)', P2: 'var(--blue)', P3: '#6b7280',
+  P0: 'var(--red)', P1: 'var(--orange)', P2: 'var(--blue)', P3: '#6b6b84',
 };
 
 const statusColor: Record<string, string> = {
@@ -225,7 +225,7 @@ export function TicketDetailModal({ ticket, milestones, onClose, onMilestoneChan
                 <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>
                   {ticket.ticket_ref ?? `#${ticket.id}`}
                 </span>
-                <span style={{ padding: '2px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700, background: priorityColor[editPriority] ?? '#6b7280', color: 'white' }}>
+                <span style={{ padding: '2px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700, background: priorityColor[editPriority] ?? '#6b6b84', color: 'white' }}>
                   {editPriority}
                 </span>
                 <span style={{

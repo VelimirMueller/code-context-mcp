@@ -227,7 +227,7 @@ export function VisionEditor() {
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 style={{
-                  color: 'var(--red, #ef4444)',
+                  color: 'var(--red, #f87171)',
                   fontSize: 12,
                   background: 'rgba(239,68,68,0.08)',
                   border: '1px solid rgba(239,68,68,0.2)',

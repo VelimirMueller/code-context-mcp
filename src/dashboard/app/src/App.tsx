@@ -220,13 +220,13 @@ export function App() {
               alignItems: 'center',
               gap: 4,
               fontSize: 11,
-              color: connectionState === 'connected' ? 'var(--green, #10b981)' : connectionState === 'reconnecting' ? 'var(--yellow, #f59e0b)' : 'var(--red, #ef4444)',
+              color: connectionState === 'connected' ? 'var(--green, #10b981)' : connectionState === 'reconnecting' ? 'var(--yellow, #fbbf24)' : 'var(--red, #f87171)',
               opacity: connectionState === 'connected' ? 0.6 : 1,
             }}
           >
             <span style={{
               width: 6, height: 6, borderRadius: '50%',
-              background: connectionState === 'connected' ? '#10b981' : connectionState === 'reconnecting' ? '#f59e0b' : '#ef4444',
+              background: connectionState === 'connected' ? '#10b981' : connectionState === 'reconnecting' ? '#fbbf24' : '#f87171',
               animation: connectionState === 'reconnecting' ? 'pulse 1.5s ease-in-out infinite' : undefined,
             }} />
             {connectionState !== 'connected' && connectionState}

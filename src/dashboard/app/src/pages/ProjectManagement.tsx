@@ -51,8 +51,8 @@ function MilestoneCard({ milestone, onClose, onArchive, onUnarchive }: Milestone
   const statusColor: Record<string, string> = {
     active: '#10b981',
     planned: '#6366f1',
-    completed: '#6b7280',
-    in_progress: '#3b82f6',
+    completed: '#6b6b84',
+    in_progress: '#60a5fa',
   };
   const color = statusColor[milestone.status] ?? '#6366f1';
 

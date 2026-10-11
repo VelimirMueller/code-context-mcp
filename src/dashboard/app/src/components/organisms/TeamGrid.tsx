@@ -8,8 +8,8 @@ import { TeamManagementModal } from '@/components/organisms/TeamManagementModal'
 import type { Agent } from '@/types';
 
 const DEPARTMENT_DISPLAY: Record<string, { label: string; color: string }> = {
-  development: { label: 'Development', color: '#3b82f6' },
-  business: { label: 'Business', color: '#8b5cf6' },
+  development: { label: 'Development', color: '#60a5fa' },
+  business: { label: 'Business', color: '#818cf8' },
   quality: { label: 'Quality & Process', color: '#10b981' },
 };
 
@@ -70,10 +70,10 @@ export function TeamGrid() {
             padding: '6px 14px',
             fontSize: 12,
             fontWeight: 600,
-            background: 'var(--accent)',
+            background: 'var(--pill-bg)',
             border: 'none',
-            borderRadius: 'var(--radius)',
-            color: '#fff',
+            borderRadius: 'var(--radius-pill)',
+            color: 'var(--pill-fg)',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',

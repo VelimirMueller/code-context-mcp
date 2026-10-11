@@ -18,19 +18,19 @@ type ViewMode = 'sprints' | 'tickets';
 /* ─── Status Color Map ─────────────────────────────────────────────────────── */
 
 const STATUS_COLORS: Record<string, string> = {
-  TODO: '#636474',
-  IN_PROGRESS: '#3b82f6',
+  TODO: '#6b6b84',
+  IN_PROGRESS: '#60a5fa',
   DONE: '#10b981',
-  BLOCKED: '#ef4444',
-  PARTIAL: '#f59e0b',
-  NOT_DONE: '#636474',
+  BLOCKED: '#f87171',
+  PARTIAL: '#fbbf24',
+  NOT_DONE: '#6b6b84',
 };
 
 const PRIORITY_COLORS: Record<string, string> = {
-  P0: '#ef4444',
-  P1: '#f59e0b',
-  P2: '#3b82f6',
-  P3: '#6b7280',
+  P0: '#f87171',
+  P1: '#fbbf24',
+  P2: '#60a5fa',
+  P3: '#6b6b84',
 };
 
 /* ─── Main Component ──────────────────────────────────────────────────────── */
@@ -125,7 +125,7 @@ export function SprintTableView() {
         const committed = row.velocity_committed || 0;
         const completed = row.velocity_completed || 0;
         const pct = committed > 0 ? Math.round((completed / committed) * 100) : 0;
-        const color = pct >= 80 ? '#10b981' : pct >= 50 ? '#f59e0b' : '#ef4444';
+        const color = pct >= 80 ? '#10b981' : pct >= 50 ? '#fbbf24' : '#f87171';
         return (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
             <span style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
@@ -160,8 +160,8 @@ export function SprintTableView() {
               fontSize: 10,
               fontWeight: 700,
               fontFamily: 'var(--mono)',
-              background: row.done_count === row.ticket_count ? '#10b98120' : row.done_count > row.ticket_count / 2 ? '#3b82f620' : '#f59e0b20',
-              color: row.done_count === row.ticket_count ? '#10b981' : row.done_count > row.ticket_count / 2 ? '#3b82f6' : '#f59e0b',
+              background: row.done_count === row.ticket_count ? '#10b98120' : row.done_count > row.ticket_count / 2 ? '#60a5fa20' : '#fbbf2420',
+              color: row.done_count === row.ticket_count ? '#10b981' : row.done_count > row.ticket_count / 2 ? '#60a5fa' : '#fbbf24',
             }}>
               {row.ticket_count > 0 ? Math.round((row.done_count / row.ticket_count) * 100) : 0}%
             </div>
@@ -180,7 +180,7 @@ export function SprintTableView() {
           fontFamily: 'var(--mono)',
           fontSize: 13,
           fontWeight: 600,
-          color: row.open_blockers > 0 ? '#ef4444' : 'var(--text3)',
+          color: row.open_blockers > 0 ? '#f87171' : 'var(--text3)',
         }}>
           {row.open_blockers}
         </span>
@@ -238,7 +238,7 @@ export function SprintTableView() {
       filterable: true,
       width: 120,
       cell: (row: Ticket) => {
-        const color = STATUS_COLORS[row.status] || '#636474';
+        const color = STATUS_COLORS[row.status] || '#6b6b84';
         const label = row.status.replace(/_/g, ' ');
         return (
           <span style={{
@@ -269,7 +269,7 @@ export function SprintTableView() {
       width: 80,
       align: 'center',
       cell: (row: Ticket) => {
-        const color = PRIORITY_COLORS[row.priority] || '#6b7280';
+        const color = PRIORITY_COLORS[row.priority] || '#6b6b84';
         return (
           <span style={{
             fontFamily: 'var(--mono)',
@@ -320,7 +320,7 @@ export function SprintTableView() {
       width: 60,
       align: 'center',
       cell: (row: Ticket) => (
-        <span style={{ fontSize: 14, color: row.qa_verified ? '#10b981' : '#f59e0b' }}>
+        <span style={{ fontSize: 14, color: row.qa_verified ? '#10b981' : '#fbbf24' }}>
           {row.qa_verified ? '\u2713' : '\u25CB'}
         </span>
       ),
