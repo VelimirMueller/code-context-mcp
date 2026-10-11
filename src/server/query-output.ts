@@ -33,8 +33,8 @@ export const QUERY_COUNT_LIMIT = 10_000;
  */
 export const QUERY_DESCRIPTION =
   "Read-only SQL on the code index: SELECT or PRAGMA table_info(t). " +
-  "files(id, path, language, extension, size_bytes, line_count, summary, description, external_imports, created_at, modified_at, indexed_at); " +
-  "exports(id, file_id, name, kind, description); " +
+  "files(id, path, language, extension, size_bytes, line_count, summary, description, external_imports, import_lines, created_at, modified_at, indexed_at); " +
+  "exports(id, file_id, name, kind, description, signature, line); " +
   "dependencies(id, source_id, target_id, symbols): source imports target. *_id = files.id; paths are absolute. " +
   "Who imports X: dependencies d JOIN files t ON t.id=d.target_id JOIN files s ON s.id=d.source_id WHERE t.path LIKE '%X'. " +
   "Exports of X: exports e JOIN files f ON f.id=e.file_id. " +

@@ -17,6 +17,7 @@ import { log as slog, errorClass, logToolExceptions } from "../sessionlog.js";
 import { FreshnessGuard, freshnessNotice, type FreshRow } from "./freshness.js";
 import { instrumentTools } from "./tool-wrap.js";
 import { resolveToolPath, resolveDirPath, pathDisplay, canonicalPath } from "./path-resolve.js";
+import { declarationLines, hasSignatureParser, parseStoredImportLines } from "./signatures.js";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const DB_PATH = process.argv[2] ?? "./context.db";
@@ -122,7 +123,7 @@ const fresh = new FreshnessGuard(db);
 
 // Shared by every path-printing tool. Kept short: it is in every tools/list.
 // The env fallback (CODE_CONTEXT_ABSOLUTE_PATHS=1) is documented in REFERENCE.md.
-const ABSOLUTE_PATHS_DESC = "Absolute paths instead of project-relative";
+const ABSOLUTE_PATHS_DESC = "Print absolute paths";
 
 // ─── Tool: index_directory ───────────────────────────────────────────────────
 server.tool(
@@ -261,16 +262,25 @@ server.tool(
 );
 
 // ─── Tool: get_file_context ──────────────────────────────────────────────────
+// CCA-04 (#119): signatures, line numbers and import lines, so "how do I call
+// X / what does it depend on" needs no follow-up read. Lists are capped so a
+// big file stays small; snippets are opt-in and capped per export and in total.
+const MAX_LISTED_EXPORTS = 40;
+const MAX_LISTED_IMPORT_LINES = 30;
+const MAX_LISTED_EDGES = 30;
+const SNIPPET_MAX_LINES = 20;
+const SNIPPET_MAX_CHARS = 2048;
 server.tool(
   "get_file_context",
-  "What does this file export, what does it import, and which files import it? Plus its summary.",
+  "What does this file export (signatures, lines), what does it import, and who imports it?",
   {
     path: z.string().describe("Repo-relative or absolute file path"),
-    include_changes: z.boolean().optional().describe("Add recent diffs (debug only)"),
+    snippet: z.boolean().optional().describe("Add each export's source"),
+    include_changes: z.boolean().optional().describe("Add recent diffs"),
     change_limit: z.number().optional().describe("Max diffs (default 3)"),
     absolute_paths: z.boolean().optional().describe(ABSOLUTE_PATHS_DESC),
   },
-  async ({ path: rawPath, include_changes, change_limit, absolute_paths }) => {
+  async ({ path: rawPath, snippet, include_changes, change_limit, absolute_paths }) => {
     const show = pathDisplay(db, { absolute: absolute_paths });
     const resolved = resolveToolPath(db, rawPath);
     if (resolved.kind === "ambiguous") {
@@ -284,6 +294,8 @@ server.tool(
     }
     const filePath = resolved.path;
     const getFile = () => db.prepare(`SELECT * FROM files WHERE path = ?`).get(filePath) as any | undefined;
+    const getExports = (id: number) => db.prepare(`SELECT name, kind, signature, line FROM exports WHERE file_id = ? ORDER BY COALESCE(line, 1e9), id`)
+      .all(id) as { name: string; kind: string; signature: string | null; line: number | null }[];
     const repo = fresh.checkRepos();
     let file = getFile();
     let files = { changed: false, reindexed: 0, dropped: 0 };
@@ -301,8 +313,14 @@ server.tool(
       return { content: [{ type: "text", text: `${notice}File "${show(filePath)}" ${gone}.` }] };
     }
 
-    const exports = db.prepare(`SELECT name, kind FROM exports WHERE file_id = ?`)
-      .all(file.id) as { name: string; kind: string }[];
+    let exports = getExports(file.id);
+    // A row indexed before schema v25 (import_lines NULL) has no signatures or
+    // import lines. Re-index that one file quietly (content unchanged, so no
+    // notice); when it cannot be re-indexed it renders as name (kind).
+    if (file.import_lines == null && hasSignatureParser(file.extension ?? "") && fresh.indexIfEligible(filePath)) {
+      file = getFile() ?? file;
+      exports = getExports(file.id);
+    }
 
     const deps = db.prepare(`
       SELECT f.path, f.summary, d.symbols
@@ -321,17 +339,42 @@ server.tool(
       if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
       return (bytes / (1024 * 1024)).toFixed(1) + " MB";
     }
+    /** First `max` items, then a "+N more" line. */
+    function capped<T>(items: T[], max: number, render: (t: T) => string): string {
+      const lines = items.slice(0, max).map(render);
+      if (items.length > max) lines.push(`+${items.length - max} more`);
+      return lines.join("\n");
+    }
+
+    // Snippets (opt-in): the declaration's source, capped per export and in total.
+    let snippetBudget = SNIPPET_MAX_CHARS;
+    const content: string | null = snippet ? file.content ?? null : null;
+    const snippetOf = (line: number | null): string => {
+      if (!content || line == null || snippetBudget <= 0) return "";
+      const { lines, truncated } = declarationLines(content, line, file.extension ?? "", SNIPPET_MAX_LINES);
+      let body = lines.map((l) => (l.trim() ? "    " + l.trimEnd() : "")).join("\n") + (truncated ? "\n    …" : "");
+      if (body.length > snippetBudget) body = body.slice(0, snippetBudget) + "\n    … (snippet budget reached)";
+      snippetBudget -= body.length;
+      return body ? "\n" + body : "";
+    };
+    const renderExport = (e: { name: string; kind: string; signature: string | null; line: number | null }) => {
+      const at = e.line != null ? `L${e.line} ` : "";
+      const head = e.signature ? `- ${at}${e.signature}` : `- ${at}${e.name} (${e.kind})`;
+      return head + snippetOf(e.line);
+    };
+    const importLines = parseStoredImportLines(file.import_lines);
 
     const sections = [
       `# ${show(file.path)}`,
       `${file.language} | ${formatSize(file.size_bytes)} | ${file.line_count} lines | modified ${file.modified_at} | indexed ${file.indexed_at}`,
       file.summary,
       file.description && file.description !== file.summary ? file.description : "",
-      exports.length > 0 ? `## Exports (${exports.length})\n${exports.map(e => `- ${e.name} (${e.kind})`).join("\n")}` : "",
+      exports.length > 0 ? `## Exports (${exports.length})\n${capped(exports, MAX_LISTED_EXPORTS, renderExport)}` : "",
+      importLines.length > 0 ? `## Import lines (${importLines.length})\n${capped(importLines, MAX_LISTED_IMPORT_LINES, (l) => `L${l.line} ${l.text}`)}` : "",
       file.external_imports ? `## External packages\n${file.external_imports}` : "",
-      deps.length > 0 ? `## Imports from (${deps.length})\n${deps.map(d => `- ${show(d.path)} [${d.symbols}]`).join("\n")}` : "",
-      dependents.length > 0 ? `## Imported by (${dependents.length})\n${dependents.map(d => `- ${show(d.path)} [${d.symbols}]`).join("\n")}` : "",
-    ];
+      deps.length > 0 ? `## Imports from (${deps.length})\n${capped(deps, MAX_LISTED_EDGES, (d) => `- ${show(d.path)} [${d.symbols}]`)}` : "",
+      dependents.length > 0 ? `## Imported by (${dependents.length})\n${capped(dependents, MAX_LISTED_EDGES, (d) => `- ${show(d.path)} [${d.symbols}]`)}` : "",
+    ].filter((s) => s);
 
     // C1 (#10): change history is opt-in — the +200-token diff payload only pays off when debugging
     const shouldIncludeChanges = include_changes === true;

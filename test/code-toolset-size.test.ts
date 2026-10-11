@@ -12,6 +12,11 @@
  * readers paid for the missing schema with sqlite_master dumps of 5–19.5k
  * chars and failed calls on guessed column names; one avoided dump pays for
  * the schema on 10–40 calls. The bound leaves ~70 chars of slack.
+ *
+ * CCA-04 (#119) kept the bound: get_file_context gained `snippet` and the
+ * query schema gained exports.signature/line + files.import_lines; the shared
+ * absolute_paths description got shorter to pay for it. Measured 2026-10-11:
+ * 2,393 chars.
  */
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";

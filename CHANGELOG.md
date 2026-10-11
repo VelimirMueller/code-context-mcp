@@ -7,7 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`get_file_context` shows signatures, line numbers and import lines.** Each export reads `L6 function formatDate(date: Date): string` (one line, no body, max 160 chars); a new `Import lines` section lists the file's `import`/`export … from`/`require` (JS/TS) and `import`/`from … import` (Python) statements with line numbers. Lists stop at 40 exports / 30 import lines with `+N more`. Optional `snippet: true` adds each export's source (≤ 20 lines each, ≈ 2 KB total). In bench transcripts 60 % of `get_file_context` calls were followed by a read of the same file. (#119)
+- **Schema v25:** `exports.signature`, `exports.line`, `files.import_lines`. Existing databases gain the columns on open; a row indexed before v25 is re-indexed on its first `get_file_context` call, else it renders as before. (#119)
+
 ### Changed
+- `query` lists the new columns; the `absolute_paths` parameter description is shorter. The `code` profile `tools/list` is 2,393 characters (bound 2,450 unchanged). (#119)
 - **`query` describes and bounds itself.** The description lists the columns of `files`, `exports` and `dependencies` and the two common joins; the `code` profile `tools/list` grows from 1,881 to 2,376 characters (bound now 2,450). `PRAGMA table_info(<table>)` and `PRAGMA table_list` run; other PRAGMAs stay rejected, and the message says what is allowed instead of pointing at `execute`. Output stops at 50 rows or about 8 KB, cells at 1,000 characters, each with a note on how to narrow. `files.content` leaves only when the SELECT list names it, so `SELECT * FROM files` no longer returns whole files. Guessed column names get a pointer to the schema. (#118)
 - **`CODE_CONTEXT_TOOLSETS=code` lists 4 tools, not 11:** `find_symbol`, `get_file_context`, `search_files`, `query`. `tools/list` drops from 5,888 to 1,881 characters (about 1,500 to 500 tokens per model call); a test pins the upper bound. `code,code-admin` adds the 7 maintenance tools back. Default profile and `all` do not change. (#117)
 - **Code tool descriptions lead with the question they answer** and drop the freshness boilerplate. The freshness check itself does not change. (#117)

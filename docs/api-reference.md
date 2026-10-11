@@ -73,34 +73,36 @@ await find_symbol({ name: "%Service" });
 
 ### `get_file_context`
 
-Get a file's summary, its exports, what it imports (dependencies), and what imports it (dependents).
+What a file exports (one-line signatures with line numbers), its raw import lines, what it imports (dependencies), and what imports it (dependents). Full reference: [tools/get-file-context.md](tools/get-file-context.md).
 
 **Parameters:**
 ```typescript
 {
-  path: string  // Absolute file path
+  path: string,               // Repo-relative or absolute file path
+  snippet?: boolean,          // Add each export's source (≤ 20 lines each, ≈ 2 KB total)
+  include_changes?: boolean,  // Add recent diffs
+  change_limit?: number,      // Max diffs (default 3)
+  absolute_paths?: boolean    // Print absolute paths
 }
 ```
 
-**Returns:** Comprehensive file metadata including:
-- Language, extension, size, line count
-- Created/modified/indexed timestamps
-- All exports with kinds (function, type, constant)
-- Internal dependencies (imports from other files)
-- External packages imported
-- Files that import this one
-- Recent change history
-
 **Example:**
 ```javascript
-await get_file_context({ path: "/home/user/project/src/utils.ts" });
+await get_file_context({ path: "src/services/api.ts" });
 // Returns:
-// "# src/utils.ts
-// Language: TypeScript | Extension: .ts | Size: 4.2 KB | Lines: 145
-// ## Exports (5)
-//   - formatDate (function)
-//   - debounce (function)
-//   - DEFAULT_TIMEOUT (constant)"
+// "# src/services/api.ts
+// typescript | 1.0 KB | 39 lines | modified … | indexed …
+// API service for making HTTP requests
+// ## Exports (2)
+// - L5 class ApiClient
+// - L36 function createApiClient(baseUrl: string): ApiClient
+// ## Import lines (2)
+// L2 import { HttpMethod } from "../types.js";
+// L3 import type { ApiResponse, User } from "../types.js";
+// ## Imports from (1)
+// - src/types.ts [HttpMethod]
+// ## Imported by (1)
+// - src/index.ts [ApiClient, createApiClient]"
 ```
 
 ---

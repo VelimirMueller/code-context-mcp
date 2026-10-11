@@ -442,7 +442,7 @@ export function initScrumSchema(db: Database.Database): void {
 
 /** Single source of truth for the schema version. Must equal the max version in
  *  runMigrations' array — runMigrations asserts this at every call. */
-export const LATEST_SCHEMA_VERSION = 24;
+export const LATEST_SCHEMA_VERSION = 25;
 
 /**
  * Read the stamped schema version of an on-disk DB without opening it
@@ -624,6 +624,10 @@ export function runMigrations(
     // archived_at on milestones + epics (mirrors v20 for sprints) — column + index are
     // applied in the idempotent post-migration section below; this entry records the version.
     { version: 24, name: 'add_milestone_epic_archived_at', sql: `SELECT 1` },
+    // exports.signature/line + files.import_lines (CCA-04) — columns are added by
+    // initSchema's upgradeCodeIndexColumns (src/server/schema.ts), which every
+    // opener runs before this; this entry records the version.
+    { version: 25, name: 'add_export_signatures_and_import_lines', sql: `SELECT 1` },
   ];
 
   const maxDefined = Math.max(...migrations.map((m) => m.version));

@@ -37,7 +37,7 @@ describe("query description (CCA-03)", () => {
     for (const col of ["path", "language", "size_bytes", "line_count", "summary", "external_imports", "indexed_at"]) {
       expect(QUERY_DESCRIPTION).toContain(col);
     }
-    expect(QUERY_DESCRIPTION).toContain("exports(id, file_id, name, kind, description)");
+    expect(QUERY_DESCRIPTION).toContain("exports(id, file_id, name, kind, description, signature, line)");
     expect(QUERY_DESCRIPTION).toContain("dependencies(id, source_id, target_id, symbols)");
     expect(QUERY_DESCRIPTION).toMatch(/Who imports X/);
     expect(QUERY_DESCRIPTION).not.toMatch(/\bcontent\b/);
