@@ -19,6 +19,7 @@ import {
   type PreparedArm,
 } from '../scripts/bench/live/prepare.mts';
 import {
+  CC_GUIDANCE,
   SANDBOX_PERMISSIONS,
   DEEPSEEK_PROVIDER_CONFIG,
 } from '../scripts/bench/live/opencode-config.mts';
@@ -228,13 +229,65 @@ describe('prepareArmSession — every session starts fresh (2026-10-11)', () => 
           mcpServers: Record<string, unknown>;
         }
       ).mcpServers;
-      if (arm === 'cc') {
+      if (arm !== 'vanilla') {
         expect(Object.keys(servers)).toEqual(['code-context']);
+        expect((servers['code-context'] as { env: Record<string, string> }).env).toEqual({
+          CODE_CONTEXT_TOOLSETS: 'code',
+        });
         expect(args).toContain('mcp__code-context');
       } else {
         expect(servers).toEqual({});
         expect(args).not.toContain('--allowedTools');
       }
     }
+  });
+});
+
+describe('prepareArmSession — fair arms (2026-10-11)', () => {
+  it('only cc-guided carries the guidance, in both CLIs', () => {
+    for (const arm of ARMS) {
+      const oc = prepare('deepseek', arm);
+      const prompt =
+        (
+          JSON.parse(fs.readFileSync(oc.configPath, 'utf-8')) as {
+            agent?: { build?: { prompt?: string } };
+          }
+        ).agent?.build?.prompt ?? '';
+      const op = prepare('opus', arm);
+      const i = op.command.args.indexOf('--append-system-prompt');
+      if (arm === 'cc-guided') {
+        expect(prompt).toContain(CC_GUIDANCE);
+        expect(op.command.args[i + 1]).toBe(CC_GUIDANCE);
+      } else {
+        expect(prompt).not.toContain('code-context');
+        expect(i).toBe(-1);
+      }
+    }
+  });
+  it('both cc arms index and attach the server with the code toolset; vanilla does not', () => {
+    for (const arm of ARMS) {
+      const p = prepare('glm', arm);
+      const mcp = (
+        JSON.parse(fs.readFileSync(p.configPath, 'utf-8')) as {
+          mcp?: Record<string, { environment?: Record<string, string> }>;
+        }
+      ).mcp;
+      if (arm === 'vanilla') {
+        expect(mcp).toBeUndefined();
+        expect(fs.existsSync(path.join(p.ws, 'context.db'))).toBe(false);
+      } else {
+        expect(mcp?.['code-context']?.environment).toEqual({ CODE_CONTEXT_TOOLSETS: 'code' });
+        expect(fs.existsSync(path.join(p.ws, 'context.db'))).toBe(true);
+      }
+    }
+  });
+});
+
+describe('CC_GUIDANCE names only tools the code toolset lists', () => {
+  it('every tool it names exists in CODE_TOOLS', async () => {
+    const { CODE_TOOLS } = await import('../src/server/tool-wrap.js');
+    const named = CC_GUIDANCE.match(/\b[a-z]+_[a-z_]+\b/g) ?? [];
+    expect(named.length).toBeGreaterThan(0);
+    for (const n of named) expect(CODE_TOOLS).toContain(n);
   });
 });

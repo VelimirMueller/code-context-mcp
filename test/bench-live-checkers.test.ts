@@ -245,3 +245,14 @@ describe('L3 tests checker', () => {
     expect(fs.existsSync(marker), 'the planted vitest config must NOT be loaded').toBe(false);
   }, 180_000);
 });
+
+describe('task prompts are neutral (2026-10-11)', () => {
+  it('no benchmark task tells the agent which tools to use', () => {
+    for (const t of LIVE_TASKS) {
+      if (t.id === 'S1') continue; // the sandbox probe names tools on purpose
+      expect(t.prompt, t.id).not.toMatch(
+        /built-in file tools|code-context|use the (read|grep|glob)/i,
+      );
+    }
+  });
+});

@@ -181,4 +181,33 @@ describe('normalizeLive', () => {
     expect(run.agent_cli.name).toBe('claude-code');
     expect(run.auth).toEqual({ keyEnv: 'CLAUDE_CODE_OAUTH_TOKEN' });
   });
+
+  it('folds a cc-guided arm, MCP call counts and costs', () => {
+    const g = sessions.cc.map((r) => ({ ...r, mcp_tool_calls: 2, cost_usd: 0.01 }));
+    const run = normalizeLive(
+      'deepseek',
+      'deepseek/deepseek-v4-pro',
+      [L1, L2],
+      { ...sessions, ccGuided: g },
+      ctx,
+    );
+    const agg = run.aggregate as {
+      tokens: { cc_guided?: { total: number }; guided_saved_pct?: number };
+      mcp_tool_calls: { cc: number; cc_guided?: number };
+      cost_usd: { vanilla: number | null; cc_guided?: number | null };
+      per_task: Array<{ cc_guided?: unknown }>;
+    };
+    expect(agg.tokens.cc_guided?.total).toBe(7_950);
+    expect(agg.tokens.guided_saved_pct).toBe(56.3);
+    expect(agg.mcp_tool_calls.cc_guided).toBe(4);
+    expect(agg.cost_usd.cc_guided).toBe(0.02);
+    expect(agg.cost_usd.vanilla).toBeNull(); // fixture sessions carry no cost
+    expect(agg.per_task.every((p) => p.cc_guided)).toBe(true);
+    expect(run.headline.success_cc_guided_pct).toBe(100);
+  });
+  it('omits every cc-guided field for a two-arm run', () => {
+    const run = normalizeLive('glm', 'zai-coding-plan/glm-5.3', [L1, L2], sessions, ctx);
+    expect('success_cc_guided_pct' in run.headline).toBe(false);
+    expect('cc_guided' in (run.arms as object)).toBe(false);
+  });
 });

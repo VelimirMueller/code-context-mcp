@@ -15,6 +15,8 @@ export type LiveProvider = 'glm' | 'deepseek' | 'opus';
 export interface LiveSessions {
   vanilla: SessionResult[];
   cc: SessionResult[];
+  /** cc + the rig's "use code-context first" instruction (runs since 2026-10-11). */
+  ccGuided?: SessionResult[];
   indexMs: number | null;
   dbBytes: number | null;
 }
@@ -46,6 +48,8 @@ export interface TokenAgg {
 export interface PerTaskArmAgg {
   success_rate: number;
   tokens: TokenAgg;
+  /** Sum of reported session costs; null when any session's cost is unknown. */
+  cost_usd: number | null;
   tool_calls: number;
   mcp_tool_calls: number;
   wall_ms_mean: number;
@@ -55,19 +59,36 @@ export interface PerTaskRow {
   task_id: string;
   vanilla: PerTaskArmAgg;
   cc: PerTaskArmAgg;
+  cc_guided?: PerTaskArmAgg;
 }
 
 export interface AgentAggregate {
-  success_rate: { vanilla: number; cc: number };
-  tokens: { vanilla: TokenAgg; cc: TokenAgg; saved_pct: number };
-  tool_calls: { vanilla: number; cc: number; saved_pct: number };
-  wall_ms: { vanilla_mean: number; cc_mean: number };
+  success_rate: { vanilla: number; cc: number; cc_guided?: number };
+  tokens: {
+    vanilla: TokenAgg;
+    cc: TokenAgg;
+    saved_pct: number;
+    cc_guided?: TokenAgg;
+    guided_saved_pct?: number;
+  };
+  tool_calls: {
+    vanilla: number;
+    cc: number;
+    saved_pct: number;
+    cc_guided?: number;
+    guided_saved_pct?: number;
+  };
+  /** MCP tool calls per arm: proof the server was actually used. */
+  mcp_tool_calls: { cc: number; cc_guided?: number };
+  cost_usd: { vanilla: number | null; cc: number | null; cc_guided?: number | null };
+  wall_ms: { vanilla_mean: number; cc_mean: number; cc_guided_mean?: number };
   per_task: PerTaskRow[];
 }
 
 export interface AgentArms {
   vanilla: { results: SessionResult[] };
   cc: { results: SessionResult[]; index_ms: number | null; db_bytes: number | null };
+  cc_guided?: { results: SessionResult[] };
 }
 
 const PROVIDER_META: Record<
@@ -116,11 +137,23 @@ function tokensOf(results: SessionResult[]): TokenAgg {
   return { input, cache_read: cacheRead, output, total: input + cacheRead + output };
 }
 
+/** Sum of session costs; null when there are none or any one is unknown. */
+function costOf(results: SessionResult[]): number | null {
+  if (results.length === 0) return null;
+  let sum = 0;
+  for (const r of results) {
+    if (typeof r.cost_usd !== 'number') return null;
+    sum += r.cost_usd;
+  }
+  return Math.round(sum * 1e6) / 1e6;
+}
+
 function perTaskArm(results: SessionResult[]): PerTaskArmAgg {
   const n = results.length;
   return {
     success_rate: n > 0 ? results.filter((r) => r.success).length / n : 0,
     tokens: tokensOf(results),
+    cost_usd: costOf(results),
     tool_calls: results.reduce((s, r) => s + r.tool_calls, 0),
     mcp_tool_calls: results.reduce((s, r) => s + r.mcp_tool_calls, 0),
     wall_ms_mean: n > 0 ? Math.round(results.reduce((s, r) => s + r.wall_ms, 0) / n) : 0,
@@ -136,7 +169,9 @@ export function normalizeLive(
 ): AgentRun {
   const meta = PROVIDER_META[provider];
   const knownIds = new Set(tasks.map((t) => t.id));
-  for (const r of [...sessions.vanilla, ...sessions.cc]) {
+  const guided = sessions.ccGuided ?? [];
+  const hasGuided = guided.length > 0;
+  for (const r of [...sessions.vanilla, ...sessions.cc, ...guided]) {
     if (!knownIds.has(r.task_id)) {
       throw new Error(`normalizeLive: session result has unknown task_id ${r.task_id}`);
     }
@@ -159,23 +194,53 @@ export function normalizeLive(
     task_id: t.id,
     vanilla: perTaskArm(sessions.vanilla.filter((r) => r.task_id === t.id)),
     cc: perTaskArm(sessions.cc.filter((r) => r.task_id === t.id)),
+    ...(hasGuided ? { cc_guided: perTaskArm(guided.filter((r) => r.task_id === t.id)) } : {}),
   }));
+  const gTokens = tokensOf(guided);
+  const gCalls = guided.reduce((s, r) => s + r.tool_calls, 0);
+  const mcpCalls = (rs: SessionResult[]): number => rs.reduce((s, r) => s + r.mcp_tool_calls, 0);
 
   const aggregate: AgentAggregate = {
-    success_rate: { vanilla: rate(sessions.vanilla), cc: rate(sessions.cc) },
+    success_rate: {
+      vanilla: rate(sessions.vanilla),
+      cc: rate(sessions.cc),
+      ...(hasGuided ? { cc_guided: rate(guided) } : {}),
+    },
     tokens: {
       vanilla: vanTokens,
       cc: ccTokens,
       saved_pct: savedPct(vanTokens.total, ccTokens.total),
+      ...(hasGuided
+        ? { cc_guided: gTokens, guided_saved_pct: savedPct(vanTokens.total, gTokens.total) }
+        : {}),
     },
-    tool_calls: { vanilla: vanCalls, cc: ccCalls, saved_pct: savedPct(vanCalls, ccCalls) },
-    wall_ms: { vanilla_mean: mean(sessions.vanilla), cc_mean: mean(sessions.cc) },
+    tool_calls: {
+      vanilla: vanCalls,
+      cc: ccCalls,
+      saved_pct: savedPct(vanCalls, ccCalls),
+      ...(hasGuided ? { cc_guided: gCalls, guided_saved_pct: savedPct(vanCalls, gCalls) } : {}),
+    },
+    mcp_tool_calls: {
+      cc: mcpCalls(sessions.cc),
+      ...(hasGuided ? { cc_guided: mcpCalls(guided) } : {}),
+    },
+    cost_usd: {
+      vanilla: costOf(sessions.vanilla),
+      cc: costOf(sessions.cc),
+      ...(hasGuided ? { cc_guided: costOf(guided) } : {}),
+    },
+    wall_ms: {
+      vanilla_mean: mean(sessions.vanilla),
+      cc_mean: mean(sessions.cc),
+      ...(hasGuided ? { cc_guided_mean: mean(guided) } : {}),
+    },
     per_task,
   };
 
   const arms: AgentArms = {
     vanilla: { results: sessions.vanilla },
     cc: { results: sessions.cc, index_ms: sessions.indexMs, db_bytes: sessions.dbBytes },
+    ...(hasGuided ? { cc_guided: { results: guided } } : {}),
   };
 
   return {
@@ -207,6 +272,12 @@ export function normalizeLive(
       success_cc_pct: round1(rate(sessions.cc) * 100),
       tokens_saved_pct: aggregate.tokens.saved_pct,
       tool_calls_saved_pct: aggregate.tool_calls.saved_pct,
+      ...(hasGuided
+        ? {
+            success_cc_guided_pct: round1(rate(guided) * 100),
+            guided_tokens_saved_pct: aggregate.tokens.guided_saved_pct,
+          }
+        : {}),
     },
   };
 }

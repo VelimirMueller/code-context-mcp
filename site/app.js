@@ -272,22 +272,51 @@
     );
   }
 
+  // "3.73× vanilla" reads unambiguously; "tokens saved −273 %" did not.
+  // Below 1× is a saving, above 1× costs more. From saved_pct = (van − cc) / van.
+  function ratioText(savedPct) {
+    return isNum(savedPct) ? (1 - savedPct / 100).toFixed(2) + '× vanilla' : 'n/a';
+  }
+  function usd(x) {
+    return isNum(x) ? '$' + x.toFixed(x < 1 ? 4 : 2) : 'n/a';
+  }
+
   function headlineAgent(run, box) {
     var a = D.agentOf(run);
-    box.appendChild(
-      framesNode([
-        { label: 'SUCCESS WITHOUT CC', value: pct1(a.successVanillaPct) },
-        { label: 'SUCCESS WITH CC', value: pct1(a.successCcPct) },
-        { label: 'TOKENS SAVED', value: pct1(a.tokensSavedPct) },
-      ]),
-    );
+    var guided = isNum(a.successCcGuidedPct);
+    var tiles = [
+      { label: 'SUCCESS VANILLA', value: pct1(a.successVanillaPct) },
+      { label: 'SUCCESS CC', value: pct1(a.successCcPct) },
+    ];
+    if (guided) tiles.push({ label: 'SUCCESS GUIDED', value: pct1(a.successCcGuidedPct) });
+    tiles.push({ label: 'TOKENS CC', value: ratioText(a.tokensSavedPct) });
+    if (guided) tiles.push({ label: 'TOKENS GUIDED', value: ratioText(a.guidedTokensSavedPct) });
+    box.appendChild(framesNode(tiles));
+    if (a.mcpCalls && isNum(a.mcpCalls.cc)) {
+      box.appendChild(
+        el('p', { class: 'sub' }, [
+          'code-context calls: cc ' +
+            rawfmt(a.mcpCalls.cc) +
+            (isNum(a.mcpCalls.cc_guided) ? ', guided ' + rawfmt(a.mcpCalls.cc_guided) : '') +
+            '. Cost: vanilla ' +
+            usd(a.cost && a.cost.vanilla) +
+            ', cc ' +
+            usd(a.cost && a.cost.cc) +
+            (guided ? ', guided ' + usd(a.cost && a.cost.cc_guided) : '') +
+            '.',
+        ]),
+      );
+    }
     var wall =
       a.wall && isNum(a.wall.vanilla_mean) && isNum(a.wall.cc_mean)
         ? 'Wall time ' + msFmt(a.wall.vanilla_mean) + ' → ' + msFmt(a.wall.cc_mean) + ' per task. '
         : '';
     box.appendChild(
       el('p', { class: 'sub' }, [
-        wall + 'Same agent, same tasks, once without and once with the code-context MCP server.',
+        wall +
+          (guided
+            ? 'Same agent, same tasks: without the server, with it, and with it plus the instruction to use it first.'
+            : 'Same agent, same tasks, once without and once with the code-context MCP server.'),
       ]),
     );
   }
@@ -461,8 +490,14 @@
         pct1(h.success_vanilla_pct).trim() +
         ' → ' +
         pct1(h.success_cc_pct).trim() +
-        ' success · ' +
-        pct1(h.tokens_saved_pct).trim() +
+        (isNum(h.success_cc_guided_pct)
+          ? ' / ' + pct1(h.success_cc_guided_pct).trim() + ' guided'
+          : '') +
+        ' success · cc ' +
+        ratioText(h.tokens_saved_pct) +
+        (isNum(h.guided_tokens_saved_pct)
+          ? ' · guided ' + ratioText(h.guided_tokens_saved_pct)
+          : '') +
         ' tokens'
       );
     var v =
@@ -816,7 +851,29 @@
     var cl = a.toolCalls || {};
     row('Tokens (vanilla)', tokLine(tv));
     row('Tokens (cc)', tokLine(tc));
-    row('Tokens saved', pct1(a.tokensSavedPct).trim());
+    row('Tokens cc', ratioText(a.tokensSavedPct));
+    if (tk.cc_guided) {
+      row('Tokens (guided)', tokLine(tk.cc_guided));
+      row('Tokens guided', ratioText(a.guidedTokensSavedPct));
+    }
+    if (a.mcpCalls && isNum(a.mcpCalls.cc)) {
+      row(
+        'code-context calls',
+        'cc ' +
+          rawfmt(a.mcpCalls.cc) +
+          (isNum(a.mcpCalls.cc_guided) ? ' · guided ' + rawfmt(a.mcpCalls.cc_guided) : ''),
+      );
+    }
+    if (a.cost) {
+      row(
+        'Cost',
+        'vanilla ' +
+          usd(a.cost.vanilla) +
+          ' · cc ' +
+          usd(a.cost.cc) +
+          (tk.cc_guided ? ' · guided ' + usd(a.cost.cc_guided) : ''),
+      );
+    }
     row(
       'Tool calls',
       rawfmt(cl.vanilla) +

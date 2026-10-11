@@ -53,6 +53,7 @@ interface ClaudeEvent {
   model?: string;
   result?: string;
   usage?: Usage;
+  total_cost_usd?: number;
   message?: { id?: string; model?: string; content?: Block[]; usage?: Usage };
 }
 
@@ -72,6 +73,7 @@ export function parseClaudeStream(lines: string[]): ClaudeSessionUsage {
   let model: string | null = null;
   let finalText: string | null = null;
   let resultUsage: Usage | null = null;
+  let costUsd: number | null = null;
 
   for (const line of lines) {
     if (!line.trim()) continue;
@@ -100,6 +102,8 @@ export function parseClaudeStream(lines: string[]): ClaudeSessionUsage {
     } else if (ev.type === 'result') {
       if (typeof ev.result === 'string') finalText = ev.result;
       if (ev.usage && typeof ev.usage === 'object') resultUsage = ev.usage;
+      if (typeof ev.total_cost_usd === 'number' && Number.isFinite(ev.total_cost_usd))
+        costUsd = ev.total_cost_usd;
     }
   }
 
@@ -130,6 +134,7 @@ export function parseClaudeStream(lines: string[]): ClaudeSessionUsage {
     cacheReadTokens,
     cacheWriteTokens,
     firstCallCacheRead: firstCallCacheRead ?? 0,
+    costUsd,
     toolCalls: tools.size,
     mcpToolCalls,
     assistantText: finalText ?? [...texts.values()].join('\n\n'),

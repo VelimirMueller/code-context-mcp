@@ -44,6 +44,17 @@ Where each kind runs:
 - **Agent (glm, deepseek):** locally, by hand. Export the provider key in your shell, run `npm run build`, `npm run bench:live -- --provider <glm|deepseek|opus>`, then `npm run bench:publish`. Publish also starts the Pages build through `gh`; `--no-site` skips that. The provider keys stay on your machine.
 - **Agent in Actions:** only when the repository secret `ZAI_API_KEY` or `DEEPSEEK_API_KEY` is set. The repo keeps none by default, so `kind=agent` prints a notice with the local command, ends green and publishes nothing.
 
+## Arms
+
+- **vanilla:** no code-context server.
+- **cc:** the server is attached and the agent gets no hint. Shows whether an agent finds the tools by itself.
+- **cc-guided:** the server is attached, and the system prompt carries the rule the owner's rig gives every session ("use code-context before you read or search files"). Shows what the server does when it is used.
+- Both cc arms run `CODE_CONTEXT_TOOLSETS=code` (11 tools, about 1,300 tokens of definitions).
+- Task prompts are neutral: they name no tools, only that bash is disabled. Runs before 2026-10-11 told every arm to use the built-in file tools; they are not comparable.
+- Run the ladder with 3 repeats: `npm run bench:live -- --provider <p> --tasks ladder --repeats 3 --timeout 900`.
+- **Cost** comes from the agent CLI: opencode's step cost (DeepSeek), Claude Code's `total_cost_usd` (Opus, at list price with prompt caching off, so an upper bound). GLM's coding plan is a subscription, so its cost is `null`.
+- **Token ratio:** the site shows `cc tokens = N× vanilla`. Below 1× is a saving.
+
 ## Fresh sessions
 
 Every agent session starts with nothing to read from. Vanilla and cc never share state.

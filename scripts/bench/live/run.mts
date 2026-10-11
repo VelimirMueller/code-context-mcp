@@ -45,7 +45,7 @@ import { DEFAULT_LIVE_TASKS, tasksByIds, renderPrompt, type LiveTask } from './t
 import { runChecker } from './checkers.mts';
 import { parseEventStream, type SessionUsage } from './parse-events.mts';
 import { parseClaudeStream } from './parse-claude.mts';
-import { ARMS, prepareArmSession, type PreparedArm } from './prepare.mts';
+import { ARMS, prepareArmSession, type Arm, type PreparedArm } from './prepare.mts';
 import { stripProviderKeys } from './sandbox.mts';
 import type { SessionResult } from '../lib/types.mts';
 
@@ -189,6 +189,8 @@ async function runSession(opts: {
   task: LiveTask;
   prep: PreparedArm;
   timeoutSec: number;
+  /** false for subscription plans whose CLI reports cost 0 (GLM coding plan). */
+  costKnown: boolean;
   eventsFile: string;
   stderrFile: string;
 }): Promise<SessionOutcome> {
@@ -299,6 +301,8 @@ async function runSession(opts: {
         cache_write: usage.cacheWriteTokens,
       },
       first_call_cache_read: usage.firstCallCacheRead,
+      // The GLM coding plan is a subscription: opencode reports cost 0, which is not a price.
+      cost_usd: opts.costKnown ? usage.costUsd : null,
       tool_calls: usage.toolCalls,
       mcp_tool_calls: usage.mcpToolCalls,
       wall_ms: wallMs,
@@ -371,6 +375,9 @@ async function main(): Promise<void> {
 
   const vanilla: SessionResult[] = [];
   const cc: SessionResult[] = [];
+  const ccGuided: SessionResult[] = [];
+  // Typed per arm: adding an arm to ARMS without a bucket is a compile error.
+  const bucket: Record<Arm, SessionResult[]> = { vanilla, cc, 'cc-guided': ccGuided };
   const indexMsSamples: number[] = [];
   const dbBytesSamples: number[] = [];
   const firstCallCacheReads: number[] = [];
@@ -399,6 +406,7 @@ async function main(): Promise<void> {
             task,
             prep,
             timeoutSec: args.timeoutSec,
+            costKnown: args.provider !== 'glm',
             eventsFile: path.join(artefactDir, `${arm}-${task.id}${suffix}.jsonl`),
             stderrFile: path.join(artefactDir, `${arm}-${task.id}${suffix}.stderr.log`),
           });
@@ -409,7 +417,7 @@ async function main(): Promise<void> {
           indexMsSamples.push(prep.indexInfo.indexMs);
           dbBytesSamples.push(prep.indexInfo.dbBytes);
         }
-        (arm === 'cc' ? cc : vanilla).push(outcome.result);
+        bucket[arm].push(outcome.result);
         if (outcome.model) {
           if (reportedModel && reportedModel !== outcome.model) {
             fail(
@@ -432,10 +440,11 @@ async function main(): Promise<void> {
           );
         }
         console.log(
-          `  ${arm.padEnd(7)} ${task.id}${suffix ? ` r${r}` : ''}  ` +
+          `  ${arm.padEnd(9)} ${task.id}${suffix ? ` r${r}` : ''}  ` +
             `${res.success ? 'PASS' : res.timeout ? 'TIMEOUT' : 'FAIL'}  ` +
             `tok ${res.tokens.input}+${res.tokens.cache_read}c→${res.tokens.output} (1st call cache ${firstRead})  ` +
             `tools ${res.tool_calls} (mcp ${res.mcp_tool_calls})  ` +
+            (typeof res.cost_usd === 'number' ? `$${res.cost_usd.toFixed(4)}  ` : '') +
             `${(res.wall_ms / 1000).toFixed(1)}s  — ${outcome.checkDetail}`,
         );
       }
@@ -449,6 +458,7 @@ async function main(): Promise<void> {
   const sessions: LiveSessions = {
     vanilla,
     cc,
+    ccGuided,
     indexMs: meanOf(indexMsSamples),
     dbBytes: meanOf(dbBytesSamples),
   };
@@ -476,6 +486,13 @@ async function main(): Promise<void> {
     agentName: agentBin === 'claude' ? 'claude-code' : 'opencode',
     notes: [
       freshNote,
+      'arms: vanilla (no server) · cc (server attached, no hint) · cc-guided (server + "use code-context first" in the system prompt); both cc arms run CODE_CONTEXT_TOOLSETS=code (11 tools)',
+      'task prompts are neutral: they name no tools, only that bash is disabled',
+      agentBin === 'claude'
+        ? 'cost: Claude Code total_cost_usd at list price with prompt caching off (upper bound)'
+        : args.provider === 'glm'
+          ? 'cost: not known (GLM coding plan is a subscription)'
+          : 'cost: opencode step cost',
       agentBin === 'claude'
         ? 'agent prompt: Claude Code default system prompt'
         : 'agent prompt: bench prompt (opencode-config.mts benchAgentPrompt), not the opencode default',
@@ -526,6 +543,16 @@ async function main(): Promise<void> {
   console.log(row('success cc', `${h.success_cc_pct} %`));
   console.log(row('tokens saved', `${h.tokens_saved_pct} %`));
   console.log(row('tool calls saved', `${h.tool_calls_saved_pct} %`));
+  if (typeof h.success_cc_guided_pct === 'number') {
+    console.log(row('success cc-guided', `${h.success_cc_guided_pct} %`));
+    console.log(row('tokens saved guided', `${h.guided_tokens_saved_pct} %`));
+  }
+  const mc = run.aggregate as { mcp_tool_calls?: { cc: number; cc_guided?: number } };
+  if (mc.mcp_tool_calls) {
+    console.log(
+      row('mcp calls cc / guided', `${mc.mcp_tool_calls.cc} / ${mc.mcp_tool_calls.cc_guided ?? 0}`),
+    );
+  }
   console.log('└───────────────────────────────────┘');
   console.log(`run:    ${path.relative(process.cwd(), runPath)}`);
   console.log(

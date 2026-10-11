@@ -128,12 +128,12 @@ describe('headline per kind (latest.json)', () => {
     const t = w.document.getElementById('latest-body').textContent;
     expect(t).toContain('AGENT GLM');
     for (const s of [
-      'SUCCESS WITHOUT CC',
+      'SUCCESS VANILLA',
       '50.0 %',
-      'SUCCESS WITH CC',
+      'SUCCESS CC',
       '100.0 %',
-      'TOKENS SAVED',
-      '38.4 %',
+      'TOKENS CC',
+      '0.62× vanilla', // saved 38.4 % → cc uses 0.62× the vanilla tokens
     ])
       expect(t).toContain(s);
     expect(t).toContain('zai-coding-plan/glm-5.3');
@@ -305,7 +305,7 @@ describe('data states', () => {
     await tick();
     const t = w.document.getElementById('latest-body').textContent;
     expect(t).toContain('AGENT GLM');
-    expect(t).toContain('SUCCESS WITHOUT CC');
+    expect(t).toContain('SUCCESS VANILLA');
     expect(t).toContain('50.0 %');
   });
 });
@@ -425,3 +425,35 @@ describe('render defects fixed after a real render', () => {
 function w0() {
   return load({ latest: false, index: { runs: [] } }).BenchLogic;
 }
+
+describe('agent runs with a cc-guided arm (2026-10-11)', () => {
+  it('shows the guided tiles, MCP calls and cost, and five tiles stay within 78 columns', async () => {
+    const run = glm();
+    run.headline = { ...run.headline, success_cc_guided_pct: 100, guided_tokens_saved_pct: -20 };
+    run.aggregate = {
+      ...run.aggregate,
+      tokens: {
+        ...run.aggregate.tokens,
+        guided_saved_pct: -20,
+        cc_guided: { input: 1, cache_read: 0, output: 1, total: 2 },
+      },
+      mcp_tool_calls: { cc: 0, cc_guided: 7 },
+      cost_usd: { vanilla: null, cc: null, cc_guided: null },
+    };
+    const w = load({ latest: run, index: { runs: [run] }, runs: {} });
+    await tick();
+    const t = w.document.getElementById('latest-body').textContent;
+    for (const s of [
+      'SUCCESS GUIDED',
+      'TOKENS GUIDED',
+      '1.20× vanilla',
+      'code-context calls: cc 0, guided 7',
+      'guided n/a',
+    ])
+      expect(t).toContain(s);
+    const pre = [...w.document.querySelectorAll('#latest-body pre')]
+      .map((p: any) => p.textContent)
+      .join('\n');
+    expect(pre.split('\n').every((l: string) => l.length <= 78)).toBe(true);
+  });
+});
