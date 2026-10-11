@@ -1,0 +1,11 @@
+{
+  "_comment": "CCA-12: a real final answer the CCA-07 L1 checker still failed by mistake (Claude Code / Opus proof run 2026-10-11). \"doesn't import anything.\" ends a sentence, and \"no file dependencies\" was not a listed form. The answer holds no temp-dir paths.",
+  "answers": [
+    {
+      "run": "opus-20261011-134112",
+      "session": "cc-L1-r2",
+      "task": "L1",
+      "answer": "`formatDate` is defined in `src/utils/helpers.ts:6` and has no file dependencies. `src/utils/helpers.ts` doesn't import anything. The function only uses built-in `Date` methods: `date.toISOString().split(\"T\")[0]`, which returns `YYYY-MM-DD`.\n\nThe only other file that exports it is `src/utils/index.ts`, a barrel file that re-exports it from `src/utils/helpers.ts`. According to the code index, `src/utils/index.ts` is also the only file that imports `src/utils/helpers.ts`."
+    }
+  ]
+}

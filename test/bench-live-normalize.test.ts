@@ -233,13 +233,14 @@ describe('normalizeLive — cold-warm cache mode (2026-10-11)', () => {
     // Hash pinned from the normalizer before cold-warm existed (origin/main 3fcf2ec),
     // re-pinned for the CCA-07 checker specs (L1 pattern, L4 rule) that the run JSON embeds,
     // re-pinned for CCA-08: the headline leads with uncached / cost / per-PASS fields and the
-    // aggregate gains per_pass, uncached_tokens, cost_saved_pct and per-task paired deltas.
+    // aggregate gains per_pass, uncached_tokens, cost_saved_pct and per-task paired deltas,
+    // re-pinned for CCA-12: the embedded L1 pattern ("doesn't import anything.", "no file dependencies").
     const run = normalizeLive('glm', 'zai-coding-plan/glm-5.3', [L1, L2], sessions, ctx);
     expect('by_phase' in (run.aggregate as object)).toBe(false);
     const hash = createHash('sha256')
       .update(JSON.stringify(run, null, 2))
       .digest('hex');
-    expect(hash).toBe('f35f0a66aa8dddf70e055a5df7c2c624c3a2ac52ba5c58d5a9c855b0bfa216df');
+    expect(hash).toBe('050d65a772e3b3f284eebd9065414c1a0237e7e8ae13df823d6df9a9d30b418e');
   });
 
   const phased = (r: SessionResult, phase: 'cold' | 'warm', indexMs = 0): SessionResult => ({

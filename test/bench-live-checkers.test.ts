@@ -224,6 +224,61 @@ describe('L1 false negatives (CCA-07)', () => {
   });
 });
 
+describe('L1 false negatives (CCA-12)', () => {
+  const [real] = (
+    JSON.parse(
+      fs.readFileSync(
+        path.join(repoRoot, 'test', 'fixtures', 'bench', 'cca-12-false-negatives.json'),
+        'utf-8',
+      ),
+    ) as { answers: Array<{ run: string; session: string; task: string; answer: string }> }
+  ).answers;
+
+  it('passes the real Opus answer: "no file dependencies" / "doesn\'t import anything."', async () => {
+    expect(`${real.run}/${real.session}`).toBe('opus-20261011-134112/cc-L1-r2');
+    const res = await runChecker(L1, freshWorkspace(), real.answer);
+    expect(res.detail).toBe('answer matches all patterns');
+    expect(res.pass).toBe(true);
+  });
+
+  it.each([
+    'has no file dependencies.',
+    "src/utils/helpers.ts doesn't import anything.",
+    'src/utils/helpers.ts doesn\u2019t import anything.',
+    'It does not depend on any other file.',
+    "Modules there don't rely on anything else.",
+  ])('accepts "%s"', async (claim) => {
+    const res = await runChecker(
+      L1,
+      freshWorkspace(),
+      `\`formatDate\` is in src/utils/helpers.ts. ${claim}`,
+    );
+    expect(res.pass).toBe(true);
+  });
+
+  it.each([
+    "It doesn't depend on src/types.ts? It does: it depends on src/types.ts.",
+    'It does not depend on src/types.ts.',
+    'It depends on src/types.ts and src/services/api.ts.',
+  ])('still fails a wrong dependency claim: "%s"', async (claim) => {
+    const res = await runChecker(
+      L1,
+      freshWorkspace(),
+      `formatDate is in src/utils/helpers.ts. ${claim}`,
+    );
+    expect(res.pass).toBe(false);
+  });
+
+  it('still fails the right claim with the wrong file', async () => {
+    const res = await runChecker(
+      L1,
+      freshWorkspace(),
+      "formatDate lives in src/services/api.ts. It has no file dependencies and doesn't import anything.",
+    );
+    expect(res.pass).toBe(false);
+  });
+});
+
 describe('L2 symbol checker', () => {
   it('fails on the pristine workspace', async () => {
     const res = await runChecker(L2, freshWorkspace(), '');

@@ -34,7 +34,7 @@ Your agents forget everything between sessions. This one file does not.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/readme/stats-v3-dark.svg">
-  <img alt="93 MCP TOOLS. 46.3% FEWER TOKENS, SIMULATED. 1 SQLITE FILE. 0 API KEYS" src="assets/readme/stats-v3-light.svg" width="100%">
+  <img alt="93 MCP TOOLS. 43.7% FEWER TOKENS, SIMULATED. 1 SQLITE FILE. 0 API KEYS" src="assets/readme/stats-v3-light.svg" width="100%">
 </picture>
 
 <br>
@@ -49,7 +49,7 @@ Your agents forget everything between sessions. This one file does not.
 </picture>
 
 - Gives AI coding agents **persistent memory**. The memory survives the session.
-- Indexes your codebase into one SQLite file, `context.db`. Agents query file roles, exports and dependents. In real agent runs this pays off on dependency questions ("who imports X": 0.55–0.77× the tokens of an agent without it) and costs more on small or grep-friendly tasks. The 46 % saving is the simulated benchmark; see [Benchmark](#benchmark).
+- Indexes your codebase into one SQLite file, `context.db`. Agents query file roles, exports and dependents. In real agent runs on import-graph questions (683-file fixture, n=5) it used 28–47 % fewer uncached tokens (GLM 5.3 and DeepSeek v4 pro; DeepSeek cost −29 %) at equal or better success, every repeat above 0. With Claude Code (Opus) on two tasks it used more. The 43.7 % figure is simulated; see [Benchmark](#benchmark).
 - Runs a full sprint process for a 9-agent team: vision, discovery, milestones, epics, tickets, gates and retros. It uses 97 MCP tools and 6 slash commands.
 - Shows everything on a live React dashboard at `:3333`. Zero API keys.
 
@@ -162,16 +162,20 @@ Benchmarks run on demand, never from a timer. Every published run lands on the l
 
 Kinds:
 
-- `simulated` — context efficiency from scripted replays. No model runs. This is the source of the 46.3 % figure.
-- `agent-glm` / `agent-deepseek` / `agent-opus` — a real model, the same task in three arms: without the server, with it, and with it plus the instruction to use it first. Five tasks from S to XL, 3 repeats.
+- `simulated` — context efficiency from scripted replays. No model runs. This is the source of the 43.7 % figure (simulated, 2026-10-11).
+- `agent-glm` / `agent-deepseek` / `agent-opus` — a real model, the same task in three arms: without the server, with it, and with it plus the instruction to use it first. Task sets L1–L6 (sample project and this repo) and I1–I6 (generated 683-file fixture).
 - `agent-claude` — pre-registered external harness (Claude Code sessions). Read-only.
 
-What real agents show (2026-10-11, GLM 5.3 and DeepSeek v4 pro, 45 sessions each):
+Real agent numbers (proof runs, 2026-10-11, rescored and renormalized). "Saved" compares each arm with vanilla (no server); positive means fewer. Range = min … max over repeats.
 
-- **Dependency questions get cheaper.** "Which files import `schema.ts`" (162 files): the guided agent used 0.55× (GLM) and 0.77× (DeepSeek) the tokens of the agent without the server.
-- **Everything else costs more.** Small lookups cost 3–6× the tokens, because each call carries the tool definitions. A rename and a whole-repo analysis were done with grep either way.
-- **Success does not drop.** DeepSeek: 87 % without the server, 100 % with it. GLM: 93 % / 93 % / 87 % (vanilla / cc / guided).
-- **Cost (DeepSeek, 15 sessions per arm):** $0.29 without, $0.31 with, $0.33 guided.
+| Model · tasks | n | Success vanilla / cc / guided | Uncached tokens saved, cc | Uncached tokens saved, guided | Cost saved cc / guided | Uncached tokens per PASS vanilla / cc / guided |
+| --- | --- | --- | --- | --- | --- | --- |
+| GLM 5.3 · I1–I6 (683 files) | 5 | 26/30 · 26/30 · 28/30 | +33.7 % [+11.1 … +45.2] | +47.1 % [+34.7 … +61.2] | n/a (subscription) | 12,213 · 8,091 · 5,997 |
+| DeepSeek v4 pro · I1–I6 (683 files) | 5 | 25/30 · 29/30 · 30/30 | +28.4 % [+24.1 … +34.5] | +34.7 % [+15.1 … +49.1] | +29.1 % / +34.5 % | 22,342 · 13,800 · 12,153 |
+| DeepSeek v4 pro · L1, L4, L6 | 3 | 9/9 · 9/9 · 8/9 | +16.4 % [−11.1 … +54.1] | +7.3 % [+0.1 … +16.8] | +16.4 % / +8.4 % | 55,259 · 46,206 · 57,635 |
+| Opus (Claude Code) · L1, I1 | 2 | 4/4 · 4/4 · — | −46.0 % [−82.5 … −31.9] | — | −36.5 % / — | 4,508 · 6,579 · — |
+
+- Caveats: small n, fixed fixtures (L1 sample project, L4/L6 this repo, I-tasks the generated fixture), one day. GLM caches tool definitions across sessions with no off switch, so its uncached counts leave out that prefix. Opus is a smoke check: n=2 per task and arm (one cold, one warm), no guided arm. The guided DeepSeek miss is an L6 timeout (300 s).
 - Agent runs before 2026-10-11 00:00 UTC told every arm to use the built-in file tools. They do not show the server in use.
 
 <details>
