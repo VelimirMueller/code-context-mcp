@@ -133,6 +133,33 @@ export interface BenchPerTask {
   cc_guided?: BenchArmStats;
 }
 
+/** One arm in one cache phase (cold-warm runs). Means are per session. */
+export interface BenchPhaseArmStats {
+  sessions: number;
+  success_rate: number;
+  tokens: { total: number };
+  /** input + output + cache_write: the tokens a cache could not serve. */
+  uncached_tokens: number;
+  tool_calls: number;
+  mcp_tool_calls: number;
+  wall_ms_mean: number;
+  index_ms_mean?: number;
+  /** null when the provider reports no price. */
+  cost_usd?: number | null;
+}
+
+export interface BenchPhaseStats {
+  vanilla?: BenchPhaseArmStats;
+  cc?: BenchPhaseArmStats;
+  cc_guided?: BenchPhaseArmStats;
+}
+
+/** `aggregate.by_phase`: present only in `--cache-mode cold-warm` runs. */
+export interface BenchByPhase {
+  cold?: BenchPhaseStats;
+  warm?: BenchPhaseStats;
+}
+
 /** The fields of a run file the page reads; the rest stays untyped. */
 export interface BenchRun {
   run_id: string;
@@ -146,7 +173,7 @@ export interface BenchRun {
   notes?: string[];
   agent_cli?: { name: string; version: string };
   tasks?: Array<{ id: string; size?: string; prompt?: string }>;
-  aggregate?: { per_task?: BenchPerTask[] };
+  aggregate?: { per_task?: BenchPerTask[]; by_phase?: BenchByPhase };
 }
 
 interface BenchIndexResponse {

@@ -4,8 +4,13 @@
  * Pure maths over hand-built SessionResults: no model, no opencode, no
  * network, no filesystem. Also asserts the run JSON carries no key values.
  */
+import { createHash } from 'node:crypto';
 import { describe, it, expect } from 'vitest';
-import { normalizeLive, type LiveSessions } from '../scripts/bench/normalize-live.mts';
+import {
+  normalizeLive,
+  type AgentAggregate,
+  type LiveSessions,
+} from '../scripts/bench/normalize-live.mts';
 import { LIVE_TASKS } from '../scripts/bench/live/tasks.mts';
 import type { SessionResult } from '../scripts/bench/lib/types.mts';
 
@@ -209,5 +214,140 @@ describe('normalizeLive', () => {
     const run = normalizeLive('glm', 'zai-coding-plan/glm-5.3', [L1, L2], sessions, ctx);
     expect('success_cc_guided_pct' in run.headline).toBe(false);
     expect('cc_guided' in (run.arms as object)).toBe(false);
+  });
+});
+
+describe('normalizeLive — cold-warm cache mode (2026-10-11)', () => {
+  it('cold-only runs are byte-identical to the pre-cold-warm output (no by_phase)', () => {
+    // Hash pinned from the normalizer before cold-warm existed (origin/main 3fcf2ec).
+    const run = normalizeLive('glm', 'zai-coding-plan/glm-5.3', [L1, L2], sessions, ctx);
+    expect('by_phase' in (run.aggregate as object)).toBe(false);
+    const hash = createHash('sha256')
+      .update(JSON.stringify(run, null, 2))
+      .digest('hex');
+    expect(hash).toBe('2ca068a1f12f5a0726e0b63f87fb1b64da07cefe09690f4b2b42d3eaff877d16');
+  });
+
+  const phased = (r: SessionResult, phase: 'cold' | 'warm', indexMs = 0): SessionResult => ({
+    ...r,
+    cache_phase: phase,
+    index_ms: indexMs,
+  });
+
+  it('aggregate.by_phase compares cold and warm per arm', () => {
+    const cw: LiveSessions = {
+      vanilla: [
+        phased(
+          session('L1', {
+            tokens: { input: 6_000, output: 400, cache_read: 0, cache_write: 100 },
+            tool_calls: 10,
+            wall_ms: 30_000,
+            cost_usd: 0.03,
+          }),
+          'cold',
+        ),
+        phased(
+          session('L1', {
+            success: false,
+            tokens: { input: 1_000, output: 400, cache_read: 5_000, cache_write: 0 },
+            tool_calls: 8,
+            wall_ms: 20_000,
+            cost_usd: 0.01,
+          }),
+          'warm',
+        ),
+        phased(
+          session('L1', {
+            tokens: { input: 1_200, output: 300, cache_read: 5_000, cache_write: 0 },
+            tool_calls: 6,
+            wall_ms: 10_000,
+            cost_usd: 0.01,
+          }),
+          'warm',
+        ),
+      ],
+      cc: [
+        phased(
+          session('L1', {
+            tokens: { input: 3_000, output: 200, cache_read: 0, cache_write: 0 },
+            tool_calls: 4,
+            mcp_tool_calls: 3,
+            wall_ms: 21_000, // 20 s session + 1 s index build
+          }),
+          'cold',
+          1_000,
+        ),
+        phased(
+          session('L1', {
+            tokens: { input: 500, output: 200, cache_read: 2_500, cache_write: 0 },
+            tool_calls: 3,
+            mcp_tool_calls: 3,
+            wall_ms: 12_000,
+          }),
+          'warm',
+        ),
+      ],
+      indexMs: 1_000,
+      dbBytes: 1,
+    };
+    const run = normalizeLive('deepseek', 'deepseek/deepseek-v4-pro', [L1], cw, ctx);
+    const bp = (run.aggregate as AgentAggregate).by_phase!;
+    expect(bp.cold!.vanilla).toEqual({
+      sessions: 1,
+      success_rate: 1,
+      tokens: { input: 6_000, cache_read: 0, output: 400, total: 6_400 },
+      uncached_tokens: 6_500, // input + output + cache_write
+      tool_calls: 10,
+      mcp_tool_calls: 0,
+      wall_ms_mean: 30_000,
+      index_ms_mean: 0,
+      cost_usd: 0.03,
+    });
+    expect(bp.warm!.vanilla).toMatchObject({
+      sessions: 2,
+      success_rate: 0.5,
+      tokens: { input: 2_200, cache_read: 10_000, output: 700, total: 12_900 },
+      uncached_tokens: 2_900, // cache reads excluded
+      tool_calls: 14,
+      wall_ms_mean: 15_000,
+      cost_usd: 0.02,
+    });
+    expect(bp.cold!.cc).toMatchObject({
+      sessions: 1,
+      uncached_tokens: 3_200,
+      mcp_tool_calls: 3,
+      wall_ms_mean: 21_000, // includes the index build
+      index_ms_mean: 1_000,
+      cost_usd: null, // unknown cost stays unknown
+    });
+    expect(bp.warm!.cc).toMatchObject({ sessions: 1, uncached_tokens: 700, index_ms_mean: 0 });
+    expect(bp.cold!.cc_guided).toBeUndefined(); // two-arm run
+
+    // the all-sessions aggregate and headline still cover every session
+    const agg = run.aggregate as AgentAggregate;
+    expect(agg.tokens.vanilla.total).toBe(6_400 + 12_900);
+    expect(agg.wall_ms.cc_mean).toBe(16_500);
+    expect(run.headline.success_vanilla_pct).toBe(66.7);
+    // sessions keep their phase fields
+    const arms = run.arms as { cc: { results: SessionResult[] } };
+    expect(arms.cc.results.map((r) => [r.cache_phase, r.index_ms])).toEqual([
+      ['cold', 1_000],
+      ['warm', 0],
+    ]);
+  });
+
+  it('by_phase carries the cc-guided arm when present', () => {
+    const g = [phased(session('L1', { tool_calls: 2 }), 'cold'), phased(session('L1'), 'warm')];
+    const run = normalizeLive(
+      'glm',
+      'm',
+      [L1],
+      { vanilla: [], cc: [], ccGuided: g, indexMs: null, dbBytes: null },
+      ctx,
+    );
+    const bp = (run.aggregate as AgentAggregate).by_phase!;
+    expect(bp.cold!.cc_guided!.tool_calls).toBe(2);
+    expect(bp.warm!.cc_guided!.sessions).toBe(1);
+    expect(bp.cold!.vanilla.sessions).toBe(0);
   });
 });
