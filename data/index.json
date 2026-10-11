@@ -2,6 +2,136 @@
   "schema": "ccc-bench-index/1",
   "runs": [
     {
+      "run_id": "opus-20261011-134112",
+      "kind": "agent-opus",
+      "date": "2026-10-11",
+      "ts": "2026-10-11T13:41:12Z",
+      "model": "claude-opus-5-5",
+      "trigger": "manual",
+      "headline": {
+        "success_vanilla_pct": 100,
+        "success_cc_pct": 100,
+        "uncached_saved_pct": -46,
+        "uncached_saved_spread": {
+          "min": -82.5,
+          "max": -31.9,
+          "repeats": 2
+        },
+        "cost_saved_pct": -36.5,
+        "uncached_per_pass": {
+          "vanilla": 4508,
+          "cc": 6579
+        },
+        "tokens_saved_pct": -38,
+        "tool_calls_saved_pct": -38.5
+      }
+    },
+    {
+      "run_id": "dsk-20261011-132628",
+      "kind": "agent-deepseek",
+      "date": "2026-10-11",
+      "ts": "2026-10-11T13:26:28Z",
+      "model": "deepseek/deepseek-v4-pro",
+      "trigger": "manual",
+      "headline": {
+        "success_vanilla_pct": 83.3,
+        "success_cc_pct": 96.7,
+        "success_cc_guided_pct": 100,
+        "uncached_saved_pct": 28.4,
+        "guided_uncached_saved_pct": 34.7,
+        "uncached_saved_spread": {
+          "min": 24.1,
+          "max": 34.5,
+          "repeats": 5
+        },
+        "guided_uncached_saved_spread": {
+          "min": 15.1,
+          "max": 49.1,
+          "repeats": 5
+        },
+        "cost_saved_pct": 29.1,
+        "guided_cost_saved_pct": 34.5,
+        "uncached_per_pass": {
+          "vanilla": 22342,
+          "cc": 13800,
+          "cc_guided": 12153
+        },
+        "tokens_saved_pct": 47.4,
+        "tool_calls_saved_pct": 11.5,
+        "guided_tokens_saved_pct": 50.5
+      }
+    },
+    {
+      "run_id": "glm-20261011-124849",
+      "kind": "agent-glm",
+      "date": "2026-10-11",
+      "ts": "2026-10-11T12:48:49Z",
+      "model": "zai-coding-plan/glm-5.3",
+      "trigger": "manual",
+      "headline": {
+        "success_vanilla_pct": 86.7,
+        "success_cc_pct": 86.7,
+        "success_cc_guided_pct": 93.3,
+        "uncached_saved_pct": 33.7,
+        "guided_uncached_saved_pct": 47.1,
+        "uncached_saved_spread": {
+          "min": 11.1,
+          "max": 45.2,
+          "repeats": 5
+        },
+        "guided_uncached_saved_spread": {
+          "min": 34.7,
+          "max": 61.2,
+          "repeats": 5
+        },
+        "cost_saved_pct": null,
+        "guided_cost_saved_pct": null,
+        "uncached_per_pass": {
+          "vanilla": 12213,
+          "cc": 8091,
+          "cc_guided": 5997
+        },
+        "tokens_saved_pct": 24.2,
+        "tool_calls_saved_pct": 13,
+        "guided_tokens_saved_pct": 29.4
+      }
+    },
+    {
+      "run_id": "dsk-20261011-124847",
+      "kind": "agent-deepseek",
+      "date": "2026-10-11",
+      "ts": "2026-10-11T12:48:47Z",
+      "model": "deepseek/deepseek-v4-pro",
+      "trigger": "manual",
+      "headline": {
+        "success_vanilla_pct": 100,
+        "success_cc_pct": 100,
+        "success_cc_guided_pct": 88.9,
+        "uncached_saved_pct": 16.4,
+        "guided_uncached_saved_pct": 7.3,
+        "uncached_saved_spread": {
+          "min": -11.1,
+          "max": 54.1,
+          "repeats": 3
+        },
+        "guided_uncached_saved_spread": {
+          "min": 0.1,
+          "max": 16.8,
+          "repeats": 3
+        },
+        "cost_saved_pct": 16.4,
+        "guided_cost_saved_pct": 8.4,
+        "uncached_per_pass": {
+          "vanilla": 55259,
+          "cc": 46206,
+          "cc_guided": 57635
+        },
+        "tokens_saved_pct": 29.7,
+        "tool_calls_saved_pct": -45.7,
+        "guided_tokens_saved_pct": -3.2
+      }
+    },
+    {
       "run_id": "glm-20261011-003210",
       "kind": "agent-glm",
       "date": "2026-10-11",
@@ -9,6 +139,25 @@
       "model": "zai-coding-plan/glm-5.3",
       "trigger": "manual",
       "headline": {
+        "uncached_saved_pct": 4.6,
+        "guided_uncached_saved_pct": 12,
+        "uncached_saved_spread": {
+          "min": -15.9,
+          "max": 39.2,
+          "repeats": 3
+        },
+        "guided_uncached_saved_spread": {
+          "min": -6.3,
+          "max": 36.9,
+          "repeats": 3
+        },
+        "cost_saved_pct": null,
+        "guided_cost_saved_pct": null,
+        "uncached_per_pass": {
+          "vanilla": 29118,
+          "cc": 27786,
+          "cc_guided": 27579
+        },
         "success_vanilla_pct": 93.3,
         "success_cc_pct": 93.3,
         "tokens_saved_pct": 6.7,
@@ -25,6 +174,25 @@
       "model": "deepseek/deepseek-v4-pro",
       "trigger": "manual",
       "headline": {
+        "uncached_saved_pct": -6.7,
+        "guided_uncached_saved_pct": -8.9,
+        "uncached_saved_spread": {
+          "min": -9.5,
+          "max": -2.4,
+          "repeats": 3
+        },
+        "guided_uncached_saved_spread": {
+          "min": -18.8,
+          "max": -3.1,
+          "repeats": 3
+        },
+        "cost_saved_pct": -6.2,
+        "guided_cost_saved_pct": -11.4,
+        "uncached_per_pass": {
+          "vanilla": 43752,
+          "cc": 40468,
+          "cc_guided": 41291
+        },
         "success_vanilla_pct": 86.7,
         "success_cc_pct": 100,
         "tokens_saved_pct": -4.5,
@@ -41,6 +209,13 @@
       "model": "claude-opus-5-5",
       "trigger": "manual",
       "headline": {
+        "uncached_saved_pct": -273.3,
+        "uncached_saved_spread": null,
+        "cost_saved_pct": null,
+        "uncached_per_pass": {
+          "vanilla": 37953,
+          "cc": 177118
+        },
         "success_vanilla_pct": 100,
         "success_cc_pct": 80,
         "tokens_saved_pct": -273.3,
@@ -55,6 +230,13 @@
       "model": "deepseek/deepseek-v4-pro",
       "trigger": "manual",
       "headline": {
+        "uncached_saved_pct": -64.1,
+        "uncached_saved_spread": null,
+        "cost_saved_pct": null,
+        "uncached_per_pass": {
+          "vanilla": 32572,
+          "cc": 53464
+        },
         "success_vanilla_pct": 100,
         "success_cc_pct": 100,
         "tokens_saved_pct": -58,
@@ -69,6 +251,13 @@
       "model": "zai-coding-plan/glm-5.3",
       "trigger": "manual",
       "headline": {
+        "uncached_saved_pct": 8.2,
+        "uncached_saved_spread": null,
+        "cost_saved_pct": null,
+        "uncached_per_pass": {
+          "vanilla": 78433,
+          "cc": 28806
+        },
         "success_vanilla_pct": 40,
         "success_cc_pct": 100,
         "tokens_saved_pct": -82,
@@ -83,6 +272,13 @@
       "model": "claude-opus-5-5",
       "trigger": "manual",
       "headline": {
+        "uncached_saved_pct": -185.4,
+        "uncached_saved_spread": null,
+        "cost_saved_pct": null,
+        "uncached_per_pass": {
+          "vanilla": 36481,
+          "cc": 104125
+        },
         "success_vanilla_pct": 100,
         "success_cc_pct": 100,
         "tokens_saved_pct": -185.4,
@@ -97,6 +293,13 @@
       "model": "deepseek/deepseek-v4-pro",
       "trigger": "manual",
       "headline": {
+        "uncached_saved_pct": -303.6,
+        "uncached_saved_spread": null,
+        "cost_saved_pct": null,
+        "uncached_per_pass": {
+          "vanilla": 4494,
+          "cc": 18138
+        },
         "success_vanilla_pct": 100,
         "success_cc_pct": 100,
         "tokens_saved_pct": -363,
@@ -111,6 +314,13 @@
       "model": "zai-coding-plan/glm-5.3",
       "trigger": "manual",
       "headline": {
+        "uncached_saved_pct": -279.3,
+        "uncached_saved_spread": null,
+        "cost_saved_pct": null,
+        "uncached_per_pass": {
+          "vanilla": 2656,
+          "cc": 10072
+        },
         "success_vanilla_pct": 100,
         "success_cc_pct": 100,
         "tokens_saved_pct": -315.2,

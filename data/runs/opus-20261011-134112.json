@@ -1,0 +1,481 @@
+{
+  "schema": "ccc-bench/1",
+  "run_id": "opus-20261011-134112",
+  "kind": "agent-opus",
+  "date": "2026-10-11",
+  "ts": "2026-10-11T13:41:12Z",
+  "trigger": "manual",
+  "duration_ms": 107179,
+  "code_context_version": "2.11.0",
+  "git": {
+    "commit": "3d265a9fd377179f56445d5d6cc4ce14196cb87f",
+    "branch": "main",
+    "dirty": false
+  },
+  "notes": [
+    "cache mode: cold-warm — per task and arm, repeat 1 is cold and repeats 2..2 are warm (sessions carry cache_phase; aggregate.by_phase compares them)",
+    "cold sessions (repeat 1): new fixture copy, HOME, TMPDIR and empty CLAUDE_CONFIG_DIR per session; per-session nonce first in --append-system-prompt; only the MCP servers on the command line; prompt caching ON as in real Claude Code use (no DISABLE_PROMPT_CACHING). First-call cache reads are not enforced to 0: Claude Code's built-in system prompt and tool definitions are identical in every session, so that static prefix can be read from cache; the nonce and fresh paths stop any match beyond it. 8032 cached tokens read on first calls (all arms, cold sessions); cache writes (cache_write) are the honest cold cost and count as uncached tokens",
+    "warm sessions (repeats 2..N): fresh fixture copy and HOME at the cold session’s paths, the cold session’s nonce and index reused (copied, not rebuilt), same args and env as cold; first-call cache reads expected and not checked",
+    "wall_ms of a cold cc session includes its index build (index_ms); warm sessions index_ms 0; aggregate wall means cover both phases",
+    "session order: task → arm → repeat (warm repeats run right after their cold session)",
+    "arms run: vanilla, cc — vanilla (no server) · cc (server attached, no hint) · cc-guided (server + \"use code-context first\" in the system prompt); every cc arm runs CODE_CONTEXT_TOOLSETS=code (6 tools)",
+    "task prompts are neutral: they name no tools, only that bash is disabled",
+    "cost: Claude Code total_cost_usd (result event) at list price with prompt caching ON in every session: cache writes at the cache-write rate (1.25x input, 5-min TTL), cache reads at the cache-read rate (0.1x input), so the per-call overhead of the static prefix and tool definitions is priced at cache-read rates after the call that wrote it. Runs before CCA-10 (#125) had caching off and overstate that overhead about 10x",
+    "agent prompt: Claude Code default system prompt",
+    "tokens total = input + cache_read + output (every token the model processed)",
+    "tokens from Claude Code stream-json: totals from the final result event usage (input_tokens, output_tokens, cache_read_input_tokens → cache_read, cache_creation_input_tokens → cache_write); per-message usage (once per API message id) only when a stream has no result event",
+    "key CLAUDE_CODE_OAUTH_TOKEN exported to claude as CLAUDE_CODE_OAUTH_TOKEN",
+    "artefacts retained by the runner for run opus-20261011-134112",
+    "rescored 2026-10-11 (CCA-07) with the current answer checkers: 1 session(s) changed; edit-task results kept as recorded",
+    "renormalized 2026-10-11 (CCA-08): aggregate and headline recomputed from the recorded sessions (uncached tokens, cost, per-PASS, paired deltas)"
+  ],
+  "model": "claude-opus-5-5",
+  "agent_cli": {
+    "name": "claude-code",
+    "version": "2.1.296 (Claude Code)"
+  },
+  "fixture": "per task",
+  "auth": {
+    "keyEnv": "CLAUDE_CODE_OAUTH_TOKEN"
+  },
+  "tasks": [
+    {
+      "id": "L1",
+      "size": "S",
+      "fixture": "test/fixtures/sample-project",
+      "prompt": "Which file exports `formatDate`, and what does it depend on? Answer with file paths. The bash tool is disabled in this environment.",
+      "checker": {
+        "type": "answer",
+        "answerMustMatch": [
+          "utils/helpers\\.(ts|js)\\b",
+          "no (external |third[- ]party |npm |node |internal |module |local |project |other |file |source[- ]file )?(imports|dependencies|deps)( at all)?|leaf (module|file|node)|(imports|depends on|relies on) nothing|self[- ]contained|standalone|zero (imports|dependencies)|nothing (to import|outside|imported)|(does|do)(n’?t| not) (import|depend on|rely on|use) (anything|any|other|external)\\b|only (uses?|imports?)( the )?(built[- ]?in|standard|native|js|javascript|date)|depend(s)? only on (the )?(built[- ]?in|standard|native|js|javascript|date)"
+        ]
+      }
+    },
+    {
+      "id": "I1",
+      "size": "L",
+      "fixture": "large synthetic (683 files)",
+      "prompt": "This is the source tree of a TypeScript project. The module src/platform/http/retry.ts is going to move. List every file that has an import, `import type`, `export … from` or dynamic `import()` statement whose module specifier resolves to src/platform/http/retry.ts — the statements that will need a new path. Files that reach it only through another module do not count. Answer with the file paths relative to the project root, one per line. The bash tool is disabled in this environment.",
+      "checker": {
+        "type": "pinned-paths",
+        "key": "retryImporters",
+        "maxExtra": 1,
+        "ignore": [
+          "src/platform/http/retry.ts"
+        ]
+      }
+    }
+  ],
+  "arms": {
+    "vanilla": {
+      "results": [
+        {
+          "task_id": "L1",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 6,
+            "output": 394,
+            "cache_read": 10949,
+            "cache_write": 6065
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.058613799999999994,
+          "tool_calls": 2,
+          "mcp_tool_calls": 0,
+          "wall_ms": 7166,
+          "session_id": "55d219ad-cc93-41b7-b57b-17990c0e8dd8",
+          "events_path": "vanilla-L1-r1.jsonl",
+          "cache_phase": "cold",
+          "index_ms": 0
+        },
+        {
+          "task_id": "L1",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 6,
+            "output": 424,
+            "cache_read": 16322,
+            "cache_write": 692
+          },
+          "first_call_cache_read": 5373,
+          "cost_usd": 0.017304399999999998,
+          "tool_calls": 2,
+          "mcp_tool_calls": 0,
+          "wall_ms": 6896,
+          "session_id": "ab1e1317-e1bd-4083-8b1b-47f34f39e96f",
+          "events_path": "vanilla-L1-r2.jsonl",
+          "cache_phase": "warm",
+          "index_ms": 0
+        },
+        {
+          "task_id": "I1",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 12,
+            "output": 1558,
+            "cache_read": 37637,
+            "cache_write": 4987
+          },
+          "first_call_cache_read": 3358,
+          "cost_usd": 0.0786314,
+          "tool_calls": 6,
+          "mcp_tool_calls": 0,
+          "wall_ms": 23719,
+          "session_id": "223203cd-5aa8-4211-86c0-dc5cf4226d46",
+          "events_path": "vanilla-I1-r1.jsonl",
+          "cache_phase": "cold",
+          "index_ms": 0
+        },
+        {
+          "task_id": "I1",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 6,
+            "output": 1183,
+            "cache_read": 18639,
+            "cache_write": 2697
+          },
+          "first_call_cache_read": 5473,
+          "cost_usd": 0.0489878,
+          "tool_calls": 3,
+          "mcp_tool_calls": 0,
+          "wall_ms": 14354,
+          "session_id": "03fe964a-1ba8-4856-bae7-eff288d38102",
+          "events_path": "vanilla-I1-r2.jsonl",
+          "cache_phase": "warm",
+          "index_ms": 0
+        }
+      ]
+    },
+    "cc": {
+      "results": [
+        {
+          "task_id": "L1",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 8,
+            "output": 490,
+            "cache_read": 21181,
+            "cache_write": 7632
+          },
+          "first_call_cache_read": 0,
+          "cost_usd": 0.0751242,
+          "tool_calls": 3,
+          "mcp_tool_calls": 2,
+          "wall_ms": 13620,
+          "session_id": "b6f414ec-bb53-4ae1-8f4c-91c7350d049c",
+          "events_path": "cc-L1-r1.jsonl",
+          "cache_phase": "cold",
+          "index_ms": 22
+        },
+        {
+          "task_id": "L1",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 8,
+            "output": 475,
+            "cache_read": 28519,
+            "cache_write": 296
+          },
+          "first_call_cache_read": 6845,
+          "cost_usd": 0.017603800000000003,
+          "tool_calls": 3,
+          "mcp_tool_calls": 2,
+          "wall_ms": 7164,
+          "session_id": "8b3a38bd-abb1-44d6-b840-617c34f8552b",
+          "events_path": "cc-L1-r2.jsonl",
+          "cache_phase": "warm",
+          "index_ms": 0
+        },
+        {
+          "task_id": "I1",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 6,
+            "output": 1136,
+            "cache_read": 23233,
+            "cache_write": 7904
+          },
+          "first_call_cache_read": 4674,
+          "cost_usd": 0.0906226,
+          "tool_calls": 4,
+          "mcp_tool_calls": 0,
+          "wall_ms": 13825,
+          "session_id": "a5cd4d8b-e80e-4cc8-b0c4-9eca7d0af5fb",
+          "events_path": "cc-I1-r1.jsonl",
+          "cache_phase": "cold",
+          "index_ms": 136
+        },
+        {
+          "task_id": "I1",
+          "success": true,
+          "timeout": false,
+          "tokens": {
+            "input": 10,
+            "output": 1574,
+            "cache_read": 43645,
+            "cache_write": 6778
+          },
+          "first_call_cache_read": 6949,
+          "cost_usd": 0.09447300000000002,
+          "tool_calls": 8,
+          "mcp_tool_calls": 0,
+          "wall_ms": 19957,
+          "session_id": "b32c4f49-82bb-4e11-ab0e-1e9d45962ab0",
+          "events_path": "cc-I1-r2.jsonl",
+          "cache_phase": "warm",
+          "index_ms": 0
+        }
+      ],
+      "index_ms": 79,
+      "db_bytes": 1275904
+    }
+  },
+  "aggregate": {
+    "success_rate": {
+      "vanilla": 1,
+      "cc": 1
+    },
+    "per_pass": {
+      "vanilla": {
+        "sessions": 4,
+        "passes": 4,
+        "tokens_total": 87136,
+        "uncached_tokens": 18030,
+        "cost_usd": 0.203537,
+        "tokens_per_pass": 21784,
+        "uncached_per_pass": 4508,
+        "cost_per_pass": 0.050884
+      },
+      "cc": {
+        "sessions": 4,
+        "passes": 4,
+        "tokens_total": 120285,
+        "uncached_tokens": 26317,
+        "cost_usd": 0.277824,
+        "tokens_per_pass": 30071,
+        "uncached_per_pass": 6579,
+        "cost_per_pass": 0.069456
+      }
+    },
+    "uncached_tokens": {
+      "vanilla": 18030,
+      "cc": 26317,
+      "saved_pct": -46,
+      "spread": {
+        "min": -82.5,
+        "max": -31.9,
+        "repeats": 2
+      }
+    },
+    "cost_saved_pct": {
+      "cc": -36.5
+    },
+    "tokens": {
+      "vanilla": {
+        "input": 30,
+        "cache_read": 83547,
+        "output": 3559,
+        "total": 87136
+      },
+      "cc": {
+        "input": 32,
+        "cache_read": 116578,
+        "output": 3675,
+        "total": 120285
+      },
+      "saved_pct": -38
+    },
+    "tool_calls": {
+      "vanilla": 13,
+      "cc": 18,
+      "saved_pct": -38.5
+    },
+    "mcp_tool_calls": {
+      "cc": 4
+    },
+    "cost_usd": {
+      "vanilla": 0.203537,
+      "cc": 0.277824
+    },
+    "wall_ms": {
+      "vanilla_mean": 13034,
+      "cc_mean": 13642
+    },
+    "per_task": [
+      {
+        "task_id": "L1",
+        "vanilla": {
+          "success_rate": 1,
+          "tokens": {
+            "input": 12,
+            "cache_read": 27271,
+            "output": 818,
+            "total": 28101
+          },
+          "uncached_tokens": 7587,
+          "cost_usd": 0.075918,
+          "tool_calls": 4,
+          "mcp_tool_calls": 0,
+          "wall_ms_mean": 7031
+        },
+        "cc": {
+          "success_rate": 1,
+          "tokens": {
+            "input": 16,
+            "cache_read": 49700,
+            "output": 965,
+            "total": 50681
+          },
+          "uncached_tokens": 8909,
+          "cost_usd": 0.092728,
+          "tool_calls": 6,
+          "mcp_tool_calls": 4,
+          "wall_ms_mean": 10392
+        },
+        "delta": {
+          "cc": {
+            "pairs": 2,
+            "saved_pct": -17.4,
+            "min": -25.8,
+            "max": 30.6
+          }
+        }
+      },
+      {
+        "task_id": "I1",
+        "vanilla": {
+          "success_rate": 1,
+          "tokens": {
+            "input": 18,
+            "cache_read": 56276,
+            "output": 2741,
+            "total": 59035
+          },
+          "uncached_tokens": 10443,
+          "cost_usd": 0.127619,
+          "tool_calls": 9,
+          "mcp_tool_calls": 0,
+          "wall_ms_mean": 19037
+        },
+        "cc": {
+          "success_rate": 1,
+          "tokens": {
+            "input": 16,
+            "cache_read": 66878,
+            "output": 2710,
+            "total": 69604
+          },
+          "uncached_tokens": 17408,
+          "cost_usd": 0.185096,
+          "tool_calls": 12,
+          "mcp_tool_calls": 0,
+          "wall_ms_mean": 16891
+        },
+        "delta": {
+          "cc": {
+            "pairs": 2,
+            "saved_pct": -66.7,
+            "min": -115.2,
+            "max": -38
+          }
+        }
+      }
+    ],
+    "by_phase": {
+      "cold": {
+        "vanilla": {
+          "sessions": 2,
+          "success_rate": 1,
+          "tokens": {
+            "input": 18,
+            "cache_read": 48586,
+            "output": 1952,
+            "total": 50556
+          },
+          "uncached_tokens": 13022,
+          "tool_calls": 8,
+          "mcp_tool_calls": 0,
+          "wall_ms_mean": 15443,
+          "index_ms_mean": 0,
+          "cost_usd": 0.137245
+        },
+        "cc": {
+          "sessions": 2,
+          "success_rate": 1,
+          "tokens": {
+            "input": 14,
+            "cache_read": 44414,
+            "output": 1626,
+            "total": 46054
+          },
+          "uncached_tokens": 17176,
+          "tool_calls": 7,
+          "mcp_tool_calls": 2,
+          "wall_ms_mean": 13723,
+          "index_ms_mean": 79,
+          "cost_usd": 0.165747
+        }
+      },
+      "warm": {
+        "vanilla": {
+          "sessions": 2,
+          "success_rate": 1,
+          "tokens": {
+            "input": 12,
+            "cache_read": 34961,
+            "output": 1607,
+            "total": 36580
+          },
+          "uncached_tokens": 5008,
+          "tool_calls": 5,
+          "mcp_tool_calls": 0,
+          "wall_ms_mean": 10625,
+          "index_ms_mean": 0,
+          "cost_usd": 0.066292
+        },
+        "cc": {
+          "sessions": 2,
+          "success_rate": 1,
+          "tokens": {
+            "input": 18,
+            "cache_read": 72164,
+            "output": 2049,
+            "total": 74231
+          },
+          "uncached_tokens": 9141,
+          "tool_calls": 11,
+          "mcp_tool_calls": 2,
+          "wall_ms_mean": 13561,
+          "index_ms_mean": 0,
+          "cost_usd": 0.112077
+        }
+      }
+    }
+  },
+  "headline": {
+    "success_vanilla_pct": 100,
+    "success_cc_pct": 100,
+    "uncached_saved_pct": -46,
+    "uncached_saved_spread": {
+      "min": -82.5,
+      "max": -31.9,
+      "repeats": 2
+    },
+    "cost_saved_pct": -36.5,
+    "uncached_per_pass": {
+      "vanilla": 4508,
+      "cc": 6579
+    },
+    "tokens_saved_pct": -38,
+    "tool_calls_saved_pct": -38.5
+  }
+}
