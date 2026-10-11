@@ -1,6 +1,6 @@
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="assets/banner/hero-v3-light.svg">
-  <img alt="code-context-mcp. Read less. Know more. Stable, v2.11.0. MCP, code index, sprints, dashboard." src="assets/banner/hero-v3-dark.svg" width="100%">
+  <img alt="code-context-mcp. Read less. Know more. Stable, v2.12.0. MCP, code index, sprints, dashboard." src="assets/banner/hero-v3-dark.svg" width="100%">
 </picture>
 
 <p align="center">
@@ -34,7 +34,7 @@ Your agents forget everything between sessions. This one file does not.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/readme/stats-v3-dark.svg">
-  <img alt="93 MCP TOOLS. 43.7% FEWER TOKENS, SIMULATED. 1 SQLITE FILE. 0 API KEYS" src="assets/readme/stats-v3-light.svg" width="100%">
+  <img alt="97 MCP TOOLS. 43.7% FEWER TOKENS, SIMULATED. 1 SQLITE FILE. 0 API KEYS" src="assets/readme/stats-v3-light.svg" width="100%">
 </picture>
 
 <br>
@@ -45,7 +45,7 @@ Your agents forget everything between sessions. This one file does not.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/readme/features-v3-dark.svg">
-  <img alt="CODE INDEX: File roles, exports and dependents in one context.db. Checked against the disk on every answer. SPRINT PROCESS: A 9-agent team. Vision to retro, with gates. 93 MCP tools, 6 slash commands. LIVE DASHBOARD: React on :3333. SSE updates, no polling. Edit tickets, the session sees it." src="assets/readme/features-v3-light.svg" width="100%">
+  <img alt="CODE INDEX: File roles, exports and dependents in one context.db. Checked against the disk on every answer. SPRINT PROCESS: A 9-agent team. Vision to retro, with gates. 97 MCP tools, 6 slash commands. LIVE DASHBOARD: React on :3333. SSE updates, no polling. Edit tickets, the session sees it." src="assets/readme/features-v3-light.svg" width="100%">
 </picture>
 
 - Gives AI coding agents **persistent memory**. The memory survives the session.
@@ -273,7 +273,7 @@ planning → implementation → done → rest
 - Output env vars: `OVERDRIVE_FLAIR` (flair header/footer on text results: on by default, off under `code`; `0`/`1` force it), `CODE_CONTEXT_TIMESTAMPS=1` (adds `modified`/`indexed` timestamps; off by default), `CODE_CONTEXT_ABSOLUTE_PATHS=1` (absolute paths). See [REFERENCE](docs/REFERENCE.md).
 - Dashboard: React 19 + Vite + Zustand + Framer Motion. CSS variables + Tailwind, dark theme. 75 React components.
 - Live updates: SSE via WAL file watcher.
-- Testing: Vitest. 992 backend tests and 93 dashboard tests.
+- Testing: Vitest. 1841 backend tests and 104 dashboard tests.
 - 9 agent roles (configurable). 4 sprint phases with gate checks + planning gate. 6 slash commands.
 - 4 CLI bins: `code-context-mcp`, `code-context-dashboard`, `code-context-statusline`, `code-context-reindex`.
 
@@ -310,10 +310,10 @@ npm run dashboard:dev
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/readme/status-v3-dark.svg">
-  <img alt="Release: 2.11.0 on npm. Python index: since 2.8. Tests: 1052, vitest. Dashboard: 7 pages, live. Fun + stream: hidden unless opted in" src="assets/readme/status-v3-light.svg" width="100%">
+  <img alt="Release: 2.12.0 on npm. Python index: since 2.8. Tests: 1841, vitest. Dashboard: 7 pages, live. Fun + stream: hidden unless opted in" src="assets/readme/status-v3-light.svg" width="100%">
 </picture>
 
-- **Stable.** 2.11.0 on npm. The npm badge shows the live version.
+- **Stable.** 2.12.0 on npm. The npm badge shows the live version.
 - Tests: `npm test` (backend) · `npm run test:all` (backend + frontend).
 - Changes: [`CHANGELOG.md`](CHANGELOG.md). Release highlights 2.0 to 2.8: [docs/REFERENCE.md](docs/REFERENCE.md#release-highlights).
 - License: MIT.
