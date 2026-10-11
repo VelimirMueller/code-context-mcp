@@ -12,12 +12,15 @@ import { describe, it, expect, afterEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import Database from 'better-sqlite3';
 import { toISOLocal } from '../src/server/indexer.js';
 import {
   ARMS,
   CLAUDE_TOOLS,
   cachePhaseFor,
+  claudeAppendPrompt,
+  parseArms,
   prepareArmSession,
   type PrepareArmOpts,
   type PreparedArm,
@@ -238,7 +241,7 @@ describe('prepareArmSession — every session starts fresh (2026-10-11)', () => 
     expect(fs.existsSync(path.join(c.ws, 'context.db'))).toBe(true);
   });
 
-  it('opus: claude with an empty config dir, no prompt caching, only the MCP servers it names', () => {
+  it('opus: claude with an empty config dir, prompt caching on, only the MCP servers it names', () => {
     for (const arm of ARMS) {
       const p = prepare('opus', arm);
       expect(p.command.bin).toBe('claude');
@@ -252,7 +255,8 @@ describe('prepareArmSession — every session starts fresh (2026-10-11)', () => 
       // the prompt is appended after a single-value option, never after a variadic one
       expect(args.at(-2)).toBe('--output-format');
 
-      expect(p.env.DISABLE_PROMPT_CACHING).toBe('1');
+      // CCA-10: caching stays on in cold sessions too, as in real use.
+      expect(p.env).not.toHaveProperty('DISABLE_PROMPT_CACHING');
       expect(p.env.CLAUDE_CONFIG_DIR).toBe(path.join(p.fakeHome, '.claude'));
       expect(fs.readdirSync(p.env.CLAUDE_CONFIG_DIR as string)).toEqual([]);
       expect(p.env.CLAUDE_CODE_OAUTH_TOKEN).toBe('opus-token-value');
@@ -290,12 +294,16 @@ describe('prepareArmSession — fair arms (2026-10-11)', () => {
         ).agent?.build?.prompt ?? '';
       const op = prepare('opus', arm);
       const i = op.command.args.indexOf('--append-system-prompt');
+      // every opus arm appends the nonce line; only cc-guided adds the rule
+      expect(i).toBeGreaterThan(-1);
+      expect(op.command.args.filter((a) => a === '--append-system-prompt')).toHaveLength(1);
+      const appended = op.command.args[i + 1];
       if (arm === 'cc-guided') {
         expect(prompt).toContain(CC_GUIDANCE);
-        expect(op.command.args[i + 1]).toBe(CC_GUIDANCE);
+        expect(appended).toBe(`bench-session ${op.nonce}\n${CC_GUIDANCE}`);
       } else {
         expect(prompt).not.toContain('code-context');
-        expect(i).toBe(-1);
+        expect(appended).toBe(`bench-session ${op.nonce}`);
       }
     }
   });
@@ -424,16 +432,19 @@ describe('cold-warm cache mode (2026-10-11)', () => {
     expect(fs.existsSync(path.join(warm.ws, 'context.db'))).toBe(false);
   });
 
-  it('opus: cold keeps DISABLE_PROMPT_CACHING=1, warm turns caching on with identical args', () => {
+  it('opus: cold and warm both keep prompt caching on, with identical args and env switches', () => {
     for (const arm of ARMS) {
       const cold = prepare('opus', arm, { seed: true });
-      expect(cold.env.DISABLE_PROMPT_CACHING).toBe('1');
+      expect(cold.env).not.toHaveProperty('DISABLE_PROMPT_CACHING');
       const coldArgs = [...cold.command.args];
+      const coldEnv = { ...cold.env };
       const seed = cold.seed!;
       finish(cold);
       const warm = prepare('opus', arm, { warmFrom: seed });
-      expect(warm.env.DISABLE_PROMPT_CACHING).toBeUndefined();
-      expect(warm.command.args).toEqual(coldArgs); // same cwd, mcp config path, system prompt
+      expect(warm.env).not.toHaveProperty('DISABLE_PROMPT_CACHING');
+      expect(warm.env).toEqual(coldEnv); // same HOME/TMPDIR paths, same switches
+      expect(warm.command.args).toEqual(coldArgs); // same cwd, mcp config path, nonce, system prompt
+      expect(warm.command.args.some((x) => x.startsWith(`bench-session ${seed.nonce}`))).toBe(true);
       expect(warm.env.CLAUDE_CONFIG_DIR).toBe(path.join(seed.fakeHome, '.claude'));
       expect(fs.readdirSync(warm.env.CLAUDE_CONFIG_DIR as string)).toEqual([]);
       finish(warm);
@@ -453,5 +464,96 @@ describe('cold-warm cache mode (2026-10-11)', () => {
     expect(fs.existsSync(db)).toBe(true);
     cold.seed!.dispose();
     expect(fs.existsSync(db)).toBe(false);
+  });
+});
+
+describe('opus: code toolset always, caching on in cold runs (CCA-10, #125)', () => {
+  const mcpServers = (p: PreparedArm) => {
+    const args = p.command.args;
+    return (
+      JSON.parse(fs.readFileSync(args[args.indexOf('--mcp-config') + 1], 'utf-8')) as {
+        mcpServers: Record<
+          string,
+          { command: string; args: string[]; env?: Record<string, string> }
+        >;
+      }
+    ).mcpServers;
+  };
+
+  it('every opus cc arm, cold and warm, attaches code-context with CODE_CONTEXT_TOOLSETS=code', () => {
+    const saved = process.env.CODE_CONTEXT_TOOLSETS;
+    process.env.CODE_CONTEXT_TOOLSETS = 'all'; // a parent setting must never widen the arm
+    try {
+      for (const arm of ARMS.filter((a) => a !== 'vanilla')) {
+        const cold = prepare('opus', arm, { seed: true });
+        const seed = cold.seed!;
+        expect(mcpServers(cold)['code-context'].env).toEqual({ CODE_CONTEXT_TOOLSETS: 'code' });
+        expect(cold.env).not.toHaveProperty('CODE_CONTEXT_TOOLSETS');
+        finish(cold);
+        const warm = prepare('opus', arm, { warmFrom: seed });
+        expect(mcpServers(warm)['code-context'].env).toEqual({ CODE_CONTEXT_TOOLSETS: 'code' });
+        expect(warm.env).not.toHaveProperty('CODE_CONTEXT_TOOLSETS');
+        finish(warm);
+      }
+    } finally {
+      if (saved === undefined) delete process.env.CODE_CONTEXT_TOOLSETS;
+      else process.env.CODE_CONTEXT_TOOLSETS = saved;
+    }
+  });
+
+  it('the server started the way Claude Code starts it (agent env + mcp.json env) lists only CODE_TOOLS', async () => {
+    const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+    const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
+    const { CODE_TOOLS } = await import('../src/server/tool-wrap.js');
+    const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+    const p = prepare('opus', 'cc');
+    const server = mcpServers(p)['code-context'];
+    // Same db argument; the dist entry is swapped for the TS source (no build needed).
+    const transport = new StdioClientTransport({
+      command: process.execPath,
+      // tsx as a loader, not its CLI: the CLI opens an IPC pipe under TMPDIR,
+      // and the session TMPDIR path is too long for a unix socket.
+      args: [
+        '--import',
+        pathToFileURL(path.join(repo, 'node_modules/tsx/dist/esm/index.mjs')).href,
+        path.join(repo, 'src/server/index.ts'),
+        ...server.args.slice(1),
+      ],
+      cwd: p.ws,
+      env: { ...(p.env as Record<string, string>), ...server.env },
+      stderr: 'ignore',
+    });
+    const client = new Client({ name: 'cca10-test', version: '0.0.0' });
+    await client.connect(transport);
+    try {
+      const names = (await client.listTools()).tools.map((t) => t.name).sort();
+      expect(names).toEqual([...CODE_TOOLS].sort());
+    } finally {
+      await client.close();
+    }
+  }, 30_000);
+
+  it('cold opus sessions get a new nonce each, first in the appended system prompt', () => {
+    const a = prepare('opus', 'vanilla');
+    const b = prepare('opus', 'vanilla');
+    expect(a.nonce).not.toBe(b.nonce);
+    const appended = (p: PreparedArm) =>
+      p.command.args[p.command.args.indexOf('--append-system-prompt') + 1];
+    expect(appended(a).split('\n')[0]).toBe(`bench-session ${a.nonce}`);
+    expect(appended(b).split('\n')[0]).toBe(`bench-session ${b.nonce}`);
+    expect(claudeAppendPrompt('n1')).toBe('bench-session n1');
+    expect(claudeAppendPrompt('n1', 'rule')).toBe('bench-session n1\nrule');
+  });
+});
+
+describe('parseArms (--arms)', () => {
+  it('returns the arms in ARMS order, deduplicated', () => {
+    expect(parseArms('cc,vanilla')).toEqual(['vanilla', 'cc']);
+    expect(parseArms(' vanilla , cc , cc-guided,cc ')).toEqual(['vanilla', 'cc', 'cc-guided']);
+  });
+  it('requires vanilla and cc, refuses unknown arms', () => {
+    expect(() => parseArms('cc')).toThrow(/must include vanilla/);
+    expect(() => parseArms('vanilla,cc-guided')).toThrow(/must include cc/);
+    expect(() => parseArms('vanilla,cc,grep')).toThrow(/unknown arm "grep"/);
   });
 });
