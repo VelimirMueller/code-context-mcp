@@ -119,6 +119,10 @@ instrumentTools(server);
 // disk (and each repo's HEAD) before answering. See freshness.ts.
 const fresh = new FreshnessGuard(db);
 
+// Shared by every path-printing tool. Kept short: it is in every tools/list.
+// The env fallback (CODE_CONTEXT_ABSOLUTE_PATHS=1) is documented in REFERENCE.md.
+const ABSOLUTE_PATHS_DESC = "Absolute paths instead of project-relative";
+
 // ─── Tool: index_directory ───────────────────────────────────────────────────
 server.tool(
   "index_directory",
@@ -232,10 +236,10 @@ const findSymbolStmt = db.prepare(`
 `);
 server.tool(
   "find_symbol",
-  "Find which file(s) export a given function, component, type, or constant. Results are checked against the disk first (changed files are re-indexed, deleted ones dropped) and carry their indexed_at.",
+  "Where is symbol X defined? Lists the files that export a function, class, type or constant by that name.",
   {
-    name: z.string().describe("Symbol name to search for (supports % wildcards)"),
-    absolute_paths: z.boolean().optional().describe("Print absolute paths instead of paths relative to the project root (default: relative; env CODE_CONTEXT_ABSOLUTE_PATHS=1)"),
+    name: z.string().describe("Symbol name; % is a wildcard"),
+    absolute_paths: z.boolean().optional().describe(ABSOLUTE_PATHS_DESC),
   },
   async ({ name, absolute_paths }) => {
     const show = pathDisplay(db, { absolute: absolute_paths });
@@ -258,12 +262,12 @@ server.tool(
 // ─── Tool: get_file_context ──────────────────────────────────────────────────
 server.tool(
   "get_file_context",
-  "Get a file's summary, its exports, what it imports (dependencies), and what imports it (dependents). Pass include_changes=true only when debugging (adds recent change history with diffs).",
+  "What does this file export, what does it import, and which files import it? Plus its summary.",
   {
-    path: z.string().describe("File path: absolute, or relative to the project root (e.g. src/server/schema.ts)"),
-    include_changes: z.boolean().optional().describe("Include recent change history with diffs (default: false — C1 token diet; enable when debugging)"),
-    change_limit: z.number().optional().describe("Max number of recent changes to include (default: 3)"),
-    absolute_paths: z.boolean().optional().describe("Print absolute paths instead of paths relative to the project root (default: relative; env CODE_CONTEXT_ABSOLUTE_PATHS=1)"),
+    path: z.string().describe("Repo-relative or absolute file path"),
+    include_changes: z.boolean().optional().describe("Add recent diffs (debug only)"),
+    change_limit: z.number().optional().describe("Max diffs (default 3)"),
+    absolute_paths: z.boolean().optional().describe(ABSOLUTE_PATHS_DESC),
   },
   async ({ path: rawPath, include_changes, change_limit, absolute_paths }) => {
     const show = pathDisplay(db, { absolute: absolute_paths });
@@ -292,7 +296,7 @@ server.tool(
     const notice = freshnessNotice(repo, files);
 
     if (!file) {
-      const gone = files.dropped > 0 ? "was deleted from disk and dropped from the index" : "not in index. Run index_directory first";
+      const gone = files.dropped > 0 ? "was deleted from disk and dropped from the index" : "not in index. Index it with index_directory or code-context-reindex";
       return { content: [{ type: "text", text: `${notice}File "${show(filePath)}" ${gone}.` }] };
     }
 
@@ -438,7 +442,7 @@ server.tool(
   {
     file_path: z.string().optional().describe("Filter to a specific file path (supports % wildcards)"),
     limit: z.number().optional().describe("Max changes to return (default 50)"),
-    absolute_paths: z.boolean().optional().describe("Print absolute paths instead of paths relative to the project root (default: relative; env CODE_CONTEXT_ABSOLUTE_PATHS=1)"),
+    absolute_paths: z.boolean().optional().describe(ABSOLUTE_PATHS_DESC),
   },
   async ({ file_path, limit, absolute_paths }) => {
     const show = pathDisplay(db, { absolute: absolute_paths });
@@ -524,10 +528,10 @@ const searchFilesStmt = db.prepare(`
 `);
 server.tool(
   "search_files",
-  "Search indexed files by path or summary (supports % wildcards). Results are checked against the disk first (changed files are re-indexed, deleted ones dropped) and carry their indexed_at.",
+  "Which files have this text in their path or summary? Not file contents: grep for code. Max 25.",
   {
-    query: z.string().describe("Search term (matched against path and summary, use % for wildcards)"),
-    absolute_paths: z.boolean().optional().describe("Print absolute paths instead of paths relative to the project root (default: relative; env CODE_CONTEXT_ABSOLUTE_PATHS=1)"),
+    query: z.string().describe("Text to match; % is a wildcard"),
+    absolute_paths: z.boolean().optional().describe(ABSOLUTE_PATHS_DESC),
   },
   async ({ query, absolute_paths }) => {
     const show = pathDisplay(db, { absolute: absolute_paths });
@@ -554,8 +558,8 @@ server.tool(
 // ─── Tool: query (escape hatch) ──────────────────────────────────────────────
 server.tool(
   "query",
-  "Run a read-only SELECT query against the context database",
-  { sql: z.string().describe("A SELECT SQL statement") },
+  "Read-only SQL SELECT on the index (tables: files, exports, dependencies).",
+  { sql: z.string().describe("One SELECT statement") },
   async ({ sql }) => {
     const result = runReadOnlyQuery(db, sql);
     if (!result.ok) {

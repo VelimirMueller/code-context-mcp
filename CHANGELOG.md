@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **`CODE_CONTEXT_TOOLSETS=code` lists 4 tools, not 11:** `find_symbol`, `get_file_context`, `search_files`, `query`. `tools/list` drops from 5,888 to 1,881 characters (about 1,500 to 500 tokens per model call); a test pins the upper bound. `code,code-admin` adds the 7 maintenance tools back. Default profile and `all` do not change. (#117)
+- **Code tool descriptions lead with the question they answer** and drop the freshness boilerplate. The freshness check itself does not change. (#117)
 - **Tool results print project-relative paths.** `find_symbol`, `get_file_context`, `search_files`, `get_changes` and `set_description` show `src/utils/helpers.ts` for files under the indexed root that holds the server's working directory (or under the working directory, when it sits above the indexed roots). Files of other repos in a shared database stay absolute, so a relative path is never ambiguous. `absolute_paths: true` or `CODE_CONTEXT_ABSOLUTE_PATHS=1` restores absolute output. (#116)
 
 ### Fixed

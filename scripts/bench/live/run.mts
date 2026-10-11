@@ -619,7 +619,7 @@ async function main(): Promise<void> {
     agentName: agentBin === 'claude' ? 'claude-code' : 'opencode',
     notes: [
       ...cacheNotes,
-      'arms: vanilla (no server) · cc (server attached, no hint) · cc-guided (server + "use code-context first" in the system prompt); both cc arms run CODE_CONTEXT_TOOLSETS=code (11 tools)',
+      'arms: vanilla (no server) · cc (server attached, no hint) · cc-guided (server + "use code-context first" in the system prompt); both cc arms run CODE_CONTEXT_TOOLSETS=code (4 tools)',
       'task prompts are neutral: they name no tools, only that bash is disabled',
       agentBin === 'claude'
         ? coldWarm
