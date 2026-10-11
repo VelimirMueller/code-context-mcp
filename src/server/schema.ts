@@ -13,6 +13,7 @@ export function initSchema(db: Database.Database) {
       summary          TEXT,
       description      TEXT,
       external_imports TEXT,
+      import_lines     TEXT,
       content          TEXT,
       created_at       TEXT,
       modified_at      TEXT,
@@ -24,7 +25,9 @@ export function initSchema(db: Database.Database) {
       file_id     INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
       name        TEXT NOT NULL,
       kind        TEXT,
-      description TEXT
+      description TEXT,
+      signature   TEXT,
+      line        INTEGER
     );
 
     CREATE TABLE IF NOT EXISTS dependencies (
@@ -89,4 +92,29 @@ export function initSchema(db: Database.Database) {
     );
     CREATE INDEX IF NOT EXISTS idx_changes_ts ON changes(timestamp DESC);
   `);
+  upgradeCodeIndexColumns(db);
+}
+
+/**
+ * Columns added to the code-index tables after they shipped. CREATE TABLE IF
+ * NOT EXISTS leaves an existing table alone, so a DB created by an older
+ * version gets them here, idempotently, on every open (the server, the
+ * reindex CLI and the dashboard all call initSchema). Old rows keep NULL and
+ * render without the data until the file is re-indexed. Recorded as schema
+ * v25 in runMigrations (src/scrum/schema.ts).
+ */
+const CODE_INDEX_COLUMNS: Array<[table: string, column: string, type: string]> = [
+  // v25 / CCA-04 (#119): get_file_context signatures, line numbers, import lines
+  ["exports", "signature", "TEXT"],
+  ["exports", "line", "INTEGER"],
+  ["files", "import_lines", "TEXT"],
+];
+
+export function upgradeCodeIndexColumns(db: Database.Database): void {
+  for (const [table, column, type] of CODE_INDEX_COLUMNS) {
+    const cols = db.pragma(`table_info(${table})`) as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === column)) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+    }
+  }
 }

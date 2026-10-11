@@ -4,6 +4,7 @@ import Database from "better-sqlite3";
 import { SKIP_DIR_NAMES } from "../shared/ignore.js";
 import { admitFile, isDeniedDir, isDeniedFileName, looksBinary } from "./index-policy.js";
 import { gitListFiles, isGitCheckout, readGitHead } from "./git.js";
+import { DEFAULT_EXPORT_SRC, NAMED_EXPORT_SRC, exportDetails, importLines, serializeImportLines } from "./signatures.js";
 
 // ─── .gitignore support ─────────────────────────────────────────────────────
 interface GitignorePattern {
@@ -174,7 +175,7 @@ function parseBraceList(raw: string, useAlias: boolean): string[] {
 }
 
 function findDefaultExports(content: string): ParsedExport[] {
-  return matchAll(content, /export\s+default\s+(function|class)\s+(\w+)/g, (m) => [
+  return matchAll(content, new RegExp(DEFAULT_EXPORT_SRC, "g"), (m) => [
     { name: m[2], kind: m[1], description: extractJSDocBefore(content, m.index) },
   ]);
 }
@@ -182,7 +183,7 @@ function findDefaultExports(content: string): ParsedExport[] {
 function findNamedExports(content: string): ParsedExport[] {
   return matchAll(
     content,
-    /export\s+(?:async\s+)?(function|const|let|var|class|interface|type|enum)\s+(\w+)/g,
+    new RegExp(NAMED_EXPORT_SRC, "g"),
     (m) => [
       { name: m[2], kind: normalizeKind(m[1]), description: extractJSDocBefore(content, m.index) },
     ],
@@ -995,13 +996,13 @@ interface FileStatements {
 function prepareFileStatements(db: Database.Database): FileStatements {
   return {
     upsertFile: db.prepare(`
-      INSERT INTO files (path, language, extension, size_bytes, line_count, summary, external_imports, content, created_at, modified_at, indexed_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      INSERT INTO files (path, language, extension, size_bytes, line_count, summary, external_imports, import_lines, content, created_at, modified_at, indexed_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
       ON CONFLICT(path) DO UPDATE SET
         language=excluded.language, extension=excluded.extension,
         size_bytes=excluded.size_bytes, line_count=excluded.line_count,
         summary=excluded.summary, external_imports=excluded.external_imports,
-        content=excluded.content,
+        import_lines=excluded.import_lines, content=excluded.content,
         created_at=excluded.created_at, modified_at=excluded.modified_at,
         indexed_at=excluded.indexed_at
     `),
@@ -1009,7 +1010,7 @@ function prepareFileStatements(db: Database.Database): FileStatements {
     getDescription: db.prepare(`SELECT description FROM files WHERE id = ?`),
     setDescription: db.prepare(`UPDATE files SET description = ? WHERE id = ?`),
     clearExports: db.prepare(`DELETE FROM exports WHERE file_id = ?`),
-    insertExport: db.prepare(`INSERT INTO exports (file_id, name, kind, description) VALUES (?, ?, ?, ?)`),
+    insertExport: db.prepare(`INSERT INTO exports (file_id, name, kind, description, signature, line) VALUES (?, ?, ?, ?, ?, ?)`),
     clearDeps: db.prepare(`DELETE FROM dependencies WHERE source_id = ?`),
     insertDep: db.prepare(`INSERT OR IGNORE INTO dependencies (source_id, target_id, symbols) VALUES (?, ?, ?)`),
   };
@@ -1037,7 +1038,8 @@ function storeFile(st: FileStatements, filePath: string, rootDir: string): { lin
     externals = extractPythonExternalPackages(content, filePath, rootDir).join(", ") || null;
   }
 
-  st.upsertFile.run(filePath, lang, ext, meta.sizeBytes, lineCount, summary, externals, content, meta.createdAt, meta.modifiedAt);
+  const imports = isParsedExtension(ext) ? serializeImportLines(importLines(content, ext)) : null;
+  st.upsertFile.run(filePath, lang, ext, meta.sizeBytes, lineCount, summary, externals, imports, content, meta.createdAt, meta.modifiedAt);
   const row = st.getFileId.get(filePath) as { id: number };
 
   // Auto-generate description if none set manually
@@ -1049,8 +1051,10 @@ function storeFile(st: FileStatements, filePath: string, rootDir: string): { lin
 
   st.clearExports.run(row.id);
   let exportCount = 0;
+  const details = isParsedExtension(ext) ? exportDetails(content, ext) : new Map();
   for (const exp of parseFileExports(content, ext)) {
-    st.insertExport.run(row.id, exp.name, exp.kind, exp.description);
+    const d = details.get(exp.name);
+    st.insertExport.run(row.id, exp.name, exp.kind, exp.description, d?.signature ?? null, d?.line ?? null);
     exportCount++;
   }
   return { lines: lineCount, exports: exportCount, content };
