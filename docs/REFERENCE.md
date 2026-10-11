@@ -79,6 +79,11 @@ Since 2.2, the QA gate also checks **commit discipline**: a ticket can't reach `
 
 ## Release highlights
 
+### Unreleased — GitHub sync 🔁
+
+- **Project key.** `set_project` maps a short key to a GitHub repo and Project board. Milestones, sprints, epics and tickets take `project`; tickets inherit it from their sprint, milestone or epic. The list tools filter by it. Schema v26 leaves existing rows unassigned.
+- **`sync_github`** mirrors one project's milestones and tickets to GitHub: issues with `P0`–`P2`, type and origin labels, the owner as assignee, board Status from the ticket status, closed when DONE. Idempotent through `tickets.github_issue`; `dry_run: true` prints the plan. About 2 GitHub reads per run. Details: [sync_github](tools/sync-github.md).
+
 ### New in 2.8 — Python in the Index 🐍
 
 - **`find_symbol` and the dependency graph work for Python repos.** `.py`/`.pyi` files now get `exports` rows and `dependencies` edges: module-level `def`/`async def`, `class` and `UPPER_CASE =` constants, with the first docstring line as description. `_`-prefixed names are skipped unless `__all__` lists them; `__all__` filters the list.

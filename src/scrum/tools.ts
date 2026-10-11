@@ -21,6 +21,8 @@ import {
 } from "./queries.js";
 import { registerAnalyticsTools } from "./tools/analytics.js";
 import { registerSkillsTools } from "./tools/skills.js";
+import { registerGithubTools } from "./tools/github.js";
+import { EFFECTIVE_PROJECT_SQL, TICKET_PROJECT_JOINS, TYPE_LABELS, unknownProject } from "./github-sync.js";
 import { log as slog } from "../sessionlog.js";
 import { archiveEntity, assertArchivable, unarchiveEntity } from "./archive.js";
 
@@ -569,6 +571,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
 
   registerAnalyticsTools(server, db);
   registerSkillsTools(server, db);
+  registerGithubTools(server, db);
 
   server.tool(
     "list_agents",
@@ -635,13 +638,17 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       status: z.enum(["preparation", "kickoff", "planning", "implementation", "qa", "refactoring", "retro", "review", "closed", "rest", "done"]).optional().describe("Filter by status"),
       compact: z.boolean().optional().describe("Return minimal fields (id, name, status) to save tokens"),
       last_n: z.number().optional().describe("Return only the last N sprints (default: 20)"),
+      project: z.string().optional().describe("Filter by project key"),
     },
-    async ({ status, compact, last_n }) => {
+    async ({ status, compact, last_n, project }) => {
       const limit = last_n ?? 20;
       if (compact) {
         let q = `SELECT id, name, status FROM sprints`;
         const params: any[] = [];
-        if (status) { q += " WHERE status=?"; params.push(status); }
+        const where: string[] = [];
+        if (status) { where.push("status=?"); params.push(status); }
+        if (project) { where.push("project=?"); params.push(project); }
+        if (where.length) q += ` WHERE ${where.join(" AND ")}`;
         q += ` ORDER BY created_at DESC LIMIT ?`;
         params.push(limit);
         const sprints = db.prepare(q).all(...params) as any[];
@@ -651,7 +658,10 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       }
       let q = `SELECT s.*, COUNT(t.id) as ticket_count, SUM(CASE WHEN t.status='DONE' THEN 1 ELSE 0 END) as done_count FROM sprints s LEFT JOIN tickets t ON t.sprint_id=s.id`;
       const params: any[] = [];
-      if (status) { q += " WHERE s.status=?"; params.push(status); }
+      const where: string[] = [];
+      if (status) { where.push("s.status=?"); params.push(status); }
+      if (project) { where.push("s.project=?"); params.push(project); }
+      if (where.length) q += ` WHERE ${where.join(" AND ")}`;
       q += ` GROUP BY s.id ORDER BY s.created_at DESC LIMIT ?`;
       params.push(limit);
       const sprints = db.prepare(q).all(...params) as any[];
@@ -720,30 +730,33 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       sprint_id: z.number().optional().describe("Filter by sprint"),
       status: z.enum(["TODO", "IN_PROGRESS", "DONE", "BLOCKED", "PARTIAL", "NOT_DONE"]).optional(),
       assigned_to: z.string().optional(),
+      project: z.string().optional().describe("Filter by project key (own, else inherited from sprint/milestone/epic)"),
       compact: z.boolean().optional().describe("Return minimal fields (id, title, status) to save tokens"),
     },
-    async ({ sprint_id, status, assigned_to, compact }) => {
+    async ({ sprint_id, status, assigned_to, project, compact }) => {
       if (compact) {
-        let q = `SELECT t.id, t.title, t.status FROM tickets t WHERE 1=1`;
+        let q = `SELECT t.id, t.title, t.status FROM tickets t ${project ? TICKET_PROJECT_JOINS : ""} WHERE 1=1`;
         const p: any[] = [];
         if (sprint_id !== undefined) { q += " AND t.sprint_id=?"; p.push(sprint_id); }
         if (status) { q += " AND t.status=?"; p.push(status); }
         if (assigned_to) { q += " AND t.assigned_to=?"; p.push(assigned_to); }
+        if (project) { q += ` AND ${EFFECTIVE_PROJECT_SQL}=?`; p.push(project); }
         q += " ORDER BY t.status, t.id LIMIT 50";
         const tickets = db.prepare(q).all(...p) as any[];
         if (tickets.length === 0) return { content: [{ type: "text" as const, text: "No tickets found." }] };
         const text = tickets.map((t: any) => `#${t.id} [${t.status}] ${t.title}`).join("\n");
         return { content: [{ type: "text" as const, text: `# Tickets (${tickets.length})\n${text}` }] };
       }
-      let q = `SELECT t.*, s.name as sprint_name FROM tickets t LEFT JOIN sprints s ON t.sprint_id=s.id WHERE 1=1`;
+      let q = `SELECT t.*, s.name as sprint_name FROM tickets t ${TICKET_PROJECT_JOINS} WHERE 1=1`;
       const p: any[] = [];
       if (sprint_id !== undefined) { q += " AND t.sprint_id=?"; p.push(sprint_id); }
       if (status) { q += " AND t.status=?"; p.push(status); }
       if (assigned_to) { q += " AND t.assigned_to=?"; p.push(assigned_to); }
+      if (project) { q += ` AND ${EFFECTIVE_PROJECT_SQL}=?`; p.push(project); }
       q += " ORDER BY t.priority, t.status LIMIT 50";
       const tickets = db.prepare(q).all(...p) as any[];
       if (tickets.length === 0) return { content: [{ type: "text" as const, text: "No tickets found." }] };
-      const text = tickets.map(t => `[${t.status}] ${t.priority} ${t.ticket_ref || "#"+t.id}: ${t.title} (${t.story_points || 0}sp) @${t.assigned_to || "?"} — ${t.sprint_name || "backlog"}`).join("\n");
+      const text = tickets.map(t => `[${t.status}] ${t.priority} ${t.ticket_ref || "#"+t.id}: ${t.title} (${t.story_points || 0}sp) @${t.assigned_to || "?"} — ${t.sprint_name || "backlog"}${t.github_issue ? ` gh#${t.github_issue}` : ""}`).join("\n");
       return { content: [{ type: "text" as const, text: `# Tickets (${tickets.length})\n\n${text}` }] };
     }
   );
@@ -757,7 +770,9 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       if (!t) return { content: [{ type: "text" as const, text: `Ticket #${ticket_id} not found.` }] };
       const subtasks = db.prepare(`SELECT * FROM subtasks WHERE ticket_id=?`).all(ticket_id) as any[];
       const bugs = db.prepare(`SELECT * FROM bugs WHERE ticket_id=?`).all(ticket_id) as any[];
-      const sections = [`# ${t.ticket_ref || "#"+t.id}: ${t.title}`, `Status: ${t.status} | Priority: ${t.priority} | Points: ${t.story_points || 0}`, `Sprint: ${t.sprint_name || "backlog"} | Assigned: ${t.assigned_to || "—"} | QA: ${t.qa_verified ? "Yes" : "No"}`, ""];
+      const sections = [`# ${t.ticket_ref || "#"+t.id}: ${t.title}`, `Status: ${t.status} | Priority: ${t.priority} | Points: ${t.story_points || 0}`, `Sprint: ${t.sprint_name || "backlog"} | Assigned: ${t.assigned_to || "—"} | QA: ${t.qa_verified ? "Yes" : "No"}`];
+      if (t.project || t.type || t.github_issue) sections.push(`Project: ${t.project || "—"} | Type: ${t.type || "—"} | GitHub: ${t.github_issue ? `${t.github_repo ?? ""}#${t.github_issue}` : "—"}`);
+      sections.push("");
       if (t.description) sections.push("## Description", t.description, "");
       if (t.acceptance_criteria) { sections.push("## Acceptance Criteria"); try { JSON.parse(t.acceptance_criteria).forEach((c: string) => sections.push(`- ${c}`)); } catch { sections.push(t.acceptance_criteria); } sections.push(""); }
       if (subtasks.length) { sections.push(`## Subtasks (${subtasks.length})`); subtasks.forEach(s => sections.push(`- [${s.status}] ${s.description} @${s.assigned_to || "?"}`)); sections.push(""); }
@@ -816,10 +831,13 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       start_date: z.string().optional().describe("Start date (ISO 8601)"),
       end_date: z.string().optional().describe("End date (ISO 8601)"),
       milestone_id: z.number().optional().describe("Milestone ID to associate with"),
+      project: z.string().optional().describe("Project key (see set_project); omit = unassigned"),
     },
-    async ({ name, goal, start_date, end_date, milestone_id }) => {
+    async ({ name, goal, start_date, end_date, milestone_id, project }) => {
       try {
-        const result = db.prepare(`INSERT INTO sprints (name, goal, start_date, end_date, milestone_id, status) VALUES (?, ?, ?, ?, ?, 'planning')`).run(name, goal || null, start_date || null, end_date || null, milestone_id || null);
+        const badProject = unknownProject(db, project);
+        if (badProject) return { content: [{ type: "text" as const, text: badProject }], isError: true };
+        const result = db.prepare(`INSERT INTO sprints (name, goal, start_date, end_date, milestone_id, status, project) VALUES (?, ?, ?, ?, ?, 'planning', ?)`).run(name, goal || null, start_date || null, end_date || null, milestone_id || null, project ?? null);
         notifyDashboard(db);
         return { content: [{ type: "text" as const, text: `Sprint created: ${name} (id: ${result.lastInsertRowid})` }] };
       } catch (e: any) {
@@ -838,10 +856,13 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       velocity_committed: z.number().optional(),
       velocity_completed: z.number().optional(),
       milestone_id: z.number().optional().describe("Milestone ID to associate with"),
+      project: z.string().nullable().optional().describe("Project key (see set_project), null to unassign"),
     },
-    async ({ sprint_id, status, goal, velocity_committed, velocity_completed, milestone_id }) => {
+    async ({ sprint_id, status, goal, velocity_committed, velocity_completed, milestone_id, project }) => {
       const sprint = getSprintById(db, sprint_id) as any;
       if (!sprint) return { content: [{ type: "text" as const, text: `Sprint #${sprint_id} not found.` }], isError: true };
+      const badProject = unknownProject(db, project);
+      if (badProject) return { content: [{ type: "text" as const, text: badProject }], isError: true };
 
       // ─── Phase transition gates (advisory) ─────────────────────
       let gateWarnings: string[] = [];
@@ -863,6 +884,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       if (status) { sets.push("status=?"); vals.push(status); }
       if (goal) { sets.push("goal=?"); vals.push(goal); }
       if (milestone_id !== undefined) { sets.push("milestone_id=?"); vals.push(milestone_id); }
+      if (project !== undefined) { sets.push("project=?"); vals.push(project); }
       if (velocity_committed !== undefined) { sets.push("velocity_committed=?"); vals.push(velocity_committed); }
       if (velocity_completed !== undefined) { sets.push("velocity_completed=?"); vals.push(velocity_completed); }
       if (sets.length === 0) return { content: [{ type: "text" as const, text: "Nothing to update." }] };
@@ -1128,14 +1150,19 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       milestone: z.string().optional(),
       milestone_id: z.number().optional().describe("Milestone ID to link to"),
       epic_id: z.number().optional().describe("Epic ID to link to"),
+      project: z.string().optional().describe("Project key (see set_project); omit = inherit from sprint/milestone/epic"),
+      type: z.enum(TYPE_LABELS).optional().describe("Issue type for the GitHub sync"),
+      origin: z.enum(["ai", "human"]).optional().describe("Who created it (GitHub label ai_issue / issue); default ai"),
       agents: z.array(z.object({
         role: z.string().describe("Agent role"),
         model: z.string().nullable().optional().describe("Per-assignment model override (null/omit = agent default)"),
         lead: z.boolean().optional().describe("Exactly one assignment must be the lead"),
       })).optional().describe("D2: multi-agent assignments (overrides assigned_to; lead mirrors into it)"),
     },
-    async ({ sprint_id, title, ticket_ref, description, priority, assigned_to, story_points, milestone, milestone_id, epic_id, agents }) => {
+    async ({ sprint_id, title, ticket_ref, description, priority, assigned_to, story_points, milestone, milestone_id, epic_id, project, type, origin, agents }) => {
       try {
+        const badProject = unknownProject(db, project);
+        if (badProject) return { content: [{ type: "text" as const, text: badProject }], isError: true };
         if (!agents) {
           const badRole = unknownRosterRole(db, assigned_to);
           if (badRole) return { content: [{ type: "text" as const, text: badRole }], isError: true };
@@ -1146,7 +1173,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
           const ms = db.prepare(`SELECT name FROM milestones WHERE id = ?`).get(milestone_id) as any;
           if (ms) milestoneName = ms.name;
         }
-        const result = db.prepare(`INSERT INTO tickets (sprint_id, ticket_ref, title, description, priority, assigned_to, story_points, milestone, milestone_id, epic_id) VALUES (?,?,?,?,?,?,?,?,?,?)`).run(sprint_id, ticket_ref || null, title, description || null, priority, assigned_to || null, story_points || null, milestoneName, milestone_id || null, epic_id || null);
+        const result = db.prepare(`INSERT INTO tickets (sprint_id, ticket_ref, title, description, priority, assigned_to, story_points, milestone, milestone_id, epic_id, project, type, origin) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(sprint_id, ticket_ref || null, title, description || null, priority, assigned_to || null, story_points || null, milestoneName, milestone_id || null, epic_id || null, project ?? null, type ?? null, origin ?? null);
         const newTicketId = Number(result.lastInsertRowid);
         // D2: explicit assignments win; otherwise assigned_to seeds the lead row (backfill pattern)
         if (agents) {
@@ -1188,8 +1215,12 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         lead: z.boolean().optional().describe("Exactly one assignment must be the lead (implements; others verify)"),
       })).optional().describe("D2: replace-set multi-agent assignments for this ticket"),
       format: z.enum(["text", "card"]).optional().describe("card = diff-fence sprint card + compact state in one response (no follow-up get_ticket needed)"),
+      project: z.string().nullable().optional().describe("Project key (see set_project), null to unassign"),
+      type: z.enum(TYPE_LABELS).nullable().optional().describe("Issue type for the GitHub sync, null to clear"),
+      origin: z.enum(["ai", "human"]).nullable().optional().describe("Who created it (label ai_issue / issue), null = unset"),
+      github_issue: z.number().int().positive().nullable().optional().describe("Linked GitHub issue number, null to unlink"),
     },
-    async ({ ticket_id, status, assigned_to, qa_verified, verified_by, notes, milestone_id, epic_id, actual_hours, agents, format }) => {
+    async ({ ticket_id, status, assigned_to, qa_verified, verified_by, notes, milestone_id, epic_id, actual_hours, agents, format, project, type, origin, github_issue }) => {
       const ticket = db.prepare(`SELECT t.*, s.status as sprint_status, s.name as sprint_name FROM tickets t LEFT JOIN sprints s ON t.sprint_id = s.id WHERE t.id = ?`).get(ticket_id) as any;
       if (!ticket) return { content: [{ type: "text" as const, text: `Ticket #${ticket_id} not found.` }], isError: true };
 
@@ -1228,6 +1259,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         const badRole = unknownRosterRole(db, assigned_to);
         if (badRole) return { content: [{ type: "text" as const, text: badRole }], isError: true };
       }
+      const badProject = unknownProject(db, project);
+      if (badProject) return { content: [{ type: "text" as const, text: badProject }], isError: true };
 
       // ─── Apply updates ──────────────────────────────────────────
       const sets: string[] = []; const vals: any[] = [];
@@ -1241,6 +1274,11 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       // groups by assigned_to, so the ticket's current/incoming assignee gets credit.
       if (actual_hours !== undefined) { sets.push("actual_hours=?"); vals.push(actual_hours); }
       if (epic_id !== undefined) { sets.push("epic_id=?"); vals.push(epic_id); }
+      if (project !== undefined) { sets.push("project=?"); vals.push(project); }
+      if (type !== undefined) { sets.push("type=?"); vals.push(type); }
+      if (origin !== undefined) { sets.push("origin=?"); vals.push(origin); }
+      // A hand-set number has no known repo: the sync assumes the project's repo.
+      if (github_issue !== undefined) { sets.push("github_issue=?", "github_repo=NULL"); vals.push(github_issue); }
       if (milestone_id !== undefined) {
         sets.push("milestone_id=?"); vals.push(milestone_id);
         if (milestone_id) {
@@ -1540,10 +1578,13 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       description: z.string().optional().describe("Milestone description"),
       target_date: z.string().optional().describe("Target date (ISO 8601)"),
       status: z.enum(["planned", "active", "completed"]).optional().default("planned"),
+      project: z.string().optional().describe("Project key (see set_project); omit = unassigned"),
     },
-    async ({ name, description, target_date, status }) => {
+    async ({ name, description, target_date, status, project }) => {
       try {
-        const result = db.prepare(`INSERT INTO milestones (name, description, target_date, status) VALUES (?, ?, ?, ?)`).run(name, description || null, target_date || null, status);
+        const badProject = unknownProject(db, project);
+        if (badProject) return { content: [{ type: "text" as const, text: badProject }], isError: true };
+        const result = db.prepare(`INSERT INTO milestones (name, description, target_date, status, project) VALUES (?, ?, ?, ?, ?)`).run(name, description || null, target_date || null, status, project ?? null);
         notifyDashboard(db);
         return { content: [{ type: "text" as const, text: `Milestone created: ${name} (id: ${result.lastInsertRowid})` }] };
       } catch (e: any) {
@@ -1563,9 +1604,15 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       target_date: z.string().optional(),
       archived: z.boolean().optional().describe("true = archive (status must be completed unless force), false = unarchive"),
       force: z.boolean().optional().describe("Archive even if the milestone is not completed"),
+      project: z.string().nullable().optional().describe("Project key (see set_project), null to unassign"),
+      github_milestone: z.number().int().positive().nullable().optional().describe("Linked GitHub milestone number, null to unlink"),
     },
-    async ({ milestone_id, status, description, progress, target_date, archived, force }) => {
+    async ({ milestone_id, status, description, progress, target_date, archived, force, project, github_milestone }) => {
+      const badProject = unknownProject(db, project);
+      if (badProject) return { content: [{ type: "text" as const, text: badProject }], isError: true };
       const sets: string[] = []; const vals: any[] = [];
+      if (project !== undefined) { sets.push("project=?"); vals.push(project); }
+      if (github_milestone !== undefined) { sets.push("github_milestone=?"); vals.push(github_milestone); }
       if (status) { sets.push("status=?"); vals.push(status); }
       if (description) { sets.push("description=?"); vals.push(description); }
       if (progress !== undefined) { sets.push("progress=?"); vals.push(progress); }
@@ -1604,14 +1651,16 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       status: z.enum(["planned", "active", "completed"]).optional().describe("Filter by status"),
       include_archived: z.boolean().optional().describe("Include archived milestones (default false)"),
       compact: z.boolean().optional().describe("Return minimal fields (id, name, status) to save tokens"),
+      project: z.string().optional().describe("Filter by project key"),
     },
-    async ({ status, include_archived, compact }) => {
+    async ({ status, include_archived, compact, project }) => {
       const conditions = ["m.deleted_at IS NULL"];
       const params: any[] = [];
       if (status) { conditions.push("m.status = ?"); params.push(status); }
+      if (project) { conditions.push("m.project = ?"); params.push(project); }
       if (!include_archived) conditions.push("m.archived_at IS NULL");
       const rows = db.prepare(`
-        SELECT m.id, m.name, m.status, m.progress, m.target_date, m.description, m.archived_at,
+        SELECT m.id, m.name, m.status, m.progress, m.target_date, m.description, m.archived_at, m.project, m.github_milestone,
           (SELECT COUNT(*) FROM tickets WHERE milestone_id = m.id AND deleted_at IS NULL) as ticket_count,
           (SELECT COUNT(*) FROM tickets WHERE milestone_id = m.id AND status = 'DONE' AND deleted_at IS NULL) as done_count
         FROM milestones m WHERE ${conditions.join(" AND ")} ORDER BY m.id
@@ -1620,7 +1669,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       const tag = (m: any) => (m.archived_at ? " (archived)" : "");
       const text = compact
         ? rows.map((m: any) => `#${m.id} ${m.name} [${m.status}]${tag(m)}`).join("\n")
-        : rows.map((m: any) => `**${m.name}** (#${m.id}) [${m.status}]${tag(m)} progress=${m.progress}%${m.target_date ? ` target=${m.target_date}` : ""}\n${m.description || "—"}\nTickets: ${m.done_count}/${m.ticket_count} done`).join("\n\n");
+        : rows.map((m: any) => `**${m.name}** (#${m.id}) [${m.status}]${tag(m)} progress=${m.progress}%${m.target_date ? ` target=${m.target_date}` : ""}${m.project ? ` project=${m.project}` : ""}${m.github_milestone ? ` gh-milestone=${m.github_milestone}` : ""}\n${m.description || "—"}\nTickets: ${m.done_count}/${m.ticket_count} done`).join("\n\n");
       return { content: [{ type: "text" as const, text: `# Milestones (${rows.length})\n${compact ? "" : "\n"}${text}` }] };
     }
   );
@@ -2554,12 +2603,15 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       milestone_id: z.number().optional().describe("Milestone ID to associate with"),
       color: z.string().default("#3b82f6").describe("Hex color for the epic (default #3b82f6)"),
       priority: z.number().min(0).max(4).default(0).describe("Priority 0-4 (default 0)"),
+      project: z.string().optional().describe("Project key (see set_project); omit = unassigned"),
     },
-    async ({ name, description, milestone_id, color, priority }) => {
+    async ({ name, description, milestone_id, color, priority, project }) => {
       try {
+        const badProject = unknownProject(db, project);
+        if (badProject) return { content: [{ type: "text" as const, text: badProject }], isError: true };
         const result = db.prepare(
-          `INSERT INTO epics (name, description, milestone_id, color, priority) VALUES (?, ?, ?, ?, ?)`
-        ).run(name, description ?? null, milestone_id ?? null, color, priority);
+          `INSERT INTO epics (name, description, milestone_id, color, priority, project) VALUES (?, ?, ?, ?, ?, ?)`
+        ).run(name, description ?? null, milestone_id ?? null, color, priority, project ?? null);
         notifyDashboard(db);
         return {
           content: [{ type: "text" as const, text: `Epic created — id: ${result.lastInsertRowid}, name: "${name}"` }],
@@ -2582,11 +2634,15 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       priority: z.number().min(0).max(4).optional().describe("New priority 0-4"),
       archived: z.boolean().optional().describe("true = archive (status must be completed unless force), false = unarchive"),
       force: z.boolean().optional().describe("Archive even if the epic is not completed"),
+      project: z.string().nullable().optional().describe("Project key (see set_project), null to unassign"),
     },
-    async ({ epic_id, name, description, status, color, priority, archived, force }) => {
+    async ({ epic_id, name, description, status, color, priority, archived, force, project }) => {
       try {
+        const badProject = unknownProject(db, project);
+        if (badProject) return { content: [{ type: "text" as const, text: badProject }], isError: true };
         const fields: string[] = [];
         const values: any[] = [];
+        if (project !== undefined) { fields.push("project = ?"); values.push(project); }
         if (name !== undefined) { fields.push("name = ?"); values.push(name); }
         if (description !== undefined) { fields.push("description = ?"); values.push(description); }
         if (status !== undefined) { fields.push("status = ?"); values.push(status); }
@@ -2630,14 +2686,16 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       milestone_id: z.number().optional().describe("Filter by milestone ID"),
       compact: z.boolean().optional().describe("Return minimal fields (id, name, status) to save tokens"),
       include_archived: z.boolean().optional().describe("Include archived epics (default false)"),
+      project: z.string().optional().describe("Filter by project key"),
     },
-    async ({ status, milestone_id, compact, include_archived }) => {
+    async ({ status, milestone_id, compact, include_archived, project }) => {
       if (compact) {
         let q = `SELECT e.id, e.name, e.status, e.archived_at FROM epics e`;
         const conditions: string[] = [];
         const params: any[] = [];
         if (status) { conditions.push("e.status = ?"); params.push(status); }
         if (milestone_id !== undefined) { conditions.push("e.milestone_id = ?"); params.push(milestone_id); }
+        if (project) { conditions.push("e.project = ?"); params.push(project); }
         if (!include_archived) conditions.push("e.archived_at IS NULL");
         if (conditions.length) { q += " WHERE " + conditions.join(" AND "); }
         q += " ORDER BY e.priority DESC, e.id";
@@ -2651,6 +2709,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       const params: any[] = [];
       if (status) { conditions.push("e.status = ?"); params.push(status); }
       if (milestone_id !== undefined) { conditions.push("e.milestone_id = ?"); params.push(milestone_id); }
+      if (project) { conditions.push("e.project = ?"); params.push(project); }
       if (!include_archived) conditions.push("e.archived_at IS NULL");
       if (conditions.length) { q += " WHERE " + conditions.join(" AND "); }
       q += " GROUP BY e.id ORDER BY e.priority DESC, e.id";

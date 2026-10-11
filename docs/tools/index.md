@@ -1,6 +1,6 @@
 # MCP Tools Overview
 
-The server exposes **101 tools** via the Model Context Protocol (95 by default; `CODE_CONTEXT_TOOLSETS=all` adds 6 optional ones): **13 code-context tools** (codebase indexing and search) and **88 scrum & agent tools** (sprints, tickets, ceremonies, metrics, and the agent workflow). Tool descriptions and directory metadata are maintained by the MCP server itself — the same indexing engine that powers the code-context tools also keeps their documentation up to date.
+The server exposes **103 tools** via the Model Context Protocol (97 by default; `CODE_CONTEXT_TOOLSETS=all` adds 6 optional ones): **13 code-context tools** (codebase indexing and search) and **90 scrum & agent tools** (sprints, tickets, ceremonies, metrics, and the agent workflow). Tool descriptions and directory metadata are maintained by the MCP server itself — the same indexing engine that powers the code-context tools also keeps their documentation up to date.
 
 ## Code-context tools
 
@@ -28,7 +28,7 @@ The codebase indexing and search half of the server. These 13 tools scan a direc
 
 ## Scrum & agent tools
 
-The scrum/agent workflow half of the server. These 88 tools drive sprints, tickets, epics, milestones, ceremonies, metrics, and the 9-agent team that the `/kickoff`, `/sprint`, `/ticket`, `/milestone`, and `/retro` commands orchestrate. They are grouped below by area. (These tools do not have dedicated reference pages yet.)
+The scrum/agent workflow half of the server. These 90 tools drive sprints, tickets, epics, milestones, ceremonies, metrics, and the 9-agent team that the `/kickoff`, `/sprint`, `/ticket`, `/milestone`, and `/retro` commands orchestrate. They are grouped below by area. (These tools do not have dedicated reference pages yet.)
 
 ### Agents & onboarding
 
@@ -65,6 +65,10 @@ The scrum/agent workflow half of the server. These 88 tools drive sprints, ticke
 ### Data & sync
 
 `dump_database`, `restore_database`, `export_to_file`, `import_from_file`, `sync_scrum_data`, `search_scrum`
+
+### Projects & GitHub
+
+`set_project`, [`sync_github`](./sync-github) — a project key per repo, and a one-way sync of one project's milestones and tickets to GitHub issues and a Project board.
 
 ### Session bridge
 

@@ -36,6 +36,7 @@ export default defineConfig({
           { text: "get_changes", link: "/tools/get-changes" },
           { text: "search_files", link: "/tools/search-files" },
           { text: "query / execute", link: "/tools/query-execute" },
+          { text: "sync_github", link: "/tools/sync-github" },
         ],
       },
     ],
