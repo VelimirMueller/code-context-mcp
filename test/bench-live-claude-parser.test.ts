@@ -94,12 +94,52 @@ describe('parseClaudeStream — totals from the result event', () => {
   });
 });
 
+describe('parseClaudeStream — cache fields (CCA-10, caching on in cold sessions)', () => {
+  it('takes cache_read and cache_write (cache_creation) totals from result.usage', () => {
+    const u = parseClaudeStream([
+      // cold first call: static prefix read from cache, the rest written
+      ev({ type: 'assistant', message: { id: 'm1', content: [], usage: usage(3, 9, 4200, 6100) } }),
+      ev({ type: 'assistant', message: { id: 'm2', content: [], usage: usage(5, 3, 10300, 800) } }),
+      ev({
+        type: 'result',
+        result: 'done',
+        usage: usage(8, 640, 14500, 6900),
+        total_cost_usd: 0.0731,
+      }),
+    ]);
+    expect(u.inputTokens).toBe(8);
+    expect(u.outputTokens).toBe(640);
+    expect(u.cacheReadTokens).toBe(14500);
+    expect(u.cacheWriteTokens).toBe(6900);
+    expect(u.firstCallCacheRead).toBe(4200); // from the first API message, not the result
+    expect(u.costUsd).toBe(0.0731);
+    expect(u.modelCalls).toBe(2);
+  });
+  it('sums per-message cache fields once per message id without a result event', () => {
+    const u = parseClaudeStream([
+      ev({ type: 'assistant', message: { id: 'm1', content: [], usage: usage(3, 1, 4200, 6100) } }),
+      ev({ type: 'assistant', message: { id: 'm1', content: [], usage: usage(3, 1, 4200, 6100) } }),
+      ev({ type: 'assistant', message: { id: 'm2', content: [], usage: usage(5, 1, 10300, 800) } }),
+    ]);
+    expect(u.cacheReadTokens).toBe(14500);
+    expect(u.cacheWriteTokens).toBe(6900);
+    expect(u.costUsd).toBeNull();
+  });
+});
+
 describe('parseClaudeStream — cost', () => {
   it('reads total_cost_usd from the result event', () => {
     const u = parseClaudeStream([
       ev({ type: 'result', result: 'x', usage: usage(1, 1, 0, 0), total_cost_usd: 0.2273 }),
     ]);
     expect(u.costUsd).toBe(0.2273);
+  });
+  it('the result event cost wins; per-message usage never produces a cost', () => {
+    const u = parseClaudeStream([
+      ev({ type: 'assistant', message: { id: 'm1', content: [], usage: usage(10, 1, 0, 9000) } }),
+      ev({ type: 'result', result: 'x', usage: usage(10, 50, 0, 9000), total_cost_usd: 0.0577 }),
+    ]);
+    expect(u.costUsd).toBe(0.0577);
   });
   it('is null without a result event', () => {
     expect(parseClaudeStream([]).costUsd).toBeNull();

@@ -3,16 +3,22 @@
  *
  * CLI: npm run bench:live -- --provider glm|deepseek|opus [--tasks L1,L2,L3]
  *      [--repeats 1] [--timeout 300] [--data-dir <dir>] [--cache-mode cold|cold-warm]
+ *      [--arms vanilla,cc,cc-guided]
+ *
+ * --arms (default all three): which arms run; vanilla and cc are required.
+ * `--arms vanilla,cc` drops cc-guided for a cheaper run (BENCHMARK-GUIDE.md,
+ * "Cheap Opus check").
  *
  * --cache-mode cold (default): every session starts cold (below).
  * --cache-mode cold-warm: per (task, arm), repeat 1 is cold — fresh index,
- * new nonce, the strict first-call cache check — and its index build time is
- * added to its wall_ms (also recorded as index_ms). Repeats 2..N run right
+ * new nonce, the strict first-call cache check (strict providers only) —
+ * and its index build time is added to its wall_ms (also recorded as
+ * index_ms). Repeats 2..N run right
  * after it and are warm for every arm alike: same nonce, same workspace and
  * HOME paths (fresh contents), the cold session's index snapshot instead of a
- * re-index, Claude Code prompt caching on; cache reads are expected, so the
- * strict check is skipped. Sessions carry cache_phase; the run JSON adds
- * aggregate.by_phase. See prepare.mts for the mechanism.
+ * re-index; cache reads are expected, so the strict check is skipped.
+ * Claude Code runs with prompt caching ON in both phases (CCA-10).
+ * Sessions carry cache_phase; the run JSON adds aggregate.by_phase. See prepare.mts for the mechanism.
  *
  * For every task × arm (vanilla, cc), the ONE preparation path
  * (prepare.mts prepareArmSession) builds a fresh temp copy of the fixture
@@ -63,6 +69,7 @@ import {
   ARMS,
   CACHE_MODES,
   cachePhaseFor,
+  parseArms,
   prepareArmSession,
   type Arm,
   type CacheMode,
@@ -103,11 +110,16 @@ const PROVIDERS: Record<
   },
   // Claude Code headless with a long-lived token (`claude setup-token`), so
   // each session can start from an empty CLAUDE_CONFIG_DIR.
+  // strictCache=false (CCA-10, #125): prompt caching stays ON in cold
+  // sessions, as in real use. Claude Code's built-in system prompt and tool
+  // definitions are identical in every session, so a first-call read of
+  // that static prefix is legitimate. The per-session nonce and fresh paths
+  // stop any match beyond it. Recorded, flagged in the run notes.
   opus: {
     model: 'claude-opus-5-5',
     keyEnv: 'CLAUDE_CODE_OAUTH_TOKEN',
     exportAs: 'CLAUDE_CODE_OAUTH_TOKEN',
-    strictCache: true,
+    strictCache: false,
   },
 };
 
@@ -127,6 +139,7 @@ function parseArgs(argv: string[]): {
   timeoutSec: number;
   dataDir: string;
   cacheMode: CacheMode;
+  arms: Arm[];
 } {
   const out = {
     provider: '',
@@ -135,6 +148,7 @@ function parseArgs(argv: string[]): {
     timeoutSec: 300,
     dataDir: path.join(repoRoot, 'data'),
     cacheMode: 'cold' as CacheMode,
+    arms: [...ARMS] as Arm[],
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -164,9 +178,15 @@ function parseArgs(argv: string[]): {
         fail(`--cache-mode must be ${CACHE_MODES.join('|')} (got "${m}")`);
       }
       out.cacheMode = m as CacheMode;
+    } else if (a === '--arms') {
+      try {
+        out.arms = parseArms(next());
+      } catch (e) {
+        fail((e as Error).message);
+      }
     } else
       fail(
-        `unknown argument ${a} (--provider, --tasks, --repeats, --timeout, --data-dir, --cache-mode)`,
+        `unknown argument ${a} (--provider, --tasks, --repeats, --timeout, --data-dir, --cache-mode, --arms)`,
       );
   }
   if (!Object.hasOwn(PROVIDERS, out.provider)) {
@@ -179,6 +199,7 @@ function parseArgs(argv: string[]): {
     timeoutSec: number;
     dataDir: string;
     cacheMode: CacheMode;
+    arms: Arm[];
   };
 }
 
@@ -441,7 +462,8 @@ async function main(): Promise<void> {
   const coldWarm = args.cacheMode === 'cold-warm';
   console.log(
     `run:      ${runId} (${providerMeta.model}, tasks ${tasks.map((t) => t.id).join(',')}, repeats ${args.repeats}` +
-      `${coldWarm ? ', cache mode cold-warm' : ''})`,
+      `${coldWarm ? ', cache mode cold-warm' : ''}, arms ${args.arms.join(',')}, ` +
+      `${tasks.length * args.arms.length * args.repeats} sessions)`,
   );
   console.log(`artefacts: ${artefactDir}`);
 
@@ -461,12 +483,12 @@ async function main(): Promise<void> {
   const schedule: Array<{ task: LiveTask; r: number; arm: Arm }> = [];
   for (const task of tasks) {
     if (coldWarm) {
-      for (const arm of ARMS) {
+      for (const arm of args.arms) {
         for (let r = 1; r <= args.repeats; r++) schedule.push({ task, r, arm });
       }
     } else {
       for (let r = 1; r <= args.repeats; r++) {
-        for (const arm of ARMS) schedule.push({ task, r, arm });
+        for (const arm of args.arms) schedule.push({ task, r, arm });
       }
     }
   }
@@ -564,7 +586,7 @@ async function main(): Promise<void> {
     console.log(
       `  ${arm.padEnd(9)} ${task.id}${suffix ? ` r${r}` : ''}${coldWarm ? ` ${phase}` : ''}  ` +
         `${res.success ? 'PASS' : res.timeout ? 'TIMEOUT' : 'FAIL'}  ` +
-        `tok ${res.tokens.input}+${res.tokens.cache_read}c→${res.tokens.output} (1st call cache ${firstRead})  ` +
+        `tok ${res.tokens.input}+${res.tokens.cache_read}c+${res.tokens.cache_write}w→${res.tokens.output} (1st call cache ${firstRead})  ` +
         `tools ${res.tool_calls} (mcp ${res.mcp_tool_calls})  ` +
         (typeof res.cost_usd === 'number' ? `$${res.cost_usd.toFixed(4)}  ` : '') +
         `${(res.wall_ms / 1000).toFixed(1)}s` +
@@ -590,7 +612,9 @@ async function main(): Promise<void> {
   const firstCallCacheTotal = firstCallCacheReads.reduce((a, b) => a + b, 0);
   const coldFreshNote =
     agentBin === 'claude'
-      ? 'fresh sessions: new fixture copy, HOME, TMPDIR and empty CLAUDE_CONFIG_DIR per session; DISABLE_PROMPT_CACHING=1; only the MCP servers on the command line; first-call cache read 0 in every session (enforced)'
+      ? 'fresh sessions: new fixture copy, HOME, TMPDIR and empty CLAUDE_CONFIG_DIR per session; per-session nonce first in --append-system-prompt; only the MCP servers on the command line; ' +
+        "prompt caching ON as in real Claude Code use (no DISABLE_PROMPT_CACHING). First-call cache reads are not enforced to 0: Claude Code's built-in system prompt and tool definitions are identical in every session, so that static prefix can be read from cache; the nonce and fresh paths stop any match beyond it. " +
+        `${firstCallCacheTotal} cached tokens read on first calls (all arms, cold sessions); cache writes (cache_write) are the honest cold cost and count as uncached tokens`
       : providerMeta.strictCache
         ? 'fresh sessions: new fixture copy, HOME and TMPDIR per session; per-session nonce first in the system prompt; first-call cache read 0 in every session (enforced)'
         : `fresh sessions: new fixture copy, HOME and TMPDIR per session; per-session nonce first in the system prompt. The provider caches tool definitions across sessions and offers no off switch: ${firstCallCacheTotal} cached tokens read on first calls (both arms)`;
@@ -599,7 +623,7 @@ async function main(): Promise<void> {
         `cache mode: cold-warm — per task and arm, repeat 1 is cold and repeats 2..${args.repeats} are warm (sessions carry cache_phase; aggregate.by_phase compares them)`,
         `cold sessions (repeat 1): ${coldFreshNote.replace(/^fresh sessions: /, '').replace(/ in every session \(enforced\)/, ' in every cold session (enforced)')}`,
         agentBin === 'claude'
-          ? 'warm sessions (repeats 2..N): fresh fixture copy and HOME at the cold session’s paths, the cold session’s index reused (copied, not rebuilt), prompt caching ON; first-call cache reads expected and not checked'
+          ? 'warm sessions (repeats 2..N): fresh fixture copy and HOME at the cold session’s paths, the cold session’s nonce and index reused (copied, not rebuilt), same args and env as cold; first-call cache reads expected and not checked'
           : 'warm sessions (repeats 2..N): fresh fixture copy and HOME at the cold session’s paths, the cold session’s nonce and index reused (copied, not rebuilt); first-call cache reads expected and not checked',
         'wall_ms of a cold cc session includes its index build (index_ms); warm sessions index_ms 0; aggregate wall means cover both phases',
         'session order: task → arm → repeat (warm repeats run right after their cold session)',
@@ -619,12 +643,10 @@ async function main(): Promise<void> {
     agentName: agentBin === 'claude' ? 'claude-code' : 'opencode',
     notes: [
       ...cacheNotes,
-      'arms: vanilla (no server) · cc (server attached, no hint) · cc-guided (server + "use code-context first" in the system prompt); both cc arms run CODE_CONTEXT_TOOLSETS=code (4 tools)',
+      `arms run: ${args.arms.join(', ')} — vanilla (no server) · cc (server attached, no hint) · cc-guided (server + "use code-context first" in the system prompt); every cc arm runs CODE_CONTEXT_TOOLSETS=code (6 tools)`,
       'task prompts are neutral: they name no tools, only that bash is disabled',
       agentBin === 'claude'
-        ? coldWarm
-          ? 'cost: Claude Code total_cost_usd at list price; prompt caching off in cold sessions (upper bound), on in warm sessions'
-          : 'cost: Claude Code total_cost_usd at list price with prompt caching off (upper bound)'
+        ? 'cost: Claude Code total_cost_usd (result event) at list price with prompt caching ON in every session: cache writes at the cache-write rate (1.25x input, 5-min TTL), cache reads at the cache-read rate (0.1x input), so the per-call overhead of the static prefix and tool definitions is priced at cache-read rates after the call that wrote it. Runs before CCA-10 (#125) had caching off and overstate that overhead about 10x'
         : args.provider === 'glm'
           ? 'cost: not known (GLM coding plan is a subscription)'
           : 'cost: opencode step cost',
@@ -633,7 +655,7 @@ async function main(): Promise<void> {
         : 'agent prompt: bench prompt (opencode-config.mts benchAgentPrompt), not the opencode default',
       'tokens total = input + cache_read + output (every token the model processed)',
       agentBin === 'claude'
-        ? 'tokens from Claude Code stream-json usage, counted once per API message'
+        ? 'tokens from Claude Code stream-json: totals from the final result event usage (input_tokens, output_tokens, cache_read_input_tokens → cache_read, cache_creation_input_tokens → cache_write); per-message usage (once per API message id) only when a stream has no result event'
         : 'tokens from opencode step-finish events; reasoning tokens folded into output',
       `key ${providerMeta.keyEnv} exported to ${agentBin} as ${providerMeta.exportAs}`,
       // No absolute temp paths in the run JSON (machine-dependent, diff-noisy):

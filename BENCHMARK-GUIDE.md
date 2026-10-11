@@ -28,6 +28,7 @@ npm run bench:live -- --provider deepseek  # reads DEEPSEEK_API_KEY
 npm run bench:live -- --provider opus      # Claude Code headless, reads CLAUDE_CODE_OAUTH_TOKEN
 npm run bench:live -- --provider glm --tasks L1,L2   # narrower task set
 npm run bench:live -- --provider glm --tasks index   # named set: smoke, index, ladder, default
+npm run bench:live -- --provider opus --tasks L1,I1 --arms vanilla,cc --cache-mode cold-warm --repeats 2   # cheap Opus check, below
 
 # Free dry check of the index-shaped tasks: no model, no key (needs the build)
 npm run bench:dry
@@ -53,10 +54,12 @@ Where each kind runs:
 - **vanilla:** no code-context server.
 - **cc:** the server is attached and the agent gets no hint. Shows whether an agent finds the tools by itself.
 - **cc-guided:** the server is attached, and the system prompt carries the rule the owner's rig gives every session ("use code-context before you read or search files"). Shows what the server does when it is used.
-- Both cc arms run `CODE_CONTEXT_TOOLSETS=code` (11 tools, about 1,300 tokens of definitions).
+- Every cc arm runs `CODE_CONTEXT_TOOLSETS=code` (6 tools, about 850 tokens of definitions), for every provider. For opus the variable sits in the generated `--mcp-config` server `env`; a test starts the server the way Claude Code does and checks that it lists only these tools.
+- `--arms` picks the arms (default `vanilla,cc,cc-guided`). `vanilla` and `cc` are required.
 - Task prompts are neutral: they name no tools, only that bash is disabled. Runs before 2026-10-11 told every arm to use the built-in file tools; they are not comparable.
 - Run the ladder with 3 repeats: `npm run bench:live -- --provider <p> --tasks ladder --repeats 3 --timeout 900`.
-- **Cost** comes from the agent CLI: opencode's step cost (DeepSeek), Claude Code's `total_cost_usd` (Opus, at list price with prompt caching off, so an upper bound). GLM's coding plan is a subscription, so its cost is `null`.
+- **Cost** comes from the agent CLI: opencode's step cost (DeepSeek), Claude Code's `total_cost_usd` from the final `result` event (Opus, list price, prompt caching on as in real use). GLM's coding plan is a subscription, so its cost is `null`.
+- **Opus before CCA-10 (#125) overstates the overhead.** The 2.9.0 Opus runs had prompt caching off and the full 93-tool server: 65 % of L6 input was tool definitions (cc $1.04 vs vanilla $0.24, 0 MCP calls). Real sessions read that prefix from cache at 0.1× input. Do not compare those runs with newer ones.
 - **Ratios:** the site shows `cc = N× vanilla` for uncached tokens and cost. Below 1× is a saving. See [Metrics](#metrics).
 
 ## Live task set
@@ -106,10 +109,31 @@ Every agent session starts with nothing to read from. Vanilla and cc never share
 - **Agent CLI state:** a new HOME with its own TMPDIR per session, deleted afterwards. opencode caches, model catalogue and session store live there. For opus, `CLAUDE_CONFIG_DIR` is a new empty directory: no CLAUDE.md, memory, settings, hooks or plugins. Only the MCP servers on the command line load (`--strict-mcp-config`).
 - **Provider prompt cache:** providers cache prompt prefixes across sessions. Every session records `first_call_cache_read`, the cached tokens its first model call read.
   - **DeepSeek:** a per-session nonce is the first line of the system prompt, so no prefix repeats. A first-call cache read above 0 aborts the run; no run file is written.
-  - **Opus:** `DISABLE_PROMPT_CACHING=1`. Same hard check.
+  - **Opus (since CCA-10, #125):** prompt caching stays **on**, cold and warm, as in real Claude Code use. Cold means: new HOME, empty `CLAUDE_CONFIG_DIR`, new workspace path, no session persistence, and a per-session nonce as the first line of `--append-system-prompt`. Claude Code has no slot before its own system prompt, so the nonce is the first text after the static prefix. The static prefix (built-in system prompt and tool definitions) is the same in every session, so the first call can read it from cache; that read is legitimate. The run is **not** aborted on a first-call read (`strictCache: false`, as GLM); the run notes give the first-call total. Cache writes (`cache_write` = `cache_creation_input_tokens`) are the honest cold cost and count as uncached tokens.
   - **GLM:** z.ai caches the tool definitions across sessions, and no prompt change reaches them. GLM runs with the nonce; the run notes give the cached first-call tokens. It hits both arms on the same built-in tools.
 - Inside one session, later calls may still read the session's own earlier prefix from cache. It changes cost and speed, not the answer.
 - **Token metric:** `total = input + cache_read + output`, every token the model processed. Runs before 2026-10-11 count `input + output`. It is not the headline; see [Metrics](#metrics).
+
+## Cache modes
+
+- `--cache-mode cold` (default): every session is cold (above).
+- `--cache-mode cold-warm`: per task and arm, repeat 1 is cold and repeats 2..N are warm. A warm session gets a fresh fixture copy and HOME at the cold session's paths, the same nonce and the cold session's index (copied, not rebuilt). Repeats run right after their cold session, inside the 5-minute cache TTL. Sessions carry `cache_phase`; `aggregate.by_phase` compares the phases.
+- Opus args and env are the same in both phases. Only the paths and the nonce decide whether the cache matches.
+
+### Cheap Opus check (warm, code toolset, L1 + I1)
+
+```bash
+rig quota            # exit 1 = the 5h/7d window is hot: wait
+npm run build
+npm run bench:live -- --provider opus --tasks L1,I1 --arms vanilla,cc \
+  --cache-mode cold-warm --repeats 2 --timeout 600
+```
+
+- **Sessions:** 2 tasks × 2 arms × 2 repeats = **8** (4 cold, 4 warm). The first console line prints the count. Add `cc-guided` to `--arms` for 12.
+- **Rough cost at list price:** about $1–4 for the whole run. L1 (10-file fixture, about 3 calls) about $0.05–0.20 per session; I1 (683-file fixture, 10–30 calls) about $0.20–1.00 per cold session and less warm. Cold sessions pay the cache write (1.25× input) of the prefix; warm sessions read it at 0.1×. The CLI's `total_cost_usd` per session is in the console line and the run JSON.
+- **Quota:** the token from `claude setup-token` uses your Claude plan. 8 short sessions, about 10–25 minutes wall time.
+- **Read:** the console line per session shows `input+cache_read c+cache_write w→output` and `1st call cache`. Compare `cost_usd` and uncached tokens of cc vs vanilla, cold vs warm (`aggregate.by_phase`), and `mcp` calls of the cc arm.
+- The run writes into `data/` like any run. Publish is a separate step (`npm run bench:publish`); use `--data-dir <dir>` to keep the result out of `data/`.
 
 ## Metrics
 

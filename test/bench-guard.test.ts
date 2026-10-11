@@ -121,8 +121,18 @@ describe('bench guard — fresh sessions (2026-10-11)', () => {
   it('run.mts aborts the run when a strict provider session reads cache on its first call', () => {
     const src = readFileSync(join(LIVE_DIR, 'run.mts'), 'utf-8');
     expect(src).toContain('providerMeta.strictCache && firstRead > 0');
-    // only glm is exempt (provider-side tool cache, no off switch)
-    expect(src.match(/strictCache: false/g)?.length).toBe(1);
+    // glm (provider-side tool cache, no off switch) and opus (CCA-10: caching
+    // on in cold sessions; Claude Code's static prefix may be read) are exempt.
+    expect(src.match(/strictCache: false/g)?.length).toBe(2);
+    expect(src).toMatch(/opus: \{[^}]*strictCache: false/);
+    expect(src).toMatch(/deepseek: \{[^}]*strictCache: true/);
+  });
+
+  it('no bench module sets DISABLE_PROMPT_CACHING (CCA-10)', () => {
+    for (const f of readdirSync(LIVE_DIR).filter((x) => x.endsWith('.mts'))) {
+      const src = readFileSync(join(LIVE_DIR, f), 'utf-8');
+      expect(src, f).not.toMatch(/DISABLE_PROMPT_CACHING['"]?\s*:/);
+    }
   });
 });
 

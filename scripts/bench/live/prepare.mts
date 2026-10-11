@@ -21,9 +21,20 @@
  * fresh index for the cc arm only, and a vanilla workspace proven to hold no
  * index. Provider prompt caches are handled per CLI: opencode sessions get a
  * per-session nonce as the first line of the system prompt
- * (opencode-config.mts benchAgentPrompt); Claude Code sessions run with
- * DISABLE_PROMPT_CACHING=1, an empty CLAUDE_CONFIG_DIR and only the MCP
- * servers named on the command line.
+ * (opencode-config.mts benchAgentPrompt); Claude Code sessions run with an
+ * empty CLAUDE_CONFIG_DIR, only the MCP servers named on the command line and
+ * the same nonce as the first line of --append-system-prompt
+ * (claudeAppendPrompt).
+ *
+ * Opus prompt caching (CCA-10, #125): ON in every session, cold and warm, as
+ * in real Claude Code use. The 2.9.0 Opus runs set DISABLE_PROMPT_CACHING=1
+ * and so paid full input price for the tool definitions on every call, about
+ * 10x what a real session pays. "Cold" now means: fresh HOME, config dir,
+ * workspace path and session, plus the per-session nonce, so no earlier cache
+ * entry can match beyond Claude Code's static prefix (built-in system prompt
+ * and tool definitions, identical in every session and every install). A
+ * first-call read of that prefix is legitimate; run.mts records it, does not
+ * enforce 0 (strictCache=false), and counts cache writes as the cold cost.
  *
  * Cold-then-warm mode (`--cache-mode cold-warm`, 2026-10-11): repeat 1 of a
  * (task, arm) is cold exactly as above and also leaves a `WarmSeed` — its
@@ -34,9 +45,8 @@
  * prompt and task prompt, and the index stores absolute paths), restores the
  * mtimes (so the server's read-time freshness check sees nothing stale),
  * copies the index snapshot instead of re-indexing, and reuses the nonce, so
- * the provider prompt prefix of repeat 1 matches again. Claude Code sessions
- * additionally run with prompt caching ON when warm (cold keeps
- * DISABLE_PROMPT_CACHING=1).
+ * the provider prompt prefix of repeat 1 matches again. Claude Code args and
+ * env are identical in both phases (prompt caching ON in both).
  */
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
@@ -64,6 +74,17 @@ import type { FixtureKind } from './tasks.mts';
  * reads outside it need a permission that -p mode never grants.
  */
 export const CLAUDE_TOOLS: readonly string[] = ['Read', 'Grep', 'Glob', 'Edit'];
+
+/**
+ * The opus arm's --append-system-prompt: the per-session nonce first, then
+ * the cc-guided rule. Claude Code has no slot in front of its own system
+ * prompt (--system-prompt would replace the agent), so the nonce opens the
+ * appended part — the first text after the static prefix. Every arm gets the
+ * nonce line; only cc-guided gets the guidance.
+ */
+export function claudeAppendPrompt(nonce: string, guidance?: string): string {
+  return [`bench-session ${nonce}`, ...(guidance ? [guidance] : [])].join('\n');
+}
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..', '..', '..');
@@ -103,6 +124,26 @@ export function copyFixture(kind: FixtureKind, ws: string): void {
  */
 export const ARMS = ['vanilla', 'cc', 'cc-guided'] as const;
 export type Arm = (typeof ARMS)[number];
+
+/**
+ * Parse `--arms` (comma list). vanilla and cc are required (the headline
+ * compares them); cc-guided is optional. Returned in ARMS order, deduplicated.
+ */
+export function parseArms(list: string): Arm[] {
+  const names = list
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  for (const n of names) {
+    if (!(ARMS as readonly string[]).includes(n)) {
+      throw new Error(`--arms: unknown arm "${n}" (known: ${ARMS.join(', ')})`);
+    }
+  }
+  for (const req of ['vanilla', 'cc'] as const) {
+    if (!names.includes(req)) throw new Error(`--arms must include ${req} (got "${list}")`);
+  }
+  return ARMS.filter((a) => names.includes(a));
+}
 
 /** `cold` = every session cold (default); `cold-warm` = repeat 1 cold, repeats 2..N warm. */
 export const CACHE_MODES = ['cold', 'cold-warm'] as const;
@@ -175,7 +216,7 @@ export interface PreparedArm {
   env: NodeJS.ProcessEnv;
   /** The agent CLI and its arguments; run.mts appends the task prompt. */
   command: { bin: 'opencode' | 'claude'; args: string[] };
-  /** Per-session nonce (first line of the opencode system prompt). */
+  /** Per-session nonce (first line of the opencode system prompt; first line of the opus --append-system-prompt). */
   nonce: string;
   /** 'warm' only when prepared from a WarmSeed. */
   cachePhase: CachePhase;
@@ -321,7 +362,10 @@ export function prepareArmSession(opts: PrepareArmOpts): PreparedArm {
   let extra: Record<string, string> = {};
   if (opts.provider === 'opus') {
     // Claude Code: empty config dir (no CLAUDE.md, memory, settings, hooks,
-    // plugins), no prompt caching, only the MCP servers in this file.
+    // plugins), only the MCP servers in this file. Both cc arms ALWAYS load
+    // the code toolset (CODE_CONTEXT_TOOLSETS=code): Claude Code starts the
+    // server with its own env plus this `env`, and the minimal agent env
+    // (sandbox.mts) carries no CODE_CONTEXT_TOOLSETS that could widen it.
     const claudeDir = path.join(fakeHome, '.claude');
     fs.mkdirSync(claudeDir);
     const mcpConfigPath = path.join(fakeHome, 'mcp.json');
@@ -346,7 +390,8 @@ export function prepareArmSession(opts: PrepareArmOpts): PreparedArm {
         '--tools',
         ...CLAUDE_TOOLS,
         ...(withServer ? ['--allowedTools', `mcp__${CODE_CONTEXT_SERVER_ALIAS}`] : []),
-        ...(guidance ? ['--append-system-prompt', guidance] : []),
+        '--append-system-prompt',
+        claudeAppendPrompt(nonce, guidance),
         '--strict-mcp-config',
         '--permission-mode',
         'acceptEdits',
@@ -358,13 +403,11 @@ export function prepareArmSession(opts: PrepareArmOpts): PreparedArm {
         'stream-json',
       ],
     };
-    // Cold: no prompt caching at all — the only switch that guarantees a
-    // first call without cache reads (Claude Code's static system prompt and
-    // tool list are identical across sessions). Warm: caching on, so repeats
-    // read what earlier warm sessions of the same prefix wrote.
+    // Prompt caching ON in cold and warm sessions (CCA-10): never set
+    // DISABLE_PROMPT_CACHING. Cold = fresh paths + new nonce, so only the
+    // static prefix can be read from cache; warm = same paths + same nonce.
     extra = {
       CLAUDE_CONFIG_DIR: claudeDir,
-      ...(warm ? {} : { DISABLE_PROMPT_CACHING: '1' }),
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
       DISABLE_AUTOUPDATER: '1',
     };
