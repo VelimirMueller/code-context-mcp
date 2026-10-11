@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import {
-  hiddenTools, toolFilter, CODE_TOOLS, instrumentTools, decorate, flairHeader, flairFooter, looksLikeJson, OPTIONAL_TOOLSETS,
+  hiddenTools, toolFilter, CODE_TOOLS, CODE_ADMIN_TOOLS, instrumentTools, decorate, flairHeader, flairFooter, looksLikeJson, OPTIONAL_TOOLSETS,
 } from "../src/server/tool-wrap.js";
 
 type Handler = (...a: unknown[]) => unknown;
@@ -116,6 +116,19 @@ describe("toolFilter — the code profile (2026-10-11)", () => {
     const f = toolFilter("code");
     for (const t of CODE_TOOLS) expect(f.has(t)).toBe(false);
     for (const t of ["create_ticket", "plan_sprint", "record_mood", "send_claude_output"]) expect(f.has(t)).toBe(true);
+  });
+  it("code is the four reading tools; maintenance tools need code-admin", () => {
+    expect([...CODE_TOOLS].sort()).toEqual(["find_symbol", "get_file_context", "query", "search_files"]);
+    const f = toolFilter("code");
+    for (const t of CODE_ADMIN_TOOLS) expect(f.has(t)).toBe(true);
+    const admin = toolFilter("code, +code-admin");
+    for (const t of [...CODE_TOOLS, ...CODE_ADMIN_TOOLS]) expect(admin.has(t)).toBe(false);
+    expect(admin.has("create_ticket")).toBe(true);
+  });
+  it("the default and all profiles keep the maintenance tools", () => {
+    for (const env of [undefined, "all", "code,all"]) {
+      for (const t of CODE_ADMIN_TOOLS) expect(toolFilter(env).has(t)).toBe(false);
+    }
   });
   it("all wins over code; no env keeps today's default", () => {
     expect(toolFilter("code,all").has("create_ticket")).toBe(false);

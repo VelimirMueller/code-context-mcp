@@ -146,7 +146,7 @@ export function writeOpencodeConfig(
       [CODE_CONTEXT_SERVER_ALIAS]: {
         type: 'local',
         command: opts.mcp.command,
-        // Code tools only (CODE_CONTEXT_TOOLSETS=code): ~1.3k instead of ~12.3k tokens of definitions.
+        // Code tools only (CODE_CONTEXT_TOOLSETS=code): 4 tools, ~0.5k instead of ~12.3k tokens of definitions.
         environment: { CODE_CONTEXT_TOOLSETS: 'code' },
       },
     };

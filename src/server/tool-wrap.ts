@@ -25,21 +25,29 @@ export const OPTIONAL_TOOLSETS: Readonly<Record<string, readonly string[]>> = {
 };
 
 /**
- * The code-index tools (src/server/index.ts). The `code` profile keeps only
- * these: about 1.3k tokens of tool definitions instead of about 12.3k for all
- * tools — for sessions that read code but never run the sprint process
- * (benchmarks, OpenCode workers, one-off agents).
+ * The `code` profile: the four tools that answer a reading agent's questions
+ * (CCA-02, #117). About 1.9k chars of tool definitions instead of about 49k
+ * for the default set — for sessions that read code but never run the sprint
+ * process (benchmarks, OpenCode workers, one-off agents).
  */
 export const CODE_TOOLS: readonly string[] = [
-  "index_directory",
   "find_symbol",
   "get_file_context",
+  "search_files",
+  "query",
+];
+
+/**
+ * Index maintenance tools. Always on in the default profile; under `code` only
+ * with `code-admin` (`CODE_CONTEXT_TOOLSETS=code,code-admin`). A reading agent
+ * never needs them: the index is pre-built and re-checked against the disk.
+ */
+export const CODE_ADMIN_TOOLS: readonly string[] = [
+  "index_directory",
   "set_description",
   "set_directory_description",
   "set_change_reason",
   "get_changes",
-  "search_files",
-  "query",
   "execute",
   "health",
 ];
@@ -51,14 +59,14 @@ export interface ToolFilter {
 
 /**
  * The filter `instrumentTools` uses by default. `CODE_CONTEXT_TOOLSETS=code`
- * hides every tool outside CODE_TOOLS (non-breaking opt-in profile, 2026-10-11);
- * `all` still wins and hides nothing. Otherwise the optional-toolset rules of
- * hiddenTools apply unchanged.
+ * hides every tool outside CODE_TOOLS (opt-in profile, 2026-10-11); adding
+ * `code-admin` keeps CODE_ADMIN_TOOLS too. `all` still wins and hides nothing.
+ * Otherwise the optional-toolset rules of hiddenTools apply unchanged.
  */
 export function toolFilter(env: string | undefined = process.env.CODE_CONTEXT_TOOLSETS): ToolFilter {
-  const wanted = (env ?? "").split(",").map((s) => s.trim().toLowerCase());
+  const wanted = (env ?? "").split(",").map((s) => s.trim().toLowerCase().replace(/^\+/, ""));
   if (wanted.includes("code") && !wanted.includes("all")) {
-    const keep = new Set(CODE_TOOLS);
+    const keep = new Set([...CODE_TOOLS, ...(wanted.includes("code-admin") ? CODE_ADMIN_TOOLS : [])]);
     return { has: (name: string) => !keep.has(name) };
   }
   return hiddenTools(env);

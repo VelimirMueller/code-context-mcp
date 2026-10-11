@@ -265,7 +265,7 @@ planning → implementation → done → rest
 
 - Runtime: Node.js 24 LTS. Build: TypeScript strict mode.
 - Database: SQLite via better-sqlite3, WAL mode. 33 tables (27 scrum + 6 code).
-- MCP protocol: @modelcontextprotocol/sdk. 93 MCP tools by default, 99 with `CODE_CONTEXT_TOOLSETS=all`, 11 with `CODE_CONTEXT_TOOLSETS=code`.
+- MCP protocol: @modelcontextprotocol/sdk. 93 MCP tools by default, 99 with `CODE_CONTEXT_TOOLSETS=all`, 4 with `CODE_CONTEXT_TOOLSETS=code` (`find_symbol`, `get_file_context`, `search_files`, `query`).
 - Dashboard: React 19 + Vite + Zustand + Framer Motion. CSS variables + Tailwind, dark theme. 75 React components.
 - Live updates: SSE via WAL file watcher.
 - Testing: Vitest. 992 backend tests and 93 dashboard tests.
