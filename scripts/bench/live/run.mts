@@ -5,6 +5,10 @@
  *      [--repeats 1] [--timeout 300] [--data-dir <dir>] [--cache-mode cold|cold-warm]
  *      [--arms vanilla,cc,cc-guided]
  *
+ * --timeout (default 300 s): wall-clock limit per session; the agent's whole
+ * process tree is killed at the limit (session.mts). A provider error, 0 model
+ * calls or a machine sleep is retried once; a second failure voids the run.
+ *
  * --arms (default all three): which arms run; vanilla and cc are required.
  * `--arms vanilla,cc` drops cc-guided for a cheaper run (BENCHMARK-GUIDE.md,
  * "Cheap Opus check").
@@ -44,7 +48,7 @@
  *
  * Costs real tokens. Requires `npm run build` first (dist server for the cc arm).
  */
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -77,6 +81,7 @@ import {
   type WarmSeed,
 } from './prepare.mts';
 import { stripProviderKeys } from './sandbox.mts';
+import { attemptFault, preventIdleSleep, runAgentProcess } from './session.mts';
 import type { SessionResult } from '../lib/types.mts';
 
 /**
@@ -125,7 +130,9 @@ const PROVIDERS: Record<
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..', '..', '..');
-const DIST_SERVER = path.join(repoRoot, 'dist', 'server', 'index.js');
+// BENCH_LIVE_DIST_SERVER: tests only (fake agent binaries never start the server).
+const DIST_SERVER =
+  process.env.BENCH_LIVE_DIST_SERVER || path.join(repoRoot, 'dist', 'server', 'index.js');
 
 function fail(message: string): never {
   console.error(`bench:live: ${message}`);
@@ -237,13 +244,17 @@ interface SessionOutcome {
   modelCalls: number;
   /** Model id the CLI reported (claude init event); null for opencode. */
   model: string | null;
+  /** The machine slept while the session ran (wall-clock gap; #146). */
+  slept: boolean;
 }
 
 /**
  * The ONE agent spawn site. Consumes a PreparedArm (prepare.mts) — the
  * command, the workspace it reads, the config that confines it and the env
  * it runs with were all built together, so no arm can reach this spawn
- * without its sandbox in place.
+ * without its sandbox in place. session.mts runAgentProcess owns the child:
+ * own process group, wall-clock deadline, SIGTERM then SIGKILL to the whole
+ * tree, no unbounded wait on the pipes (#146).
  */
 async function runSession(opts: {
   task: LiveTask;
@@ -253,62 +264,20 @@ async function runSession(opts: {
   costKnown: boolean;
   eventsFile: string;
   stderrFile: string;
+  /** SIGTERM → SIGKILL grace (BENCH_LIVE_KILL_GRACE_MS; tests only). */
+  graceMs?: number;
 }): Promise<SessionOutcome> {
-  const t0 = Date.now();
-  let timedOut = false;
-  let spawnError = ''; // e.g. ENOENT when opencode is not spawnable
-
-  const child = spawn(
-    opts.prep.command.bin,
-    [...opts.prep.command.args, renderPrompt(opts.task, { fakeHome: opts.prep.fakeHome })],
-    {
-      cwd: opts.prep.ws, // claude works in its cwd; opencode also gets --dir
-      env: opts.prep.env,
-      detached: true,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    },
-  );
-
-  let killTimer: NodeJS.Timeout | undefined;
-  let closed = false; // set on close so a late SIGKILL timer never hits a recycled pid
-  const killer = setTimeout(() => {
-    timedOut = true;
-    try {
-      if (child.pid) process.kill(-child.pid, 'SIGTERM');
-    } catch {
-      /* already gone */
-    }
-    killTimer = setTimeout(() => {
-      if (closed) return;
-      try {
-        if (child.pid) process.kill(-child.pid, 'SIGKILL');
-      } catch {
-        /* already gone */
-      }
-    }, 5_000);
-  }, opts.timeoutSec * 1_000);
-
-  const stdoutChunks: Buffer[] = [];
-  const stderrChunks: Buffer[] = [];
-  child.stdout.on('data', (c: Buffer) => stdoutChunks.push(c));
-  child.stderr.on('data', (c: Buffer) => stderrChunks.push(c));
-
-  await new Promise<void>((resolve) => {
-    child.on('close', () => {
-      closed = true;
-      clearTimeout(killTimer);
-      resolve();
-    });
-    child.on('error', (err: Error) => {
-      spawnError = err.message;
-      resolve();
-    });
+  const proc = await runAgentProcess({
+    bin: opts.prep.command.bin,
+    args: [...opts.prep.command.args, renderPrompt(opts.task, { fakeHome: opts.prep.fakeHome })],
+    cwd: opts.prep.ws, // claude works in its cwd; opencode also gets --dir
+    env: opts.prep.env,
+    timeoutMs: opts.timeoutSec * 1_000,
+    ...(opts.graceMs !== undefined ? { graceMs: opts.graceMs } : {}),
   });
-  clearTimeout(killer);
+  const { stdout, stderr, timedOut, slept, spawnError } = proc;
 
-  const wallMs = Date.now() - t0;
-  const stdout = Buffer.concat(stdoutChunks);
-  const stderr = Buffer.concat(stderrChunks);
+  const wallMs = proc.wallMs;
   fs.writeFileSync(opts.eventsFile, stdout);
   fs.writeFileSync(
     opts.stderrFile,
@@ -336,6 +305,7 @@ async function runSession(opts: {
       model: null,
       providerError: `${opts.prep.command.bin} failed to start: ${spawnError}`,
       modelCalls: 0,
+      slept,
     };
   }
 
@@ -375,6 +345,7 @@ async function runSession(opts: {
     model,
     providerError: usage.providerError ?? null,
     modelCalls: usage.modelCalls,
+    slept,
   };
 }
 
@@ -458,6 +429,9 @@ async function main(): Promise<void> {
     .join(',');
   process.env.CODE_CONTEXT_ALLOWED_ROOTS = allowedRoots;
 
+  // A Mac on battery idle-sleeps mid-run otherwise (2026-10-11: ~900 s
+  // sessions, 0-call sessions, voided runs — #146).
+  const awake = preventIdleSleep();
   const artefactDir = fs.mkdtempSync(path.join(os.tmpdir(), `bench-live-${runId}-`));
   const coldWarm = args.cacheMode === 'cold-warm';
   console.log(
@@ -466,6 +440,9 @@ async function main(): Promise<void> {
       `${tasks.length * args.arms.length * args.repeats} sessions)`,
   );
   console.log(`artefacts: ${artefactDir}`);
+  if (process.platform === 'darwin' && !awake) {
+    console.warn('bench:live: caffeinate not started — the Mac may idle-sleep during sessions.');
+  }
 
   const vanilla: SessionResult[] = [];
   const cc: SessionResult[] = [];
@@ -498,41 +475,87 @@ async function main(): Promise<void> {
     for (const s of seeds.values()) s.dispose();
   });
 
+  const graceEnv = process.env.BENCH_LIVE_KILL_GRACE_MS;
+  const graceMs = graceEnv && /^\d+$/.test(graceEnv) ? Number(graceEnv) : undefined;
+  // Every retry (#146): listed in the run notes.
+  const retries: string[] = [];
+
   for (const { task, r, arm } of schedule) {
     const phase = cachePhaseFor(args.cacheMode, r);
     const seedKey = `${task.id}|${arm}`;
     const warmFrom = phase === 'warm' ? seeds.get(seedKey) : undefined;
     if (phase === 'warm' && !warmFrom) fail(`${arm} ${task.id} r${r}: no cold seed to warm from`);
-    // The ONE preparation path — every arm gets its sandbox opencode.json
-    // here (prepare.mts), before the ONE spawn site below consumes it.
-    const prep = prepareArmSession({
-      provider: args.provider,
-      arm,
-      model: providerMeta.model,
-      fixture: task.fixture ?? 'sample',
-      distServer: DIST_SERVER,
-      keyExportName: providerMeta.exportAs,
-      key,
-      allowedRoots: process.env.CODE_CONTEXT_ALLOWED_ROOTS,
-      ...(coldWarm && phase === 'cold' && args.repeats > 1 ? { seed: true } : {}),
-      ...(warmFrom ? { warmFrom } : {}),
-    });
-    if (prep.seed) seeds.set(seedKey, prep.seed);
-
     const suffix = args.repeats > 1 ? `-r${r}` : '';
-    let outcome: SessionOutcome;
-    try {
-      outcome = await runSession({
-        task,
-        prep,
-        timeoutSec: args.timeoutSec,
-        costKnown: args.provider !== 'glm',
-        eventsFile: path.join(artefactDir, `${arm}-${task.id}${suffix}.jsonl`),
-        stderrFile: path.join(artefactDir, `${arm}-${task.id}${suffix}.stderr.log`),
+    const label = `${arm} ${task.id}${suffix ? ` r${r}` : ''}`;
+
+    // One attempt, and ONE retry when the attempt is a harness or provider
+    // fault (provider error, 0 model calls, machine slept — attemptFault).
+    // The retry gets a fresh workspace and HOME through the same prepare
+    // path: a cold session stays cold with a new nonce (and a new seed for
+    // its warm repeats); a warm session rebuilds from the same warm seed.
+    // The retry replaces the failed attempt; the run is voided only when it
+    // fails too (#112).
+    let outcome: SessionOutcome | undefined;
+    let prep: PreparedArm | undefined;
+    let firstFault: string | null = null;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      // The ONE preparation path — every arm gets its sandbox opencode.json
+      // here (prepare.mts), before the ONE spawn site below consumes it.
+      prep = prepareArmSession({
+        provider: args.provider,
+        arm,
+        model: providerMeta.model,
+        fixture: task.fixture ?? 'sample',
+        distServer: DIST_SERVER,
+        keyExportName: providerMeta.exportAs,
+        key,
+        allowedRoots: process.env.CODE_CONTEXT_ALLOWED_ROOTS,
+        ...(coldWarm && phase === 'cold' && args.repeats > 1 ? { seed: true } : {}),
+        ...(warmFrom ? { warmFrom } : {}),
       });
-    } finally {
-      prep.cleanup();
+      if (prep.seed) {
+        seeds.get(seedKey)?.dispose(); // a retried cold session replaces its seed
+        seeds.set(seedKey, prep.seed);
+      }
+      const tag = attempt > 1 ? `-retry${attempt - 1}` : '';
+      try {
+        outcome = await runSession({
+          task,
+          prep,
+          timeoutSec: args.timeoutSec,
+          costKnown: args.provider !== 'glm',
+          eventsFile: path.join(artefactDir, `${arm}-${task.id}${suffix}${tag}.jsonl`),
+          stderrFile: path.join(artefactDir, `${arm}-${task.id}${suffix}${tag}.stderr.log`),
+          ...(graceMs !== undefined ? { graceMs } : {}),
+        });
+      } finally {
+        prep.cleanup();
+      }
+      const fault = attemptFault({
+        providerError: outcome.providerError,
+        modelCalls: outcome.modelCalls,
+        slept: outcome.slept,
+        timeout: outcome.result.timeout,
+      });
+      if (!fault) break;
+      if (attempt === 1) {
+        firstFault = fault;
+        retries.push(`retry: ${arm} ${task.id} r${r} — ${fault}`);
+        console.log(`  ${label}  RETRY  — ${fault}`);
+        continue;
+      }
+      // A provider error or a session in which the model never answered is
+      // not a model FAIL: it voids the run, so a rate limit can never be
+      // published as "the model failed" (Opus ladder 2026-10-11: a plan
+      // session limit turned 29 of 45 sessions into 0-call FAILs).
+      // outcome.providerError || outcome.modelCalls === 0 → attemptFault.
+      fail(
+        `${arm} ${task.id}: ${fault}. Retried once (first attempt: ${firstFault}). ` +
+          `No run file written. Artefacts: ${artefactDir}`,
+      );
     }
+    if (!outcome || !prep) fail(`${label}: no session outcome`);
+
     if (r === args.repeats) {
       seeds.get(seedKey)?.dispose(); // last repeat of this (task, arm)
       seeds.delete(seedKey);
@@ -561,16 +584,6 @@ async function main(): Promise<void> {
     }
 
     const res = outcome.result;
-    // A provider error or a session in which the model never answered is
-    // not a model FAIL: it voids the run, so a rate limit can never be
-    // published as "the model failed" (Opus ladder 2026-10-11: a plan
-    // session limit turned 29 of 45 sessions into 0-call FAILs).
-    if (outcome.providerError || outcome.modelCalls === 0) {
-      fail(
-        `${arm} ${task.id}: ${outcome.providerError ? `provider error: ${outcome.providerError}` : 'the model never answered (0 model calls)'}. ` +
-          `No run file written. Artefacts: ${artefactDir}`,
-      );
-    }
     const firstRead = res.first_call_cache_read ?? 0;
     if (phase === 'cold') firstCallCacheReads.push(firstRead);
     // Fresh-session rule: a session whose FIRST model call reads cache did
@@ -643,6 +656,8 @@ async function main(): Promise<void> {
     agentName: agentBin === 'claude' ? 'claude-code' : 'opencode',
     notes: [
       ...cacheNotes,
+      `session timeout ${args.timeoutSec} s on the wall clock: SIGTERM, then SIGKILL to the agent's whole process tree; a timed-out session keeps its partial usage (timeout: true). A provider error, 0 model calls or a machine sleep during the session is retried once with a fresh workspace and HOME; the retry replaces the attempt, and a second failure voids the run`,
+      ...(retries.length > 0 ? retries : ['retries: none']),
       `arms run: ${args.arms.join(', ')} — vanilla (no server) · cc (server attached, no hint) · cc-guided (server + "use code-context first" in the system prompt); every cc arm runs CODE_CONTEXT_TOOLSETS=code (6 tools)`,
       'task prompts are neutral: they name no tools, only that bash is disabled',
       agentBin === 'claude'

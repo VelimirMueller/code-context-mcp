@@ -114,6 +114,14 @@ Every agent session starts with nothing to read from. Vanilla and cc never share
 - Inside one session, later calls may still read the session's own earlier prefix from cache. It changes cost and speed, not the answer.
 - **Token metric:** `total = input + cache_read + output`, every token the model processed. Runs before 2026-10-11 count `input + output`. It is not the headline; see [Metrics](#metrics).
 
+## Timeouts and retries
+
+- **`--timeout <s>` (default 300) ends a session at its limit.** The deadline runs on the wall clock. At the limit the runner sends SIGTERM, then SIGKILL after 5 s, to the agent's process group and to every descendant (also one in its own group, such as an MCP server). It stops reading the output pipes 2 s after the agent exits, so a leftover process cannot hold the session open. The session is recorded with `timeout: true` and the usage parsed up to the kill.
+- **Machine sleep (macOS).** The runner holds `caffeinate -i` while it runs, so a Mac on battery does not idle-sleep mid-run. A closed lid still sleeps. A session that the machine slept through is flagged and retried (below). Root cause of the ~900 s "stalls" on 2026-10-11: the Mac idle-slept on battery and woke for ~20 s every ~15 min (`pmset -g log`); the old timer ran on the monotonic clock, which stops in sleep, so it never fired.
+- **One retry.** A session with a provider error, 0 model calls (also a timeout with 0 model calls) or a machine sleep is not a model result. The runner runs it again once, with a fresh workspace and HOME. A retried cold session stays cold with a new nonce; a retried warm session keeps the warm seed. The retry replaces the failed attempt, and the run notes list every retry (`retry: <arm> <task> r<N> — <reason>`, or `retries: none`). Artefacts of the failed attempt stay as `<arm>-<task>…-retry1.*` next to the first attempt's files.
+- **Void.** When the retry fails too, the run is void: no run file is written (#112).
+- **A timeout with model calls is a model FAIL.** No retry.
+
 ## Cache modes
 
 - `--cache-mode cold` (default): every session is cold (above).
