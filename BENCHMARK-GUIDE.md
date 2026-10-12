@@ -195,6 +195,47 @@ A live agent run executes untrusted code — a model through the OpenCode CLI, t
 
 For local runs, use throwaway provider keys with spending limits: the checker executes code a model wrote (in a scrubbed environment), and a hostile or buggy model could spend tokens or write files inside its own workspace. The sandbox narrows blast radius; it does not isolate the process like a container would.
 
+## Private suites
+
+A private suite runs the live bench on code that must not enter this repository. The suite is a directory outside the repository; the workspace comes from local git clones at pinned commits. (CCA-17, #149)
+
+```bash
+npm run bench:suite-check -- ~/bench/my-suite          # free: validate, build one workspace, index it
+npm run bench:live -- --suite ~/bench/my-suite --provider deepseek [--tasks T1,T2]
+```
+
+**`<dir>/suite.json`** (schema `ccc-bench-suite/1`):
+
+```json
+{
+  "schema": "ccc-bench-suite/1",
+  "id": "my-suite",
+  "description": "What the suite measures",
+  "private": true,
+  "redact": true,
+  "sources": [
+    { "name": "backend", "repo": "/abs/path/to/clone", "commit": "<sha>", "subdir": "optional/folder" }
+  ],
+  "tasks": [
+    { "id": "T1", "size": "L", "prompt": "… The bash tool is disabled in this environment.",
+      "checker": { "type": "path-set", "answer": "t1Paths", "maxExtra": 1 } }
+  ]
+}
+```
+
+- `sources`: each source is extracted with `git archive <commit>[:<subdir>]` into `<ws>/<name>/`. The commit must exist in the clone. Uncommitted changes, untracked files and remotes are ignored, and no network is used. The cc arms index the whole workspace.
+- `tasks[].checker`: `path-set` (claimed paths vs a `paths` answer; `first: true` checks only the first path; `ignore` lists paths never counted as extra), `symbol-set` (claimed names vs a `symbols` answer; `App\Jobs\Foo` counts as `Foo`), or `answer` (regex patterns, as in the built-in tasks).
+- `redact` defaults to `private`.
+
+**`<dir>/answers.json`** (schema `ccc-bench-suite-answers/1`): `{ "suite": "<id>", "answers": { "<key>": { "kind": "paths", "items": ["backend/app/…"] } } }`. Path items start with a source name. A `symbols` answer also lists its `universe`: every name the checker accepts as a claim, so a wrong name counts as extra. Compute the answer key with a script that does not use code-context.
+
+**Privacy rules:**
+
+- Results go to `<dir>/data/` (`runs/`, `index.json`, `latest.json`). A private suite refuses a `--data-dir` inside this repository, and a private suite directory inside this repository is refused too.
+- The run JSON carries `suite: { id, private, redact, sources }` with the source commits.
+- With `redact`, the run JSON stores no prompt text, no answers and no source names: tasks by id plus `prompt_sha256` and `answer_sha256`, and sources by commit plus `name_sha256`. A run file shared by mistake leaks no code facts.
+- `bench:publish` refuses any run with `suite.private`, and any run file under a private suite directory (also through a symlink). It refuses before it writes or pushes anything.
+
 ## Where the results go
 
 - Run files land in `data/runs/<run_id>.json` (schema `ccc-bench/1`).

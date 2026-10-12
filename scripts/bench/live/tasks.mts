@@ -21,6 +21,7 @@
  * default is smoke + index. S1 is the opt-in sandbox probe (not part of DEFAULT_LIVE_TASKS, so it
  * never pollutes benchmark metrics).
  */
+import type { SuiteTaskContext } from './suite.mts';
 
 export type CheckerSpec =
   | {
@@ -78,6 +79,20 @@ export type CheckerSpec =
       type: 'pinned-exports';
       key: 'catalogUtilsUnused';
       maxExtra: number;
+    }
+  | {
+      /** Private suite (CCA-17): claimed paths vs the suite answer key (suite.mts). */
+      type: 'path-set';
+      answer: string;
+      maxExtra: number;
+      ignore?: string[];
+      first?: boolean;
+    }
+  | {
+      /** Private suite (CCA-17): claimed names vs the suite answer key (suite.mts). */
+      type: 'symbol-set';
+      answer: string;
+      maxExtra: number;
     };
 
 /** Pinned path answers of the large fixture (keys of answers.json `answers`). */
@@ -89,10 +104,11 @@ export type PinnedPathKey =
   | 'pointsMathTwoHop';
 
 /**
- * Workspace source: the small sample project, a copy of this repo's src/, or
- * the generated large fixture (CCA-09).
+ * Workspace source: the small sample project, a copy of this repo's src/,
+ * the generated large fixture (CCA-09), or a suite's pinned git sources
+ * (CCA-17, suite.mts).
  */
-export type FixtureKind = 'sample' | 'src' | 'large';
+export type FixtureKind = 'sample' | 'src' | 'large' | 'suite';
 
 /** Ladder size, shown in results (S, M, ML, L, XL). */
 export type TaskSize = 'S' | 'M' | 'ML' | 'L' | 'XL';
@@ -104,6 +120,8 @@ export interface LiveTask {
   /** Defaults to 'sample'. */
   fixture?: FixtureKind;
   size?: TaskSize;
+  /** Suite tasks only (fixture 'suite'): roots and resolved answer. Never serialised. */
+  suite?: SuiteTaskContext;
 }
 
 // Neutral on purpose (2026-10-11): the prompts used to say "use the built-in

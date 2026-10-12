@@ -3,7 +3,13 @@
  *
  * CLI: npm run bench:live -- --provider glm|deepseek|opus [--tasks L1,L2,L3]
  *      [--repeats 1] [--timeout 300] [--data-dir <dir>] [--cache-mode cold|cold-warm]
- *      [--arms vanilla,cc,cc-guided]
+ *      [--arms vanilla,cc,cc-guided] [--suite <dir>]
+ *
+ * --suite <dir> (CCA-17): run the tasks of an external suite (<dir>/suite.json,
+ * answers in <dir>/answers.json, see suite.mts) on a workspace built from its
+ * pinned git sources. --tasks then picks suite task ids (default: all), and
+ * results go to <dir>/data/ unless --data-dir says otherwise. A private
+ * suite refuses a --data-dir inside this repository.
  *
  * --timeout (default 300 s): wall-clock limit per session; the agent's whole
  * process tree is killed at the limit (session.mts). A provider error, 0 model
@@ -66,6 +72,7 @@ import {
   type PhaseArmAgg,
 } from '../normalize-live.mts';
 import { DEFAULT_LIVE_TASKS, tasksByIds, renderPrompt, type LiveTask } from './tasks.mts';
+import { isInside, loadSuite, type LoadedSuite } from './suite.mts';
 import { runChecker } from './checkers.mts';
 import { parseEventStream, type SessionUsage } from './parse-events.mts';
 import { parseClaudeStream } from './parse-claude.mts';
@@ -147,10 +154,16 @@ function parseArgs(argv: string[]): {
   dataDir: string;
   cacheMode: CacheMode;
   arms: Arm[];
+  suiteDir: string | null;
+  tasksGiven: boolean;
+  dataDirGiven: boolean;
 } {
   const out = {
     provider: '',
     tasks: DEFAULT_LIVE_TASKS,
+    suiteDir: null as string | null,
+    tasksGiven: false,
+    dataDirGiven: false,
     repeats: 1,
     timeoutSec: 300,
     dataDir: path.join(repoRoot, 'data'),
@@ -175,11 +188,16 @@ function parseArgs(argv: string[]): {
       return Number(raw);
     };
     if (a === '--provider') out.provider = next();
-    else if (a === '--tasks') out.tasks = next();
+    else if (a === '--tasks') {
+      out.tasks = next();
+      out.tasksGiven = true;
+    } else if (a === '--suite') out.suiteDir = path.resolve(next());
     else if (a === '--repeats') out.repeats = whole(1);
     else if (a === '--timeout') out.timeoutSec = whole(1);
-    else if (a === '--data-dir') out.dataDir = path.resolve(next());
-    else if (a === '--cache-mode') {
+    else if (a === '--data-dir') {
+      out.dataDir = path.resolve(next());
+      out.dataDirGiven = true;
+    } else if (a === '--cache-mode') {
       const m = next();
       if (!(CACHE_MODES as readonly string[]).includes(m)) {
         fail(`--cache-mode must be ${CACHE_MODES.join('|')} (got "${m}")`);
@@ -193,7 +211,7 @@ function parseArgs(argv: string[]): {
       }
     } else
       fail(
-        `unknown argument ${a} (--provider, --tasks, --repeats, --timeout, --data-dir, --cache-mode, --arms)`,
+        `unknown argument ${a} (--provider, --tasks, --repeats, --timeout, --data-dir, --cache-mode, --arms, --suite)`,
       );
   }
   if (!Object.hasOwn(PROVIDERS, out.provider)) {
@@ -207,7 +225,24 @@ function parseArgs(argv: string[]): {
     dataDir: string;
     cacheMode: CacheMode;
     arms: Arm[];
+    suiteDir: string | null;
+    tasksGiven: boolean;
+    dataDirGiven: boolean;
   };
+}
+
+/** The suite's tasks by id (all when `ids` is empty), in the order asked. */
+function suiteTasksByIds(suite: LoadedSuite, ids: string[]): LiveTask[] {
+  if (ids.length === 0) return suite.tasks;
+  return ids.map((id) => {
+    const t = suite.tasks.find((x) => x.id === id);
+    if (!t) {
+      fail(
+        `unknown task id ${id} in suite ${suite.id} (known: ${suite.tasks.map((x) => x.id).join(', ')})`,
+      );
+    }
+    return t;
+  });
 }
 
 /** Env value only — never printed, never logged; goes straight to the child env. */
@@ -382,12 +417,28 @@ async function main(): Promise<void> {
   }
   const args = parseArgs(process.argv.slice(2));
   const providerMeta = PROVIDERS[args.provider];
-  const tasks = tasksByIds(
-    args.tasks
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean),
-  );
+  const taskIds = args.tasks
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  let suite: LoadedSuite | undefined;
+  if (args.suiteDir) {
+    try {
+      suite = loadSuite(args.suiteDir, { repoRoot });
+    } catch (e) {
+      fail((e as Error).message);
+    }
+    if (!args.dataDirGiven) args.dataDir = path.join(suite.dir, 'data');
+    // A private suite's results never land in this repository (CCA-17).
+    if (suite.private && isInside(args.dataDir, repoRoot)) {
+      fail(
+        `--data-dir ${args.dataDir} is inside this repository; a private suite keeps its results outside it (default: ${path.join(suite.dir, 'data')})`,
+      );
+    }
+  }
+  const tasks = suite
+    ? suiteTasksByIds(suite, args.tasksGiven ? taskIds : [])
+    : tasksByIds(taskIds);
 
   const key = resolveKey(providerMeta.keyEnv);
   if (!key) {
@@ -506,6 +557,7 @@ async function main(): Promise<void> {
         arm,
         model: providerMeta.model,
         fixture: task.fixture ?? 'sample',
+        ...(suite ? { suite } : {}),
         distServer: DIST_SERVER,
         keyExportName: providerMeta.exportAs,
         key,
@@ -654,7 +706,16 @@ async function main(): Promise<void> {
     codeContextVersion: pkg.version,
     agentVersion,
     agentName: agentBin === 'claude' ? 'claude-code' : 'opencode',
+    ...(suite ? { suite } : {}),
     notes: [
+      ...(suite
+        ? [
+            `suite ${suite.id}: ${suite.sources.length} pinned git source(s), workspace built with git archive per session` +
+              (suite.redact
+                ? '; redacted: tasks stored by id + sha256, no prompt or answer text'
+                : ''),
+          ]
+        : []),
       ...cacheNotes,
       `session timeout ${args.timeoutSec} s on the wall clock: SIGTERM, then SIGKILL to the agent's whole process tree; a timed-out session keeps its partial usage (timeout: true). A provider error, 0 model calls or a machine sleep during the session is retried once with a fresh workspace and HOME; the retry replaces the attempt, and a second failure voids the run`,
       ...(retries.length > 0 ? retries : ['retries: none']),

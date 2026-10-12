@@ -66,6 +66,7 @@ import { agentSpawnEnv } from './sandbox.mts';
 import { writeLargeFixture } from './large-fixture/generate.mts';
 import { CODE_CONTEXT_SERVER_ALIAS } from './parse-events.mts';
 import type { FixtureKind } from './tasks.mts';
+import { writeSuiteWorkspace, type LoadedSuite } from './suite.mts';
 
 /**
  * Claude Code built-in tools for the opus arm — the same capabilities the
@@ -96,9 +97,20 @@ const FIXTURE = path.join(repoRoot, 'test', 'fixtures', 'sample-project');
  * tsconfig.json — a real codebase for the larger ladder tasks; 'large' = the
  * generated ~680-file fixture of the index-shaped tasks (CCA-09), written
  * from the deterministic generator and refused when its sha256 differs from
- * the pinned one. node_modules and build output are never copied.
+ * the pinned one; 'suite' = a private suite's pinned git sources (CCA-17).
+ * node_modules and build output are never copied.
  */
-export function copyFixture(kind: FixtureKind, ws: string): void {
+export function copyFixture(
+  kind: FixtureKind,
+  ws: string,
+  suite?: Pick<LoadedSuite, 'sources'>,
+): void {
+  if (kind === 'suite') {
+    // CCA-17: one folder per pinned source, from `git archive` (suite.mts).
+    if (!suite) throw new Error('copyFixture: a suite task needs its loaded suite');
+    writeSuiteWorkspace(suite, ws);
+    return;
+  }
   if (kind === 'sample') {
     fs.cpSync(FIXTURE, ws, { recursive: true });
     return;
@@ -182,6 +194,8 @@ export interface PrepareArmOpts {
   model: string;
   /** Workspace source (task.fixture); defaults to 'sample'. */
   fixture?: FixtureKind;
+  /** The loaded suite for fixture 'suite' (CCA-17). */
+  suite?: Pick<LoadedSuite, 'sources'>;
   /** Repo dist server (cc arm MCP command); existence is checked by run.mts. */
   distServer: string;
   /** Name the opencode child reads the provider key under. */
@@ -293,7 +307,7 @@ export function prepareArmSession(opts: PrepareArmOpts): PreparedArm {
   const ws = warm
     ? recreateDir(warm.ws, 'workspace')
     : fs.mkdtempSync(path.join(tmpdir, 'bench-ws-'));
-  copyFixture(fixture, ws);
+  copyFixture(fixture, ws, opts.suite);
   if (warm) {
     for (const [rel, mtimeMs] of warm.mtimes) {
       const abs = path.join(ws, rel);

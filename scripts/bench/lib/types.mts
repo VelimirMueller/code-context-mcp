@@ -136,6 +136,11 @@ export interface AgentRun extends RunEnvelope {
   agent_cli: { name: string; version: string };
   fixture: string;
   auth: { keyEnv: string };
+  /**
+   * Suite runs (CCA-17): suite id, privacy flags and source commits.
+   * `bench:publish` refuses any run with `suite.private: true`.
+   */
+  suite?: { id: string; private: boolean; redact: boolean; sources: unknown[] };
   tasks: unknown[];
   arms: unknown;
   aggregate: unknown;
