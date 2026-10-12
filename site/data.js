@@ -533,15 +533,18 @@
     maxSuccessDropPp: 5,
     maxSlowerPct: 25,
     minSavedPctFewRepeats: 10,
+    minIncreasePctFewRepeats: 10,
     smallEffectPct: 10,
   };
-  var VERDICT_CODES = ['BENEFICIAL', 'NO_CLEAR_EFFECT', 'HARMFUL'];
+  var VERDICT_CODES = ['BENEFICIAL', 'NO_CLEAR_EFFECT', 'SUBOPTIMAL'];
   var VERDICT_LABELS = {
     BENEFICIAL: 'BENEFICIAL',
     NO_CLEAR_EFFECT: 'NO CLEAR EFFECT',
-    HARMFUL: 'HARMFUL',
+    SUBOPTIMAL: 'SUBOPTIMAL',
   };
-  var VERDICT_RANK = { BENEFICIAL: 2, NO_CLEAR_EFFECT: 1, HARMFUL: 0 };
+  // Old stored codes (before #158) and the code they mean now.
+  var LEGACY_VERDICT_CODES = { HARMFUL: 'SUBOPTIMAL' };
+  var VERDICT_RANK = { BENEFICIAL: 2, NO_CLEAR_EFFECT: 1, SUBOPTIMAL: 0 };
   var VERDICT_PREFIX = { cc: 'Without guidance, ', cc_guided: 'With guidance, ' };
 
   function whole(x) {
@@ -560,19 +563,27 @@
         ? round1(a.success_arm_pct - a.success_vanilla_pct)
         : 0;
     var sp = a.spread && isNum(a.spread.min) && isNum(a.spread.max) ? a.spread : null;
+    // The spread decides with enough repeats; else the point estimate (both ways).
+    var useSpread = repeats >= R.minRepeats && !!sp;
     var f = {
       successDropTooBig: delta < -R.maxSuccessDropPp,
       alwaysWorse: !!sp && sp.max < 0,
       tooSlow: isNum(a.wall_faster_pct) && a.wall_faster_pct < -R.maxSlowerPct,
       unstable: !!sp && sp.min <= 0 && sp.max >= 0,
+      fewRepeatsWorse:
+        !useSpread &&
+        isNum(a.uncached_saved_pct) &&
+        a.uncached_saved_pct <= -R.minIncreasePctFewRepeats,
+      repeats: repeats,
+      increasePct: isNum(a.uncached_saved_pct) ? whole(-a.uncached_saved_pct) : 0,
       code: 'NO_CLEAR_EFFECT',
     };
-    if (f.successDropTooBig || f.alwaysWorse || f.tooSlow) f.code = 'HARMFUL';
+    if (f.successDropTooBig || f.alwaysWorse || f.fewRepeatsWorse || f.tooSlow)
+      f.code = 'SUBOPTIMAL';
     else {
-      var tokensOk =
-        repeats >= R.minRepeats && sp
-          ? sp.min > 0
-          : isNum(a.uncached_saved_pct) && a.uncached_saved_pct >= R.minSavedPctFewRepeats;
+      var tokensOk = useSpread
+        ? sp.min > 0
+        : isNum(a.uncached_saved_pct) && a.uncached_saved_pct >= R.minSavedPctFewRepeats;
       var costOk = !isNum(a.cost_saved_pct) || a.cost_saved_pct >= 0;
       if (tokensOk && costOk) f.code = 'BENEFICIAL';
     }
@@ -636,12 +647,20 @@
       );
     if (f.tooSlow) out.push('The tasks are more than ' + R.maxSlowerPct + ' % slower.');
     if (f.alwaysWorse) out.push('The token use increases in all repeats.');
+    if (f.fewRepeatsWorse)
+      out.push(
+        'The token use increases by ' +
+          f.increasePct +
+          ' % in ' +
+          f.repeats +
+          (f.repeats === 1 ? ' repeat.' : ' repeats.'),
+      );
     if (f.unstable) out.push('The result is not stable across repeats.');
     return out;
   }
   function headlineSentence(best, codes) {
     var code = codes[best];
-    if (code === 'HARMFUL') return 'Result: code-context makes the result worse.';
+    if (code === 'SUBOPTIMAL') return 'Result: code-context is suboptimal for these tasks.';
     if (code === 'NO_CLEAR_EFFECT') return 'Result: code-context shows no clear effect.';
     var both = codes.cc !== undefined && codes.cc_guided !== undefined;
     if (!both) return 'Result: code-context helps.';
@@ -659,9 +678,9 @@
         out.push('It decreases the token use by ' + whole(a.uncached_saved_pct) + ' %.');
       return out;
     }
-    if (f.code === 'HARMFUL')
+    if (f.code === 'SUBOPTIMAL')
       return [
-        p + 'code-context ' + (bestCode === 'HARMFUL' ? 'also ' : '') + 'makes the result worse.',
+        p + 'code-context is ' + (bestCode === 'SUBOPTIMAL' ? 'also ' : '') + 'suboptimal.',
       ].concat(warningSentences(f));
     var small =
       !isNum(a.uncached_saved_pct) || Math.abs(a.uncached_saved_pct) < VERDICT_RULE.smallEffectPct;
@@ -722,6 +741,47 @@
     return isNum(van) && isNum(arm) && van > 0 ? round1(((van - arm) / van) * 100) : null;
   }
 
+  // Port of normalizeVerdict (verdict.mts): a stored verdict with an old code
+  // (HARMFUL, before #158) is read as SUBOPTIMAL with the current text.
+  function legacyCode(c) {
+    return typeof c === 'string' && Object.prototype.hasOwnProperty.call(LEGACY_VERDICT_CODES, c);
+  }
+  function legacySentence(t) {
+    if (typeof t !== 'string') return t;
+    if (t === 'Result: code-context makes the result worse.')
+      return 'Result: code-context is suboptimal for these tasks.';
+    var m = /^(.*)code-context (also )?makes the result worse\.$/.exec(t);
+    return m ? m[1] + 'code-context is ' + (m[2] || '') + 'suboptimal.' : t;
+  }
+  function normalizeVerdict(x) {
+    if (!isObj(x)) return null;
+    var arms = isObj(x.arms) ? x.arms : {};
+    var legacy =
+      legacyCode(x.code) ||
+      Object.keys(arms).some(function (k) {
+        return isObj(arms[k]) && legacyCode(arms[k].code);
+      });
+    if (!legacy) return isRunVerdict(x) ? x : null;
+    var out = {};
+    Object.keys(x).forEach(function (k) {
+      out[k] = x[k];
+    });
+    out.code = legacyCode(x.code) ? LEGACY_VERDICT_CODES[x.code] : x.code;
+    out.arms = {};
+    Object.keys(arms).forEach(function (k) {
+      var a = isObj(arms[k]) ? arms[k] : {};
+      var b = {};
+      Object.keys(a).forEach(function (f) {
+        b[f] = a[f];
+      });
+      if (legacyCode(a.code)) b.code = LEGACY_VERDICT_CODES[a.code];
+      if (Array.isArray(a.sentences)) b.sentences = a.sentences.map(legacySentence);
+      out.arms[k] = b;
+    });
+    if (Array.isArray(x.sentences)) out.sentences = x.sentences.map(legacySentence);
+    return isRunVerdict(out) ? out : null;
+  }
+
   /** A stored verdict that is safe to render as is. */
   function isRunVerdict(x) {
     return (
@@ -758,7 +818,8 @@
     var r = isObj(run) && isObj(run.raw) ? run.raw : run;
     if (!isObj(r) || !isAgentKind(kindOf(r))) return null;
     var h = isObj(r.headline) ? r.headline : {};
-    if (isRunVerdict(h.verdict)) return h.verdict;
+    var stored = normalizeVerdict(h.verdict);
+    if (stored) return stored;
     var a = agentOf(r);
     // No uncached-token figure (a pre-CCA-08 entry without sessions): no verdict.
     if (!a || !isNum(a.successVanillaPct) || !isNum(a.successCcPct) || !isNum(a.uncachedSavedPct))
@@ -794,7 +855,8 @@
   /** Verdict of a private-summary block ({ arms, saved, verdict? }); same rule. */
   function blockVerdictOf(block, repeats) {
     if (!isObj(block)) return null;
-    if (isRunVerdict(block.verdict)) return block.verdict;
+    var stored = normalizeVerdict(block.verdict);
+    if (stored) return stored;
     var arms = isObj(block.arms) ? block.arms : {};
     var saved = isObj(block.saved) ? block.saved : {};
     var v = isObj(arms.vanilla) ? arms.vanilla : {};
@@ -845,6 +907,7 @@
     VERDICT_LABELS: VERDICT_LABELS,
     computeVerdict: computeVerdict,
     isRunVerdict: isRunVerdict,
+    normalizeVerdict: normalizeVerdict,
     agentVerdictOf: agentVerdictOf,
     blockVerdictOf: blockVerdictOf,
   };

@@ -300,8 +300,8 @@
 
   // ---- rule-based verdict (CCA-20) ----
   // Badge colour is a status: green = BENEFICIAL, grey = NO CLEAR EFFECT,
-  // red = HARMFUL. The sentences are the ASD-STE100 text of the verdict.
-  var VERDICT_CLASS = { BENEFICIAL: 'keep', NO_CLEAR_EFFECT: 'inc', HARMFUL: 'drop' };
+  // red = SUBOPTIMAL. The sentences are the ASD-STE100 text of the verdict.
+  var VERDICT_CLASS = { BENEFICIAL: 'keep', NO_CLEAR_EFFECT: 'inc', SUBOPTIMAL: 'drop' };
   function verdictLabel(v) {
     return (D.VERDICT_LABELS[v.code] || v.code) + (v.indicative ? ' (indicative)' : '');
   }

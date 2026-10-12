@@ -26,7 +26,7 @@ import { HeroText } from '@/components/molecules/HeroText';
 import { SubTabBar } from '@/components/molecules/SubTabBar';
 import { tabVariants, tabTransition } from '@/lib/motion';
 import {
-  isRunVerdict,
+  normalizeVerdict,
   repeatsOf,
   verdictFromHeadline,
   VERDICT_LABELS,
@@ -378,9 +378,9 @@ function isLegacyHeadline(h: BenchIndexEntry['headline']): h is LegacyHeadline {
 function verdictOf(entry: BenchIndexEntry, run: BenchRun | undefined): RunVerdict | null {
   const h = entry.headline;
   if (!isAgentHeadline(h)) return null;
-  const stored = run?.headline?.verdict;
-  if (isRunVerdict(stored)) return stored;
-  if (isRunVerdict(h.verdict)) return h.verdict;
+  // normalizeVerdict reads an old HARMFUL verdict as SUBOPTIMAL (#158).
+  const stored = normalizeVerdict(run?.headline?.verdict) ?? normalizeVerdict(h.verdict);
+  if (stored) return stored;
   const results = run?.arms?.vanilla?.results;
   return verdictFromHeadline(h, {
     wall: run?.aggregate?.wall_ms,
@@ -388,14 +388,14 @@ function verdictOf(entry: BenchIndexEntry, run: BenchRun | undefined): RunVerdic
   });
 }
 
-/** Status colours: green = beneficial, grey = no clear effect, red = harmful. */
+/** Status colours: green = beneficial, grey = no clear effect, red = suboptimal. */
 const VERDICT_COLORS: Record<VerdictCode, string> = {
   BENEFICIAL: 'var(--green)',
   NO_CLEAR_EFFECT: 'var(--text3)',
-  HARMFUL: 'var(--red)',
+  SUBOPTIMAL: 'var(--red)',
 };
 
-/** One-line verdict chip: BENEFICIAL / NO CLEAR EFFECT / HARMFUL + "indicative". */
+/** One-line verdict chip: BENEFICIAL / NO CLEAR EFFECT / SUBOPTIMAL + "indicative". */
 function VerdictChip({ verdict }: { verdict: RunVerdict | null }) {
   if (!verdict) return null;
   const color = VERDICT_COLORS[verdict.code];

@@ -190,26 +190,27 @@ Each code-context arm (cc, cc-guided) is compared with vanilla:
 
 | Verdict | When |
 |---|---|
-| HARMFUL | The success rate drops by more than 5 percentage points, OR the uncached-token spread is below 0 in every repeat (`max < 0`), OR the mean wall time is more than 25 % slower. |
-| BENEFICIAL | Not HARMFUL, AND the success rate does not drop by more than 5 pp, AND the uncached tokens decrease in every repeat (`spread.min > 0`; with fewer than 3 repeats: `uncached_saved_pct >= 10`), AND the tasks are not more than 25 % slower, AND `cost_saved_pct` is `null` or `>= 0`. |
+| SUBOPTIMAL | The success rate drops by more than 5 percentage points, OR the uncached-token spread is below 0 in every repeat (`max < 0`), OR, with fewer than 3 repeats, `uncached_saved_pct <= -10` (the tokens increase by 10 % or more), OR the mean wall time is more than 25 % slower. |
+| BENEFICIAL | Not SUBOPTIMAL, AND the success rate does not drop by more than 5 pp, AND the uncached tokens decrease in every repeat (`spread.min > 0`; with fewer than 3 repeats: `uncached_saved_pct >= 10`), AND the tasks are not more than 25 % slower, AND `cost_saved_pct` is `null` or `>= 0`. |
 | NO CLEAR EFFECT | Every other case. |
 
-- "More than" is strict: a drop of exactly 5 pp and exactly 25 % slower still pass. A spread with `min = 0` is not BENEFICIAL; `max = 0` is not HARMFUL.
+- "More than" is strict: a drop of exactly 5 pp and exactly 25 % slower still pass. A spread with `min = 0` is not BENEFICIAL; `max = 0` is not SUBOPTIMAL. With fewer than 3 repeats, a saving of exactly 10 % is BENEFICIAL and an increase of exactly 10 % is SUBOPTIMAL; −9.9 % is NO CLEAR EFFECT.
 - Fewer than 3 repeats: the verdict is computed and marked **indicative**.
 - Wall time change = `(vanilla mean − arm mean) / vanilla mean × 100` from `aggregate.wall_ms`; positive = faster. An unknown wall time blocks nothing; the text says so.
-- The run verdict is the verdict of the best arm (BENEFICIAL > NO CLEAR EFFECT > HARMFUL). On a tie, cc-guided wins. The text calls cc-guided "with guidance" and cc "without guidance".
-- The thresholds are one frozen object, `VERDICT_RULE`: `minRepeats: 3`, `maxSuccessDropPp: 5`, `maxSlowerPct: 25`, `minSavedPctFewRepeats: 10`, `smallEffectPct: 10` (below it, a NO CLEAR EFFECT arm reads "the effect is small").
+- The run verdict is the verdict of the best arm (BENEFICIAL > NO CLEAR EFFECT > SUBOPTIMAL). On a tie, cc-guided wins. The text calls cc-guided "with guidance" and cc "without guidance".
+- The thresholds are one frozen object, `VERDICT_RULE`: `minRepeats: 3`, `maxSuccessDropPp: 5`, `maxSlowerPct: 25`, `minSavedPctFewRepeats: 10`, `minIncreasePctFewRepeats: 10`, `smallEffectPct: 10` (below it, a NO CLEAR EFFECT arm reads "the effect is small").
 
 The rule in ASD-STE100:
 
-- Code-context is harmful when the success rate decreases by more than 5 percentage points.
-- Code-context is harmful when the token use increases in all repeats.
-- Code-context is harmful when the tasks are more than 25 % slower.
-- Code-context is beneficial when it is not harmful, the token use decreases in all repeats, and the cost does not increase.
-- With fewer than 3 repeats, the token use must decrease by 10 % or more. The verdict is then indicative only.
+- Code-context is suboptimal when the success rate decreases by more than 5 percentage points.
+- Code-context is suboptimal when the token use increases in all repeats.
+- Code-context is suboptimal when the tasks are more than 25 % slower.
+- Code-context is beneficial when it is not suboptimal, the token use decreases in all repeats, and the cost does not increase.
+- With fewer than 3 repeats, the token use must decrease by 10 % or more for a beneficial verdict. The verdict is then indicative only.
+- With fewer than 3 repeats, code-context is suboptimal when the token use increases by 10 % or more. The verdict is then indicative only.
 - In all other cases, code-context has no clear effect.
 
-The text comes from fixed templates: short sentences, active voice, present tense, one fact per sentence, whole % values. The same numbers always give the same text. Three realistic cases:
+The text comes from fixed templates: short sentences, active voice, present tense, one fact per sentence, whole % values. The same numbers always give the same text. Four realistic cases:
 
 ```text
 BENEFICIAL, indicative (1 repeat; guided: −28 % tokens, −26 % cost, 25 % faster, 67 % → 75 % success)
@@ -229,24 +230,34 @@ NO CLEAR EFFECT (3 repeats; guided spread −2 % … +41 %)
   The result is not stable across repeats.
   Without guidance, the effect is small.
 
-HARMFUL (3 repeats; 5–6 % fewer tokens, 31–40 % slower)
-  Result: code-context makes the result worse.
+SUBOPTIMAL (3 repeats; 5–6 % fewer tokens, 31–40 % slower)
+  Result: code-context is suboptimal for these tasks.
   With guidance, code-context decreases the token use by 6 %.
   It decreases the cost by 5 %.
   The tasks complete 40 % slower.
   The success rate decreases from 80 % to 70 %.
   The success rate decreases by more than 5 percentage points.
   The tasks are more than 25 % slower.
-  Without guidance, code-context also makes the result worse.
+  Without guidance, code-context is also suboptimal.
   The tasks are more than 25 % slower.
+
+SUBOPTIMAL, indicative (1 repeat; 12 % more tokens)
+  Result: code-context is suboptimal for these tasks.
+  Code-context increases the token use by 12 %.
+  It decreases the cost by 10 %.
+  The tasks complete in the same time.
+  The success rate is 60 % with and without code-context.
+  The token use increases by 12 % in 1 repeat.
+  This result is indicative only: the run has 1 repeat.
 ```
 
 Where it shows:
 
-- Dashboard: a chip (green BENEFICIAL, grey NO CLEAR EFFECT, red HARMFUL, plus "indicative") on each latest-per-kind card, and a "Verdict" section with the sentences at the top of the run detail.
+- Dashboard: a chip (green BENEFICIAL, grey NO CLEAR EFFECT, red SUBOPTIMAL, plus "indicative") on each latest-per-kind card, and a "Verdict" section with the sentences at the top of the run detail.
 - Site: a verdict card above the headline numbers and the run detail, the verdict label in each history row, and in a private-suite card the run verdict plus a verdict column per group.
 - A run without an uncached-token figure (a pre-CCA-08 index entry without sessions) gets no verdict.
 - Older runs and summaries need no rewrite: `data/index.json`, the dashboard and the site compute the verdict from the same fields when a file has none. A recorded verdict is never overwritten.
+- Before #158 the lowest verdict had the code `HARMFUL`. A stored verdict with that code is read as SUBOPTIMAL with the current sentences (`normalizeVerdict` in `verdict.mts` and `site/data.js`). The index builder computes such a verdict again with the current rule.
 - Private summaries: the shape check recomputes each `verdict` from the block's own numbers and refuses any other text, so a verdict can never carry a suite-derived word. The guard scans it like every other string.
 
 ## Sandbox model

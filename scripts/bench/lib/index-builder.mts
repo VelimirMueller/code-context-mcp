@@ -14,7 +14,7 @@
  * index order and latest.json can never disagree.
  */
 import { honestMetrics } from './metrics.mts';
-import { repeatsOf, verdictFromHeadline } from './verdict.mts';
+import { isLegacyVerdict, normalizeVerdict, repeatsOf, verdictFromHeadline } from './verdict.mts';
 import type { IndexEntry, IndexJson, IndexKind, NewRunKind, SessionResult } from './types.mts';
 
 function asRecord(x: unknown): Record<string, unknown> {
@@ -132,22 +132,32 @@ function wallOf(r: Record<string, unknown>): unknown {
  * so the site and dashboard can show them without loading the run; the
  * recorded fields are never overwritten. The same holds for the CCA-20
  * verdict: computed here from the headline, the wall means and the repeats
- * when the run file has none.
+ * when the run file has none. A recorded verdict with an old code (HARMFUL,
+ * before #158) is computed again with the current rule; when that is not
+ * possible, it is read as SUBOPTIMAL (normalizeVerdict).
  */
 function agentHeadline(r: Record<string, unknown>): unknown {
   const h = r.headline;
   if (!h || typeof h !== 'object') return h ?? null;
   const honest = honestHeadline(r, h as Record<string, unknown>);
-  if ('verdict' in honest) return honest;
+  const legacy = 'verdict' in honest && isLegacyVerdict(honest.verdict);
+  if ('verdict' in honest && !legacy) return honest;
   const vanilla = resultsOf(asRecord(r.arms), 'vanilla');
+  const fallback = (): Record<string, unknown> => {
+    if (!legacy) return honest;
+    const old = normalizeVerdict(honest.verdict);
+    const rest = { ...honest };
+    delete rest.verdict;
+    return old ? { ...rest, verdict: old } : rest;
+  };
   try {
     const verdict = verdictFromHeadline(honest, {
       repeats: vanilla ? repeatsOf(vanilla) : null,
       wall: wallOf(r),
     });
-    return verdict ? { ...honest, verdict } : honest;
+    return verdict ? { ...honest, verdict } : fallback();
   } catch {
-    return honest; // malformed fields: no verdict
+    return fallback(); // malformed fields: no new verdict
   }
 }
 

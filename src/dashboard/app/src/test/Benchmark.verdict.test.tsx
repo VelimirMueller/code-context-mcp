@@ -92,10 +92,28 @@ describe('Benchmark verdict (CCA-20)', () => {
     entries[0].headline = { ...base, uncached_saved_spread: { min: 2, max: 9, repeats: 3 }, uncached_saved_pct: 5 };
     await renderPage();
     const section = screen.getByRole('region', { name: 'Verdict' });
-    await waitFor(() => expect(within(section).getByText('HARMFUL')).toBeTruthy());
-    expect(within(section).getByText('HARMFUL').getAttribute('style')).toContain('var(--red)');
+    await waitFor(() => expect(within(section).getByText('SUBOPTIMAL')).toBeTruthy());
+    expect(within(section).getByText('SUBOPTIMAL').getAttribute('style')).toContain('var(--red)');
     expect(within(section).getByText('The tasks are more than 25 % slower.')).toBeTruthy();
     expect(within(section).queryByText('indicative')).toBeNull();
+  });
+
+  it('reads a stored verdict with the old code HARMFUL as SUBOPTIMAL', async () => {
+    const legacy = {
+      code: 'HARMFUL',
+      indicative: false,
+      repeats: 3,
+      arm: 'cc',
+      arms: { cc: { code: 'HARMFUL', sentences: ['The tasks are more than 25 % slower.'] } },
+      sentences: ['Result: code-context makes the result worse.', 'The tasks are more than 25 % slower.'],
+    };
+    entries[0].headline = { ...base, verdict: legacy };
+    await renderPage();
+    const section = screen.getByRole('region', { name: 'Verdict' });
+    await waitFor(() => expect(within(section).getByText('SUBOPTIMAL')).toBeTruthy());
+    expect(within(section).getByText('SUBOPTIMAL').getAttribute('style')).toContain('var(--red)');
+    expect(within(section).getByText('Result: code-context is suboptimal for these tasks.')).toBeTruthy();
+    expect(section.textContent ?? '').not.toMatch(/harmful|makes the result worse/i);
   });
 
   it('shows no chip for a simulated run', async () => {
