@@ -10,6 +10,8 @@ import {
   VERDICT_RULE,
   armCode,
   computeVerdict,
+  isRunVerdict,
+  normalizeVerdict,
   verdictFromHeadline,
   verdictInputFromBlock,
   wallFasterPct,
@@ -52,6 +54,7 @@ describe('verdict rule constants', () => {
       maxSuccessDropPp: 5,
       maxSlowerPct: 25,
       minSavedPctFewRepeats: 10,
+      minIncreasePctFewRepeats: 10,
       smallEffectPct: 10,
     });
     expect(Object.isFrozen(VERDICT_RULE)).toBe(true);
@@ -65,7 +68,7 @@ describe('verdict rule table (one arm vs vanilla)', () => {
     ['clear win at 3 repeats', {}, 3, 'BENEFICIAL'],
     // success: "drops by more than 5 pp" is strict
     ['success drop of exactly 5 pp', { success_arm_pct: 55 }, 3, 'BENEFICIAL'],
-    ['success drop of 5.1 pp', { success_arm_pct: 54.9 }, 3, 'HARMFUL'],
+    ['success drop of 5.1 pp', { success_arm_pct: 54.9 }, 3, 'SUBOPTIMAL'],
     [
       'success drop 66.7 → 61.7 (float noise stays at 5 pp)',
       { success_vanilla_pct: 66.7, success_arm_pct: 61.7 },
@@ -75,15 +78,15 @@ describe('verdict rule table (one arm vs vanilla)', () => {
     ['success increase', { success_arm_pct: 80 }, 3, 'BENEFICIAL'],
     // wall time: "more than 25 % slower" is strict
     ['exactly 25 % slower', { wall_faster_pct: -25 }, 3, 'BENEFICIAL'],
-    ['25.1 % slower', { wall_faster_pct: -25.1 }, 3, 'HARMFUL'],
+    ['25.1 % slower', { wall_faster_pct: -25.1 }, 3, 'SUBOPTIMAL'],
     [
       '5 % better but 26 % slower (the owner rule)',
       { uncached_saved_pct: 5, spread: { min: 1, max: 9, repeats: 3 }, wall_faster_pct: -26 },
       3,
-      'HARMFUL',
+      'SUBOPTIMAL',
     ],
     ['wall time unknown', { wall_faster_pct: null }, 3, 'BENEFICIAL'],
-    // spread: BENEFICIAL needs min > 0, HARMFUL needs max < 0
+    // spread: BENEFICIAL needs min > 0, SUBOPTIMAL needs max < 0
     ['spread min exactly 0', { spread: { min: 0, max: 30, repeats: 3 } }, 3, 'NO_CLEAR_EFFECT'],
     ['spread min 0.1', { spread: { min: 0.1, max: 30, repeats: 3 } }, 3, 'BENEFICIAL'],
     ['spread crosses 0', { spread: { min: -4.2, max: 28.2, repeats: 3 } }, 3, 'NO_CLEAR_EFFECT'],
@@ -97,7 +100,7 @@ describe('verdict rule table (one arm vs vanilla)', () => {
       'spread max -0.1 (always worse)',
       { uncached_saved_pct: -5, spread: { min: -9, max: -0.1, repeats: 3 } },
       3,
-      'HARMFUL',
+      'SUBOPTIMAL',
     ],
     // fewer than 3 repeats: the point estimate needs >= 10 %
     ['1 repeat, saved exactly 10 %', { ...noSpread, uncached_saved_pct: 10 }, 1, 'BENEFICIAL'],
@@ -118,19 +121,35 @@ describe('verdict rule table (one arm vs vanilla)', () => {
       '2 repeats, always worse',
       { uncached_saved_pct: -12, spread: { min: -20, max: -5, repeats: 2 } },
       2,
-      'HARMFUL',
+      'SUBOPTIMAL',
+    ],
+    // fewer than 3 repeats: a token increase of >= 10 % is SUBOPTIMAL (mirror rule)
+    ['1 repeat, saved -9.9 %', { ...noSpread, uncached_saved_pct: -9.9 }, 1, 'NO_CLEAR_EFFECT'],
+    ['1 repeat, saved exactly -10 %', { ...noSpread, uncached_saved_pct: -10 }, 1, 'SUBOPTIMAL'],
+    ['1 repeat, saved -10.1 %', { ...noSpread, uncached_saved_pct: -10.1 }, 1, 'SUBOPTIMAL'],
+    [
+      '2 repeats, spread crosses 0, saved -12 %',
+      { uncached_saved_pct: -12, spread: { min: -30, max: 5, repeats: 2 } },
+      2,
+      'SUBOPTIMAL',
+    ],
+    [
+      '3 repeats, same spread crosses 0 (the spread decides)',
+      { uncached_saved_pct: -12, spread: { min: -30, max: 5, repeats: 3 } },
+      3,
+      'NO_CLEAR_EFFECT',
     ],
     ['1 repeat, tokens unknown', { ...noSpread, uncached_saved_pct: null }, 1, 'NO_CLEAR_EFFECT'],
     // cost: unknown or >= 0
     ['cost unknown', { cost_saved_pct: null }, 3, 'BENEFICIAL'],
     ['cost unchanged', { cost_saved_pct: 0 }, 3, 'BENEFICIAL'],
     ['cost increases by 0.1 %', { cost_saved_pct: -0.1 }, 3, 'NO_CLEAR_EFFECT'],
-    // HARMFUL wins over every other signal
+    // SUBOPTIMAL wins over every other signal
     [
       'big saving but success drops 10 pp',
       { uncached_saved_pct: 60, success_arm_pct: 50 },
       3,
-      'HARMFUL',
+      'SUBOPTIMAL',
     ],
   ];
   for (const [name, over, repeats, want] of cases) {
@@ -248,7 +267,7 @@ describe('ASD-STE100 sentences', () => {
     ]);
   });
 
-  it('snapshots: no clear effect (spread crosses 0) and harmful (slower, success drop)', () => {
+  it('snapshots: no clear effect (spread crosses 0) and suboptimal (slower, success drop)', () => {
     expect(computeVerdict(EXAMPLES['unstable over 3 repeats'])).toMatchInlineSnapshot(`
       {
         "arm": "cc_guided",
@@ -288,14 +307,14 @@ describe('ASD-STE100 sentences', () => {
     expect(computeVerdict(EXAMPLES['5 % better but much slower'])?.sentences)
       .toMatchInlineSnapshot(`
       [
-        "Result: code-context makes the result worse.",
+        "Result: code-context is suboptimal for these tasks.",
         "With guidance, code-context decreases the token use by 6 %.",
         "It decreases the cost by 5 %.",
         "The tasks complete 40 % slower.",
         "The success rate decreases from 80 % to 70 %.",
         "The success rate decreases by more than 5 percentage points.",
         "The tasks are more than 25 % slower.",
-        "Without guidance, code-context also makes the result worse.",
+        "Without guidance, code-context is also suboptimal.",
         "The tasks are more than 25 % slower.",
       ]
     `);
@@ -337,10 +356,37 @@ describe('ASD-STE100 sentences', () => {
     );
   });
 
+  it('gives the reason for the few-repeats token rule', () => {
+    const worse = { ...good(), spread: null, uncached_saved_pct: -12.4 };
+    expect(computeVerdict({ repeats: 1, cc: worse })?.sentences).toEqual([
+      'Result: code-context is suboptimal for these tasks.',
+      'Code-context increases the token use by 12 %.',
+      'It decreases the cost by 10 %.',
+      'The tasks complete in the same time.',
+      'The success rate is 60 % with and without code-context.',
+      'The token use increases by 12 % in 1 repeat.',
+      'This result is indicative only: the run has 1 repeat.',
+    ]);
+    const two = computeVerdict({
+      repeats: 2,
+      cc: { ...worse, uncached_saved_pct: -10, spread: { min: -25, max: 5, repeats: 2 } },
+    });
+    expect(two?.sentences).toContain('The token use increases by 10 % in 2 repeats.');
+    // The other arm: "is suboptimal", with "also" when the best arm is suboptimal too.
+    const flat = good({ spread: { min: -1, max: 2, repeats: 3 } });
+    const slow = good({ wall_faster_pct: -40 });
+    expect(computeVerdict({ repeats: 3, cc: slow, cc_guided: flat })?.sentences).toContain(
+      'Without guidance, code-context is suboptimal.',
+    );
+    expect(computeVerdict({ repeats: 3, cc: slow, cc_guided: slow })?.sentences).toContain(
+      'Without guidance, code-context is also suboptimal.',
+    );
+  });
+
   it('is deterministic and follows the STE limits for every generated sentence', () => {
     const banned = /\b(simply|just|easily|seamless|powerful|robust|leverage|significant(ly)?)\b/i;
     const grid: VerdictInput[] = [];
-    for (const saved of [-30, -0.4, 0, 9.9, 10, 28.4])
+    for (const saved of [-30, -12.4, -10.1, -10, -9.9, -0.4, 0, 9.9, 10, 28.4])
       for (const sp of [
         null,
         { min: -5, max: 20, repeats: 3 },
@@ -388,6 +434,75 @@ describe('ASD-STE100 sentences', () => {
       }
     }
     expect(grid.length).toBeGreaterThan(2000);
+  });
+});
+
+// ─── legacy code HARMFUL (before #158) ────────────────────────────────────────
+
+/** A verdict as stored before #158: code HARMFUL and the old sentences. */
+function legacyOf(v: Record<string, any>): Record<string, any> {
+  const old = (t: string) =>
+    t
+      .replace(
+        'Result: code-context is suboptimal for these tasks.',
+        'Result: code-context makes the result worse.',
+      )
+      .replace(
+        /code-context is (also )?suboptimal\.$/,
+        (_m, also) => `code-context ${also ?? ''}makes the result worse.`,
+      );
+  const code = (c: string) => (c === 'SUBOPTIMAL' ? 'HARMFUL' : c);
+  const arms: Record<string, any> = {};
+  for (const [k, a] of Object.entries(v.arms as Record<string, any>))
+    arms[k] = { ...a, code: code(a.code), sentences: a.sentences.map(old) };
+  return { ...v, code: code(v.code), arms, sentences: v.sentences.map(old) };
+}
+
+describe('legacy verdict code HARMFUL', () => {
+  const current = computeVerdict(EXAMPLES['5 % better but much slower'])!;
+  const legacy = legacyOf(current);
+
+  it('the fixture really is the old form', () => {
+    expect(legacy.code).toBe('HARMFUL');
+    expect(legacy.arms.cc.code).toBe('HARMFUL');
+    expect(legacy.sentences[0]).toBe('Result: code-context makes the result worse.');
+    expect(legacy.sentences).toContain(
+      'Without guidance, code-context also makes the result worse.',
+    );
+    expect(isRunVerdict(legacy)).toBe(false);
+  });
+
+  it('normalizeVerdict reads HARMFUL as SUBOPTIMAL with the current sentences (module and site)', () => {
+    expect(normalizeVerdict(legacy)).toEqual(current);
+    expect(JSON.parse(JSON.stringify(D.normalizeVerdict(legacy)))).toEqual(current);
+  });
+
+  it('returns a current verdict unchanged and null for a non-verdict', () => {
+    expect(normalizeVerdict(current)).toBe(current);
+    expect(normalizeVerdict({ code: 'HARMFUL' })).toBeNull();
+    expect(normalizeVerdict(null)).toBeNull();
+    expect(D.normalizeVerdict({ code: 'NOPE' })).toBeNull();
+  });
+
+  it('the site reads a stored HARMFUL headline verdict as SUBOPTIMAL', () => {
+    const entry = {
+      run_id: 'glm-1',
+      kind: 'agent-glm',
+      date: '2026-10-01',
+      ts: '2026-10-01T00:00:00Z',
+      headline: {
+        success_vanilla_pct: 80,
+        success_cc_pct: 80,
+        uncached_saved_pct: 5,
+        tokens_saved_pct: 5,
+        tool_calls_saved_pct: 0,
+        verdict: legacy,
+      },
+    };
+    const v = D.agentVerdictOf(D.normalizeRun(entry));
+    expect(v.code).toBe('SUBOPTIMAL');
+    expect(v.sentences[0]).toBe('Result: code-context is suboptimal for these tasks.');
+    expect(JSON.stringify(v)).not.toMatch(/harmful|makes the result worse/i);
   });
 });
 
@@ -507,7 +622,7 @@ describe('index builder: verdict for runs without one', () => {
 
   it('never overwrites a recorded verdict', () => {
     const recorded = {
-      code: 'HARMFUL',
+      code: 'SUBOPTIMAL',
       indicative: true,
       repeats: 1,
       arm: 'cc',
@@ -525,6 +640,33 @@ describe('index builder: verdict for runs without one', () => {
       }),
     ]);
     expect((idx.runs[0].headline as Record<string, unknown>).verdict).toEqual(recorded);
+  });
+
+  it('computes a recorded HARMFUL verdict again with the current rule', () => {
+    const legacyRecorded = {
+      code: 'HARMFUL',
+      indicative: true,
+      repeats: 1,
+      arm: 'cc',
+      arms: {
+        cc: { code: 'HARMFUL', sentences: ['Result: code-context makes the result worse.'] },
+      },
+      sentences: ['Result: code-context makes the result worse.'],
+    };
+    const idx = buildIndex([
+      run({
+        success_vanilla_pct: 100,
+        success_cc_pct: 100,
+        uncached_saved_pct: 5,
+        tokens_saved_pct: 1,
+        tool_calls_saved_pct: 0,
+        verdict: legacyRecorded,
+      }),
+    ]);
+    const v = (idx.runs[0].headline as Record<string, any>).verdict;
+    expect(isRunVerdict(v)).toBe(true);
+    expect(v.repeats).toBe(3);
+    expect(JSON.stringify(v)).not.toMatch(/HARMFUL|makes the result worse/);
   });
 
   it('the site computes the same verdict for the same run file', () => {

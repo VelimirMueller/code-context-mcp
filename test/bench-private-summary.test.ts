@@ -427,12 +427,49 @@ describe('private summary: verdict (CCA-20)', () => {
     const { summary } = build(f);
     const bad = JSON.parse(JSON.stringify(summary));
     bad.runs[0].verdict.sentences[0] = `Result: ${SOURCE_NAME} helps.`;
-    bad.runs[0].groups[1].verdict.code = 'HARMFUL';
+    bad.runs[0].groups[1].verdict.code = 'SUBOPTIMAL';
     delete bad.runs[0].groups[0].verdict;
     const p = summaryShapeProblems(bad).join('\n');
     expect(p).toMatch(/\$\.runs\[0\]\.verdict: must be the rule's verdict for this block/);
     expect(p).toMatch(/\$\.runs\[0\]\.groups\[1\]\.verdict: must be the rule's verdict/);
     expect(p).toMatch(/\$\.runs\[0\]\.groups\[0\]\.verdict: missing/);
+  });
+
+  it('accepts an older file that stores the code HARMFUL (read as SUBOPTIMAL)', () => {
+    const f = makeSuite();
+    writeRun(f, makeRun(f));
+    const { summary } = build(f);
+    const old = JSON.parse(JSON.stringify(summary));
+    const run = old.runs[0];
+    // Make the run block suboptimal (success drops), then store it in the old form.
+    run.arms.cc.success_pct = 0;
+    if (run.arms.cc_guided) run.arms.cc_guided.success_pct = 0;
+    const v = computeVerdict(verdictInputFromBlock(run, run.repeats)!)!;
+    expect(v.code).toBe('SUBOPTIMAL');
+    const oldText = (t: string) =>
+      t === 'Result: code-context is suboptimal for these tasks.'
+        ? 'Result: code-context makes the result worse.'
+        : t.replace(
+            /code-context is (also )?suboptimal\.$/,
+            (_m, also) => `code-context ${also ?? ''}makes the result worse.`,
+          );
+    run.verdict = {
+      ...v,
+      code: 'HARMFUL',
+      arms: Object.fromEntries(
+        Object.entries(v.arms).map(([k, a]) => [
+          k,
+          { ...a, code: a!.code === 'SUBOPTIMAL' ? 'HARMFUL' : a!.code },
+        ]),
+      ),
+      sentences: v.sentences.map(oldText),
+    };
+    expect(summaryShapeProblems(old)).toEqual([]);
+    // A wrong legacy verdict is still refused.
+    run.arms.cc.success_pct = 100;
+    expect(summaryShapeProblems(old).join('\n')).toMatch(
+      /\$\.runs\[0\]\.verdict: must be the rule's verdict/,
+    );
   });
 
   it('never reads a verdict stored in the run file', () => {

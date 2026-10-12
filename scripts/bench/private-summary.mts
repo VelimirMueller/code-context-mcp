@@ -47,7 +47,12 @@ import {
   uncachedOf,
 } from './lib/metrics.mts';
 import type { SessionResult } from './lib/types.mts';
-import { computeVerdict, verdictInputFromBlock, type RunVerdict } from './lib/verdict.mts';
+import {
+  computeVerdict,
+  normalizeVerdict,
+  verdictInputFromBlock,
+  type RunVerdict,
+} from './lib/verdict.mts';
 import {
   GROUP_RE,
   PUBLIC_LABEL_RE,
@@ -583,11 +588,13 @@ export function summaryShapeProblems(x: unknown): string[] {
     }
   };
   // The verdict must be exactly what the rule makes of the block's own numbers:
-  // fixed template text and digits, nothing copied from anywhere else.
+  // fixed template text and digits, nothing copied from anywhere else. An
+  // older file with the code HARMFUL (before #158) is read as SUBOPTIMAL.
   const verdict = (b: Record<string, unknown>, repeats: unknown, at: string) => {
     const input = typeof repeats === 'number' ? verdictInputFromBlock(b, repeats) : null;
     const want = input ? computeVerdict(input) : null;
-    if (!want || canonical(b.verdict) !== canonical(want))
+    const got = normalizeVerdict(b.verdict) ?? b.verdict;
+    if (!want || canonical(got) !== canonical(want))
       p.push(`${at}.verdict: must be the rule's verdict for this block`);
   };
   if (!keys(x, SUMMARY_KEYS.top, '$')) return p;

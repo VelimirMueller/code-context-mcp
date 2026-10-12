@@ -648,8 +648,8 @@ describe('verdict (CCA-20)', () => {
     const w = load({ latest: run, index: { runs: [run] }, runs: { [run.run_id]: run } });
     await tick();
     const badge = w.document.querySelector('#latest-body [data-verdict]');
-    expect(badge.getAttribute('data-verdict')).toBe('HARMFUL');
-    expect(badge.textContent).toBe('HARMFUL');
+    expect(badge.getAttribute('data-verdict')).toBe('SUBOPTIMAL');
+    expect(badge.textContent).toBe('SUBOPTIMAL');
     expect(badge.className).toContain('drop'); // red status
     expect(w.document.getElementById('latest-body').textContent).toContain(
       'The success rate decreases by more than 5 percentage points.',

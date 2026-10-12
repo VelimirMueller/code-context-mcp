@@ -7,10 +7,12 @@
  * The owner's rule: "a feature that is 5 % better but 25 % slower is not
  * worth it". Each code-context arm (cc, cc_guided) is compared with vanilla:
  *
- *   HARMFUL     the success rate drops by more than 5 percentage points, OR
+ *   SUBOPTIMAL  the success rate drops by more than 5 percentage points, OR
  *               the uncached-token spread is below 0 in every repeat (max < 0), OR
+ *               with fewer than 3 repeats: the uncached tokens increase by
+ *               10 % or more (uncached saving <= -10 %), OR
  *               the tasks are more than 25 % slower (mean wall time).
- *   BENEFICIAL  not HARMFUL, AND the success rate does not drop by more than
+ *   BENEFICIAL  not SUBOPTIMAL, AND the success rate does not drop by more than
  *               5 pp, AND the uncached tokens decrease in every repeat
  *               (spread min > 0; with fewer than 3 repeats: the uncached
  *               saving is at least 10 %), AND the tasks are not more than
@@ -20,7 +22,10 @@
  *
  * A run with fewer than 3 repeats still gets a verdict, marked "indicative".
  * The run verdict is the verdict of the best arm (BENEFICIAL > NO_CLEAR_EFFECT
- * > HARMFUL; on a tie, cc_guided wins).
+ * > SUBOPTIMAL; on a tie, cc_guided wins).
+ *
+ * Before #158 the lowest outcome was called HARMFUL. Stored verdicts with that
+ * code are read as SUBOPTIMAL (LEGACY_VERDICT_CODES, normalizeVerdict).
  *
  * Every sentence is generated from fixed ASD-STE100 templates and whole-%
  * numbers only: short, active voice, present tense, one fact per sentence.
@@ -32,23 +37,33 @@
 export const VERDICT_RULE = Object.freeze({
   /** Fewer repeats than this: the verdict is "indicative". */
   minRepeats: 3,
-  /** HARMFUL when the success rate drops by more than this (percentage points). */
+  /** SUBOPTIMAL when the success rate drops by more than this (percentage points). */
   maxSuccessDropPp: 5,
-  /** HARMFUL when the mean wall time is more than this % slower than vanilla. */
+  /** SUBOPTIMAL when the mean wall time is more than this % slower than vanilla. */
   maxSlowerPct: 25,
   /** With fewer than minRepeats repeats, BENEFICIAL needs this uncached saving (%). */
   minSavedPctFewRepeats: 10,
+  /** With fewer than minRepeats repeats, SUBOPTIMAL when the uncached tokens increase by at least this (%). */
+  minIncreasePctFewRepeats: 10,
   /** NO_CLEAR_EFFECT with |uncached saved| below this reads "the effect is small". */
   smallEffectPct: 10,
 });
 
-export type VerdictCode = 'BENEFICIAL' | 'NO_CLEAR_EFFECT' | 'HARMFUL';
-export const VERDICT_CODES: readonly VerdictCode[] = ['BENEFICIAL', 'NO_CLEAR_EFFECT', 'HARMFUL'];
+export type VerdictCode = 'BENEFICIAL' | 'NO_CLEAR_EFFECT' | 'SUBOPTIMAL';
+export const VERDICT_CODES: readonly VerdictCode[] = [
+  'BENEFICIAL',
+  'NO_CLEAR_EFFECT',
+  'SUBOPTIMAL',
+];
+/** Old stored codes and the code they mean now (#158). */
+export const LEGACY_VERDICT_CODES: Readonly<Record<string, VerdictCode>> = Object.freeze({
+  HARMFUL: 'SUBOPTIMAL',
+});
 /** Display label per code (dashboard chip, site badge). */
 export const VERDICT_LABELS: Readonly<Record<VerdictCode, string>> = Object.freeze({
   BENEFICIAL: 'BENEFICIAL',
   NO_CLEAR_EFFECT: 'NO CLEAR EFFECT',
-  HARMFUL: 'HARMFUL',
+  SUBOPTIMAL: 'SUBOPTIMAL',
 });
 
 export type VerdictArmKey = 'cc' | 'cc_guided';
@@ -111,6 +126,11 @@ interface ArmFacts {
   alwaysWorse: boolean;
   tooSlow: boolean;
   unstable: boolean;
+  /** Fewer than minRepeats repeats and the uncached tokens increase by >= 10 %. */
+  fewRepeatsWorse: boolean;
+  repeats: number;
+  /** Uncached token increase in %, whole number (for the reason sentence). */
+  increasePct: number;
 }
 
 /** The rule for one arm. Exported for the rule-table test. */
@@ -129,17 +149,32 @@ function armFacts(a: VerdictArmInput, repeats: number): ArmFacts {
   const alwaysWorse = !!sp && sp.max < 0;
   const tooSlow = isNum(a.wall_faster_pct) && a.wall_faster_pct < -R.maxSlowerPct;
   const unstable = !!sp && sp.min <= 0 && sp.max >= 0;
+  // The spread decides with enough repeats; else the point estimate (both ways).
+  const useSpread = repeats >= R.minRepeats && !!sp;
+  const fewRepeatsWorse =
+    !useSpread &&
+    isNum(a.uncached_saved_pct) &&
+    a.uncached_saved_pct <= -R.minIncreasePctFewRepeats;
+  const increasePct = isNum(a.uncached_saved_pct) ? whole(-a.uncached_saved_pct) : 0;
   let code: VerdictCode;
-  if (successDropTooBig || alwaysWorse || tooSlow) code = 'HARMFUL';
+  if (successDropTooBig || alwaysWorse || fewRepeatsWorse || tooSlow) code = 'SUBOPTIMAL';
   else {
-    const tokensOk =
-      repeats >= R.minRepeats && sp
-        ? sp.min > 0
-        : isNum(a.uncached_saved_pct) && a.uncached_saved_pct >= R.minSavedPctFewRepeats;
+    const tokensOk = useSpread
+      ? (sp as VerdictSpread).min > 0
+      : isNum(a.uncached_saved_pct) && a.uncached_saved_pct >= R.minSavedPctFewRepeats;
     const costOk = !isNum(a.cost_saved_pct) || a.cost_saved_pct >= 0;
     code = tokensOk && costOk ? 'BENEFICIAL' : 'NO_CLEAR_EFFECT';
   }
-  return { code, successDropTooBig, alwaysWorse, tooSlow, unstable };
+  return {
+    code,
+    successDropTooBig,
+    alwaysWorse,
+    tooSlow,
+    unstable,
+    fewRepeatsWorse,
+    repeats,
+    increasePct,
+  };
 }
 
 const PREFIX: Record<VerdictArmKey, string> = {
@@ -205,6 +240,10 @@ function warningSentences(f: ArmFacts): string[] {
     out.push(`The success rate decreases by more than ${R.maxSuccessDropPp} percentage points.`);
   if (f.tooSlow) out.push(`The tasks are more than ${R.maxSlowerPct} % slower.`);
   if (f.alwaysWorse) out.push('The token use increases in all repeats.');
+  if (f.fewRepeatsWorse)
+    out.push(
+      `The token use increases by ${f.increasePct} % in ${f.repeats} ${f.repeats === 1 ? 'repeat' : 'repeats'}.`,
+    );
   if (f.unstable) out.push('The result is not stable across repeats.');
   return out;
 }
@@ -214,7 +253,7 @@ function headlineSentence(
   codes: Partial<Record<VerdictArmKey, VerdictCode>>,
 ): string {
   const code = codes[best] as VerdictCode;
-  if (code === 'HARMFUL') return 'Result: code-context makes the result worse.';
+  if (code === 'SUBOPTIMAL') return 'Result: code-context is suboptimal for these tasks.';
   if (code === 'NO_CLEAR_EFFECT') return 'Result: code-context shows no clear effect.';
   const both = codes.cc !== undefined && codes.cc_guided !== undefined;
   if (!both) return 'Result: code-context helps.';
@@ -239,9 +278,9 @@ function otherArmSentences(
       out.push(`It decreases the token use by ${whole(a.uncached_saved_pct)} %.`);
     return out;
   }
-  if (f.code === 'HARMFUL')
+  if (f.code === 'SUBOPTIMAL')
     return [
-      `${p}code-context ${bestCode === 'HARMFUL' ? 'also ' : ''}makes the result worse.`,
+      `${p}code-context is ${bestCode === 'SUBOPTIMAL' ? 'also ' : ''}suboptimal.`,
       ...warningSentences(f),
     ];
   const small =
@@ -253,7 +292,7 @@ function indicativeSentence(repeats: number): string {
   return `This result is indicative only: the run has ${repeats} ${repeats === 1 ? 'repeat' : 'repeats'}.`;
 }
 
-const RANK: Record<VerdictCode, number> = { BENEFICIAL: 2, NO_CLEAR_EFFECT: 1, HARMFUL: 0 };
+const RANK: Record<VerdictCode, number> = { BENEFICIAL: 2, NO_CLEAR_EFFECT: 1, SUBOPTIMAL: 0 };
 
 /** The run verdict; null when no arm has data. Deterministic for given numbers. */
 export function computeVerdict(input: VerdictInput): RunVerdict | null {
@@ -404,4 +443,57 @@ export function isRunVerdict(x: unknown): x is RunVerdict {
     Array.isArray(v.sentences) &&
     v.sentences.every((s) => typeof s === 'string')
   );
+}
+
+/** Old sentence templates (before #158) and their current text. */
+const LEGACY_HEADLINE = 'Result: code-context makes the result worse.';
+const LEGACY_ARM_RE = /^(.*)code-context (also )?makes the result worse\.$/;
+
+function legacySentence(s: string): string {
+  if (s === LEGACY_HEADLINE) return 'Result: code-context is suboptimal for these tasks.';
+  const m = LEGACY_ARM_RE.exec(s);
+  return m ? `${m[1]}code-context is ${m[2] ?? ''}suboptimal.` : s;
+}
+
+const currentCode = (c: unknown): unknown =>
+  typeof c === 'string' && c in LEGACY_VERDICT_CODES ? LEGACY_VERDICT_CODES[c] : c;
+
+/** true when a stored verdict uses an old code (HARMFUL) anywhere. */
+export function isLegacyVerdict(x: unknown): boolean {
+  const v = asRec(x);
+  if (typeof v.code === 'string' && v.code in LEGACY_VERDICT_CODES) return true;
+  return Object.values(asRec(v.arms)).some((a) => {
+    const c = asRec(a).code;
+    return typeof c === 'string' && c in LEGACY_VERDICT_CODES;
+  });
+}
+
+/**
+ * A stored verdict in the current vocabulary, or null when it is not a
+ * verdict. Old codes (HARMFUL) become SUBOPTIMAL and the old sentences get
+ * the current text; a current verdict comes back unchanged.
+ */
+export function normalizeVerdict(x: unknown): RunVerdict | null {
+  if (!isLegacyVerdict(x)) return isRunVerdict(x) ? x : null;
+  const v = asRec(x);
+  const arms: Record<string, unknown> = {};
+  for (const [k, a] of Object.entries(asRec(v.arms))) {
+    const ar = asRec(a);
+    arms[k] = {
+      ...ar,
+      code: currentCode(ar.code),
+      ...(Array.isArray(ar.sentences)
+        ? { sentences: ar.sentences.map((s) => (typeof s === 'string' ? legacySentence(s) : s)) }
+        : {}),
+    };
+  }
+  const out = {
+    ...v,
+    code: currentCode(v.code),
+    arms,
+    sentences: Array.isArray(v.sentences)
+      ? v.sentences.map((s) => (typeof s === 'string' ? legacySentence(s) : s))
+      : v.sentences,
+  };
+  return isRunVerdict(out) ? out : null;
 }
