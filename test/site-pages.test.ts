@@ -12,6 +12,7 @@ interface Opts {
   latest?: any; // false = 404
   index?: any;
   runs?: Record<string, any>; // id -> run JSON (served from data/runs/)
+  extra?: Record<string, any>; // other data files by path (e.g. data/private/index.json)
 }
 
 function load(o: Opts) {
@@ -24,6 +25,7 @@ function load(o: Opts) {
   if (o.latest !== false) files['data/latest.json'] = o.latest;
   if (o.index !== undefined) files['data/index.json'] = o.index;
   for (const [id, run] of Object.entries(o.runs || {})) files[`data/runs/${id}.json`] = run;
+  Object.assign(files, o.extra || {});
   w.fetch = (u: string) => {
     const hit = Object.entries(files).find(
       ([p]) => u.endsWith(p) || u === p || u.endsWith('/' + p),
@@ -514,5 +516,82 @@ describe('honest headline with spread (CCA-08)', () => {
     expect(cell.className).toBe('neg'); // red = more uncached tokens than vanilla
     const hist = w.document.getElementById('history-body').textContent;
     expect(hist).toContain('uncached cc 0.91× vanilla · cost cc 1.03× vanilla');
+  });
+});
+
+describe('private suite summaries (CCA-19)', () => {
+  const arm = (success: number, unc: number, cost: number | null, wall: number) => ({
+    sessions: 6, success_pct: success, uncached_per_session: unc, uncached_per_pass: Math.round(unc * 1.1),
+    cost_usd: cost, cost_per_pass: cost === null ? null : cost / 5, wall_mean_ms: wall,
+  });
+  const saved = (pct: number, cost: number | null) => ({
+    uncached_saved_pct: pct, uncached_saved_spread: { min: pct - 5, max: pct + 5, repeats: 2 }, cost_saved_pct: cost,
+  });
+  const block = () => ({
+    arms: { vanilla: arm(83.3, 2850, 0.3, 30000), cc: arm(100, 1700, 0.18, 24000), cc_guided: arm(100, 1650, 0.18, 23000) },
+    saved: { cc: saved(40.4, 40), cc_guided: saved(42.1, 40) },
+  });
+  const summary = {
+    schema: 'ccc-bench-private-summary/1',
+    alias: 'Real-world suite A',
+    generated: '2026-10-12',
+    code_context_version: '1.9.0',
+    scope: { sources: 7, files: 5321, total_mb: 48.2, tasks: 12, tasks_per_group: { 'Single-page app': 4, 'cross-repo': 3 } },
+    runs: [
+      {
+        model: 'claude-opus-4-1', provider_kind: 'agent-opus', date: '2026-10-12', repeats: 2, ...block(),
+        groups: [{ group: 'Single-page app', tasks: 4, ...block() }, { group: 'cross-repo', tasks: 3, ...block() }],
+      },
+    ],
+  };
+  const index = {
+    schema: 'ccc-bench-private-index/1',
+    summaries: [
+      { slug: 'real-world-suite-a', alias: 'Real-world suite A', generated: '2026-10-12', file: 'private/real-world-suite-a.json' },
+      // A path outside data/private/ is never fetched.
+      { slug: 'evil', alias: 'Evil', generated: '2026-10-12', file: '../runs/x.json' },
+    ],
+  };
+
+  it('renders one card per summary: alias, scope, arm table, per-group table, privacy caption', async () => {
+    const w = load({
+      latest: sim(),
+      index: { runs: [sim()] },
+      extra: { 'data/private/index.json': index, 'data/private/real-world-suite-a.json': summary },
+    });
+    await tick();
+    const sec = w.document.getElementById('private');
+    expect(sec.hidden).toBe(false);
+    const cards = sec.querySelectorAll('.private-card');
+    expect(cards).toHaveLength(1);
+    const text = cards[0].textContent;
+    expect(text).toContain('Real-world suite A');
+    expect(text).toContain('7 sources · 5,321 files · 48.2 MB · 12 tasks');
+    expect(text).toContain('Single-page app 4 · cross-repo 3');
+    expect(text).toContain('claude-opus-4-1 · AGENT OPUS · 2026-10-12 · n = 2 per task and arm');
+    const arms = cards[0].querySelector('table[aria-label^="Arms"]');
+    const rows = [...arms.querySelectorAll('tr')].map((r: any) => r.textContent);
+    expect(rows).toHaveLength(4);
+    expect(rows[2]).toContain('0.60× vanilla [0.55–0.65×]');
+    const groups = cards[0].querySelector('table[aria-label="Per group"]');
+    expect(groups.querySelectorAll('tr')).toHaveLength(3);
+    expect(sec.textContent).toContain('Task texts, code, repository names and answers are private');
+    expect(text).toContain('Task texts and code are private');
+  });
+
+  it('stays hidden without data/private/', async () => {
+    const w = load({ latest: sim(), index: { runs: [sim()] } });
+    await tick();
+    expect(w.document.getElementById('private').hidden).toBe(true);
+  });
+
+  it('ignores files that are not private summaries', async () => {
+    const w = load({
+      latest: sim(),
+      index: { runs: [sim()] },
+      extra: { 'data/private/index.json': index, 'data/private/real-world-suite-a.json': { schema: 'ccc-bench/1', alias: 'x' } },
+    });
+    await tick();
+    expect(w.document.getElementById('private').hidden).toBe(true);
   });
 });

@@ -133,6 +133,25 @@ export interface BenchIndexEntry {
   model: string | null;
   trigger: string;
   headline: AgentHeadline | SimulatedHeadline | LegacyHeadline | null;
+  /** Private suite run (CODE_CONTEXT_BENCH_PRIVATE_DIRS, CCA-19): local only. */
+  private?: boolean;
+  /** Private suite alias. */
+  suite?: string;
+  /** Private suite dir key (p0, p1, …) for /api/bench/run/:id?suite=. */
+  source_key?: string;
+}
+
+export type BenchFilter = 'all' | 'public' | 'private';
+
+/** Unique key of a run in the merged index: a private run id may repeat a public one. */
+export function runKey(r: Pick<BenchIndexEntry, 'run_id' | 'source_key'>): string {
+  return r.source_key ? `${r.source_key}/${r.run_id}` : r.run_id;
+}
+
+export function filterRuns(runs: BenchIndexEntry[], filter: BenchFilter): BenchIndexEntry[] {
+  if (filter === 'public') return runs.filter((r) => !r.private);
+  if (filter === 'private') return runs.filter((r) => !!r.private);
+  return runs;
 }
 
 export interface BenchSourceInfo {
@@ -206,7 +225,10 @@ export interface BenchRun {
   model?: string | null;
   notes?: string[];
   agent_cli?: { name: string; version: string };
-  tasks?: Array<{ id: string; size?: string; prompt?: string }>;
+  /** Redacted suite runs carry prompt_sha256 instead of prompt. */
+  tasks?: Array<{ id: string; size?: string; prompt?: string; prompt_sha256?: string }>;
+  /** Suite runs (CCA-17): privacy flags; sources are hashes when redacted. */
+  suite?: { id: string; private: boolean; redact: boolean };
   aggregate?: { per_task?: BenchPerTask[]; by_phase?: BenchByPhase };
 }
 
@@ -214,6 +236,7 @@ interface BenchIndexResponse {
   source: BenchSourceInfo;
   index: { schema: string; runs: BenchIndexEntry[] } | null;
   message?: string;
+  private?: Array<{ key: string; alias: string; runs: number }>;
 }
 
 /** Newest run of each kind, in index order (the index is newest-first). */
@@ -234,12 +257,17 @@ interface BenchmarkStore {
   benchMessage: string | null;
   benchLoading: boolean;
   benchError: string | null;
+  /** Keyed by runKey(entry). */
   runDetails: Record<string, BenchRun>;
   runErrors: Record<string, string>;
+  /** runKey of the selected run. */
   selectedRunId: string | null;
+  benchFilter: BenchFilter;
   fetchBenchIndex: () => Promise<void>;
-  fetchRun: (runId: string) => Promise<void>;
-  selectRun: (runId: string) => void;
+  /** `key` is runKey(entry); a bare run id works for public runs. */
+  fetchRun: (key: string) => Promise<void>;
+  selectRun: (key: string) => void;
+  setBenchFilter: (f: BenchFilter) => void;
 }
 
 export const useBenchmarkStore = create<BenchmarkStore>((set, getState) => ({
@@ -256,6 +284,7 @@ export const useBenchmarkStore = create<BenchmarkStore>((set, getState) => ({
   runDetails: {},
   runErrors: {},
   selectedRunId: null,
+  benchFilter: 'all',
 
   fetchBenchmark: async () => {
     set({ loading: true, error: null });
@@ -282,10 +311,12 @@ export const useBenchmarkStore = create<BenchmarkStore>((set, getState) => ({
         benchRuns: runs,
         benchSource: res.source,
         benchMessage: res.message ?? null,
-        selectedRunId: current && runs.some((r) => r.run_id === current) ? current : (runs[0]?.run_id ?? null),
+        selectedRunId: current && runs.some((r) => runKey(r) === current) ? current : (runs[0] ? runKey(runs[0]) : null),
       });
-      // Version + notes live only in the run files: load the newest run per kind.
-      await Promise.all(latestPerKind(runs).map((r) => getState().fetchRun(r.run_id)));
+      // Version + notes live only in the run files: load the newest run per kind
+      // (public and private apart, so both filters have their cards filled).
+      const newest = [...latestPerKind(filterRuns(runs, 'public')), ...latestPerKind(filterRuns(runs, 'private'))];
+      await Promise.all(newest.map((r) => getState().fetchRun(runKey(r))));
     } catch (e) {
       set({ benchError: (e as Error).message });
     } finally {
@@ -293,18 +324,31 @@ export const useBenchmarkStore = create<BenchmarkStore>((set, getState) => ({
     }
   },
 
-  fetchRun: async (runId) => {
-    if (getState().runDetails[runId]) return;
+  fetchRun: async (key) => {
+    if (getState().runDetails[key]) return;
+    const entry = getState().benchRuns.find((r) => runKey(r) === key);
+    const runId = entry?.run_id ?? key;
+    // Private runs come from the same local server, from their own suite dir.
+    const query = entry?.source_key ? `?suite=${encodeURIComponent(entry.source_key)}` : '';
     try {
-      const res = await get<{ run: BenchRun }>(`/api/bench/run/${encodeURIComponent(runId)}`);
-      set((s) => ({ runDetails: { ...s.runDetails, [runId]: res.run } }));
+      const res = await get<{ run: BenchRun }>(`/api/bench/run/${encodeURIComponent(runId)}${query}`);
+      set((s) => ({ runDetails: { ...s.runDetails, [key]: res.run } }));
     } catch (e) {
-      set((s) => ({ runErrors: { ...s.runErrors, [runId]: (e as Error).message } }));
+      set((s) => ({ runErrors: { ...s.runErrors, [key]: (e as Error).message } }));
     }
   },
 
-  selectRun: (runId) => {
-    set({ selectedRunId: runId });
-    void getState().fetchRun(runId);
+  selectRun: (key) => {
+    set({ selectedRunId: key });
+    void getState().fetchRun(key);
+  },
+
+  setBenchFilter: (f) => {
+    const { benchRuns, selectedRunId } = getState();
+    const visible = filterRuns(benchRuns, f);
+    const keep = visible.some((r) => runKey(r) === selectedRunId);
+    const next = keep ? selectedRunId : (visible[0] ? runKey(visible[0]) : selectedRunId);
+    set({ benchFilter: f, selectedRunId: next });
+    if (next) void getState().fetchRun(next);
   },
 }));

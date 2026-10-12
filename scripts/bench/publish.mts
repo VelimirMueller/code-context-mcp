@@ -8,6 +8,12 @@
  *
  * Options (see `main` below): --run <id>, --dry-run, --no-push, --no-site.
  *
+ * Private suites (CCA-19): `--private-summary <suite-dir> [--runs id,id]`
+ * publishes ONLY a redacted summary (scripts/bench/private-summary.mts) to
+ * data/private/<alias-slug>.json plus data/private/index.json, through the
+ * same temp worktree. The suite's run files are never copied. With
+ * --dry-run it prints the guarded summary to stdout and writes nothing.
+ *
  * After a local push it starts the Pages build (`gh workflow run pages.yml
  * --ref main`). A push to bench-results cannot do that itself: GitHub runs a
  * push-triggered workflow from the pushed branch, and bench-results holds
@@ -21,6 +27,12 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { buildIndex, pickLatest, runFileProblem } from './lib/index-builder.mts';
 import { privateSuiteContaining } from './live/suite.mts';
+import {
+  assertSummaryText,
+  buildPrivateSummary,
+  mergePrivateIndex,
+  SummaryRefused,
+} from './private-summary.mts';
 
 export interface PublishOptions {
   repoDir?: string;
@@ -183,6 +195,162 @@ export function mirrorToDashboard(srcDataDir: string, env: NodeJS.ProcessEnv | u
   }
 }
 
+/**
+ * Check out `branch` into the empty dir `tmp` as a new worktree of `cwd`:
+ * the local branch, else the remote one, else a fresh orphan with an empty
+ * index (verified) so it can only ever hold data/.
+ */
+function addBranchWorktree(
+  cwd: string,
+  env: NodeJS.ProcessEnv | undefined,
+  remote: string,
+  branch: string,
+  tmp: string,
+  remoteExists: boolean,
+): void {
+  const localBranchExists =
+    runMaybe(cwd, env, ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`]) !== null;
+  if (localBranchExists) {
+    run(cwd, env, ['worktree', 'add', tmp, branch]);
+  } else if (remoteExists) {
+    run(cwd, env, ['worktree', 'add', '-b', branch, tmp, `${remote}/${branch}`]);
+  } else {
+    run(cwd, env, ['worktree', 'add', '--detach', tmp, 'HEAD']);
+    run(tmp, env, ['checkout', '--orphan', branch]);
+    run(tmp, env, ['rm', '-rf', '--cached', '.']);
+    // The orphan branch must contain ONLY data/: verify the destructive
+    // index clear above actually emptied the index before copying files.
+    if (run(tmp, env, ['ls-files']) !== '') {
+      throw new Error(
+        `bench:publish: orphan ${branch} index is not empty after git rm --cached — refusing to commit`,
+      );
+    }
+  }
+}
+
+function commitEnvOf(env: NodeJS.ProcessEnv | undefined): NodeJS.ProcessEnv {
+  const commitEnv: NodeJS.ProcessEnv = { ...env };
+  if (process.env.CI === 'true') {
+    commitEnv.GIT_AUTHOR_NAME = 'github-actions[bot]';
+    commitEnv.GIT_AUTHOR_EMAIL = 'github-actions[bot]@users.noreply.github.com';
+    commitEnv.GIT_COMMITTER_NAME = 'github-actions[bot]';
+    commitEnv.GIT_COMMITTER_EMAIL = 'github-actions[bot]@users.noreply.github.com';
+  }
+  return commitEnv;
+}
+
+export interface PrivateSummaryOptions {
+  repoDir?: string;
+  remote?: string;
+  branch?: string;
+  /** The private suite dir (suite.json + data/runs). */
+  suiteDir: string;
+  /** Only these runs of the suite (default: all of them). */
+  runIds?: string[];
+  dryRun?: boolean;
+  push?: boolean;
+  env?: NodeJS.ProcessEnv;
+  /** For tests. */
+  now?: Date;
+  skipScope?: boolean;
+}
+
+export interface PrivateSummaryResult {
+  dryRun: boolean;
+  slug: string;
+  /** The guarded summary JSON (what is, or would be, written). */
+  text: string;
+  files: string[];
+  commitMessage: string;
+  pushed: boolean;
+}
+
+/**
+ * Build the redacted summary of a private suite and publish ONLY it (plus
+ * data/private/index.json) to bench-results through a temp worktree. The
+ * guard runs at build time and again on the exact bytes before the write;
+ * the staged file list is checked before the commit.
+ */
+export function publishPrivateSummary(opts: PrivateSummaryOptions): PrivateSummaryResult {
+  const built = buildPrivateSummary({
+    suiteDir: opts.suiteDir,
+    runIds: opts.runIds,
+    now: opts.now,
+    skipScope: opts.skipScope,
+  });
+  const file = `data/private/${built.slug}.json`;
+  const files = [file, 'data/private/index.json'];
+  const commitMessage = `bench: private summary ${built.slug}`;
+  if (opts.dryRun) {
+    return { dryRun: true, slug: built.slug, text: built.text, files, commitMessage, pushed: false };
+  }
+
+  const cwd = opts.repoDir ? path.resolve(opts.repoDir) : toplevel(process.cwd());
+  const remote = opts.remote ?? 'origin';
+  const branch = opts.branch ?? 'bench-results';
+  const env = opts.env;
+  if (run(cwd, env, ['rev-parse', '--abbrev-ref', 'HEAD']) === branch) {
+    throw new Error(
+      `bench:publish: refuse to run from the ${branch} checkout — switch to a working branch first`,
+    );
+  }
+  runMaybe(cwd, env, ['fetch', remote, branch]);
+  const remoteExists =
+    runMaybe(cwd, env, ['rev-parse', '--verify', '--quiet', `refs/remotes/${remote}/${branch}`]) !==
+    null;
+
+  const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'bench-publish-')));
+  try {
+    addBranchWorktree(cwd, env, remote, branch, tmp, remoteExists);
+    const privDir = path.join(tmp, 'data', 'private');
+    fs.mkdirSync(privDir, { recursive: true });
+    const indexFile = path.join(privDir, 'index.json');
+    let existing: unknown = null;
+    try {
+      existing = JSON.parse(fs.readFileSync(indexFile, 'utf-8'));
+    } catch {
+      existing = null;
+    }
+    const index = mergePrivateIndex(existing, {
+      slug: built.slug,
+      alias: built.summary.alias,
+      generated: built.summary.generated,
+      file: `private/${built.slug}.json`,
+    });
+    const indexText = `${JSON.stringify(index, null, 2)}\n`;
+    // Second guard pass on the exact bytes, right before they are written.
+    assertSummaryText(built.text, built.denylist, file);
+    assertSummaryText(indexText, built.denylist, 'data/private/index.json');
+    fs.writeFileSync(path.join(privDir, `${built.slug}.json`), built.text);
+    fs.writeFileSync(indexFile, indexText);
+
+    const commitEnv = commitEnvOf(env);
+    run(tmp, commitEnv, ['add', '--', 'data/private']);
+    const staged = run(tmp, commitEnv, ['diff', '--cached', '--name-only'])
+      .split('\n')
+      .filter(Boolean);
+    const stray = staged.filter((f) => !files.includes(f));
+    if (stray.length) {
+      throw new Error(
+        `bench:publish: refusing — ${stray.length} staged file(s) outside the private summary`,
+      );
+    }
+    if (staged.length === 0) {
+      console.warn('bench:publish: private summary unchanged — nothing to commit');
+      return { dryRun: false, slug: built.slug, text: built.text, files, commitMessage, pushed: false };
+    }
+    run(tmp, commitEnv, ['commit', '-m', commitMessage]);
+    let pushed = false;
+    if (opts.push !== false) {
+      run(tmp, commitEnv, ['push', remote, branch]);
+      pushed = true;
+    }
+    return { dryRun: false, slug: built.slug, text: built.text, files, commitMessage, pushed };
+  } finally {
+    runMaybe(cwd, env, ['worktree', 'remove', '--force', tmp]);
+  }
+}
+
 export function publish(opts: PublishOptions = {}): PublishResult {
   const cwd = opts.repoDir ? path.resolve(opts.repoDir) : toplevel(process.cwd());
   const remote = opts.remote ?? 'origin';
@@ -224,26 +392,9 @@ export function publish(opts: PublishOptions = {}): PublishResult {
   }
 
   const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'bench-publish-')));
-  const localBranchExists =
-    runMaybe(cwd, env, ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`]) !== null;
 
   try {
-    if (localBranchExists) {
-      run(cwd, env, ['worktree', 'add', tmp, branch]);
-    } else if (remoteExists) {
-      run(cwd, env, ['worktree', 'add', '-b', branch, tmp, `${remote}/${branch}`]);
-    } else {
-      run(cwd, env, ['worktree', 'add', '--detach', tmp, 'HEAD']);
-      run(tmp, env, ['checkout', '--orphan', branch]);
-      run(tmp, env, ['rm', '-rf', '--cached', '.']);
-      // The orphan branch must contain ONLY data/: verify the destructive
-      // index clear above actually emptied the index before copying files.
-      if (run(tmp, env, ['ls-files']) !== '') {
-        throw new Error(
-          `bench:publish: orphan ${branch} index is not empty after git rm --cached — refusing to commit`,
-        );
-      }
-    }
+    addBranchWorktree(cwd, env, remote, branch, tmp, remoteExists);
 
     const runsDir = path.join(tmp, 'data', 'runs');
     fs.mkdirSync(runsDir, { recursive: true });
@@ -257,13 +408,7 @@ export function publish(opts: PublishOptions = {}): PublishResult {
     fs.writeFileSync(path.join(tmp, 'data', 'index.json'), `${JSON.stringify(index, null, 2)}\n`);
     fs.writeFileSync(path.join(tmp, 'data', 'latest.json'), `${JSON.stringify(latest, null, 2)}\n`);
 
-    const commitEnv: NodeJS.ProcessEnv = { ...env };
-    if (process.env.CI === 'true') {
-      commitEnv.GIT_AUTHOR_NAME = 'github-actions[bot]';
-      commitEnv.GIT_AUTHOR_EMAIL = 'github-actions[bot]@users.noreply.github.com';
-      commitEnv.GIT_COMMITTER_NAME = 'github-actions[bot]';
-      commitEnv.GIT_COMMITTER_EMAIL = 'github-actions[bot]@users.noreply.github.com';
-    }
+    const commitEnv = commitEnvOf(env);
     run(tmp, commitEnv, ['add', '-A', '--', 'data']);
     // All listed runs may already be byte-identical on the branch (e.g. a
     // re-publish after a failed push): commit only when something is staged,
@@ -308,8 +453,25 @@ if (isMain()) {
   const args = process.argv.slice(2);
   const opts: PublishOptions = {};
   let rebuildSite = process.env.GITHUB_ACTIONS !== 'true';
+  let privateSuite: string | null = null;
+  let privateRuns: string[] | undefined;
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--dry-run') opts.dryRun = true;
+    else if (args[i] === '--private-summary') {
+      const v = args[++i];
+      if (!v || !v.trim()) {
+        console.error('bench:publish: --private-summary needs the private suite dir');
+        process.exit(1);
+      }
+      privateSuite = v.trim();
+    } else if (args[i] === '--runs') {
+      const v = args[++i];
+      if (!v || !v.trim()) {
+        console.error('bench:publish: --runs needs run ids (e.g. --runs opus-20261012-092421,glm-20261012-101500)');
+        process.exit(1);
+      }
+      privateRuns = v.split(',').map((x) => x.trim()).filter(Boolean);
+    }
     else if (args[i] === '--run') {
       const v = args[++i];
       if (!v || !v.trim()) {
@@ -321,6 +483,47 @@ if (isMain()) {
     else if (args[i] === '--no-site') rebuildSite = false;
     else {
       console.error(`bench:publish: unknown argument ${args[i]}`);
+      process.exit(1);
+    }
+  }
+  if (privateRuns && !privateSuite) {
+    console.error('bench:publish: --runs works with --private-summary only (use --run <id> for public runs)');
+    process.exit(1);
+  }
+  if (privateSuite) {
+    if (opts.runId) {
+      console.error('bench:publish: --run cannot be combined with --private-summary (use --runs)');
+      process.exit(1);
+    }
+    try {
+      const res = publishPrivateSummary({
+        suiteDir: privateSuite,
+        runIds: privateRuns,
+        dryRun: opts.dryRun,
+        push: opts.push,
+      });
+      if (res.dryRun) {
+        // The summary on stdout (pipe-able); the plan on stderr.
+        process.stdout.write(res.text);
+        console.error(`dry-run: guard passed; would commit "${res.commitMessage}"`);
+        for (const f of res.files) console.error(`  ${f}`);
+      } else {
+        console.log(`published private summary ${res.slug} (${res.files.join(', ')})`);
+        if (res.pushed && rebuildSite) {
+          try {
+            execFileSync('gh', ['workflow', 'run', 'pages.yml', '--ref', 'main'], {
+              stdio: ['ignore', 'ignore', 'pipe'],
+            });
+            console.log('site: Pages build started (pages.yml on main)');
+          } catch {
+            console.warn('site: could not start the Pages build. Run: gh workflow run pages.yml --ref main');
+          }
+        }
+      }
+      process.exit(0);
+    } catch (e) {
+      const msg = (e as Error).message;
+      console.error(e instanceof SummaryRefused ? `bench:publish: ${msg}` : msg);
       process.exit(1);
     }
   }

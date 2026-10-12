@@ -303,6 +303,13 @@ h4 {
 .kbadge.k-claude {
   color: var(--sub);
 }
+.kbadge.k-private {
+  color: var(--sub);
+  border-style: dashed;
+}
+.private-card .kind-intro h3 {
+  margin: 0;
+}
 .verdict {
   display: flex;
   flex-wrap: wrap;

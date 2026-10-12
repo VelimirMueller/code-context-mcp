@@ -236,10 +236,58 @@ npm run bench:live -- --suite ~/bench/my-suite --provider deepseek [--tasks T1,T
 - With `redact`, the run JSON stores no prompt text, no answers and no source names: tasks by id plus `prompt_sha256` and `answer_sha256`, and sources by commit plus `name_sha256`. A run file shared by mistake leaks no code facts.
 - `bench:publish` refuses any run with `suite.private`, and any run file under a private suite directory (also through a symlink). It refuses before it writes or pushes anything.
 
+### Private runs in the local dashboard
+
+List the suite dirs in `CODE_CONTEXT_BENCH_PRIVATE_DIRS` when you start the dashboard (`:`-separated, `;` on Windows; a suite dir or its `data/` dir):
+
+```bash
+CODE_CONTEXT_BENCH_PRIVATE_DIRS=~/bench/my-suite npx code-context-dashboard ./context.db
+```
+
+- The Benchmark page merges the suite runs with the public runs. Each private run has a **private** chip with the suite `alias` (else its id), and a filter switches between All, Public and Private.
+- The run detail works as for public runs. A redacted run shows task ids, never prompts.
+- The dashboard reads the files from disk under the same run-id, index and realpath rules as the public dir. It sends them nowhere.
+
+### Redacted summary (`--private-summary`)
+
+A private suite can publish one file: a redacted summary under its public alias.
+
+```bash
+npm run bench:publish -- --private-summary ~/bench/my-suite --dry-run      # print it, publish nothing
+npm run bench:publish -- --private-summary ~/bench/my-suite [--runs id,id] # publish it
+```
+
+Suite fields for the summary (all optional except `alias`, which the summary needs):
+
+| Field | Meaning |
+|---|---|
+| `alias` | Public display name, e.g. `"Real-world suite A"`. The file is `data/private/<alias-slug>.json`. |
+| `groups` | `{ "<group id>": "<public label>" }`, e.g. `{ "spa": "Single-page app" }`. |
+| `tasks[].group` | Short group id of a task, e.g. `"spa"`, `"php"`, `"cross-repo"`. |
+| `groupByPrefix` | `true`: a task without `group` goes to the group of its id's first letter (`S1` → `S`, mapped through `groups`). Default: group `all`. |
+| `publicTaskIds` | `true`: task ids are not secret. Default `false`: task ids are on the denylist. The summary never lists task ids either way. |
+
+What the summary holds (schema `ccc-bench-private-summary/1`), and nothing else:
+
+- `alias`, `generated` (date), `code_context_version`.
+- `scope`: number of sources, files and total MB of the sources at their commits (from `git ls-tree`, local; `null` when a clone is missing), task count, task count per group.
+- Per run: `model`, `provider_kind`, `date`, `repeats`; per arm `sessions`, `success_pct`, `uncached_per_session`, `uncached_per_pass`, `cost_usd`, `cost_per_pass`, `wall_mean_ms`; per arm vs vanilla `uncached_saved_pct` with its min–max `uncached_saved_spread` and `cost_saved_pct`. The same per group.
+
+Every number is recomputed from the sessions; the run's own aggregate and notes are not read.
+
+**The guard.** Before anything is written, every key and string of the summary is checked, and the publish refuses on one hit. The error names the JSON path and the kind of hit, never the value:
+
+- A denylist from the suite and its runs: suite id and description, source names, repo paths and their folder names, subdirs, commits (full and 7 chars), task ids (unless `publicTaskIds`), prompts and the code-like tokens in them (paths, dotted, snake and camel names), answer items, universes and patterns, run notes, hashes, session ids and event paths. Matching ignores case and needs a word boundary.
+- Local absolute paths and secrets (the GitHub-sync publish guard), any other absolute path, and hex runs of 7+ characters (commits, hashes).
+- An allowlist shape check: exact keys at every level, numbers where numbers belong, strict patterns for alias, group labels, model id and dates.
+
+The publish uses the same temp worktree as a run publish, never the current checkout. It writes `data/private/<slug>.json` and `data/private/index.json` (schema `ccc-bench-private-index/1`), runs the guard again on the exact bytes, and refuses when anything else is staged. The site shows each summary as a "Real-world private suite" card.
+
 ## Where the results go
 
 - Run files land in `data/runs/<run_id>.json` (schema `ccc-bench/1`).
 - `npm run bench:publish` commits `data/` to the `bench-results` branch and pushes. The branch holds `data/runs/`, `data/index.json` (all runs, newest first), and `data/latest.json` (the newest run of any kind).
+- `data/private/` holds the redacted private-suite summaries (`--private-summary`), never runs.
 - The Pages site at <https://velimirmueller.github.io/code-context-mcp/> rebuilds after each push. The latest run is the headline. The history lists every run. Run files on `bench-results` are append-only: they are never rewritten or deleted.
 
 ## Cost

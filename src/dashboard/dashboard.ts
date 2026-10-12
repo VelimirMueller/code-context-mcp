@@ -1191,7 +1191,8 @@ const server = http.createServer(async (req, res) => {
         let runId: string;
         try { runId = decodeURIComponent(url.pathname.slice("/api/bench/run/".length)); }
         catch { throw new benchHandlers.BenchError("invalid run id", 400); }
-        data = await benchHandlers.apiBenchRun(benchOpts(), runId);
+        // ?suite=<key> selects a private suite dir (CODE_CONTEXT_BENCH_PRIVATE_DIRS).
+        data = await benchHandlers.apiBenchRun(benchOpts(), runId, url.searchParams.get("suite"));
       }
       else if (url.pathname === "/api/token-usage") {
         try { data = writeDb.prepare(`SELECT * FROM token_usage ORDER BY created_at DESC LIMIT 100`).all(); }

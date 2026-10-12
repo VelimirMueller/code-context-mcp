@@ -129,6 +129,34 @@
         <div id="detail-body"></div>
       </section>
 
+      <section id="private" aria-labelledby="h-private" hidden>
+        <h2 id="h-private">
+          <span class="marker" aria-hidden="true">// 03b</span> REAL-WORLD PRIVATE SUITES
+        </h2>
+        <p class="sub">
+          Runs on real code that cannot be public. Only a redacted summary is published: the suite's
+          public alias, scope counts and the numbers below.
+        </p>
+        <div class="note" id="private-caveat">
+          <strong>Task texts, code, repository names and answers are private.</strong>
+          <ul>
+            <li>
+              Nobody outside the owner can rerun or inspect these tasks. Read the numbers as a field
+              report next to the public runs, not as a reproducible benchmark.
+            </li>
+            <li>
+              Uncached tokens (input + output + cache write) and cost show as
+              <em>N× vanilla</em>: below 1× is a saving. The range is the min–max over repeats.
+            </li>
+            <li>
+              Per PASS divides an arm's uncached tokens by its passing sessions. Groups are small: a
+              group of one or two tasks says little on its own.
+            </li>
+          </ul>
+        </div>
+        <div id="private-body"></div>
+      </section>
+
       <section id="method" aria-labelledby="h-method">
         <img class="divider" src="assets/divider-method-v2.svg" width="1280" height="200" alt="" />
         <h2 id="h-method" class="visually-hidden">

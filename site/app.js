@@ -1717,6 +1717,193 @@
     });
   }
 
+  // ---- private-suite summaries (CCA-19) ----
+  // Redacted summaries only: alias, scope counts and numbers. Task texts,
+  // code and source names never reach the site, so none are rendered.
+  var PRIVATE_ARMS = [
+    ['vanilla', 'vanilla'],
+    ['cc', 'cc'],
+    ['cc_guided', 'cc-guided'],
+  ];
+
+  function successText(a) {
+    return a && isNum(a.success_pct) ? a.success_pct.toFixed(1) + ' %' : 'n/a';
+  }
+  // "0.62× vanilla [0.55–0.70×]" for an arm's saved block.
+  function savedText(sv) {
+    if (!sv) return 'n/a';
+    var sp = spreadText(sv.uncached_saved_spread);
+    return ratioText(sv.uncached_saved_pct) + (sp ? ' [' + sp + ']' : '');
+  }
+
+  function privateArmsTable(block, caption) {
+    var tb = el('table', { 'aria-label': caption });
+    var hd = el('tr');
+    [
+      'Arm',
+      'Success',
+      'Uncached / session',
+      'Uncached / PASS',
+      'Uncached vs vanilla (min–max)',
+      'Cost',
+      'Cost vs vanilla',
+      'Wall / session',
+    ].forEach(function (t) {
+      hd.appendChild(el('th', null, [t]));
+    });
+    tb.appendChild(hd);
+    PRIVATE_ARMS.forEach(function (pa) {
+      var a = block.arms[pa[0]];
+      if (!a) return;
+      var sv = pa[0] === 'vanilla' ? null : block.saved[pa[0]];
+      tb.appendChild(
+        el('tr', null, [
+          el('td', null, [pa[1]]),
+          el('td', null, [successText(a)]),
+          el('td', null, [rawfmt(a.uncached_per_session)]),
+          el('td', null, [rawfmt(a.uncached_per_pass)]),
+          el(
+            'td',
+            sv && isNum(sv.uncached_saved_pct)
+              ? {
+                  class:
+                    sv.uncached_saved_pct > 0 ? 'pos' : sv.uncached_saved_pct < 0 ? 'neg' : null,
+                }
+              : null,
+            [sv ? savedText(sv) : '1.00× (baseline)'],
+          ),
+          el('td', null, [usd(a.cost_usd)]),
+          el('td', null, [sv ? ratioText(sv.cost_saved_pct) : '1.00× (baseline)']),
+          el('td', null, [msFmt(a.wall_mean_ms)]),
+        ]),
+      );
+    });
+    return el('div', { class: 'tablewrap' }, [tb]);
+  }
+
+  function privateGroupsTable(run, guided) {
+    var tb = el('table', { 'aria-label': 'Per group' });
+    var hd = el('tr');
+    var heads = ['Group', 'Tasks', 'OK vanilla', 'OK cc'];
+    if (guided) heads.push('OK guided');
+    heads.push('Uncached cc vs vanilla', 'Cost cc vs vanilla');
+    if (guided) heads.push('Uncached guided vs vanilla');
+    heads.forEach(function (t) {
+      hd.appendChild(el('th', null, [t]));
+    });
+    tb.appendChild(hd);
+    run.groups.forEach(function (g) {
+      var cells = [
+        el('td', null, [g.group]),
+        el('td', null, [rawfmt(g.tasks)]),
+        el('td', null, [successText(g.arms.vanilla)]),
+        el('td', null, [successText(g.arms.cc)]),
+      ];
+      if (guided) cells.push(el('td', null, [successText(g.arms.cc_guided)]));
+      cells.push(
+        el('td', null, [savedText(g.saved.cc)]),
+        el('td', null, [ratioText(g.saved.cc && g.saved.cc.cost_saved_pct)]),
+      );
+      if (guided) cells.push(el('td', null, [savedText(g.saved.cc_guided)]));
+      tb.appendChild(el('tr', null, cells));
+    });
+    return el('div', { class: 'tablewrap' }, [tb]);
+  }
+
+  function privateCard(s) {
+    var card = el('div', { class: 'card private-card' });
+    card.appendChild(
+      el('div', { class: 'kind-intro' }, [
+        el('span', { class: 'kbadge k-private' }, ['REAL-WORLD PRIVATE SUITE']),
+        el('h3', null, [s.alias]),
+      ]),
+    );
+    var sc = s.scope;
+    var groups = Object.keys(sc.perGroup)
+      .map(function (k) {
+        return k + ' ' + rawfmt(sc.perGroup[k]);
+      })
+      .join(' · ');
+    var dl = el('dl', { class: 'meta' });
+    function row(k, v) {
+      dl.appendChild(el('dt', null, [k]));
+      dl.appendChild(el('dd', null, [v]));
+    }
+    row(
+      'Scope',
+      rawfmt(sc.sources) +
+        ' sources · ' +
+        (isNum(sc.files) ? rawfmt(sc.files) + ' files · ' : '') +
+        (isNum(sc.totalMb) ? sc.totalMb.toFixed(1) + ' MB · ' : '') +
+        rawfmt(sc.tasks) +
+        ' tasks',
+    );
+    if (groups) row('Tasks per group', groups);
+    row('Summary', (s.generated || 'n/a') + (s.version ? ' · code-context ' + s.version : ''));
+    card.appendChild(dl);
+    s.runs.forEach(function (r) {
+      var meta = kindIntroLabel(r.kind);
+      card.appendChild(
+        el('h4', null, [
+          (r.model || 'unknown model') +
+            ' · ' +
+            meta +
+            ' · ' +
+            (r.date || 'n/a') +
+            ' · n = ' +
+            rawfmt(r.repeats) +
+            ' per task and arm',
+        ]),
+      );
+      card.appendChild(privateArmsTable(r, 'Arms: ' + (r.model || '')));
+      var guided = !!r.arms.cc_guided;
+      if (r.groups.length > 1 || (r.groups.length === 1 && r.groups[0].group !== 'all'))
+        card.appendChild(privateGroupsTable(r, guided));
+    });
+    card.appendChild(
+      el('p', { class: 'sub' }, [
+        'Task texts and code are private. Published: alias, counts and the numbers above (ccc-bench-private-summary/1).',
+      ]),
+    );
+    return card;
+  }
+
+  function kindIntroLabel(kind) {
+    var m = D.kindMeta(kind);
+    return m && m.label ? m.label : String(kind || 'agent');
+  }
+
+  function renderPrivate(summaries) {
+    var sec = $('private');
+    var box = $('private-body');
+    if (!sec || !box) return;
+    clear(box);
+    var list = (summaries || []).filter(Boolean);
+    sec.hidden = list.length === 0;
+    list.forEach(function (s) {
+      box.appendChild(privateCard(s));
+    });
+  }
+
+  function loadPrivate() {
+    var dir = CFG.DATA_DIR || 'data/';
+    return getJSON(CFG.PRIVATE_INDEX || 'data/private/index.json')
+      .then(function (idx) {
+        return Promise.all(
+          D.privateIndexOf(idx).map(function (e) {
+            return getJSON(dir + e.file)
+              .then(D.privateSummaryOf)
+              .catch(function () {
+                return null;
+              });
+          }),
+        );
+      })
+      .catch(function () {
+        return [];
+      });
+  }
+
   // ---- data loading ----
   function loadIndexRuns() {
     return getJSON(CFG.INDEX || 'data/index.json')
@@ -1768,6 +1955,8 @@
       paint(demoData());
       return;
     }
+    // Independent of the runs: a missing data/private/ keeps the section hidden.
+    loadPrivate().then(renderPrivate);
     loadIndexRuns()
       .then(function (runs) {
         return loadLatest(runs).then(function (latest) {
@@ -1787,6 +1976,7 @@
     rawfmt: rawfmt,
     framesBlock: framesBlock,
     headlineText: headlineText,
+    renderPrivate: renderPrivate,
   };
   if (D) {
     init();

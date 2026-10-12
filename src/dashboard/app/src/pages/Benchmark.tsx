@@ -5,6 +5,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   useBenchmarkStore,
   latestPerKind,
+  runKey,
+  filterRuns,
+  type BenchFilter,
   type BenchmarkTask,
   type StochasticReport,
   type BenchIndexEntry,
@@ -300,6 +303,55 @@ const panel: CSSProperties = {
   background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 16,
 };
 
+/** "private · <alias>" chip on a private suite run (local only, never published). */
+function PrivateChip({ entry }: { entry: BenchIndexEntry }) {
+  if (!entry.private) return null;
+  return (
+    <span
+      title={`Private suite${entry.suite ? ` ${entry.suite}` : ''}: local only, never published`}
+      style={{
+        fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
+        color: 'var(--orange)', border: '1px solid var(--orange)', borderRadius: 4,
+        padding: '0 5px', whiteSpace: 'nowrap', flexShrink: 0,
+      }}
+    >
+      private{entry.suite ? ` · ${entry.suite}` : ''}
+    </span>
+  );
+}
+
+const FILTERS: Array<{ key: BenchFilter; label: string }> = [
+  { key: 'all', label: 'All' },
+  { key: 'public', label: 'Public' },
+  { key: 'private', label: 'Private' },
+];
+
+function RunFilter({ value, onChange, counts }: {
+  value: BenchFilter; onChange: (f: BenchFilter) => void; counts: Record<BenchFilter, number>;
+}) {
+  return (
+    <div role="group" aria-label="Run filter" style={{ display: 'flex', gap: 4 }}>
+      {FILTERS.map((f) => {
+        const active = f.key === value;
+        return (
+          <button
+            key={f.key}
+            aria-pressed={active}
+            onClick={() => onChange(f.key)}
+            style={{
+              fontSize: 11, fontFamily: 'var(--font)', padding: '3px 10px', borderRadius: 6, cursor: 'pointer',
+              border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+              background: active ? 'var(--surface2)' : 'none', color: active ? 'var(--accent)' : 'var(--text2)',
+            }}
+          >
+            {f.label} ({counts[f.key]})
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function isAgentHeadline(h: BenchIndexEntry['headline']): h is AgentHeadline {
   return !!h && 'success_vanilla_pct' in h;
 }
@@ -417,8 +469,9 @@ function LatestRunCard({ entry, run, selected, onSelect }: {
         boxShadow: selected ? '0 0 0 1px var(--accent-glow)' : 'none',
       }}
     >
-      <div style={{ ...sectionLabel, color: selected ? 'var(--accent)' : 'var(--text3)', marginBottom: 6 }}>
+      <div style={{ ...sectionLabel, color: selected ? 'var(--accent)' : 'var(--text3)', marginBottom: 6, display: 'flex', gap: 6, alignItems: 'center' }}>
         {KIND_LABELS[entry.kind] ?? entry.kind}
+        <PrivateChip entry={entry} />
       </div>
       <div style={{ fontSize: 18, fontWeight: 800, fontFamily: 'var(--mono)', color: 'var(--text)' }}>{entry.date}</div>
       <div style={{ fontSize: 11, color: stale ? 'var(--orange)' : 'var(--text3)', marginBottom: 8 }}>
@@ -445,13 +498,14 @@ function RunList({ runs, selectedId, onSelect }: {
       </div>
       <div role="listbox" aria-label="Benchmark runs">
         {runs.map((r) => {
-          const active = r.run_id === selectedId;
+          const key = runKey(r);
+          const active = key === selectedId;
           return (
             <button
-              key={r.run_id}
+              key={key}
               role="option"
               aria-selected={active}
-              onClick={() => onSelect(r.run_id)}
+              onClick={() => onSelect(key)}
               style={{
                 display: 'flex', width: '100%', alignItems: 'center', gap: 10, padding: '8px 14px',
                 border: 'none', borderLeft: `2px solid ${active ? 'var(--accent)' : 'transparent'}`,
@@ -463,6 +517,7 @@ function RunList({ runs, selectedId, onSelect }: {
               <span style={{ fontSize: 11, color: active ? 'var(--accent)' : 'var(--text)', fontWeight: 600, flex: 1 }}>
                 {KIND_LABELS[r.kind] ?? r.kind}
               </span>
+              <PrivateChip entry={r} />
               <span style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--text3)' }}>{r.run_id}</span>
             </button>
           );
@@ -599,6 +654,7 @@ function RunDetail({ entry, run, error }: { entry: BenchIndexEntry; run: BenchRu
         <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{KIND_LABELS[entry.kind] ?? entry.kind}</span>
         <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--mono)', color: 'var(--accent)' }}>{entry.date}</span>
         <span style={{ fontSize: 11, color: 'var(--text3)' }}>{agoLabel(days)}</span>
+        <PrivateChip entry={entry} />
       </div>
       <div style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)', marginBottom: 14, wordBreak: 'break-all' }}>
         {entry.run_id} · {entry.model ?? 'no model'}
@@ -606,6 +662,14 @@ function RunDetail({ entry, run, error }: { entry: BenchIndexEntry; run: BenchRu
         {run?.code_context_version ? ` · code-context ${run.code_context_version}` : ''}
         {run?.duration_ms ? ` · ${Math.round(run.duration_ms / 1000)}s` : ''}
       </div>
+      {entry.private && (
+        <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 14, lineHeight: 1.6 }}>
+          Private suite{entry.suite ? ` ${entry.suite}` : ''}: shown from your local suite dir only, never published.
+          {run?.suite?.redact || run?.tasks?.some((t) => t.prompt === undefined && t.prompt_sha256)
+            ? ' Redacted run: tasks by id only, no prompts, answers or source names.'
+            : ''}
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 260px) 1fr', gap: 16, marginBottom: 14 }}>
         <div>
@@ -652,7 +716,9 @@ function RunDetail({ entry, run, error }: { entry: BenchIndexEntry; run: BenchRu
 }
 
 function LiveRunsView() {
-  const runs = useBenchmarkStore((s) => s.benchRuns);
+  const allRuns = useBenchmarkStore((s) => s.benchRuns);
+  const filter = useBenchmarkStore((s) => s.benchFilter);
+  const setFilter = useBenchmarkStore((s) => s.setBenchFilter);
   const source = useBenchmarkStore((s) => s.benchSource);
   const message = useBenchmarkStore((s) => s.benchMessage);
   const loading = useBenchmarkStore((s) => s.benchLoading);
@@ -662,7 +728,10 @@ function LiveRunsView() {
   const selectedRunId = useBenchmarkStore((s) => s.selectedRunId);
   const selectRun = useBenchmarkStore((s) => s.selectRun);
 
-  if (loading && runs.length === 0) {
+  const runs = filterRuns(allRuns, filter);
+  const privateCount = allRuns.filter((r) => r.private).length;
+
+  if (loading && allRuns.length === 0) {
     return (
       <div style={{ padding: 20 }}>
         {[1, 2].map((i) => (
@@ -672,7 +741,7 @@ function LiveRunsView() {
     );
   }
 
-  if (runs.length === 0) {
+  if (allRuns.length === 0) {
     return (
       <div style={{ padding: 40, textAlign: 'center', fontSize: 13, color: error ? 'var(--red)' : 'var(--text2)' }}>
         {error ? `Failed to load benchmark runs: ${error}` : 'No benchmark runs available.'}
@@ -682,14 +751,36 @@ function LiveRunsView() {
     );
   }
 
+  const filterBar = privateCount > 0 && (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+      <RunFilter
+        value={filter}
+        onChange={setFilter}
+        counts={{ all: allRuns.length, public: allRuns.length - privateCount, private: privateCount }}
+      />
+      <span style={{ fontSize: 11, color: 'var(--text3)' }}>Private suite runs are local only (CODE_CONTEXT_BENCH_PRIVATE_DIRS).</span>
+    </div>
+  );
+
+  if (runs.length === 0) {
+    return (
+      <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
+        {filterBar}
+        <div style={{ padding: 40, textAlign: 'center', fontSize: 13, color: 'var(--text2)' }}>No {filter} runs.</div>
+      </div>
+    );
+  }
+
   const latest = latestPerKind(runs);
   const cards = KIND_ORDER.map((k) => latest.find((r) => r.kind === k)).filter((r): r is BenchIndexEntry => !!r);
   const newest = runs[0];
   const newestDays = daysAgo(newest.date || newest.ts);
-  const selected = runs.find((r) => r.run_id === selectedRunId) ?? newest;
+  const selected = runs.find((r) => runKey(r) === selectedRunId) ?? newest;
+  const selectedKey = runKey(selected);
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
+      {filterBar}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
         <span style={{ ...sectionLabel }}>Latest run</span>
         <span style={{ fontSize: 16, fontWeight: 800, fontFamily: 'var(--mono)', color: 'var(--text)' }}>{newest.date}</span>
@@ -702,21 +793,21 @@ function LiveRunsView() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12, marginBottom: 16 }}>
         {cards.map((entry) => (
           <LatestRunCard
-            key={entry.run_id}
+            key={runKey(entry)}
             entry={entry}
-            run={runDetails[entry.run_id]}
-            selected={entry.run_id === selected.run_id}
-            onSelect={() => selectRun(entry.run_id)}
+            run={runDetails[runKey(entry)]}
+            selected={runKey(entry) === selectedKey}
+            onSelect={() => selectRun(runKey(entry))}
           />
         ))}
       </div>
 
       <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
         <div style={{ flex: '1 1 280px', maxWidth: 380 }}>
-          <RunList runs={runs} selectedId={selected.run_id} onSelect={selectRun} />
+          <RunList runs={runs} selectedId={selectedKey} onSelect={selectRun} />
         </div>
         <div style={{ flex: '3 1 480px', minWidth: 0 }}>
-          <RunDetail entry={selected} run={runDetails[selected.run_id]} error={runErrors[selected.run_id]} />
+          <RunDetail entry={selected} run={runDetails[selectedKey]} error={runErrors[selectedKey]} />
         </div>
       </div>
     </div>

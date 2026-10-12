@@ -451,6 +451,74 @@
     };
   }
 
+  // ---- private-suite summaries (CCA-19): numbers only, under a public alias ----
+  var PRIVATE_FILE_RE = /^private\/[a-z0-9][a-z0-9-]{0,59}\.json$/;
+
+  /** Entries of data/private/index.json whose file path is a plain private/<slug>.json. */
+  function privateIndexOf(raw) {
+    return arr(isObj(raw) ? raw.summaries : null).filter(function (e) {
+      return (
+        isObj(e) &&
+        typeof e.alias === 'string' &&
+        typeof e.file === 'string' &&
+        PRIVATE_FILE_RE.test(e.file)
+      );
+    });
+  }
+
+  function numOrNull(x) {
+    return isNum(x) ? x : null;
+  }
+
+  /** A ccc-bench-private-summary/1 file, normalized; null when it is not one. */
+  function privateSummaryOf(raw) {
+    var schema = CFG.PRIVATE_SCHEMA || 'ccc-bench-private-summary/1';
+    if (!isObj(raw) || raw.schema !== schema || typeof raw.alias !== 'string') return null;
+    var sc = isObj(raw.scope) ? raw.scope : {};
+    var block = function (b) {
+      return {
+        arms: isObj(b.arms) ? b.arms : {},
+        saved: isObj(b.saved) ? b.saved : {},
+      };
+    };
+    return {
+      alias: raw.alias,
+      generated: typeof raw.generated === 'string' ? raw.generated : null,
+      version: typeof raw.code_context_version === 'string' ? raw.code_context_version : null,
+      scope: {
+        sources: numOrNull(sc.sources),
+        files: numOrNull(sc.files),
+        totalMb: numOrNull(sc.total_mb),
+        tasks: numOrNull(sc.tasks),
+        perGroup: isObj(sc.tasks_per_group) ? sc.tasks_per_group : {},
+      },
+      runs: arr(raw.runs)
+        .filter(isObj)
+        .map(function (r) {
+          var b = block(r);
+          return {
+            model: typeof r.model === 'string' ? r.model : null,
+            kind: typeof r.provider_kind === 'string' ? r.provider_kind : null,
+            date: typeof r.date === 'string' ? r.date : null,
+            repeats: numOrNull(r.repeats),
+            arms: b.arms,
+            saved: b.saved,
+            groups: arr(r.groups)
+              .filter(isObj)
+              .map(function (g) {
+                var gb = block(g);
+                return {
+                  group: typeof g.group === 'string' ? g.group : '?',
+                  tasks: numOrNull(g.tasks),
+                  arms: gb.arms,
+                  saved: gb.saved,
+                };
+              }),
+          };
+        }),
+    };
+  }
+
   function kindMeta(kind) {
     var k = CFG.KINDS || {};
     return isObj(k[kind]) ? k[kind] : null;
@@ -472,5 +540,7 @@
     taskHonestOf: taskHonestOf,
     legacyOf: legacyOf,
     kindMeta: kindMeta,
+    privateIndexOf: privateIndexOf,
+    privateSummaryOf: privateSummaryOf,
   };
 })();

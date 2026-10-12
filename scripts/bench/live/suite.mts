@@ -66,6 +66,11 @@ export type SuiteCheckerSpec =
 export interface SuiteTaskSpec {
   id: string;
   size?: TaskSize;
+  /**
+   * Short group id for the redacted summary (CCA-19), e.g. "spa", "php",
+   * "cross-repo". Shown as `groups[group]` when the suite maps it.
+   */
+  group?: string;
   prompt: string;
   checker: SuiteCheckerSpec;
 }
@@ -77,6 +82,21 @@ export interface SuiteFile {
   private: boolean;
   /** Store tasks/sources by hash only in run JSON. Defaults to `private`. */
   redact?: boolean;
+  /**
+   * Public display name (CCA-19), e.g. "Real-world suite A": the only name a
+   * redacted summary (`bench:publish --private-summary`) and the local
+   * dashboard show. Required for a summary.
+   */
+  alias?: string;
+  /** Group id → public label for the summary (CCA-19). */
+  groups?: Record<string, string>;
+  /**
+   * Tasks without `group` fall into the group of their id's first letter
+   * (S1 → "S", mapped through `groups`). Off: they fall into "all".
+   */
+  groupByPrefix?: boolean;
+  /** Task ids are not secret (CCA-19). Off (default): never in a summary. */
+  publicTaskIds?: boolean;
   sources: SuiteSource[];
   tasks: SuiteTaskSpec[];
 }
@@ -130,6 +150,10 @@ const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
 const SHA_RE = /^[0-9a-f]{7,64}$/;
 const SIZES: readonly TaskSize[] = ['S', 'M', 'ML', 'L', 'XL'];
+/** Group ids: short labels like "spa", "php", "cross-repo". */
+export const GROUP_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$/;
+/** Public texts (alias, group labels): one line, no path or markup characters. */
+export const PUBLIC_LABEL_RE = /^[A-Za-z0-9][A-Za-z0-9 ._()+&,-]{0,59}$/;
 
 class SuiteError extends Error {}
 
@@ -158,6 +182,20 @@ function git(repo: string, args: string[]): string {
   }).trim();
 }
 
+const SUITE_KEYS = [
+  'schema',
+  'id',
+  'description',
+  'private',
+  'redact',
+  'alias',
+  'groups',
+  'groupByPrefix',
+  'publicTaskIds',
+  'sources',
+  'tasks',
+];
+
 /** Every problem of a suite.json value, as `path: message` lines (empty = valid). */
 export function suiteProblems(x: unknown): string[] {
   const p: string[] = [];
@@ -170,6 +208,21 @@ export function suiteProblems(x: unknown): string[] {
   if (typeof x.private !== 'boolean') p.push('private: must be true or false');
   if (x.redact !== undefined && typeof x.redact !== 'boolean')
     p.push('redact: must be true or false');
+  if (x.alias !== undefined && (typeof x.alias !== 'string' || !PUBLIC_LABEL_RE.test(x.alias)))
+    p.push(`alias: must match ${PUBLIC_LABEL_RE} (a public display name)`);
+  if (x.groupByPrefix !== undefined && typeof x.groupByPrefix !== 'boolean')
+    p.push('groupByPrefix: must be true or false');
+  if (x.publicTaskIds !== undefined && typeof x.publicTaskIds !== 'boolean')
+    p.push('publicTaskIds: must be true or false');
+  if (x.groups !== undefined) {
+    if (!isObj(x.groups)) p.push('groups: must be an object {group id: public label}');
+    else
+      for (const [k, v] of Object.entries(x.groups)) {
+        if (!GROUP_RE.test(k)) p.push(`groups.${k}: group id must match ${GROUP_RE}`);
+        if (typeof v !== 'string' || !PUBLIC_LABEL_RE.test(v))
+          p.push(`groups.${k}: label must match ${PUBLIC_LABEL_RE}`);
+      }
+  }
   if (!Array.isArray(x.sources) || x.sources.length === 0)
     p.push('sources: must be a non-empty array');
   else {
@@ -212,6 +265,8 @@ export function suiteProblems(x: unknown): string[] {
       else ids.add(t.id);
       if (t.size !== undefined && !SIZES.includes(t.size as TaskSize))
         p.push(`${at}.size: must be one of ${SIZES.join(', ')}`);
+      if (t.group !== undefined && (typeof t.group !== 'string' || !GROUP_RE.test(t.group)))
+        p.push(`${at}.group: must match ${GROUP_RE}`);
       if (typeof t.prompt !== 'string' || !t.prompt.trim())
         p.push(`${at}.prompt: must be a non-empty string`);
       const c = t.checker;
@@ -245,8 +300,7 @@ export function suiteProblems(x: unknown): string[] {
     });
   }
   for (const k of Object.keys(x)) {
-    if (!['schema', 'id', 'description', 'private', 'redact', 'sources', 'tasks'].includes(k))
-      p.push(`${k}: unknown field`);
+    if (!SUITE_KEYS.includes(k)) p.push(`${k}: unknown field`);
   }
   return p;
 }
