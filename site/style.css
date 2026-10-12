@@ -673,6 +673,25 @@ ul.runs {
 .rk-open {
   grid-area: open;
 }
+/* Run groups (BENCH_CONFIG.HISTORY): one heading per run, rows below. */
+.run-group {
+  margin-top: 20px;
+}
+.run-group-title {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+  margin: 0 0 4px;
+}
+.run-group-baseline .run-group-title {
+  color: var(--sub);
+}
+.run-group-note {
+  margin: 0 0 6px;
+}
 @media (max-width: 719px) {
   .runs-head {
     display: none;

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>code-context benchmark</title>
+    <title>Benchmarks · code-context</title>
     <meta
       name="description"
       content="Benchmarks for the code-context MCP server: simulated context efficiency, real agent runs with vs without code-context, and pre-registered Claude Code sessions."
@@ -57,7 +57,7 @@
       </div>
       <header class="top">
         <pre class="wordmark" id="wordmark" aria-hidden="true">CODE CONTEXT</pre>
-        <h1 class="visually-hidden">code-context benchmark</h1>
+        <h1 class="visually-hidden">Benchmarks</h1>
         <p class="tagline">
           Benchmarks for the <a id="repo-link" href="#">code-context MCP server</a> &mdash; run on
           demand, never on a schedule.
@@ -104,20 +104,17 @@
             <span class="marker" aria-hidden="true">// 02</span> ALL RUNS
           </h2>
           <p class="sub">
-            Every published run, newest first, across all kinds. History is append-only: runs are
-            never rewritten or deleted.
+            Every run on this page, newest first. One run is one publish date and holds one result
+            per kind. Run files are never rewritten.
           </p>
+          <p class="note" id="history-reset" hidden></p>
           <div class="note" id="history-caveat">
-            <strong>Agent runs before 2026-10-11 00:00 UTC are not comparable.</strong>
+            <strong>How to read the runs.</strong>
             <ul>
               <li>
-                Their task prompts told every arm to "use the built-in file tools", so the cc arm
-                never called code-context (0 calls in 30 sessions). Their cc token figures measure
-                the cost of loading the tool list, not of using the server.
-              </li>
-              <li>
-                Runs since then use neutral prompts, a third arm <em>cc-guided</em> (the server plus
-                the instruction to use it first) and the 11-tool code profile.
+                Agent runs use neutral task prompts and three arms: vanilla, <em>cc</em> (the server)
+                and <em>cc-guided</em> (the server plus the instruction to use it first). The cc arms
+                run the code tool profile (<code>CODE_CONTEXT_TOOLSETS=code</code>).
               </li>
               <li>
                 Uncached tokens (input + output + cache write) and cost show as

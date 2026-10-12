@@ -43,6 +43,22 @@ window.BENCH_CONFIG = {
   KNOWN_TREATMENT_FAILURES: {
     '20261009-101417': '0 of 12 cc sessions called code-context, per the prereg v2 change log',
   },
+  // History restart (owner decision, 2026-10-13). The page lists only:
+  //   - the runs published at or after `since`, grouped by publish date as
+  //     "Run 1", "Run 2", … (Run 1 = the oldest date kept), and
+  //   - the fixed baseline runs below, loaded from site/baseline/.
+  // Older runs stay unchanged on the bench-results branch; `note` says so on
+  // the page. Set HISTORY to null to list every published run again.
+  HISTORY: {
+    since: '2026-10-11T14:00:00Z',
+    restarted: '2026-10-13',
+    note: 'History restarted on 2026-10-13. Earlier runs used task prompts that steered every arm away from code-context, or an older method, so they are not comparable. They stay unchanged on the bench-results branch.',
+    baseline: {
+      label: 'Baseline',
+      note: 'Simulated only, June 2026. Older tool set: code-context 2.0.0 had no who_imports, exports_in, export signatures or import lines.',
+      files: ['baseline/sim-20260611-182528.json'],
+    },
+  },
   REPO: 'https://github.com/VelimirMueller/code-context-mcp',
   // Flagship brand tokens for the SVG charts. The full set lives in style.css
   // (page/text/line/grid/green per theme); these are the ones JS draws with.

@@ -1,0 +1,36 @@
+{
+  "schema": "ccc-bench-snapshot/1",
+  "date": "2026-10-11",
+  "site": "https://velimirmueller.github.io/code-context-mcp/",
+  "source": "bench-results branch, data/runs/",
+  "runs": [
+    {
+      "run_id": "dsk-20261011-193311",
+      "kind": "agent-deepseek",
+      "model": "deepseek/deepseek-v4-pro",
+      "ts": "2026-10-11T19:33:11Z",
+      "file": "dsk-20261011-193311.json"
+    },
+    {
+      "run_id": "glm-20261011-184607",
+      "kind": "agent-glm",
+      "model": "zai-coding-plan/glm-5.3",
+      "ts": "2026-10-11T18:46:07Z",
+      "file": "glm-20261011-184607.json"
+    },
+    {
+      "run_id": "opus-20261011-145449",
+      "kind": "agent-opus",
+      "model": "claude-opus-5-5",
+      "ts": "2026-10-11T14:54:49Z",
+      "file": "opus-20261011-145449.json"
+    },
+    {
+      "run_id": "sim-20261011-145451",
+      "kind": "simulated",
+      "model": null,
+      "ts": "2026-10-11T14:54:51Z",
+      "file": "sim-20261011-145451.json"
+    }
+  ]
+}
