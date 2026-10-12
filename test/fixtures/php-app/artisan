@@ -1,0 +1,3 @@
+#!/usr/bin/env php
+<?php
+// Synthetic fixture: marks this directory as a Laravel app, so storage/ is skipped.

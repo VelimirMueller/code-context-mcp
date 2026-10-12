@@ -173,25 +173,34 @@ server.tool(
 
 // ─── Tool: find_symbol ───────────────────────────────────────────────────────
 const findSymbolStmt = db.prepare(`
-  SELECT e.name, e.kind, f.path, f.summary, f.size_bytes, f.modified_at, f.indexed_at
+  SELECT e.name, e.kind, e.description, f.path, f.extension, f.summary, f.size_bytes, f.modified_at, f.indexed_at
   FROM exports e JOIN files f ON e.file_id = f.id
   WHERE e.name LIKE ?
   ORDER BY e.name
+`);
+// PHP (CCA-16): exports.description holds the namespace-qualified name, so
+// `App\Models\User` (leading backslash optional, % wildcard) finds it too.
+const findQualifiedStmt = db.prepare(`
+  SELECT e.name, e.kind, e.description, f.path, f.extension, f.summary, f.size_bytes, f.modified_at, f.indexed_at
+  FROM exports e JOIN files f ON e.file_id = f.id
+  WHERE f.extension = '.php' AND e.description LIKE ?
+  ORDER BY e.description
 `);
 server.tool(
   "find_symbol",
   "Where is symbol X defined? Lists the files that export a function, class, type or constant by that name.",
   {
-    name: z.string().describe("Symbol name; % is a wildcard"),
+    name: z.string().describe("Symbol name (PHP: short or namespace-qualified); % is a wildcard"),
     absolute_paths: z.boolean().optional().describe(ABSOLUTE_PATHS_DESC),
   },
   async ({ name, absolute_paths }) => {
     const show = pathDisplay(db, { absolute: absolute_paths });
-    type Row = FreshRow & { name: string; kind: string; summary: string; indexed_at: string };
+    type Row = FreshRow & { name: string; kind: string; description: string | null; extension: string | null; summary: string; indexed_at: string };
     const repo = fresh.checkRepos();
-    let rows = findSymbolStmt.all(name) as Row[];
+    const lookup = () => (name.includes("\\") ? findQualifiedStmt.all(name.replace(/^\\/, "")) : findSymbolStmt.all(name)) as Row[];
+    let rows = lookup();
     const files = fresh.checkFiles(rows);
-    if (files.changed) rows = findSymbolStmt.all(name) as Row[];
+    if (files.changed) rows = lookup();
     const notice = freshnessNotice(repo, files);
 
     if (rows.length === 0) {
@@ -199,7 +208,8 @@ server.tool(
     }
 
     const stamp = showTimestamps();
-    const text = rows.map(r => `${r.name} (${r.kind}) — ${show(r.path)}\n  ${r.summary}${stamp ? ` | indexed ${r.indexed_at}` : ""}`).join("\n\n");
+    const label = (r: Row) => (r.extension === ".php" && r.description ? r.description : r.name);
+    const text = rows.map(r => `${label(r)} (${r.kind}) — ${show(r.path)}\n  ${r.summary}${stamp ? ` | indexed ${r.indexed_at}` : ""}`).join("\n\n");
     return { content: [{ type: "text", text: notice + text }] };
   }
 );

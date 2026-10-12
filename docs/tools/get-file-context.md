@@ -15,10 +15,10 @@ What a file exports (one-line signatures with line numbers), its raw import line
 ## Output Sections
 
 - **Header**: path, language, size, line count, timestamps, summary, and `description` (when it differs from the summary)
-- **Exports**: `L<line> <signature>` per export (`function formatDate(date: Date): string`, `class Client(models.Base)`, `const area = (s: Shape): number =>`). Signatures are one line, without bodies, capped at 160 characters. Re-exports show `name (re-export)`. At most 40 are listed, then `+N more`.
-- **Import lines**: the file's own `import … from '…'`, `export … from '…'`, `require(…)` (JS/TS) and `import …` / `from … import …` (Python) statements, one line each with its line number. At most 30, then `+N more`.
-- **External packages**: third-party imports. A tsconfig/jsconfig path alias that resolves to a repo file (`@/lib/format`) is not listed here.
-- **Imports from**: local file dependencies with symbols, through relative imports and tsconfig/jsconfig path aliases ([rules](./who-imports.md#path-aliases-tsconfig-jsconfig))
+- **Exports**: `L<line> <signature>` per export (`function formatDate(date: Date): string`, `class Client(models.Base)`, `const area = (s: Shape): number =>`, `final class OrderService extends BaseService implements HasEvents`). Signatures are one line, without bodies, capped at 160 characters. Re-exports show `name (re-export)`. At most 40 are listed, then `+N more`.
+- **Import lines**: the file's own `import … from '…'`, `export … from '…'`, `require(…)` (JS/TS), `import …` / `from … import …` (Python) and top-level `use …;` (PHP) statements, one line each with its line number. At most 30, then `+N more`.
+- **External packages**: third-party imports. A tsconfig/jsconfig path alias that resolves to a repo file (`@/lib/format`) is not listed here. PHP: the namespace root of each name outside the project's PSR-4 prefixes, such as `Illuminate`.
+- **Imports from**: local file dependencies with symbols, through relative imports, tsconfig/jsconfig path aliases ([rules](./who-imports.md#path-aliases-tsconfig-jsconfig)) and PHP names ([rules](./who-imports.md#php))
 - **Imported by**: reverse dependencies (who uses this file)
 - **Recent changes**: only with `include_changes: true`
 

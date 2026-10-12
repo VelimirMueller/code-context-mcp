@@ -18,14 +18,20 @@
  * A name the target does not export (a renamed default import, a Python
  * `import pkg.mod`) also counts as a whole-module use. Every rule errs on
  * "used": exports_in never calls an imported export unused.
+ *
+ * PHP edges (CCA-16) carry the short names of the classes, functions and
+ * constants the file references in the target (`use`, extends, implements,
+ * trait use, `new`, `::`, type hints), so they read as named imports. A PHP
+ * symbol can also be asked for by its qualified name (`App\Models\User`).
  */
 import path from "node:path";
 import type Database from "better-sqlite3";
 import { freshnessNotice, type FreshnessGuard, type FreshRow } from "./freshness.js";
 import { resolveToolPath, displayBase, canonicalPath } from "./path-resolve.js";
 import { parseStoredImportLines } from "./signatures.js";
-import { parseImports, parsePythonImports, resolveImportPath, resolvePythonImportTargets, isPathInside } from "./indexer.js";
+import { parseImports, parsePythonImports, resolveImportPath, resolvePythonImportTargets, isPathInside, phpLookup } from "./indexer.js";
 import { AliasResolver } from "./tsconfig-paths.js";
+import { parsePhp, phpEdges, PhpResolver } from "./php.js";
 
 export const MAX_LISTED_IMPORTERS = 100;
 export const MAX_LISTED_EXPORTS_IN = 150;
@@ -172,8 +178,27 @@ function rootOf(db: Database.Database, p: string): string {
   return path.parse(p).root;
 }
 
+const phpLookups = new WeakMap<Database.Database, ReturnType<typeof phpLookup>>();
+
+/**
+ * PHP: lines of the `use` statements that reach `targetPath`; for a file that
+ * reaches it without one (same namespace, extends \A\B, …) the first line
+ * that references it.
+ */
+function phpLinesTo(db: Database.Database, importer: FileRow, targetPath: string): number[] {
+  const row = db.prepare(`SELECT content FROM files WHERE id = ?`).get(importer.id) as { content: string | null } | undefined;
+  if (!row?.content) return [];
+  let lookup = phpLookups.get(db);
+  if (!lookup) { lookup = phpLookup(db); phpLookups.set(db, lookup); }
+  const resolver = new PhpResolver(rootOf(db, importer.path), lookup);
+  const e = phpEdges(parsePhp(row.content), importer.path, resolver).edges.get(targetPath);
+  if (!e) return [];
+  return e.useLines.length ? [...new Set(e.useLines)] : [Math.min(...e.lines)];
+}
+
 /** Line numbers in `importer`'s stored import lines whose module resolves to `targetPath`. */
 function importLinesTo(db: Database.Database, g: Graph, importer: FileRow, targetPath: string): number[] {
+  if (importer.extension === ".php") return phpLinesTo(db, importer, targetPath);
   const lines = parseStoredImportLines(importer.import_lines);
   if (lines.length === 0) return [];
   const root = rootOf(db, importer.path);
@@ -197,6 +222,8 @@ function capped<T>(items: T[], max: number, render: (t: T) => string): string[] 
 }
 
 const IDENT = /^[A-Za-z_$][\w$]*$/;
+/** A namespace-qualified PHP name: `App\Models\User`, `\App\Models\User`. */
+const PHP_QUALIFIED = /^\\?[A-Za-z_][\w]*(?:\\[A-Za-z_][\w]*)+$/;
 const escapeLike = (s: string): string => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 interface Entry {
@@ -279,17 +306,21 @@ export function whoImports(db: Database.Database, target: string, { show, fresh 
   const repo = fresh?.checkRepos() ?? { warnings: [], reindexed: 0, dropped: 0 };
   const acc = { reindexed: 0, dropped: 0 };
 
-  if (IDENT.test(target)) {
+  const qualified = PHP_QUALIFIED.test(target) ? target.replace(/^\\/, "") : null;
+  if (IDENT.test(target) || qualified) {
+    // A qualified PHP name: the file that declares it (exports.description), asked by its short name.
+    const symbol = qualified ? qualified.slice(qualified.lastIndexOf("\\") + 1) : target;
     const definersStmt = db.prepare(
       `SELECT DISTINCT ${FILE_COLS}, MIN(CASE WHEN e.kind = 're-export' THEN 1 ELSE 0 END) AS re
-       FROM exports e JOIN files f ON f.id = e.file_id WHERE e.name = ? GROUP BY f.id ORDER BY re, f.path`,
+       FROM exports e JOIN files f ON f.id = e.file_id WHERE e.name = ?${qualified ? ` AND e.description = ? AND f.extension = '.php'` : ""}
+       GROUP BY f.id ORDER BY re, f.path`,
     );
     const compute = () => {
-      const rows = definersStmt.all(target) as (FileRow & { re: number })[];
+      const rows = (qualified ? definersStmt.all(symbol, qualified) : definersStmt.all(target)) as (FileRow & { re: number })[];
       const own = rows.filter((r) => r.re === 0);
       const definers = own.length ? own : rows;
       const g = new Graph(db);
-      return { definers, results: definers.slice(0, MAX_SYMBOL_DEFINERS).map((d) => ({ d, ...importersOf(db, g, d, target) })) };
+      return { definers, results: definers.slice(0, MAX_SYMBOL_DEFINERS).map((d) => ({ d, ...importersOf(db, g, d, symbol) })) };
     };
     let r = compute();
     if (r.definers.length > 0) {
@@ -306,6 +337,7 @@ export function whoImports(db: Database.Database, target: string, { show, fresh 
       if (r.definers.length > MAX_SYMBOL_DEFINERS) out.push(`+${r.definers.length - MAX_SYMBOL_DEFINERS} more files export "${target}"`);
       return { text: notice + out.join("\n") };
     }
+    if (qualified) return { text: `${freshnessNotice(repo, acc)}No indexed PHP file declares "${qualified}".` };
     // No export by that name: maybe a bare file name ("schema") — try it as a path.
   }
 
