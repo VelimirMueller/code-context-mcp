@@ -106,11 +106,16 @@ const CASES: Record<string, string> = {
   "minified: 20k classes on one line": "<?php namespace A;" + list(20_000, (i) => `class C${i} extends B implements I{function f(X $x):Y{return new Z;}}`),
 };
 
+// The quadratic or exponential versions took 1–22 s (or crashed) on these inputs;
+// linear code takes < 100 ms locally and ~300 ms on a GitHub runner. 2 s keeps a
+// 10x margin over runner noise and still fails on any regression.
+const BOUND_MS = 2000;
+
 describe("parsePhp on crafted 1 MB inputs: linear time, bounded results", () => {
   for (const [name, src] of Object.entries(CASES)) {
-    it(`${name}: < 200 ms`, () => {
+    it(`${name}: < ${BOUND_MS} ms`, () => {
       const { ms, result } = timed(() => parsePhp(src));
-      expect(ms).toBeLessThan(200);
+      expect(ms).toBeLessThan(BOUND_MS);
       expectSane(result);
     });
   }
@@ -276,7 +281,7 @@ describe("get_file_context snippets on crafted lines (declarationLines)", () => 
     const content = "<?php\nfunction f() {\n'" + "\\".repeat(100_000) + "\n}\n";
     const t = performance.now();
     const { lines } = declarationLines(content, 2, ".php", 40);
-    expect(performance.now() - t).toBeLessThan(200);
+    expect(performance.now() - t).toBeLessThan(BOUND_MS);
     expect(lines).toHaveLength(3);
   });
 
