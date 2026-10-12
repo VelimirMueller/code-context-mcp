@@ -1,0 +1,57 @@
+name: Benchmark snapshot
+
+# Keeps a copy of the last published benchmark run in the repository
+# (benchmarks/latest/), next to the code it measured. The last run is the
+# newest run of each kind on the newest publish date, the same rule the
+# benchmark site uses for "Run N". Source: the bench-results branch, written
+# by bench:publish and benchmark.yml. The change lands as a PR, never as a
+# direct push to main. It runs only when bench-results changes, never on a timer.
+on:
+  push:
+    branches: [bench-results]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: bench-snapshot
+  cancel-in-progress: true
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out main
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: main
+
+      - name: Read the bench-results data
+        run: |
+          set -euo pipefail
+          git fetch --depth 1 origin bench-results
+          mkdir -p "$RUNNER_TEMP/bench"
+          git archive FETCH_HEAD data | tar -x -C "$RUNNER_TEMP/bench"
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Copy the last run into benchmarks/latest/
+        run: node scripts/bench/snapshot.mjs "$RUNNER_TEMP/bench/data" benchmarks/latest
+
+      - name: Open or update the snapshot PR
+        uses: peter-evans/create-pull-request@v8
+        with:
+          branch: chore/bench-snapshot
+          add-paths: |
+            benchmarks/latest/
+          commit-message: 'chore(bench): copy the last benchmark run into benchmarks/latest'
+          title: 'chore(bench): snapshot of the last benchmark run'
+          body: |
+            Automated copy of the last published benchmark run from the `bench-results` branch
+            into `benchmarks/latest/` (newest run of each kind on the newest publish date).
+            `manifest.json` lists the runs. The numbers are unchanged copies; the site shows the
+            same run: https://velimirmueller.github.io/code-context-mcp/
