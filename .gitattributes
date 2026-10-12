@@ -1,3 +1,4 @@
 site/assets/*.svg binary
 assets/banner/*.svg -diff linguist-generated=true
 assets/readme/*.svg -diff linguist-generated=true
+assets/**/*.svg binary
