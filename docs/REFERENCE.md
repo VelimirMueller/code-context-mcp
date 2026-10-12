@@ -79,6 +79,12 @@ Since 2.2, the QA gate also checks **commit discipline**: a ticket can't reach `
 
 ## Release highlights
 
+### Unreleased — PHP in the Index 🐘
+
+- **`find_symbol`, `who_imports`, `exports_in` and `get_file_context` work for PHP repos.** `.php` files get exports with one-line signatures and lines: `class` (incl. `abstract`/`final`/`readonly`), `interface`, `trait`, `enum`, top-level `function` and `const`. `exports.name` is the short name, `exports.description` the namespace-qualified name, so `find_symbol` and `who_imports` take either (`OrderService`, `App\Services\OrderService`).
+- **Edges resolve through `composer.json` PSR-4.** `use` (grouped, aliased, `use function`, `use const`), `extends`, `implements`, trait `use` and class names in code (`new`, `::`, `::class`, type hints, `\A\B`) resolve via the nearest `composer.json` `autoload` / `autoload-dev` PSR-4 maps (a `composer.json` in a subdirectory such as `laravel/` works), then via the indexed declarations. Same-namespace classes need no `use`. Vendor namespaces land in `external_imports`; `vendor/` and Laravel `storage/` stay unindexed. `files.import_lines` holds the `use` lines.
+- **Comments, strings, heredoc/nowdoc and inline HTML never create exports or edges.** A small TypeScript state machine blanks them before the declarations are read. No PHP runtime and no new dependency. A synthetic 1,501-file tree (7.9 MB) indexes in about 0.8 s.
+
 ### Unreleased — GitHub sync 🔁
 
 - **Project key.** `set_project` maps a short key to a GitHub repo and Project board. Milestones, sprints, epics and tickets take `project`; tickets inherit it from their sprint, milestone or epic. The list tools filter by it. Schema v26 leaves existing rows unassigned.

@@ -6,7 +6,7 @@ Which files import X? X is a file or an exported symbol. The answer is the compl
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `target` | string | yes | A file path (repo-relative, absolute, a unique suffix such as `core.ts`, or a bare module name such as `schema`) or an exported symbol name (`initSchema`). |
+| `target` | string | yes | A file path (repo-relative, absolute, a unique suffix such as `core.ts`, or a bare module name such as `schema`) or an exported symbol name (`initSchema`). PHP symbols also by qualified name (`App\Models\User`, leading `\` optional). |
 | `absolute_paths` | boolean | no | Print absolute paths instead of project-relative ones. |
 
 A bare identifier is read as a symbol first. When no indexed file exports that name, it is read as a file name.
@@ -24,7 +24,7 @@ Symbol mode lists the file that defines the symbol (not a barrel that only re-ex
 
 ## What the graph holds
 
-Edges come from relative imports of indexed files and from tsconfig/jsconfig path aliases: `import … from`, `import type`, side-effect `import '…'`, `export … from`, dynamic `import('…')` and `require('…')` (JS/TS), and `import` / `from … import` (Python). Not in the graph: package imports and files the index skips (git-ignored, binary or over the size limit). Databases indexed before this release lack the re-export, type-import and dynamic-import edges until the next full re-index.
+Edges come from relative imports of indexed files and from tsconfig/jsconfig path aliases: `import … from`, `import type`, side-effect `import '…'`, `export … from`, dynamic `import('…')` and `require('…')` (JS/TS), `import` / `from … import` (Python), and for PHP: `use` (grouped, aliased, `use function`, `use const`), `extends`, `implements`, trait `use`, and class names in code (`new X`, `X::`, `X::class`, `instanceof`, `catch`, type hints, `\A\B` names). Not in the graph: package imports and files the index skips (git-ignored, binary or over the size limit). Databases indexed before this release lack the re-export, type-import and dynamic-import edges until the next full re-index.
 
 ### Path aliases (tsconfig / jsconfig)
 
@@ -37,6 +37,14 @@ A bare specifier such as `@/lib/format` or `components/Button` resolves the way 
 - **Files**: the same probing as a relative import (`.ts`, `.tsx`, `.d.ts`, `.js`, `.jsx`, `.mjs`, `.cjs`, `/index.*`); a `.js` specifier finds its `.ts` source. A target outside the index root never resolves.
 
 Not read: Vite `resolve.alias` (the usual setup mirrors tsconfig `paths`), webpack aliases, `package.json` `imports`. A changed tsconfig takes effect on the next full re-index of the repo.
+
+### PHP
+
+- A name resolves the way PHP resolves it: fully qualified as written, else through the file's `use` aliases, else in the file's namespace. A same-namespace class needs no `use`; it is an edge when that class is indexed.
+- The file comes from the nearest `composer.json` `autoload.psr-4` / `autoload-dev.psr-4` map (paths relative to that `composer.json`, which may sit in a subdirectory such as `laravel/`; every `composer.json` up to the indexed root is tried), then from the indexed declarations (classmap and `files` autoloads, functions, constants).
+- `vendor/` and Laravel `storage/` are not indexed. A name under no project PSR-4 prefix (`Illuminate\…`) goes to the file's external packages as its namespace root (`Illuminate`), not to the graph. Global names (`\Exception`) are neither.
+- Comments, strings, heredoc/nowdoc and inline HTML (Blade views) create no edge. A controller named only in a string (`'App\Http\Controllers\X@show'`) is not an edge; `[X::class, 'show']` is.
+- The line numbers are the `use` statements that reach the target; a file that reaches it without one (same namespace, `extends \A\B`) shows its first reference.
 
 ## Example
 

@@ -268,6 +268,7 @@ planning → implementation → done → rest
 ### Tech stack and engine numbers
 
 - Runtime: Node.js 24 LTS. Build: TypeScript strict mode.
+- Languages with exports and import edges: TypeScript/JavaScript, Python and PHP (classes, interfaces, traits, enums, functions, constants; `use` statements resolved through `composer.json` PSR-4 maps). Other files are indexed with a summary only.
 - Database: SQLite via better-sqlite3, WAL mode. 33 tables (27 scrum + 6 code).
 - MCP protocol: @modelcontextprotocol/sdk. 97 MCP tools by default, 103 with `CODE_CONTEXT_TOOLSETS=all`, 6 with `CODE_CONTEXT_TOOLSETS=code` (`find_symbol`, `get_file_context`, `who_imports`, `exports_in`, `search_files`, `query`). The server sends short MCP `instructions` (about 90 tokens) on when to use the graph tools.
 - Output env vars: `OVERDRIVE_FLAIR` (flair header/footer on text results: on by default, off under `code`; `0`/`1` force it), `CODE_CONTEXT_TIMESTAMPS=1` (adds `modified`/`indexed` timestamps; off by default), `CODE_CONTEXT_ABSOLUTE_PATHS=1` (absolute paths). See [REFERENCE](docs/REFERENCE.md).

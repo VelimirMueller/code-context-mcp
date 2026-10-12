@@ -6,6 +6,7 @@ import { admitFile, isDeniedDir, isDeniedFileName, looksBinary } from "./index-p
 import { gitListFiles, isGitCheckout, readGitHead } from "./git.js";
 import { AliasResolver, probeFile } from "./tsconfig-paths.js";
 import { DEFAULT_EXPORT_SRC, NAMED_EXPORT_SRC, exportDetails, importLines, serializeImportLines } from "./signatures.js";
+import { parsePhp, phpEdges, PhpResolver, type PhpLookup, type PhpParse } from "./php.js";
 
 // ─── .gitignore support ─────────────────────────────────────────────────────
 interface GitignorePattern {
@@ -67,9 +68,10 @@ const SKIP_DIRS = SKIP_DIR_NAMES;
 
 const PARSEABLE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
 const PYTHON_EXTENSIONS = new Set([".py", ".pyi"]);
+const PHP_EXTENSION = ".php";
 
 function isParsedExtension(ext: string): boolean {
-  return PARSEABLE_EXTENSIONS.has(ext) || PYTHON_EXTENSIONS.has(ext);
+  return PARSEABLE_EXTENSIONS.has(ext) || PYTHON_EXTENSIONS.has(ext) || ext === PHP_EXTENSION;
 }
 
 const LANG_MAP: Record<string, string> = {
@@ -465,9 +467,10 @@ function extractPythonExternalPackages(content: string, filePath: string, rootDi
   return Array.from(packages).sort();
 }
 
-/** Dispatch to the Python or JS/TS export parser for a file extension. */
+/** Dispatch to the Python, PHP or JS/TS export parser for a file extension. */
 function parseFileExports(content: string, ext: string): ParsedExport[] {
   if (PYTHON_EXTENSIONS.has(ext)) return parsePythonExports(content);
+  if (ext === PHP_EXTENSION) return parsePhp(content).exports.map((e) => ({ name: e.name, kind: e.kind, description: e.fqn }));
   if (PARSEABLE_EXTENSIONS.has(ext)) return parseExports(content);
   return [];
 }
@@ -856,7 +859,7 @@ function generateFileDescription(filePath: string, lang: string, ext: string, li
   // What does it export?
   if (exports.length > 0) {
     const fns = exports.filter(e => e.kind === "function").map(e => e.name);
-    const types = exports.filter(e => ["type", "interface", "enum"].includes(e.kind)).map(e => e.name);
+    const types = exports.filter(e => ["type", "interface", "enum", "trait"].includes(e.kind)).map(e => e.name);
     const classes = exports.filter(e => e.kind === "class").map(e => e.name);
     const consts = exports.filter(e => e.kind === "const").map(e => e.name);
     if (fns.length) parts.push(`exports ${fns.join(", ")}`);
@@ -1041,6 +1044,8 @@ interface FileStatements {
   insertExport: Database.Statement;
   clearDeps: Database.Statement;
   insertDep: Database.Statement;
+  setExternals: Database.Statement;
+  phpDeclared: Database.Statement;
 }
 
 function prepareFileStatements(db: Database.Database): FileStatements {
@@ -1063,7 +1068,18 @@ function prepareFileStatements(db: Database.Database): FileStatements {
     insertExport: db.prepare(`INSERT INTO exports (file_id, name, kind, description, signature, line) VALUES (?, ?, ?, ?, ?, ?)`),
     clearDeps: db.prepare(`DELETE FROM dependencies WHERE source_id = ?`),
     insertDep: db.prepare(`INSERT OR IGNORE INTO dependencies (source_id, target_id, symbols) VALUES (?, ?, ?)`),
+    setExternals: db.prepare(`UPDATE files SET external_imports = ? WHERE id = ?`),
+    // PHP exports keep the namespace-qualified name in exports.description (CCA-16)
+    phpDeclared: db.prepare(
+      `SELECT f.path, e.name, e.kind FROM exports e JOIN files f ON f.id = e.file_id
+       WHERE e.name = ? AND e.description = ? AND f.extension = '.php' ORDER BY f.path LIMIT 5`,
+    ),
   };
+}
+
+/** The index as PhpResolver sees it: indexed paths and PHP declarations by qualified name. */
+export function phpLookup(db: Database.Database): PhpLookup {
+  return phpLookupFrom(prepareFileStatements(db));
 }
 
 /**
@@ -1079,16 +1095,25 @@ function storeFile(st: FileStatements, filePath: string, rootDir: string, aliase
   if (content === null) return null;
 
   const lineCount = countLines(content);
-  const summary = extractSummary(content, filePath, ext);
+  let summary = extractSummary(content, filePath, ext);
 
   let externals: string | null = null;
-  if (PARSEABLE_EXTENSIONS.has(ext)) {
+  // PHP: parsed once; edges and exact externals follow in storeDeps (phase 2),
+  // here the externals are the use/qualified names outside the project's PSR-4
+  // prefixes (enough for the auto description).
+  const php: PhpParse | null = ext === PHP_EXTENSION ? parsePhp(content) : null;
+  if (php) {
+    // a file too large to parse, or one a per-file cap cut short, says so (php.ts limits)
+    if (php.limited) summary = `${summary} (${php.limited})`;
+    const resolver = new PhpResolver(rootDir, { isIndexed: () => false, declared: () => [] });
+    externals = [...new Set(php.refs.map((r) => resolver.externalOf(r, filePath)).filter((x): x is string => !!x))].sort().join(", ") || null;
+  } else if (PARSEABLE_EXTENSIONS.has(ext)) {
     externals = extractExternalImports(parseImports(content), filePath, aliases).join(", ") || null;
   } else if (PYTHON_EXTENSIONS.has(ext)) {
     externals = extractPythonExternalPackages(content, filePath, rootDir).join(", ") || null;
   }
 
-  const imports = isParsedExtension(ext) ? serializeImportLines(importLines(content, ext)) : null;
+  const imports = php ? serializeImportLines(php.useLines) : isParsedExtension(ext) ? serializeImportLines(importLines(content, ext)) : null;
   st.upsertFile.run(filePath, lang, ext, meta.sizeBytes, lineCount, summary, externals, imports, content, meta.createdAt, meta.modifiedAt);
   const row = st.getFileId.get(filePath) as { id: number };
 
@@ -1101,6 +1126,11 @@ function storeFile(st: FileStatements, filePath: string, rootDir: string, aliase
 
   st.clearExports.run(row.id);
   let exportCount = 0;
+  if (php) {
+    // name = short name (graph symbols, find_symbol); description = qualified name
+    for (const e of php.exports) st.insertExport.run(row.id, e.name, e.kind, e.fqn, e.signature, e.line);
+    return { lines: lineCount, exports: php.exports.length, content };
+  }
   const details = isParsedExtension(ext) ? exportDetails(content, ext) : new Map();
   for (const exp of parseFileExports(content, ext)) {
     const d = details.get(exp.name);
@@ -1110,13 +1140,26 @@ function storeFile(st: FileStatements, filePath: string, rootDir: string, aliase
   return { lines: lineCount, exports: exportCount, content };
 }
 
-/** Rebuild the outgoing dependency edges of one JS/TS or Python file. */
-function storeDeps(st: FileStatements, filePath: string, content: string, rootDir: string, aliases: AliasResolver): number {
+/** Rebuild the outgoing dependency edges of one JS/TS, Python or PHP file. */
+function storeDeps(st: FileStatements, filePath: string, content: string, rootDir: string, aliases: AliasResolver, php?: PhpResolver): number {
   const ext = path.extname(filePath).toLowerCase();
   if (!isParsedExtension(ext)) return 0;
   const sourceRow = st.getFileId.get(filePath) as { id: number } | undefined;
   if (!sourceRow) return 0;
   st.clearDeps.run(sourceRow.id);
+  if (ext === PHP_EXTENSION) {
+    const resolver = php ?? new PhpResolver(rootDir, phpLookupFrom(st));
+    const { edges, externals } = phpEdges(parsePhp(content), filePath, resolver);
+    st.setExternals.run(externals.join(", ") || null, sourceRow.id);
+    let n = 0;
+    for (const [target, e] of edges) {
+      const targetRow = st.getFileId.get(target) as { id: number } | undefined;
+      if (!targetRow || targetRow.id === sourceRow.id) continue;
+      st.insertDep.run(sourceRow.id, targetRow.id, [...e.symbols].join(", "));
+      n++;
+    }
+    return n;
+  }
   // One edge per target (UNIQUE(source_id, target_id)): every statement that
   // reaches the same file adds its symbols to that edge, in source order.
   const byTarget = new Map<number, Set<string>>();
@@ -1134,6 +1177,13 @@ function storeDeps(st: FileStatements, filePath: string, content: string, rootDi
   }
   for (const [targetId, syms] of byTarget) st.insertDep.run(sourceRow.id, targetId, [...syms].join(", "));
   return byTarget.size;
+}
+
+function phpLookupFrom(st: FileStatements): PhpLookup {
+  return {
+    isIndexed: (p) => st.getFileId.get(p) !== undefined,
+    declared: (fqn) => st.phpDeclared.all(fqn.slice(fqn.lastIndexOf("\\") + 1), fqn) as Array<{ path: string; name: string; kind: string }>,
+  };
 }
 
 /** Delete file rows (and their exports/edges) by path. Returns rows removed. */
@@ -1200,7 +1250,8 @@ export function refreshFiles(
       if (stored) keep.push({ path: p, content: stored.content });
       else if (readText(p) === null && fs.existsSync(p) && isBinaryOnDisk(p)) drop.push(p);
     }
-    for (const k of keep) storeDeps(st0, k.path, k.content, root, aliases);
+    const php = new PhpResolver(root, phpLookupFrom(st0));
+    for (const k of keep) storeDeps(st0, k.path, k.content, root, aliases, php);
   })();
   const dropped = removeFiles(db, drop);
   diffAndLogChanges(db, before, snapshotFromDb(db, { paths: unique }));
@@ -1345,13 +1396,14 @@ export function indexDirectory(db: Database.Database, dirPath: string): { files:
     }
   })();
 
-  // Phase 2: resolve dependencies (JS/TS and Python)
+  // Phase 2: resolve dependencies (JS/TS, Python and PHP)
+  const php = new PhpResolver(rootDir, phpLookupFrom(st));
   db.transaction(() => {
     for (const filePath of filePaths) {
       if (!isParsedExtension(path.extname(filePath).toLowerCase())) continue;
       const content = readText(filePath);
       if (content === null) continue;
-      depCount += storeDeps(st, filePath, content, rootDir, aliases);
+      depCount += storeDeps(st, filePath, content, rootDir, aliases, php);
     }
   })();
 

@@ -1,0 +1,7 @@
+{
+  "name": "acme/billing",
+  "description": "Second package with its own PSR-4 map",
+  "autoload": {
+    "psr-4": { "Acme\\Billing\\": "src/" }
+  }
+}

@@ -29,6 +29,8 @@ The answer is conservative: an export that some file imports is never reported a
 | A name the file does not export (a renamed default import, a Python `import pkg.mod`) | every export of the file is used |
 | Side-effect `import '…'` | no export is used |
 
+PHP exports are classes, interfaces, traits, enums, top-level functions and `const` constants (no methods, no class constants). A PHP edge names the classes, functions and constants a file takes from the target, so it counts like a named import. A class used only through a string (container bindings, `'X@method'` routes) shows as unused.
+
 Uses inside the exporting file itself do not count, and neither does a mention in a comment or a same-named identifier in another file. Exports used only from outside the index (tests in an un-indexed folder, a package consumer) show as unused.
 
 ## Example

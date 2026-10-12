@@ -274,9 +274,12 @@ export function serializeImportLines(lines: ImportLine[]): string {
   return JSON.stringify(lines.map((l) => [l.line, l.text]));
 }
 
-/** True for the extensions this module extracts signatures and import lines from. */
+/**
+ * True for the extensions the index stores signatures and import lines for
+ * (JS/TS and Python here, PHP in php.ts).
+ */
 export function hasSignatureParser(ext: string): boolean {
-  return JS_EXTENSIONS.has(ext) || PY_EXTENSIONS.has(ext);
+  return JS_EXTENSIONS.has(ext) || PY_EXTENSIONS.has(ext) || ext === ".php";
 }
 
 const DECL_START = /^\s*(?:export|import|function|class|const|let|var|type|interface|enum|\/\/|\/\*|@)/;
@@ -311,7 +314,9 @@ export function declarationLines(content: string, line: number, ext: string, max
     for (let i = startIdx; i < all.length; i++) {
       const s = all[i];
       out.push(s);
-      const code = s.replace(/\/\/.*$/, "").replace(/(['"`])(?:\\.|(?!\1).)*\1/g, "''");
+      // a string literal: `\\.` or one non-backslash, never both (`\\.|.` let a
+      // run of backslashes split 2^n ways: exponential on an unterminated string)
+      const code = s.replace(/\/\/.*$/, "").replace(/(['"`])(?:\\.|(?!\1)[^\\\n\r\u2028\u2029])*\1/g, "''");
       for (const ch of code) {
         if (ch === "{" || ch === "(" || ch === "[") { depth++; opened = true; }
         else if (ch === "}" || ch === ")" || ch === "]") depth--;
