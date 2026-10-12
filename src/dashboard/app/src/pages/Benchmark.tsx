@@ -26,6 +26,7 @@ import { SubTabBar } from '@/components/molecules/SubTabBar';
 import { tabVariants, tabTransition } from '@/lib/motion';
 import { VERDICT_LABELS, type RunVerdict, type VerdictCode } from '@bench/verdict.mts';
 import {
+  changeSign,
   changeText,
   isAgentHeadline,
   latestPerModel,
@@ -875,9 +876,8 @@ function LiveRunsView() {
 
 /** Green = better than vanilla, red = worse, muted = unknown. */
 function changeColor(value: number | null): string {
-  if (value === null) return 'var(--text3)';
-  const r = Math.round(value);
-  return r > 0 ? 'var(--green)' : r < 0 ? 'var(--red)' : 'var(--text2)';
+  const s = changeSign(value);
+  return s === null ? 'var(--text3)' : s > 0 ? 'var(--green)' : s < 0 ? 'var(--red)' : 'var(--text2)';
 }
 
 /** Verdict chip for the table: BENEFICIAL / NO CLEAR EFFECT / SUBOPTIMAL + "indicative". */

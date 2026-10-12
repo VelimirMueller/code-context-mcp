@@ -884,7 +884,7 @@
         wall_faster_pct: wallFasterPct(v.wall_mean_ms, x.wall_mean_ms),
       };
     }
-    var input = { repeats: repeats, cc: arm('cc') };
+    var input = { repeats: isNum(repeats) && repeats > 0 ? repeats : 1, cc: arm('cc') };
     var g = arm('cc_guided');
     if (g) input.cc_guided = g;
     return input;
@@ -983,15 +983,18 @@
     var input = null;
     var verdict = null;
     if (pick.source === 'private') {
-      var reps = isNum(pick.block.repeats) ? pick.block.repeats : 1;
-      input = blockVerdictInputOf(pick.block, reps);
-      verdict = pick.block.verdict || (input ? computeVerdict(input) : null);
+      input = blockVerdictInputOf(pick.block, pick.block.repeats);
+      // Same normalization as blockVerdictOf: an old code (HARMFUL) reads as SUBOPTIMAL.
+      verdict = normalizeVerdict(pick.block.verdict) || (input ? computeVerdict(input) : null);
     } else {
       var run = full || pick.run;
       input = agentVerdictInputOf(run);
       verdict = agentVerdictOf(run);
     }
-    var a = input ? (verdict && input[verdict.arm]) || input.cc || null : null;
+    // Only a code-context arm is "with code-context"; never vanilla.
+    var best =
+      verdict && (verdict.arm === 'cc' || verdict.arm === 'cc_guided') ? verdict.arm : 'cc';
+    var a = input ? input[best] || input.cc || null : null;
     return {
       kind: pick.kind,
       label: pick.label,

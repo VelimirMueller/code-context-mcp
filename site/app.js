@@ -1764,16 +1764,21 @@
     var r = Math.round(x);
     return r === 0 ? 0 : r;
   }
+  // One sign rule for text and colour: the whole-% value decides, so a
+  // value that rounds to 0 is "same" and neutral in both.
+  function changeSign(savedPct) {
+    return isNum(savedPct) ? Math.sign(wholePct(savedPct)) : null;
+  }
   // "25 % less" / "8 % more" / "same"; "—" when unknown.
   function changeText(savedPct, better, worse) {
-    if (!isNum(savedPct)) return '—';
-    var r = wholePct(savedPct);
-    return r > 0 ? r + ' % ' + better : r < 0 ? -r + ' % ' + worse : 'same';
+    var s = changeSign(savedPct);
+    if (s === null) return '—';
+    var r = Math.abs(wholePct(savedPct));
+    return s > 0 ? r + ' % ' + better : s < 0 ? r + ' % ' + worse : 'same';
   }
   function changeClass(savedPct) {
-    if (!isNum(savedPct)) return 'num na';
-    var r = wholePct(savedPct);
-    return r > 0 ? 'num pos' : r < 0 ? 'num neg' : 'num';
+    var s = changeSign(savedPct);
+    return s === null ? 'num na' : s > 0 ? 'num pos' : s < 0 ? 'num neg' : 'num';
   }
   function successChange(row) {
     return isNum(row.successVanillaPct) && isNum(row.successArmPct)
@@ -2181,6 +2186,8 @@
     isInvalid: D ? D.isInvalid : null,
     normalize: D ? D.normalizeRun : null,
     rawfmt: rawfmt,
+    changeText: changeText,
+    changeClass: changeClass,
     framesBlock: framesBlock,
     headlineText: headlineText,
     renderPrivate: renderPrivate,

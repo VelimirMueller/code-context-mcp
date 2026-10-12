@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
-import { latestPerModel, changeText, successText } from '@/lib/latestRun';
+import { latestPerModel, changeText, changeSign, successText, plainSummary, simpleRow } from '@/lib/latestRun';
 import type { BenchIndexEntry } from '@/stores/benchmarkStore';
 
 // #160: the page opens with ONE table for the latest run (one row per model,
@@ -99,6 +99,36 @@ describe('latestPerModel (#160)', () => {
     expect(changeText(-23, 'faster', 'slower')).toBe('23 % slower');
     expect(successText({ successVanillaPct: 91.7, successArmPct: 86.1 })).toBe('92 % → 86 %');
     expect(successText({ successVanillaPct: null, successArmPct: 86.1 })).toBe('—');
+  });
+});
+
+describe('latest-run helpers: review fixes (#160)', () => {
+  it('a value that rounds to 0 is "same" in the text and neutral in the sign', () => {
+    for (const x of [0, 0.4, -0.4]) {
+      expect(changeText(x, 'less', 'more')).toBe('same');
+      expect(changeSign(x)).toBe(0);
+    }
+    expect(changeSign(-0.6)).toBe(-1);
+    expect(changeSign(null)).toBeNull();
+  });
+
+  it('plainSummary strips an optional "Result: " and upper-cases the first letter', () => {
+    expect(plainSummary(['Result: code-context helps.', 'It is fast.'])).toBe('Code-context helps. It is fast.');
+    expect(plainSummary(['Result:   the tasks fail.'])).toBe('The tasks fail.');
+    expect(plainSummary(['code-context helps.'])).toBe('Code-context helps.');
+    expect(plainSummary([])).toBe('');
+  });
+
+  it('simpleRow never takes vanilla numbers: a stored verdict for a missing arm falls back to cc', () => {
+    const stored = { code: 'BENEFICIAL', indicative: false, repeats: 3, arm: 'cc_guided', arms: {}, sentences: ['Result: code-context helps.'] };
+    const entry = { ...entries[3], headline: { ...dskHeadline, verdict: stored } } as BenchIndexEntry;
+    const row = simpleRow(entry, undefined);
+    expect([row.successVanillaPct, row.successArmPct, row.tokensSavedPct]).toEqual([90, 90, -8]);
+    // An odd stored arm is no verdict: the rule computes one from cc.
+    const odd = { ...entry, headline: { ...dskHeadline, verdict: { ...stored, arm: 'vanilla' } } } as BenchIndexEntry;
+    const r2 = simpleRow(odd, undefined);
+    expect(r2.verdict?.arm).toBe('cc');
+    expect(r2.tokensSavedPct).toBe(-8);
   });
 });
 

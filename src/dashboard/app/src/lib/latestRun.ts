@@ -7,6 +7,7 @@ import {
   verdictSummary,
   type RunVerdict,
   type VerdictArmInput,
+  type VerdictArmKey,
 } from '@bench/verdict.mts';
 
 /** The agent models of the latest-run table, in row order (#160). */
@@ -76,7 +77,9 @@ export function simpleRow(entry: BenchIndexEntry, run: BenchRun | undefined): Si
     wall: run?.aggregate?.wall_ms,
     repeats: Array.isArray(results) ? repeatsOf(results) : null,
   });
-  const a: VerdictArmInput | null = (verdict && input?.[verdict.arm]) || input?.cc || null;
+  // Only a code-context arm is "with code-context"; never vanilla.
+  const best: VerdictArmKey = verdict?.arm === 'cc_guided' ? 'cc_guided' : 'cc';
+  const a: VerdictArmInput | null = input?.[best] || input?.cc || null;
   return {
     kind: entry.kind,
     label,
@@ -97,15 +100,26 @@ const whole = (x: number): number => {
   return r === 0 ? 0 : r;
 };
 
+/**
+ * Sign of a change as the table shows it: the whole-% value decides, so a
+ * value that rounds to 0 is "same" in the text and neutral in the colour.
+ * null when unknown.
+ */
+export function changeSign(savedPct: number | null | undefined): -1 | 0 | 1 | null {
+  if (typeof savedPct !== 'number' || !Number.isFinite(savedPct)) return null;
+  return Math.sign(whole(savedPct)) as -1 | 0 | 1;
+}
+
 /** "25 % less" / "8 % more" / "same"; "—" when unknown. */
 export function changeText(
   savedPct: number | null | undefined,
   better: string,
   worse: string,
 ): string {
-  if (typeof savedPct !== 'number' || !Number.isFinite(savedPct)) return '—';
-  const r = whole(savedPct);
-  return r > 0 ? `${r} % ${better}` : r < 0 ? `${-r} % ${worse}` : 'same';
+  const s = changeSign(savedPct);
+  if (s === null) return '—';
+  const r = Math.abs(whole(savedPct as number));
+  return s > 0 ? `${r} % ${better}` : s < 0 ? `${r} % ${worse}` : 'same';
 }
 
 /** "92 % → 86 %" (vanilla → with code-context); "—" when unknown. */
@@ -114,7 +128,8 @@ export function successText(row: Pick<SimpleRow, 'successVanillaPct' | 'successA
   return typeof v === 'number' && typeof a === 'number' ? `${whole(v)} % → ${whole(a)} %` : '—';
 }
 
-/** The summary line without the "Result: " lead-in. */
+/** The summary line without a leading "Result: ", first letter in upper case. */
 export function plainSummary(summary: string[]): string {
-  return summary.join(' ').replace(/^Result: c/, 'C');
+  const t = summary.join(' ').replace(/^Result:\s*/, '');
+  return t.charAt(0).toUpperCase() + t.slice(1);
 }

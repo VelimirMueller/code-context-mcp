@@ -928,3 +928,79 @@ describe('latest run: one plain table per model (#160)', () => {
     expect(w.document.getElementById('simple-body').textContent).toContain('No agent run yet.');
   });
 });
+
+describe('latest-run table: review fixes (#160)', () => {
+  const D = () => load({ latest: false, index: { runs: [] } }).BenchData;
+  const arm = (success: number, wall: number) => ({ success_pct: success, wall_mean_ms: wall });
+  const block = (verdict: unknown, repeats?: unknown) => ({
+    kind: 'agent-glm',
+    date: '2026-10-12',
+    repeats,
+    arms: { vanilla: arm(90, 10000), cc: arm(80, 9000) },
+    saved: {
+      cc: {
+        uncached_saved_pct: 20,
+        uncached_saved_spread: { min: 5, max: 30, repeats: 3 },
+        cost_saved_pct: null,
+      },
+    },
+    verdict,
+  });
+  const pick = (b: unknown) => ({
+    kind: 'agent-glm',
+    label: 'GLM',
+    source: 'private',
+    date: '2026-10-12',
+    suite: 'A',
+    block: b,
+  });
+
+  it('simpleRowOf reads a stored HARMFUL verdict as SUBOPTIMAL with the current text', () => {
+    const legacy = {
+      code: 'HARMFUL',
+      indicative: false,
+      repeats: 3,
+      arm: 'cc',
+      arms: { cc: { code: 'HARMFUL', sentences: ['x'] } },
+      sentences: [
+        'Result: code-context makes the result worse.',
+        'The success rate decreases by more than 5 percentage points.',
+      ],
+    };
+    const row = D().simpleRowOf(pick(block(legacy, 3)), null);
+    expect(row.verdict.code).toBe('SUBOPTIMAL');
+    expect(row.summary).toEqual([
+      'Result: code-context is suboptimal for these tasks.',
+      'The success rate decreases by more than 5 percentage points.',
+    ]);
+  });
+
+  it('simpleRowOf ignores an odd stored verdict (arm vanilla) and never shows vanilla numbers', () => {
+    const odd = { code: 'BENEFICIAL', indicative: false, repeats: 3, arm: 'vanilla', arms: {}, sentences: ['x'] };
+    const row = D().simpleRowOf(pick(block(odd, 3)), null);
+    expect(row.verdict.arm).toBe('cc'); // computed with the rule, not the stored object
+    expect(row.verdict.code).toBe('SUBOPTIMAL'); // success 90 → 80
+    expect([row.successVanillaPct, row.successArmPct]).toEqual([90, 80]);
+  });
+
+  it('blockVerdictInputOf falls back to 1 repeat for a missing or bad count', () => {
+    const d = D();
+    for (const r of [undefined, null, 0, -2, 'x']) expect(d.blockVerdictInputOf(block(null), r).repeats).toBe(1);
+    expect(d.blockVerdictInputOf(block(null), 3).repeats).toBe(3);
+    const row = d.simpleRowOf(pick(block(null, undefined)), null);
+    expect(row.repeats).toBe(1);
+    expect(row.verdict.indicative).toBe(true);
+  });
+
+  it('text and colour agree on zero: a value that rounds to 0 is "same" and neutral', () => {
+    const L = load({ latest: false, index: { runs: [] } }).BenchLogic;
+    for (const x of [0, 0.4, -0.4]) {
+      expect(L.changeText(x, 'less', 'more')).toBe('same');
+      expect(L.changeClass(x)).toBe('num');
+    }
+    expect(L.changeText(-0.6, 'less', 'more')).toBe('1 % more');
+    expect(L.changeClass(-0.6)).toBe('num neg');
+    expect(L.changeText(null, 'less', 'more')).toBe('—');
+    expect(L.changeClass(null)).toBe('num na');
+  });
+});
