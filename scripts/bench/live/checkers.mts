@@ -277,11 +277,11 @@ const LINE_LEAD_RE = /^(?:\s*(?:[-*+•>]|\d+[.)])\s+)*[\s`*_"']*/;
  * the line (after list markers, backticks or bold), separated only by commas,
  * "and" or whitespace. Paths later in the line are commentary.
  */
-function leadingPaths(line: string): string[] {
+function leadingPaths(line: string, leadRe: RegExp = LEAD_PATH_RE): string[] {
   let rest = line.replace(LINE_LEAD_RE, '');
   const out: string[] = [];
   for (;;) {
-    const m = LEAD_PATH_RE.exec(rest);
+    const m = leadRe.exec(rest);
     if (!m) break;
     out.push(m[1]);
     rest = rest.slice(m[0].length);
@@ -309,6 +309,46 @@ function leadingPaths(line: string): string[] {
  * without a negation cue always count.
  */
 export function answerPaths(answer: string): Set<string> {
+  return claimedPaths(answer, { lead: LEAD_PATH_RE, any: PATH_RE, normalise: toSrc });
+}
+
+/** How claimedPaths finds and normalises paths (TS fixtures vs suite workspaces). */
+interface PathClaimRules {
+  /** A path at the start of the rest of a line; group 1 = the path. */
+  lead: RegExp;
+  /** Any path in prose (global); group 1 = the path. */
+  any: RegExp;
+  /** Map a matched path to the key form (`src/…`, `<source>/…`). */
+  normalise: (p: string) => string;
+}
+
+/**
+ * Any relative or absolute file path with an extension and at least one
+ * folder; group 1 drops a leading `./`. Suite workspaces hold any language.
+ */
+const ANY_PATH_SRC = String.raw`(?:\.\/)?(\/?[\w.@-]+(?:\/[\w.@-]+)+\.[A-Za-z][A-Za-z0-9]{0,7})`;
+
+/**
+ * Claimed paths of an answer about a suite workspace (CCA-17), normalised to
+ * `<source>/…`: an absolute path or one with a leading folder is cut at the
+ * first segment that names a source. Same claim rules as answerPaths.
+ */
+export function suiteAnswerPaths(answer: string, roots: readonly string[]): Set<string> {
+  const rootSet = new Set(roots);
+  const normalise = (p: string): string => {
+    const segs = p.replace(/^\/+/, '').split('/');
+    const i = segs.findIndex((x) => rootSet.has(x));
+    return i >= 0 ? segs.slice(i).join('/') : segs.join('/');
+  };
+  return claimedPaths(answer, {
+    lead: new RegExp(`^${ANY_PATH_SRC}(?![\\w/])`),
+    any: new RegExp(ANY_PATH_SRC, 'g'),
+    normalise,
+  });
+}
+
+/** The claim rules documented on answerPaths, with pluggable path syntax. */
+function claimedPaths(answer: string, rules: PathClaimRules): Set<string> {
   const lines = answer.replace(/\\/g, '/').split('\n');
   const listed = new Set<string>();
   let anyPathLine = false;
@@ -316,7 +356,7 @@ export function answerPaths(answer: string): Set<string> {
   for (const raw of lines) {
     const line = raw.trim();
     if (!line || /^```/.test(line)) continue;
-    const lead = leadingPaths(line);
+    const lead = leadingPaths(line, rules.lead);
     if (lead.length === 0) {
       // Prose line: a short negating heading opens an excluded section;
       // any other prose line closes it.
@@ -327,14 +367,14 @@ export function answerPaths(answer: string): Set<string> {
     }
     anyPathLine = true;
     if (negatedSection || NEGATION_RE.test(line)) continue;
-    for (const p of lead) listed.add(toSrc(p));
+    for (const p of lead) listed.add(rules.normalise(p));
   }
   if (anyPathLine) return listed;
 
   const out = new Set<string>();
   for (const sentence of answer.replace(/\\/g, '/').split(/(?<=[.;!?])\s+|\n/)) {
     if (NEGATION_RE.test(sentence)) continue;
-    for (const m of sentence.matchAll(PATH_RE)) out.add(toSrc(m[1]));
+    for (const m of sentence.matchAll(rules.any)) out.add(rules.normalise(m[1]));
   }
   return out;
 }
@@ -531,6 +571,68 @@ function checkPinnedExports(task: LiveTask, finalAnswer: string): CheckResult {
   };
 }
 
+// ---- private-suite checkers (CCA-17): expected answers from <suite>/answers.json ----
+
+function suiteContext(task: LiveTask): NonNullable<LiveTask['suite']> {
+  if (!task.suite?.answer) {
+    throw new Error(
+      `${task.id}: suite checker without a loaded suite answer (load it with loadSuite)`,
+    );
+  }
+  return task.suite;
+}
+
+/** Set comparison shared by the suite checkers. */
+function compareSets(
+  expected: readonly string[],
+  named: ReadonlySet<string>,
+  maxExtra: number,
+  noun: string,
+): CheckResult {
+  const missing = expected.filter((f) => !named.has(f));
+  const extra = [...named].filter((f) => !expected.includes(f));
+  return {
+    pass: missing.length === 0 && extra.length <= maxExtra,
+    detail:
+      `${expected.length - missing.length}/${expected.length} ${noun} found, ${extra.length} extra` +
+      (missing.length ? `; missing ${missing.join(', ')}` : '') +
+      (extra.length ? `; extra ${extra.join(', ')}` : ''),
+  };
+}
+
+function checkSuitePaths(task: LiveTask, finalAnswer: string): CheckResult {
+  const { maxExtra, ignore, first } = task.checker as {
+    maxExtra: number;
+    ignore?: string[];
+    first?: boolean;
+  };
+  const ctx = suiteContext(task);
+  const expected = ctx.answer?.items ?? [];
+  const named = suiteAnswerPaths(finalAnswer, ctx.roots);
+  for (const p of ignore ?? []) named.delete(p);
+  if (first) {
+    const got = [...named][0];
+    return {
+      pass: got !== undefined && got === expected[0],
+      detail:
+        got === undefined ? 'no path in the answer' : `first path ${got}, expected ${expected[0]}`,
+    };
+  }
+  return compareSets(expected, named, maxExtra, 'paths');
+}
+
+/** `App\Jobs\SyncThing` (or `\App\…`) → `SyncThing`: names are compared unqualified. */
+const QUALIFIED_RE = /\\?(?:[A-Za-z_][\w]*\\)+([A-Za-z_][\w]*)/g;
+
+function checkSuiteSymbols(task: LiveTask, finalAnswer: string): CheckResult {
+  const { maxExtra } = task.checker as { maxExtra: number };
+  const ctx = suiteContext(task);
+  const expected = ctx.answer?.items ?? [];
+  const universe = new Set(ctx.answer?.universe ?? expected);
+  const named = answerExportNames(finalAnswer.replace(QUALIFIED_RE, '$1'), universe);
+  return compareSets(expected, named, maxExtra, 'names');
+}
+
 export async function runChecker(
   task: LiveTask,
   workspaceDir: string,
@@ -553,5 +655,9 @@ export async function runChecker(
       return checkPinnedPaths(task, finalAnswer);
     case 'pinned-exports':
       return checkPinnedExports(task, finalAnswer);
+    case 'path-set':
+      return checkSuitePaths(task, finalAnswer);
+    case 'symbol-set':
+      return checkSuiteSymbols(task, finalAnswer);
   }
 }

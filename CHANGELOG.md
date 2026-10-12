@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`bench:live --suite <dir>` runs private suites from outside the repository.** A suite (`suite.json`, schema `ccc-bench-suite/1`, plus `answers.json`) pins local git clones by commit; each session workspace comes from `git archive`, so the clone's working tree is never read. New checkers `path-set` and `symbol-set` compare the answer with the suite's answer key. Results go to `<dir>/data/`. A private suite refuses a `--data-dir` inside the repository, its run JSON carries `suite.private: true`, and `bench:publish` refuses such runs. With `redact` (default for private suites), the run JSON stores tasks by id and sha256 only. `npm run bench:suite-check -- <dir>` validates a suite and builds and indexes one workspace without a model. (#149)
+
 ### Fixed
 - **`bench:live` timeouts end a session at the limit.** The deadline runs on the wall clock, and SIGTERM then SIGKILL reach the agent's whole process tree; the runner no longer waits on output pipes a leftover process holds. A timed-out session keeps its partial usage. Root cause of the ~900 s sessions: the Mac idle-slept on battery, and the old monotonic timer stopped in sleep. The runner now holds `caffeinate -i` on macOS. (#146)
 

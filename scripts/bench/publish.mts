@@ -20,6 +20,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { buildIndex, pickLatest, runFileProblem } from './lib/index-builder.mts';
+import { privateSuiteContaining } from './live/suite.mts';
 
 export interface PublishOptions {
   repoDir?: string;
@@ -68,6 +69,26 @@ function toplevel(cwd: string): string {
   return run(cwd, undefined, ['rev-parse', '--show-toplevel']);
 }
 
+/**
+ * Private-suite guard (CCA-17): a run of a private suite, or any file that
+ * sits under a private suite's directory (also through a symlink), is never
+ * published. Throws before anything is written or pushed.
+ */
+function refusePrivate(file: string, data: unknown): void {
+  const suiteDir = privateSuiteContaining(file);
+  if (suiteDir) {
+    throw new Error(
+      `bench:publish: ${file} lies under the private suite ${suiteDir} — refusing to publish`,
+    );
+  }
+  const suite = (data as { suite?: { private?: unknown } } | null)?.suite;
+  if (suite && typeof suite === 'object' && suite.private !== false) {
+    throw new Error(
+      `bench:publish: ${file} is a run of a private suite (suite.private) — refusing to publish`,
+    );
+  }
+}
+
 function readRuns(dir: string): LocalRun[] {
   if (!fs.existsSync(dir)) return [];
   const out: LocalRun[] = [];
@@ -93,6 +114,7 @@ function readRuns(dir: string): LocalRun[] {
       console.warn(`bench:publish: skipping ${file}: ${problem}`);
       continue;
     }
+    refusePrivate(file, data);
     out.push({ runId: (data as Record<string, unknown>).run_id as string, file, data });
   }
   return out;

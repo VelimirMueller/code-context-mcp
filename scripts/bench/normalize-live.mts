@@ -8,6 +8,7 @@
  */
 import type { AgentHeadline, AgentRun, GitRef, SessionResult } from './lib/types.mts';
 import type { LiveTask } from './live/tasks.mts';
+import { runSuiteInfo, runTaskEntry, type LoadedSuite } from './live/suite.mts';
 import { formatDate, formatStamp, formatTs } from './lib/stamp.mts';
 import {
   costOf,
@@ -41,6 +42,8 @@ export interface NormalizeLiveCtx {
   agentName?: string;
   now?: Date;
   notes?: string[];
+  /** Private/external suite the tasks come from (CCA-17). */
+  suite?: LoadedSuite;
 }
 
 /**
@@ -370,20 +373,30 @@ export function normalizeLive(
     notes: ctx.notes ?? [],
     model,
     agent_cli: { name: ctx.agentName ?? 'opencode', version: ctx.agentVersion },
-    fixture: tasks.some((t) => t.fixture === 'src' || t.fixture === 'large') ? 'per task' : meta.fixture,
+    fixture: ctx.suite
+      ? `suite ${ctx.suite.id}`
+      : tasks.some((t) => t.fixture === 'src' || t.fixture === 'large')
+        ? 'per task'
+        : meta.fixture,
     auth: { keyEnv: meta.keyEnv },
-    tasks: tasks.map((t) => ({
-      id: t.id,
-      ...(t.size ? { size: t.size } : {}),
-      fixture:
-        t.fixture === 'src'
-          ? 'src/ (this repo)'
-          : t.fixture === 'large'
-            ? 'large synthetic (683 files)'
-            : meta.fixture,
-      prompt: t.prompt,
-      checker: t.checker,
-    })),
+    // CCA-17: suite id + source commits; redacted suites store tasks by id + hash.
+    ...(ctx.suite ? { suite: runSuiteInfo(ctx.suite) } : {}),
+    tasks: tasks.map((t) =>
+      t.fixture === 'suite'
+        ? runTaskEntry(t, ctx.suite?.redact ?? true)
+        : {
+            id: t.id,
+            ...(t.size ? { size: t.size } : {}),
+            fixture:
+              t.fixture === 'src'
+                ? 'src/ (this repo)'
+                : t.fixture === 'large'
+                  ? 'large synthetic (683 files)'
+                  : meta.fixture,
+            prompt: t.prompt,
+            checker: t.checker,
+          },
+    ),
     arms,
     aggregate,
     headline,
