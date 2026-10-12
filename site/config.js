@@ -5,12 +5,16 @@
 //   data/latest.json          full run JSON of the newest run across ALL kinds
 //   data/index.json           ccc-bench-index/1, newest first (jq fallback: full run objects, oldest first)
 //   data/runs/<run_id>.json   one file per run, common envelope schema ccc-bench/1
+//   data/private/index.json   ccc-bench-private-index/1: redacted private-suite summaries (CCA-19)
+//   data/private/<slug>.json  ccc-bench-private-summary/1: numbers only, under the suite alias
 // Legacy run files (schema overdrive-bench/2) are read-only and mapped to kind agent-claude.
 window.BENCH_CONFIG = {
   DATA_DIR: 'data/',
   LATEST: 'data/latest.json',
   INDEX: 'data/index.json',
   RUNS_DIR: 'data/runs/',
+  PRIVATE_INDEX: 'data/private/index.json',
+  PRIVATE_SCHEMA: 'ccc-bench-private-summary/1',
   SCHEMA: 'ccc-bench/1',
   LEGACY_SCHEMA: 'overdrive-bench/2',
   KINDS: {

@@ -106,9 +106,12 @@ pages/       → Benchmark, CodeExplorer, Dashboard, ProjectManagement, Retro, T
 |----------|--------|-------------|
 | `GET /api/bench/index` | GET | Real bench runs index (`ccc-bench-index/1`) + source; `index: null` and a how-to `message` when no data |
 | `GET /api/bench/run/:id` | GET | One run file (`ccc-bench/1`); id must match `^[a-z0-9][a-z0-9-]{0,80}$` and be listed in the index |
+| `GET /api/bench/run/:id?suite=pN` | GET | One run of private suite dir N of `CODE_CONTEXT_BENCH_PRIVATE_DIRS` (key `^p[0-9]{1,3}$`); same id, index and realpath rules, per dir |
 | `GET /api/benchmark`, `GET /api/benchmark-stochastic` | GET | Simulated June 2026 benchmark (the "Simulated (2026-06)" tab) |
 
 Bench source order (`src/dashboard/handlers/bench.ts`): env `CODE_CONTEXT_BENCH_DIR` → `<dirname(dbPath)>/bench/` → `git show origin/bench-results:data/…` in the dashboard package's own checkout (local ref only, no fetch, 5 min cache) → empty state.
+
+Private suites (CCA-19): `CODE_CONTEXT_BENCH_PRIVATE_DIRS` is a path list (`:`, `;` on Windows) of private suite dirs or their `data/` dirs. `/api/bench/index` merges their runs (newest first) with `private: true`, `suite: <alias>` and `source_key: pN`, and lists `private: [{ key, alias, runs }]`. Read from disk only; never sent anywhere.
 
 ## Build Pipeline
 

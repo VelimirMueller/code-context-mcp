@@ -15,7 +15,9 @@ import {
   apiBenchRun,
   clearBenchCache,
   BENCH_DIR_ENV,
+  BENCH_PRIVATE_DIRS_ENV,
   EMPTY_MESSAGE,
+  resolvePrivateDirs,
 } from "../src/dashboard/handlers/bench.js";
 import { freePort } from "./helpers/free-port.js";
 import { makeRepo, write, commitAll, git } from "./helpers/git-repo.js";
@@ -158,6 +160,74 @@ describe("bench run id guard", () => {
   });
 });
 
+describe("private suite dirs (CODE_CONTEXT_BENCH_PRIVATE_DIRS)", () => {
+  /** A private suite dir: suite.json (alias) + data/ bench dir. */
+  function writeSuite(dir: string, runIds: string[], suite: Record<string, unknown> = { id: "synthetic-suite", alias: "Suite A" }): string {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, "suite.json"), JSON.stringify({ schema: "ccc-bench-suite/1", private: true, ...suite }));
+    writeBenchDir(path.join(dir, "data"), runIds, "private");
+    return dir;
+  }
+
+  it("resolves suite dirs and data dirs, keys by list position, skips dirs without index.json", () => {
+    const a = writeSuite(path.join(tmp, "priv-a"), ["opus-20261012-092421"]);
+    const b = writeSuite(path.join(tmp, "priv-b"), ["glm-20261012-101500"], { id: "suite-b" });
+    const empty = path.join(tmp, "priv-empty");
+    mkdirSync(empty, { recursive: true });
+    const env = { [BENCH_PRIVATE_DIRS_ENV]: [a, empty, path.join(b, "data"), ""].join(path.delimiter) };
+    expect(resolvePrivateDirs(env)).toEqual([
+      { key: "p0", dir: path.join(a, "data"), alias: "Suite A" },
+      { key: "p2", dir: path.join(b, "data"), alias: "suite-b" },
+    ]);
+    expect(resolvePrivateDirs({})).toEqual([]);
+  });
+
+  it("merges private runs into the index, flagged with alias and key, newest first", async () => {
+    const pub = writeBenchDir(path.join(tmp, "pub-merge"), [RUN_ID]);
+    const priv = writeSuite(path.join(tmp, "priv-merge"), ["opus-20261012-092421"]);
+    // The private index entry is newer than the public one.
+    writeFileSync(
+      path.join(priv, "data", "index.json"),
+      JSON.stringify({ schema: "ccc-bench-index/1", runs: [{ run_id: "opus-20261012-092421", kind: "agent-opus", date: "2026-10-12", ts: "2026-10-12T09:24:21Z", model: "m", trigger: "manual", headline: null }] }),
+    );
+    const opts = { dbPath: path.join(tmp, "m", "context.db"), packageDir: noGitPkg, env: { [BENCH_DIR_ENV]: pub, [BENCH_PRIVATE_DIRS_ENV]: priv } };
+    const res = await apiBenchIndex(opts);
+    expect(res.index!.runs.map((r) => [r.run_id, r.private ?? false, r.suite ?? null, r.source_key ?? null])).toEqual([
+      ["opus-20261012-092421", true, "Suite A", "p0"],
+      [RUN_ID, false, null, null],
+    ]);
+    expect(res.private).toEqual([{ key: "p0", alias: "Suite A", runs: 1 }]);
+  });
+
+  it("serves private runs only through ?suite=<key>, with the same id + index + realpath rules", async () => {
+    const priv = writeSuite(path.join(tmp, "priv-run"), ["opus-20261012-092421"]);
+    writeFileSync(path.join(priv, "data", "runs", "unlisted.json"), "{}");
+    const outside = path.join(tmp, "priv-outside.json");
+    writeFileSync(outside, JSON.stringify({ secret: true }));
+    writeFileSync(path.join(priv, "data", "index.json"), JSON.stringify(makeIndex(["opus-20261012-092421", "linked"])));
+    symlinkSync(outside, path.join(priv, "data", "runs", "linked.json"));
+    const opts = { dbPath: path.join(tmp, "r", "context.db"), packageDir: noGitPkg, env: { [BENCH_PRIVATE_DIRS_ENV]: priv } };
+    await expect(apiBenchRun(opts, "opus-20261012-092421", "p0")).resolves.toMatchObject({ run: { run_id: "opus-20261012-092421", tag: "private" } });
+    // Without the key the public source serves (here: none).
+    await expect(apiBenchRun(opts, "opus-20261012-092421")).rejects.toMatchObject({ status: 404 });
+    await expect(apiBenchRun(opts, "unlisted", "p0")).rejects.toMatchObject({ status: 404 });
+    await expect(apiBenchRun(opts, "linked", "p0")).rejects.toMatchObject({ status: 400 });
+    await expect(apiBenchRun(opts, "../index", "p0")).rejects.toMatchObject({ status: 400 });
+    for (const badKey of ["p", "x0", "p0/..", "../p0", "p1234"]) {
+      await expect(apiBenchRun(opts, "opus-20261012-092421", badKey), badKey).rejects.toMatchObject({ status: 400 });
+    }
+    await expect(apiBenchRun(opts, "opus-20261012-092421", "p7")).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("shows private runs when there is no public source", async () => {
+    const priv = writeSuite(path.join(tmp, "priv-only"), ["opus-20261012-092421"]);
+    const opts = { dbPath: path.join(tmp, "o", "context.db"), packageDir: noGitPkg, env: { [BENCH_PRIVATE_DIRS_ENV]: priv } };
+    const res = await apiBenchIndex(opts);
+    expect(res.index!.runs).toHaveLength(1);
+    expect(res.index!.runs[0]).toMatchObject({ private: true, suite: "Suite A", source_key: "p0" });
+  });
+});
+
 describe("bench routes over real HTTP", () => {
   const TOKEN = "test-bench-token-0123456789abcdef0123";
   const PORT = freePort();
@@ -174,9 +244,17 @@ describe("bench routes over real HTTP", () => {
   beforeAll(async () => {
     root = realpathSync(mkdtempSync(path.join(tmpdir(), "cc-bench-http-")));
     const benchDir = writeBenchDir(path.join(root, "data"), [RUN_ID], "http");
+    const privDir = writeBenchDir(path.join(root, "priv-suite", "data"), [RUN_ID], "http-private");
+    writeFileSync(path.join(root, "priv-suite", "suite.json"), JSON.stringify({ schema: "ccc-bench-suite/1", id: "s", alias: "Suite H", private: true }));
     proc = spawn(process.execPath, [TSX_CLI, DASHBOARD_ENTRY, path.join(root, "context.db"), String(PORT)], {
       cwd: root,
-      env: { ...process.env, CODE_CONTEXT_DASHBOARD_TOKEN: TOKEN, DASHBOARD_PORT: String(PORT), [BENCH_DIR_ENV]: benchDir },
+      env: {
+        ...process.env,
+        CODE_CONTEXT_DASHBOARD_TOKEN: TOKEN,
+        DASHBOARD_PORT: String(PORT),
+        [BENCH_DIR_ENV]: benchDir,
+        [BENCH_PRIVATE_DIRS_ENV]: path.dirname(privDir),
+      },
       stdio: ["ignore", "pipe", "pipe"],
       detached: true,
     });
@@ -221,6 +299,18 @@ describe("bench routes over real HTTP", () => {
     expect((await getJson("/api/bench/run/%2e%2e%2findex")).status).toBe(400);
     expect((await getJson("/api/bench/run/%E0%A4%A")).status).toBe(400);
     expect((await getJson("/api/bench/run/nope-123")).status).toBe(404);
+  });
+
+  it("serves a private run with ?suite=<key>; the same id without it is the public run", async () => {
+    const idx = await getJson("/api/bench/index");
+    const priv = idx.body.index.runs.find((r: any) => r.private);
+    expect(priv).toMatchObject({ run_id: RUN_ID, suite: "Suite H", source_key: "p0" });
+    const r = await getJson(`/api/bench/run/${RUN_ID}?suite=p0`);
+    expect(r.status).toBe(200);
+    expect(r.body.run).toMatchObject({ tag: "http-private" });
+    expect((await getJson(`/api/bench/run/${RUN_ID}`)).body.run).toMatchObject({ tag: "http" });
+    expect((await getJson(`/api/bench/run/${RUN_ID}?suite=..%2Fp0`)).status).toBe(400);
+    expect((await getJson(`/api/bench/run/${RUN_ID}?suite=p9`)).status).toBe(404);
   });
 
   it("requires auth like every other /api route", async () => {

@@ -140,6 +140,21 @@ Navigate to `http://localhost:3333`
 | **Retro** | Retrospective findings, patterns, and action follow-through |
 | **Benchmark** | Velocity trends, burndown charts, and team performance metrics |
 
+### Benchmark data sources
+
+The Benchmark tab reads published runs from `CODE_CONTEXT_BENCH_DIR` (a dir with `index.json` + `runs/`), then `<db dir>/bench/`, then `origin/bench-results` in a code-context checkout.
+
+To also see the runs of your **private suites** (see [BENCHMARK-GUIDE.md](../BENCHMARK-GUIDE.md#private-suites)), list their dirs in `CODE_CONTEXT_BENCH_PRIVATE_DIRS` when you start the dashboard. Separate entries with `:` (`;` on Windows). An entry is a suite dir (with `suite.json`) or its `data/` dir:
+
+```bash
+CODE_CONTEXT_BENCH_PRIVATE_DIRS=~/bench/suite-a:~/bench/suite-b \
+  npx code-context-dashboard ./context.db
+```
+
+- Private runs show a **private** chip with the suite alias, and a filter switches between All, Public and Private.
+- The run detail of a redacted run lists tasks by id; prompts, answers and source names are not in the run file.
+- The dashboard reads these files from disk only and sends them nowhere. Only `npm run bench:publish -- --private-summary <dir>` publishes anything, and only a redacted summary.
+
 ### Real-Time Updates
 
 The dashboard uses Server-Sent Events (SSE) to update in real-time. When you or an AI agent makes changes via MCP tools, the dashboard refreshes instantly without page reload.
