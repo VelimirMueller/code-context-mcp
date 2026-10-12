@@ -125,7 +125,7 @@ describe('latest-run helpers: review fixes (#160)', () => {
     const row = simpleRow(entry, undefined);
     expect([row.successVanillaPct, row.successArmPct, row.tokensSavedPct]).toEqual([90, 90, -8]);
     // An odd stored arm is no verdict: the rule computes one from cc.
-    const odd = { ...entry, headline: { ...dskHeadline, verdict: { ...stored, arm: 'vanilla' } } } as BenchIndexEntry;
+    const odd = { ...entry, headline: { ...dskHeadline, verdict: { ...stored, arm: 'vanilla' } } } as unknown as BenchIndexEntry;
     const r2 = simpleRow(odd, undefined);
     expect(r2.verdict?.arm).toBe('cc');
     expect(r2.tokensSavedPct).toBe(-8);
