@@ -253,8 +253,9 @@ SUBOPTIMAL, indicative (1 repeat; 12 % more tokens)
 
 Where it shows:
 
-- Dashboard: a chip (green BENEFICIAL, grey NO CLEAR EFFECT, red SUBOPTIMAL, plus "indicative") on each latest-per-kind card, and a "Verdict" section with the sentences at the top of the run detail.
-- Site: a verdict card above the headline numbers and the run detail, the verdict label in each history row, and in a private-suite card the run verdict plus a verdict column per group.
+- Dashboard and site, top of the page: the latest-run table (see [Page layout](#page-layout-latest-run-table)) shows the chip per model and one line with the result sentence and its main reason (`verdictSummary` in `verdict.mts` and `site/data.js`).
+- Dashboard, in "Show details": a chip (green BENEFICIAL, grey NO CLEAR EFFECT, red SUBOPTIMAL, plus "indicative") on each latest-per-kind card, and a "Verdict" section with the sentences at the top of the run detail.
+- Site, in "Show details": a verdict card above the headline numbers and the run detail, the verdict label in each history row, and in a private-suite card the run verdict plus a verdict column per group.
 - A run without an uncached-token figure (a pre-CCA-08 index entry without sessions) gets no verdict.
 - Older runs and summaries need no rewrite: `data/index.json`, the dashboard and the site compute the verdict from the same fields when a file has none. A recorded verdict is never overwritten.
 - Before #158 the lowest verdict had the code `HARMFUL`. A stored verdict with that code is read as SUBOPTIMAL with the current sentences (`normalizeVerdict` in `verdict.mts` and `site/data.js`). The index builder computes such a verdict again with the current rule.
@@ -322,7 +323,7 @@ List the suite dirs in `CODE_CONTEXT_BENCH_PRIVATE_DIRS` when you start the dash
 CODE_CONTEXT_BENCH_PRIVATE_DIRS=~/bench/my-suite npx code-context-dashboard ./context.db
 ```
 
-- The Benchmark page merges the suite runs with the public runs. Each private run has a **private** chip with the suite `alias` (else its id), and a filter switches between All, Public and Private.
+- The Benchmark page merges the suite runs with the public runs. The latest-run table takes the newest run per model from both. In "Show details", each private run has a **private** chip with the suite `alias` (else its id), and a filter switches between All, Public and Private.
 - The run detail works as for public runs. A redacted run shows task ids, never prompts.
 - The dashboard reads the files from disk under the same run-id, index and realpath rules as the public dir. It sends them nowhere.
 
@@ -366,7 +367,18 @@ The publish uses the same temp worktree as a run publish, never the current chec
 - Run files land in `data/runs/<run_id>.json` (schema `ccc-bench/1`).
 - `npm run bench:publish` commits `data/` to the `bench-results` branch and pushes. The branch holds `data/runs/`, `data/index.json` (all runs, newest first), and `data/latest.json` (the newest run of any kind).
 - `data/private/` holds the redacted private-suite summaries (`--private-summary`), never runs.
-- The Pages site at <https://velimirmueller.github.io/code-context-mcp/> rebuilds after each push. The latest run is the headline. The history lists every run. Run files on `bench-results` are append-only: they are never rewritten or deleted.
+- The Pages site at <https://velimirmueller.github.io/code-context-mcp/> rebuilds after each push. The latest-run table is the headline (see [Page layout](#page-layout-latest-run-table)). The history lists every run. Run files on `bench-results` are append-only: they are never rewritten or deleted.
+
+### Page layout: latest-run table
+
+The dashboard Benchmark page and the site open with one table for the latest run. Everything else is in one collapsed "Show details" block. (#160)
+
+- One row per model: GLM, Opus, DeepSeek. Columns: Model, Result (verdict chip, "indicative" below 3 repeats), Success ("92 % → 86 %", vanilla → with code-context), Tokens ("25 % less" / "8 % more"), Cost ("—" when unknown), Speed ("23 % faster" / "slower"), Repeats ("3×").
+- The numbers come from the verdict's best arm: "with code-context" is the better of the two code-context setups (cc, cc-guided). Tokens are the uncached tokens (input + output + cache write).
+- A caption names the run date, the suite ("test fixture" for a public run, the alias for a private suite) and what Tokens means. Below the table, one line per model gives the result sentence and its main reason.
+- Latest run, dashboard: the newest run per model among all runs, public and private (`latestPerModel` in `src/dashboard/app/src/lib/latestRun.ts`). The run filter does not change the table.
+- Latest run, site: per model, the newest private-summary run when its date is newer than the newest public run of that model, else the public run (`latestPerModel` in `site/data.js`). On the same day the public run wins.
+- "Show details": dashboard: the run filter, the latest-per-kind cards, the run list and detail, and the Simulated (2026-06) tab. Site: the newest run of any kind, the history, the run detail and the private-suite cards with their per-group tables. A link to a section inside the block opens it.
 
 ## Cost
 

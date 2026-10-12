@@ -731,3 +731,200 @@ describe('verdict (CCA-20)', () => {
     expect(rows[2].slice(0, 3)).toEqual(['two', '2', 'NO CLEAR EFFECT']);
   });
 });
+
+describe('latest run: one plain table per model (#160)', () => {
+  const pArm = (success: number, wall: number) => ({
+    sessions: 9,
+    success_pct: success,
+    uncached_per_session: 2000,
+    uncached_per_pass: 2400,
+    cost_usd: null,
+    cost_per_pass: null,
+    wall_mean_ms: wall,
+  });
+  const pSaved = (pct: number, min: number, max: number, cost: number | null) => ({
+    uncached_saved_pct: pct,
+    uncached_saved_spread: { min, max, repeats: 3 },
+    cost_saved_pct: cost,
+  });
+  const summary = {
+    schema: 'ccc-bench-private-summary/1',
+    alias: 'Real-world suite A',
+    generated: '2026-10-12',
+    code_context_version: '2.12.0',
+    scope: { sources: 7, files: null, total_mb: null, tasks: 12, tasks_per_group: { spa: 4 } },
+    runs: [
+      {
+        model: 'zai-coding-plan/glm-5.3',
+        provider_kind: 'agent-glm',
+        date: '2026-10-12',
+        repeats: 3,
+        arms: { vanilla: pArm(91.7, 78739), cc: pArm(83.3, 66091), cc_guided: pArm(86.1, 60332) },
+        saved: { cc: pSaved(11.6, 1.9, 23.2, null), cc_guided: pSaved(25, 9.2, 34.2, null) },
+        groups: [],
+      },
+      {
+        model: 'deepseek/deepseek-v4-pro',
+        provider_kind: 'agent-deepseek',
+        date: '2026-10-12',
+        repeats: 3,
+        arms: { vanilla: pArm(90, 10000), cc: pArm(90, 12000) },
+        saved: { cc: pSaved(-8, -15, 3, -3) },
+        groups: [],
+      },
+      {
+        // Same day as the public Opus run: the public run wins.
+        model: 'claude-opus-5-5',
+        provider_kind: 'agent-opus',
+        date: '2026-10-11',
+        repeats: 1,
+        arms: { vanilla: pArm(50, 1000), cc: pArm(10, 1000) },
+        saved: {
+          cc: { uncached_saved_pct: -50, uncached_saved_spread: null, cost_saved_pct: null },
+        },
+        groups: [],
+      },
+    ],
+  };
+  const privIndex = {
+    schema: 'ccc-bench-private-index/1',
+    summaries: [
+      {
+        slug: 'real-world-suite-a',
+        alias: 'Real-world suite A',
+        generated: '2026-10-12',
+        file: 'private/real-world-suite-a.json',
+      },
+    ],
+  };
+  const opus = () => {
+    const r = glm();
+    r.run_id = 'opus-20261011-120000';
+    r.kind = 'agent-opus';
+    r.model = 'claude-opus-5-5';
+    r.date = '2026-10-11';
+    r.ts = '2026-10-11T12:00:00Z';
+    r.headline = {
+      success_vanilla_pct: 75,
+      success_cc_pct: 75,
+      success_cc_guided_pct: 87.5,
+      uncached_saved_pct: 11.2,
+      guided_uncached_saved_pct: 15.4,
+      uncached_saved_spread: null,
+      guided_uncached_saved_spread: null,
+      cost_saved_pct: 7.9,
+      guided_cost_saved_pct: 13.5,
+      tokens_saved_pct: -19.7,
+      tool_calls_saved_pct: -5.6,
+    };
+    r.aggregate = {
+      ...r.aggregate,
+      wall_ms: { vanilla_mean: 100000, cc_mean: 90000, cc_guided_mean: 80000 },
+    };
+    return r;
+  };
+  const page = () => {
+    const o = opus();
+    const g = glm(); // public GLM 2026-10-10: older than the private GLM run
+    return load({
+      latest: o,
+      index: { runs: [o, g, sim()] },
+      runs: { [o.run_id]: o, [g.run_id]: g },
+      extra: {
+        'data/private/index.json': privIndex,
+        'data/private/real-world-suite-a.json': summary,
+      },
+    });
+  };
+  const rowCells = (w: any, kind: string) =>
+    [...w.document.querySelector(`#simple-body tr[data-kind="${kind}"]`).children].map(
+      (c: any) => c.textContent,
+    );
+
+  it('latestPerModel: a private run only when it is newer than the public run of that model', () => {
+    const w = load({ latest: false, index: { runs: [] } });
+    const D = w.BenchData;
+    const runs = D.sortRunsDesc([opus(), glm(), sim()]);
+    const picks = D.latestPerModel(runs, [D.privateSummaryOf(summary)]);
+    expect(picks.map((p: any) => [p.label, p.source, p.date])).toEqual([
+      ['GLM', 'private', '2026-10-12'],
+      ['Opus', 'public', '2026-10-11'],
+      ['DeepSeek', 'private', '2026-10-12'],
+    ]);
+    expect(picks[0].suite).toBe('Real-world suite A');
+    // Without summaries: the public runs only, simulated runs never.
+    expect(D.latestPerModel(runs, []).map((p: any) => p.kind)).toEqual(['agent-glm', 'agent-opus']);
+  });
+
+  it('renders one row per model with plain words, chips and a dash for unknown cost', async () => {
+    const w = page();
+    await tick(150);
+    const table = w.document.querySelector('#simple-body table.simple');
+    const heads = [...table.querySelectorAll('thead th')].map((t: any) => t.textContent);
+    expect(heads).toEqual(['Model', 'Result', 'Success', 'Tokens', 'Cost', 'Speed', 'Repeats']);
+    expect(rowCells(w, 'agent-glm')).toEqual([
+      'GLM',
+      'SUBOPTIMAL',
+      '92 % → 86 %',
+      '25 % less',
+      '—',
+      '23 % faster',
+      '3×',
+    ]);
+    expect(rowCells(w, 'agent-opus')).toEqual([
+      'Opus',
+      'BENEFICIAL indicative',
+      '75 % → 88 %',
+      '15 % less',
+      '14 % less',
+      '20 % faster',
+      '1×', // the fixture has one session per task and arm
+    ]);
+    expect(rowCells(w, 'agent-deepseek')).toEqual([
+      'DeepSeek',
+      'NO CLEAR EFFECT',
+      '90 % → 90 %',
+      '8 % more',
+      '3 % more',
+      '20 % slower',
+      '3×',
+    ]);
+    const chip = (kind: string) =>
+      w.document.querySelector(`#simple-body tr[data-kind="${kind}"] .chip`).className;
+    expect(chip('agent-glm')).toContain('drop'); // red
+    expect(chip('agent-opus')).toContain('keep'); // green
+    expect(chip('agent-deepseek')).toContain('inc'); // grey
+    expect(table.textContent).not.toMatch(/uncached|cc-guided|×\s*vanilla|\[/i);
+    const body = w.document.getElementById('simple-body').textContent;
+    expect(body).toContain('2026-10-12 / 2026-10-11 · Real-world suite A / test fixture');
+    expect(body).toContain('Tokens = tokens the model had to process (cache excluded).');
+    const notes = [...w.document.querySelectorAll('#simple-body ul.simple-notes li')].map(
+      (li: any) => li.textContent,
+    );
+    expect(notes[0]).toBe(
+      'GLM: Code-context is suboptimal for these tasks. The success rate decreases by more than 5 percentage points.',
+    );
+    expect(notes[2]).toBe(
+      'DeepSeek: Code-context shows no clear effect. The result is not stable across repeats.',
+    );
+  });
+
+  it('keeps everything else in one "Show details" block, collapsed by default', async () => {
+    const w = page();
+    await tick(150);
+    const det = w.document.getElementById('bench-details');
+    expect(det.tagName).toBe('DETAILS');
+    expect(det.open).toBe(false);
+    expect(det.querySelector('summary').textContent).toBe('Show details');
+    for (const id of ['latest-body', 'history', 'detail', 'private'])
+      expect(det.contains(w.document.getElementById(id))).toBe(true);
+    expect(det.contains(w.document.getElementById('simple-body'))).toBe(false);
+    expect(det.querySelectorAll('.private-card')).toHaveLength(1);
+  });
+
+  it('shows a pending note when no agent run exists', async () => {
+    const w = load({ latest: sim(), index: { runs: [sim()] } });
+    await tick();
+    expect(w.document.getElementById('simple-body').textContent).toContain('No agent run yet.');
+  });
+});

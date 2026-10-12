@@ -16,6 +16,7 @@ import {
   verdictInputFromBlock,
   wallFasterPct,
   repeatsOf,
+  verdictSummary,
   type VerdictArmInput,
   type VerdictInput,
 } from '../scripts/bench/lib/verdict.mts';
@@ -698,5 +699,41 @@ describe('no verdict without token data', () => {
       headline: h,
     };
     expect(D.agentVerdictOf(D.normalizeRun(entry))).toBeNull();
+  });
+});
+
+describe('verdictSummary (#160): result sentence + main reason, same in the site port', () => {
+  const cases: Array<[string, VerdictInput]> = [
+    ['suboptimal: first warning', { repeats: 3, cc: good({ success_arm_pct: 50 }) }],
+    ['beneficial: token fact', { repeats: 3, cc: good() }],
+    [
+      'no clear effect: unstable',
+      { repeats: 3, cc: good({ spread: { min: -5, max: 10, repeats: 3 } }) },
+    ],
+    ['no clear effect, no warning: first fact', { repeats: 3, cc: good({ cost_saved_pct: -2 }) }],
+    ['few repeats increase', { repeats: 1, cc: good({ uncached_saved_pct: -20, ...noSpread }) }],
+  ];
+  it.each(cases)('%s', (_name, input) => {
+    const v = computeVerdict(input);
+    const ts = verdictSummary(v);
+    expect(ts[0]).toBe(v!.sentences[0]);
+    expect(ts).toHaveLength(2);
+    expect(D.verdictSummary(JSON.parse(JSON.stringify(v)))).toEqual(ts);
+  });
+  it('picks the right reason', () => {
+    expect(verdictSummary(computeVerdict(cases[0][1]))[1]).toBe(
+      'The success rate decreases by more than 5 percentage points.',
+    );
+    expect(verdictSummary(computeVerdict(cases[1][1]))[1]).toBe(
+      'Code-context decreases the token use by 20 %.',
+    );
+    expect(verdictSummary(computeVerdict(cases[2][1]))[1]).toBe(
+      'The result is not stable across repeats.',
+    );
+    expect(verdictSummary(computeVerdict(cases[4][1]))[1]).toBe(
+      'The token use increases by 20 % in 1 repeat.',
+    );
+    expect(verdictSummary(null)).toEqual([]);
+    expect(D.verdictSummary(null)).toEqual([]);
   });
 });

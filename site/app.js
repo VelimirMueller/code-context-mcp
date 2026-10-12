@@ -1757,6 +1757,166 @@
   }
 
   // ---- private-suite summaries (CCA-19) ----
+  // ---- latest run: one plain table, one row per model (#160) ----
+  // Words, not jargon: "25 % less", "23 % faster". The numbers are those of
+  // the verdict's best arm (the better of the two code-context setups).
+  function wholePct(x) {
+    var r = Math.round(x);
+    return r === 0 ? 0 : r;
+  }
+  // "25 % less" / "8 % more" / "same"; "—" when unknown.
+  function changeText(savedPct, better, worse) {
+    if (!isNum(savedPct)) return '—';
+    var r = wholePct(savedPct);
+    return r > 0 ? r + ' % ' + better : r < 0 ? -r + ' % ' + worse : 'same';
+  }
+  function changeClass(savedPct) {
+    if (!isNum(savedPct)) return 'num na';
+    var r = wholePct(savedPct);
+    return r > 0 ? 'num pos' : r < 0 ? 'num neg' : 'num';
+  }
+  function successChange(row) {
+    return isNum(row.successVanillaPct) && isNum(row.successArmPct)
+      ? wholePct(row.successVanillaPct) + ' % → ' + wholePct(row.successArmPct) + ' %'
+      : '—';
+  }
+  function resultCell(v) {
+    if (!v) return el('td', { class: 'res' }, ['—']);
+    var kids = [
+      el('span', { class: 'chip ' + (VERDICT_CLASS[v.code] || 'pend'), 'data-verdict': v.code }, [
+        D.VERDICT_LABELS[v.code] || v.code,
+      ]),
+    ];
+    if (v.indicative) {
+      kids.push(' ');
+      kids.push(
+        el('span', { class: 'ind', title: v.repeats + ' repeat(s): fewer than 3' }, ['indicative']),
+      );
+    }
+    return el('td', { class: 'res' }, kids);
+  }
+  var SIMPLE_COLS = ['Model', 'Result', 'Success', 'Tokens', 'Cost', 'Speed', 'Repeats'];
+
+  function uniq(list) {
+    return list.filter(function (x, i) {
+      return x && list.indexOf(x) === i;
+    });
+  }
+
+  function simpleTable(rows) {
+    var tb = el('table', { class: 'simple', 'aria-label': 'Latest run per model' });
+    var cg = el('colgroup');
+    SIMPLE_COLS.forEach(function (c) {
+      cg.appendChild(el('col', { class: 'c-' + c.toLowerCase() }));
+    });
+    tb.appendChild(cg);
+    var thead = el('thead');
+    var hd = el('tr');
+    SIMPLE_COLS.forEach(function (c, i) {
+      hd.appendChild(el('th', { scope: 'col', class: i >= 2 ? 'num' : null }, [c]));
+    });
+    thead.appendChild(hd);
+    tb.appendChild(thead);
+    var body = el('tbody');
+    rows.forEach(function (r) {
+      body.appendChild(
+        el('tr', { 'data-kind': r.kind }, [
+          el('th', { scope: 'row' }, [r.label]),
+          resultCell(r.verdict),
+          el('td', { class: 'num' }, [successChange(r)]),
+          el('td', { class: changeClass(r.tokensSavedPct) }, [
+            changeText(r.tokensSavedPct, 'less', 'more'),
+          ]),
+          el('td', { class: changeClass(r.costSavedPct) }, [
+            changeText(r.costSavedPct, 'less', 'more'),
+          ]),
+          el('td', { class: changeClass(r.fasterPct) }, [
+            changeText(r.fasterPct, 'faster', 'slower'),
+          ]),
+          el('td', { class: 'num' }, [isNum(r.repeats) ? r.repeats + '×' : '—']),
+        ]),
+      );
+    });
+    tb.appendChild(body);
+    return el('div', { class: 'simplewrap' }, [tb]);
+  }
+
+  function renderSimple(rows) {
+    var box = $('simple-body');
+    if (!box) return;
+    clear(box);
+    if (!rows.length) {
+      box.appendChild(
+        el('div', { class: 'pending' }, [
+          el('b', null, ['No agent run yet. ']),
+          'The table shows the newest GLM, Opus and DeepSeek runs when they are published.',
+        ]),
+      );
+      return;
+    }
+    var suites = uniq(
+      rows.map(function (r) {
+        return r.source === 'private' ? r.suite : 'test fixture';
+      }),
+    );
+    box.appendChild(
+      el('p', { class: 'simple-caption' }, [
+        el('strong', null, [
+          uniq(
+            rows.map(function (r) {
+              return r.date;
+            }),
+          ).join(' / ') +
+            ' · ' +
+            suites.join(' / '),
+        ]),
+        ' — Tokens = tokens the model had to process (cache excluded). With code-context = the better of the two code-context setups.',
+      ]),
+    );
+    box.appendChild(simpleTable(rows));
+    var ul = el('ul', { class: 'simple-notes' });
+    rows.forEach(function (r) {
+      if (!r.summary.length) return;
+      ul.appendChild(
+        el('li', null, [
+          el('strong', null, [r.label + ': ']),
+          r.summary.join(' ').replace(/^Result: c/, 'C'),
+        ]),
+      );
+    });
+    if (ul.children.length) box.appendChild(ul);
+  }
+
+  // Picks (D.latestPerModel) → rows; public picks load their run file first
+  // (the wall times for "Speed" live there).
+  function paintSimple(runs, summaries) {
+    var picks = D.latestPerModel(runs, summaries);
+    return Promise.all(
+      picks.map(function (p) {
+        return p.source === 'public'
+          ? ensureFull(p.run).then(function (full) {
+              return D.simpleRowOf(p, full);
+            })
+          : Promise.resolve(D.simpleRowOf(p, null));
+      }),
+    ).then(renderSimple);
+  }
+
+  // A link to a section inside the collapsed details opens them first.
+  function wireDetails() {
+    var det = $('bench-details');
+    if (!det) return;
+    function openFor(hash) {
+      if (!hash || hash.length < 2) return;
+      var t = document.getElementById(hash.slice(1));
+      if (t && t !== det && det.contains(t)) det.open = true;
+    }
+    openFor(window.location.hash);
+    window.addEventListener('hashchange', function () {
+      openFor(window.location.hash);
+    });
+  }
+
   // Redacted summaries only: alias, scope counts and numbers. Task texts,
   // code and source names never reach the site, so none are rendered.
   var PRIVATE_ARMS = [
@@ -1970,6 +2130,7 @@
   function init() {
     renderWordmark();
     wireTheme();
+    wireDetails();
     if (CFG.REPO) {
       ['repo-link', 'repo-link2'].forEach(function (id) {
         var a = $(id);
@@ -1982,6 +2143,7 @@
     }
     function paint(d) {
       renderHeadline(d.latest);
+      if (d.simple !== false) paintSimple(d.runs, d.summaries || []);
       renderHistory(d.runs, function (r) {
         renderDetail(r, d.runs);
       });
@@ -1989,6 +2151,7 @@
     }
     function paintEmpty() {
       renderHeadline(null);
+      renderSimple([]);
       renderHistory([], function () {});
       renderDetail(null, []);
     }
@@ -1996,12 +2159,15 @@
       paint(demoData());
       return;
     }
-    // Independent of the runs: a missing data/private/ keeps the section hidden.
-    loadPrivate().then(renderPrivate);
-    loadIndexRuns()
-      .then(function (runs) {
+    // A missing data/private/ keeps the private section hidden and the
+    // latest table on the public runs.
+    var priv = loadPrivate();
+    priv.then(renderPrivate);
+    Promise.all([loadIndexRuns(), priv])
+      .then(function (both) {
+        var runs = both[0];
         return loadLatest(runs).then(function (latest) {
-          return { runs: runs, latest: latest };
+          return { runs: runs, latest: latest, summaries: (both[1] || []).filter(Boolean) };
         });
       })
       .then(paint)

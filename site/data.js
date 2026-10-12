@@ -810,18 +810,14 @@
   }
 
   /**
-   * Verdict of an agent run (full run or index entry): headline.verdict when
-   * the run carries one, else computed from its headline, wall means and
-   * repeats. Null when the run has no success rates.
+   * Verdict input of an agent run (full run or index entry): success, uncached
+   * saving, spread, cost and wall time per code-context arm. Null when the run
+   * has no success rates or no uncached-token figure (pre-CCA-08).
    */
-  function agentVerdictOf(run) {
+  function agentVerdictInputOf(run) {
     var r = isObj(run) && isObj(run.raw) ? run.raw : run;
     if (!isObj(r) || !isAgentKind(kindOf(r))) return null;
-    var h = isObj(r.headline) ? r.headline : {};
-    var stored = normalizeVerdict(h.verdict);
-    if (stored) return stored;
     var a = agentOf(r);
-    // No uncached-token figure (a pre-CCA-08 entry without sessions): no verdict.
     if (!a || !isNum(a.successVanillaPct) || !isNum(a.successCcPct) || !isNum(a.uncachedSavedPct))
       return null;
     var w = a.wall || {};
@@ -849,14 +845,28 @@
     );
     var input = { repeats: repeatsOfRun(r) || fromSpread || 1, cc: cc };
     if (g) input.cc_guided = g;
-    return computeVerdict(input);
+    return input;
   }
 
-  /** Verdict of a private-summary block ({ arms, saved, verdict? }); same rule. */
-  function blockVerdictOf(block, repeats) {
-    if (!isObj(block)) return null;
-    var stored = normalizeVerdict(block.verdict);
+  /**
+   * Verdict of an agent run (full run or index entry): headline.verdict when
+   * the run carries one, else computed from its headline, wall means and
+   * repeats. Null when the run has no success rates.
+   */
+  function agentVerdictOf(run) {
+    var r = isObj(run) && isObj(run.raw) ? run.raw : run;
+    if (!isObj(r) || !isAgentKind(kindOf(r))) return null;
+    var h = isObj(r.headline) ? r.headline : {};
+    var stored = normalizeVerdict(h.verdict);
     if (stored) return stored;
+    // No uncached-token figure (a pre-CCA-08 entry without sessions): no verdict.
+    var input = agentVerdictInputOf(r);
+    return input ? computeVerdict(input) : null;
+  }
+
+  /** Verdict input of a private-summary block ({ arms, saved }); null without vanilla success. */
+  function blockVerdictInputOf(block, repeats) {
+    if (!isObj(block)) return null;
     var arms = isObj(block.arms) ? block.arms : {};
     var saved = isObj(block.saved) ? block.saved : {};
     var v = isObj(arms.vanilla) ? arms.vanilla : {};
@@ -877,7 +887,126 @@
     var input = { repeats: repeats, cc: arm('cc') };
     var g = arm('cc_guided');
     if (g) input.cc_guided = g;
-    return computeVerdict(input);
+    return input;
+  }
+
+  /** Verdict of a private-summary block ({ arms, saved, verdict? }); same rule. */
+  function blockVerdictOf(block, repeats) {
+    if (!isObj(block)) return null;
+    var stored = normalizeVerdict(block.verdict);
+    if (stored) return stored;
+    var input = blockVerdictInputOf(block, repeats);
+    return input ? computeVerdict(input) : null;
+  }
+
+  // Port of verdictSummary() in scripts/bench/lib/verdict.mts (#160): the
+  // result sentence and its main reason, both taken from the verdict as is.
+  var WARNING_RE =
+    /^The (success rate decreases by more than |tasks are more than |token use increases (in all repeats|by \d+ % in )|result is not stable across repeats)/;
+  function verdictSummary(v) {
+    if (!isObj(v) || !Array.isArray(v.sentences) || v.sentences.length === 0) return [];
+    var head = v.sentences[0];
+    var rest = v.sentences.slice(1);
+    var warning =
+      v.code === 'BENEFICIAL'
+        ? undefined
+        : rest.filter(function (t) {
+            return WARNING_RE.test(t);
+          })[0];
+    var reason = warning || rest[0];
+    return reason ? [head, reason] : [head];
+  }
+
+  // ---- latest run: one row per model (#160) ----
+  var MODEL_ROWS = [
+    { kind: 'agent-glm', label: 'GLM' },
+    { kind: 'agent-opus', label: 'Opus' },
+    { kind: 'agent-deepseek', label: 'DeepSeek' },
+  ];
+
+  /**
+   * "Latest run" per agent model (GLM, Opus, DeepSeek), one pick each:
+   * the newest private-suite summary run of that model when its date is
+   * NEWER than the newest public run of that model, else the newest public
+   * run. Dates compare as YYYY-MM-DD (summaries carry no time); on the same
+   * day the public run wins, because anyone can rerun it. `runs` is the
+   * public index sorted newest first (sortRunsDesc), `summaries` the
+   * normalized private summaries (privateSummaryOf).
+   * A pick is { kind, label, source: 'public'|'private', date, suite, run? | block? }.
+   */
+  function latestPerModel(runs, summaries) {
+    var out = [];
+    MODEL_ROWS.forEach(function (m) {
+      var pub = null;
+      arr(runs).forEach(function (r) {
+        if (!pub && isObj(r) && r.kind === m.kind) pub = r; // runs are newest first
+      });
+      var priv = null;
+      arr(summaries).forEach(function (s) {
+        if (!isObj(s)) return;
+        arr(s.runs).forEach(function (b) {
+          if (!isObj(b) || b.kind !== m.kind || typeof b.date !== 'string') return;
+          if (!priv || b.date > priv.block.date) priv = { block: b, suite: s.alias };
+        });
+      });
+      var pubDate = pub ? String(pub.date || pub.ts || '').slice(0, 10) : '';
+      if (priv && (!pub || priv.block.date > pubDate)) {
+        out.push({
+          kind: m.kind,
+          label: m.label,
+          source: 'private',
+          date: priv.block.date,
+          suite: priv.suite,
+          block: priv.block,
+        });
+      } else if (pub) {
+        out.push({
+          kind: m.kind,
+          label: m.label,
+          source: 'public',
+          date: pubDate,
+          suite: null,
+          run: pub,
+        });
+      }
+    });
+    return out;
+  }
+
+  /**
+   * The table row of one pick: the verdict and the numbers of the verdict's
+   * best arm (success vanilla → arm, uncached saving, cost saving, speed).
+   * `full` is the loaded run file of a public pick (wall times live there);
+   * without it the index entry is used.
+   */
+  function simpleRowOf(pick, full) {
+    var input = null;
+    var verdict = null;
+    if (pick.source === 'private') {
+      var reps = isNum(pick.block.repeats) ? pick.block.repeats : 1;
+      input = blockVerdictInputOf(pick.block, reps);
+      verdict = pick.block.verdict || (input ? computeVerdict(input) : null);
+    } else {
+      var run = full || pick.run;
+      input = agentVerdictInputOf(run);
+      verdict = agentVerdictOf(run);
+    }
+    var a = input ? (verdict && input[verdict.arm]) || input.cc || null : null;
+    return {
+      kind: pick.kind,
+      label: pick.label,
+      source: pick.source,
+      date: pick.date,
+      suite: pick.suite,
+      verdict: verdict,
+      successVanillaPct: a ? a.success_vanilla_pct : null,
+      successArmPct: a ? a.success_arm_pct : null,
+      tokensSavedPct: a ? a.uncached_saved_pct : null,
+      costSavedPct: a ? a.cost_saved_pct : null,
+      fasterPct: a ? a.wall_faster_pct : null,
+      repeats: verdict ? verdict.repeats : input ? input.repeats : null,
+      summary: verdictSummary(verdict),
+    };
   }
 
   function kindMeta(kind) {
@@ -909,6 +1038,11 @@
     isRunVerdict: isRunVerdict,
     normalizeVerdict: normalizeVerdict,
     agentVerdictOf: agentVerdictOf,
+    agentVerdictInputOf: agentVerdictInputOf,
     blockVerdictOf: blockVerdictOf,
+    blockVerdictInputOf: blockVerdictInputOf,
+    verdictSummary: verdictSummary,
+    latestPerModel: latestPerModel,
+    simpleRowOf: simpleRowOf,
   };
 })();
