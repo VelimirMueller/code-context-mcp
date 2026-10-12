@@ -29,6 +29,7 @@ import {
   suiteProblems,
 } from '../scripts/bench/live/suite.mts';
 import { publish, publishPrivateSummary } from '../scripts/bench/publish.mts';
+import { computeVerdict, verdictInputFromBlock } from '../scripts/bench/lib/verdict.mts';
 
 const GIT_ENV = {
   GIT_AUTHOR_NAME: 't',
@@ -397,6 +398,69 @@ describe('private summary: allowlist shape', () => {
     expect(p).toMatch(/\$\.scope\.prompt: not in the allowlist/);
     expect(p).toMatch(/\$\.runs\[0\]\.arms\.cc\.notes: not in the allowlist/);
     expect(p).toMatch(/\$\.runs\[0\]\.model: must be a plain model id/);
+  });
+});
+
+describe('private summary: verdict (CCA-20)', () => {
+  it('carries the rule verdict per run and per group, from the block numbers only', () => {
+    const f = makeSuite();
+    writeRun(f, makeRun(f));
+    const { summary } = build(f);
+    const run = summary.runs[0];
+    expect(run.verdict).toEqual(computeVerdict(verdictInputFromBlock(run, run.repeats)!));
+    // cc: 100 % vs 83.3 %, uncached −40 %, cost −40 %, 20 % faster; 2 repeats.
+    expect(run.verdict.code).toBe('BENEFICIAL');
+    expect(run.verdict.indicative).toBe(true);
+    expect(run.verdict.sentences.at(-1)).toBe(
+      'This result is indicative only: the run has 2 repeats.',
+    );
+    for (const g of run.groups) {
+      expect(g.verdict).toEqual(computeVerdict(verdictInputFromBlock(g, run.repeats)!));
+      expect(g.verdict.sentences.join(' ')).not.toContain(g.group);
+    }
+    expect(summaryShapeProblems(summary)).toEqual([]);
+  });
+
+  it('refuses any verdict text the rule did not make (e.g. a planted private word)', () => {
+    const f = makeSuite();
+    writeRun(f, makeRun(f));
+    const { summary } = build(f);
+    const bad = JSON.parse(JSON.stringify(summary));
+    bad.runs[0].verdict.sentences[0] = `Result: ${SOURCE_NAME} helps.`;
+    bad.runs[0].groups[1].verdict.code = 'HARMFUL';
+    delete bad.runs[0].groups[0].verdict;
+    const p = summaryShapeProblems(bad).join('\n');
+    expect(p).toMatch(/\$\.runs\[0\]\.verdict: must be the rule's verdict for this block/);
+    expect(p).toMatch(/\$\.runs\[0\]\.groups\[1\]\.verdict: must be the rule's verdict/);
+    expect(p).toMatch(/\$\.runs\[0\]\.groups\[0\]\.verdict: missing/);
+  });
+
+  it('never reads a verdict stored in the run file', () => {
+    const f = makeSuite();
+    const run = makeRun(f);
+    (run.headline as Record<string, unknown>).verdict = {
+      code: 'BENEFICIAL',
+      indicative: false,
+      repeats: 2,
+      arm: 'cc',
+      arms: {},
+      sentences: [`Result: ${PROMPTS.A1}`, `${SOURCE_NAME} helps.`],
+    };
+    writeRun(f, run);
+    const low = build(f).text.toLowerCase();
+    for (const v of privateValues(f).filter((x) => x.length > 2))
+      expect(low.includes(v), v).toBe(false);
+  });
+
+  it('the guard still scans the verdict text', () => {
+    const f = makeSuite();
+    writeRun(f, makeRun(f));
+    const { summary, denylist } = build(f);
+    const planted = JSON.parse(JSON.stringify(summary));
+    planted.runs[0].verdict.sentences.push(`${SOURCE_NAME} is fast.`);
+    expect(guardHits(planted, denylist)).toEqual([
+      expect.stringMatching(/^\$\.runs\[0\]\.verdict\.sentences\[\d+\]: private suite value$/),
+    ]);
   });
 });
 

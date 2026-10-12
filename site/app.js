@@ -298,11 +298,45 @@
     );
   }
 
+  // ---- rule-based verdict (CCA-20) ----
+  // Badge colour is a status: green = BENEFICIAL, grey = NO CLEAR EFFECT,
+  // red = HARMFUL. The sentences are the ASD-STE100 text of the verdict.
+  var VERDICT_CLASS = { BENEFICIAL: 'keep', NO_CLEAR_EFFECT: 'inc', HARMFUL: 'drop' };
+  function verdictLabel(v) {
+    return (D.VERDICT_LABELS[v.code] || v.code) + (v.indicative ? ' (indicative)' : '');
+  }
+  function verdictBadge(v) {
+    return el(
+      'span',
+      {
+        class: 'badge ' + (VERDICT_CLASS[v.code] || 'pend'),
+        'data-verdict': v.code,
+      },
+      [D.VERDICT_LABELS[v.code] || v.code],
+    );
+  }
+  // Badge + the verdict sentences. `title` names the block (e.g. "Verdict").
+  function verdictBlock(v, title) {
+    var kids = [];
+    if (title) kids.push(el('h3', null, [title]));
+    var head = [verdictBadge(v)];
+    if (v.indicative) head.push(el('span', { class: 'sub verdict-ind' }, ['indicative']));
+    kids.push(el('div', { class: 'verdict' }, head));
+    var ul = el('ul', { class: 'ste' });
+    v.sentences.forEach(function (t) {
+      ul.appendChild(el('li', null, [t]));
+    });
+    kids.push(ul);
+    return el('div', { class: 'card verdict-card' }, kids);
+  }
+
   // Headline (CCA-08): success, uncached tokens (input + output + cache
   // write), cost, uncached tokens per PASS. The all-tokens total is mostly
   // cache reads (billed at ~1 % of input), so it lives in the detail only.
   function headlineAgent(run, box) {
     var a = D.agentOf(run);
+    var verdict = D.agentVerdictOf(run);
+    if (verdict) box.appendChild(verdictBlock(verdict));
     var guided = isNum(a.successCcGuidedPct);
     var tiles = [
       { label: 'SUCCESS VANILLA', value: pct1(a.successVanillaPct) },
@@ -526,8 +560,10 @@
         pct1(h.mcpWinsPct).trim() +
         ' wins'
       );
-    if (D.isAgentKind(run.kind))
+    if (D.isAgentKind(run.kind)) {
+      var verdict = D.agentVerdictOf(run);
       return (
+        (verdict ? verdictLabel(verdict) + ' · ' : '') +
         pct1(h.success_vanilla_pct).trim() +
         ' → ' +
         pct1(h.success_cc_pct).trim() +
@@ -550,6 +586,7 @@
               : '') +
             ' tokens')
       );
+    }
     var v =
       isNum(h.nv_lo) && h.nv_lo > 0
         ? 'KEEP'
@@ -816,6 +853,8 @@
   function detailAgent(run, box) {
     var a = D.agentOf(run);
     var raw = run.raw || {};
+    var verdict = D.agentVerdictOf(run);
+    if (verdict) box.appendChild(verdictBlock(verdict, 'Verdict'));
     var rows = a.perTask.length ? a.perTask : [];
     var guided = rows.some(function (p) {
       return p && p.cc_guided;
@@ -1784,7 +1823,7 @@
   function privateGroupsTable(run, guided) {
     var tb = el('table', { 'aria-label': 'Per group' });
     var hd = el('tr');
-    var heads = ['Group', 'Tasks', 'OK vanilla', 'OK cc'];
+    var heads = ['Group', 'Tasks', 'Verdict', 'OK vanilla', 'OK cc'];
     if (guided) heads.push('OK guided');
     heads.push('Uncached cc vs vanilla', 'Cost cc vs vanilla');
     if (guided) heads.push('Uncached guided vs vanilla');
@@ -1796,6 +1835,7 @@
       var cells = [
         el('td', null, [g.group]),
         el('td', null, [rawfmt(g.tasks)]),
+        el('td', { class: 'verdict-cell' }, [g.verdict ? verdictLabel(g.verdict) : 'n/a']),
         el('td', null, [successText(g.arms.vanilla)]),
         el('td', null, [successText(g.arms.cc)]),
       ];
@@ -1855,6 +1895,7 @@
             ' per task and arm',
         ]),
       );
+      if (r.verdict) card.appendChild(verdictBlock(r.verdict));
       card.appendChild(privateArmsTable(r, 'Arms: ' + (r.model || '')));
       var guided = !!r.arms.cc_guided;
       if (r.groups.length > 1 || (r.groups.length === 1 && r.groups[0].group !== 'all'))

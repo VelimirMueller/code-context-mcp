@@ -595,3 +595,139 @@ describe('private suite summaries (CCA-19)', () => {
     expect(w.document.getElementById('private').hidden).toBe(true);
   });
 });
+
+describe('verdict (CCA-20)', () => {
+  const stored = {
+    code: 'BENEFICIAL',
+    indicative: true,
+    repeats: 1,
+    arm: 'cc_guided',
+    arms: {},
+    sentences: [
+      'Result: code-context helps when the agent gets the instruction to use it.',
+      'With guidance, code-context decreases the token use by 28 %.',
+      'This result is indicative only: the run has 1 repeat.',
+    ],
+  };
+
+  it('renders a stored verdict on the latest card, in the detail and in the history row', async () => {
+    const run = glm();
+    run.headline = { ...run.headline, verdict: stored };
+    const w = load({ latest: run, index: { runs: [run] }, runs: { [run.run_id]: run } });
+    await tick();
+    const latest = w.document.getElementById('latest-body');
+    const badge = latest.querySelector('.verdict-card [data-verdict]');
+    expect(badge.textContent).toBe('BENEFICIAL');
+    expect(badge.className).toContain('keep'); // green status
+    expect(latest.querySelector('.verdict-ind').textContent).toBe('indicative');
+    const items = [...latest.querySelectorAll('ul.ste li')].map((li: any) => li.textContent);
+    expect(items).toEqual(stored.sentences);
+    // Verdict first in the card, before the number tiles.
+    expect(latest.textContent.indexOf('Result:')).toBeLessThan(
+      latest.textContent.indexOf('SUCCESS VANILLA'),
+    );
+    const detail = w.document.getElementById('detail-body');
+    expect(detail.querySelector('.verdict-card h3').textContent).toBe('Verdict');
+    expect(detail.textContent).toContain(
+      'With guidance, code-context decreases the token use by 28 %.',
+    );
+    expect(w.document.getElementById('history-body').textContent).toContain(
+      'BENEFICIAL (indicative) · ',
+    );
+  });
+
+  it('computes the verdict on the fly for a published run without one', async () => {
+    const run = glm();
+    delete run.headline.verdict;
+    run.headline = {
+      ...run.headline,
+      success_vanilla_pct: 80,
+      success_cc_pct: 60,
+      uncached_saved_pct: 30,
+    };
+    const w = load({ latest: run, index: { runs: [run] }, runs: { [run.run_id]: run } });
+    await tick();
+    const badge = w.document.querySelector('#latest-body [data-verdict]');
+    expect(badge.getAttribute('data-verdict')).toBe('HARMFUL');
+    expect(badge.textContent).toBe('HARMFUL');
+    expect(badge.className).toContain('drop'); // red status
+    expect(w.document.getElementById('latest-body').textContent).toContain(
+      'The success rate decreases by more than 5 percentage points.',
+    );
+  });
+
+  it('private card: run verdict block and a verdict column per group', async () => {
+    const arm = (success: number, wall: number) => ({
+      sessions: 6,
+      success_pct: success,
+      uncached_per_session: 2000,
+      uncached_per_pass: 2400,
+      cost_usd: null,
+      cost_per_pass: null,
+      wall_mean_ms: wall,
+    });
+    const blk = (saved: number) => ({
+      arms: { vanilla: arm(80, 30000), cc: arm(80, 24000) },
+      saved: {
+        cc: {
+          uncached_saved_pct: saved,
+          uncached_saved_spread: { min: saved - 3, max: saved + 3, repeats: 3 },
+          cost_saved_pct: null,
+        },
+      },
+    });
+    const summary = {
+      schema: 'ccc-bench-private-summary/1',
+      alias: 'Real-world suite A',
+      generated: '2026-10-12',
+      code_context_version: '1.9.0',
+      scope: {
+        sources: 2,
+        files: null,
+        total_mb: null,
+        tasks: 4,
+        tasks_per_group: { one: 2, two: 2 },
+      },
+      runs: [
+        {
+          model: 'claude-opus-4-1',
+          provider_kind: 'agent-opus',
+          date: '2026-10-12',
+          repeats: 3,
+          ...blk(20),
+          // An older summary without `verdict`: computed with the same rule.
+          groups: [
+            { group: 'one', tasks: 2, ...blk(30) },
+            { group: 'two', tasks: 2, ...blk(1) },
+          ],
+        },
+      ],
+    };
+    const index = {
+      schema: 'ccc-bench-private-index/1',
+      summaries: [
+        {
+          slug: 'real-world-suite-a',
+          alias: 'Real-world suite A',
+          generated: '2026-10-12',
+          file: 'private/real-world-suite-a.json',
+        },
+      ],
+    };
+    const w = load({
+      latest: sim(),
+      index: { runs: [sim()] },
+      extra: { 'data/private/index.json': index, 'data/private/real-world-suite-a.json': summary },
+    });
+    await tick();
+    const card = w.document.querySelector('.private-card');
+    expect(card.querySelector('[data-verdict]').textContent).toBe('BENEFICIAL');
+    expect(card.textContent).toContain('Code-context decreases the token use by 20 %.');
+    const rows = [...card.querySelectorAll('table[aria-label="Per group"] tr')].map((r: any) =>
+      [...r.children].map((c: any) => c.textContent),
+    );
+    expect(rows[0][2]).toBe('Verdict');
+    expect(rows[1].slice(0, 3)).toEqual(['one', '2', 'BENEFICIAL']);
+    expect(rows[2].slice(0, 3)).toEqual(['two', '2', 'NO CLEAR EFFECT']);
+  });
+});

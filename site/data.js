@@ -479,6 +479,7 @@
       return {
         arms: isObj(b.arms) ? b.arms : {},
         saved: isObj(b.saved) ? b.saved : {},
+        verdict: isObj(b.verdict) ? b.verdict : null,
       };
     };
     return {
@@ -503,6 +504,7 @@
             repeats: numOrNull(r.repeats),
             arms: b.arms,
             saved: b.saved,
+            verdict: blockVerdictOf(b, numOrNull(r.repeats) || 1),
             groups: arr(r.groups)
               .filter(isObj)
               .map(function (g) {
@@ -512,11 +514,308 @@
                   tasks: numOrNull(g.tasks),
                   arms: gb.arms,
                   saved: gb.saved,
+                  verdict: blockVerdictOf(gb, numOrNull(r.repeats) || 1),
                 };
               }),
           };
         }),
     };
+  }
+
+  // ---- rule-based verdict (CCA-20) ----
+  // Port of scripts/bench/lib/verdict.mts (the source of truth; read its
+  // header for the rule). test/bench-verdict.test.ts runs both on the same
+  // inputs and requires equal output, so the two can never drift. A run
+  // normalised since CCA-20 carries headline.verdict and the page renders it;
+  // older runs and summaries get it computed here from the same fields.
+  var VERDICT_RULE = {
+    minRepeats: 3,
+    maxSuccessDropPp: 5,
+    maxSlowerPct: 25,
+    minSavedPctFewRepeats: 10,
+    smallEffectPct: 10,
+  };
+  var VERDICT_CODES = ['BENEFICIAL', 'NO_CLEAR_EFFECT', 'HARMFUL'];
+  var VERDICT_LABELS = {
+    BENEFICIAL: 'BENEFICIAL',
+    NO_CLEAR_EFFECT: 'NO CLEAR EFFECT',
+    HARMFUL: 'HARMFUL',
+  };
+  var VERDICT_RANK = { BENEFICIAL: 2, NO_CLEAR_EFFECT: 1, HARMFUL: 0 };
+  var VERDICT_PREFIX = { cc: 'Without guidance, ', cc_guided: 'With guidance, ' };
+
+  function whole(x) {
+    var r = Math.round(x);
+    return r === 0 ? 0 : r;
+  }
+  function vSpread(x) {
+    return isObj(x) && isNum(x.min) && isNum(x.max)
+      ? { min: x.min, max: x.max, repeats: isNum(x.repeats) ? x.repeats : 0 }
+      : null;
+  }
+  function armFacts(a, repeats) {
+    var R = VERDICT_RULE;
+    var delta =
+      isNum(a.success_vanilla_pct) && isNum(a.success_arm_pct)
+        ? round1(a.success_arm_pct - a.success_vanilla_pct)
+        : 0;
+    var sp = a.spread && isNum(a.spread.min) && isNum(a.spread.max) ? a.spread : null;
+    var f = {
+      successDropTooBig: delta < -R.maxSuccessDropPp,
+      alwaysWorse: !!sp && sp.max < 0,
+      tooSlow: isNum(a.wall_faster_pct) && a.wall_faster_pct < -R.maxSlowerPct,
+      unstable: !!sp && sp.min <= 0 && sp.max >= 0,
+      code: 'NO_CLEAR_EFFECT',
+    };
+    if (f.successDropTooBig || f.alwaysWorse || f.tooSlow) f.code = 'HARMFUL';
+    else {
+      var tokensOk =
+        repeats >= R.minRepeats && sp
+          ? sp.min > 0
+          : isNum(a.uncached_saved_pct) && a.uncached_saved_pct >= R.minSavedPctFewRepeats;
+      var costOk = !isNum(a.cost_saved_pct) || a.cost_saved_pct >= 0;
+      if (tokensOk && costOk) f.code = 'BENEFICIAL';
+    }
+    return f;
+  }
+  function factSentences(a, prefix) {
+    var out = [];
+    var subject = prefix ? prefix + 'code-context' : 'Code-context';
+    if (isNum(a.uncached_saved_pct)) {
+      var s = whole(a.uncached_saved_pct);
+      out.push(
+        s > 0
+          ? subject + ' decreases the token use by ' + s + ' %.'
+          : s < 0
+            ? subject + ' increases the token use by ' + -s + ' %.'
+            : subject + ' does not change the token use.',
+      );
+      subject = 'It';
+    }
+    if (isNum(a.cost_saved_pct)) {
+      var c = whole(a.cost_saved_pct);
+      out.push(
+        c > 0
+          ? subject + ' decreases the cost by ' + c + ' %.'
+          : c < 0
+            ? subject + ' increases the cost by ' + -c + ' %.'
+            : subject + ' does not change the cost.',
+      );
+    }
+    if (isNum(a.wall_faster_pct)) {
+      var w = whole(a.wall_faster_pct);
+      out.push(
+        w > 0
+          ? 'The tasks complete ' + w + ' % faster.'
+          : w < 0
+            ? 'The tasks complete ' + -w + ' % slower.'
+            : 'The tasks complete in the same time.',
+      );
+    } else {
+      out.push('The wall time is not known.');
+    }
+    if (isNum(a.success_vanilla_pct) && isNum(a.success_arm_pct)) {
+      var v = whole(a.success_vanilla_pct);
+      var r = whole(a.success_arm_pct);
+      out.push(
+        r > v
+          ? 'The success rate increases from ' + v + ' % to ' + r + ' %.'
+          : r < v
+            ? 'The success rate decreases from ' + v + ' % to ' + r + ' %.'
+            : 'The success rate is ' + v + ' % with and without code-context.',
+      );
+    }
+    return out;
+  }
+  function warningSentences(f) {
+    var R = VERDICT_RULE;
+    var out = [];
+    if (f.successDropTooBig)
+      out.push(
+        'The success rate decreases by more than ' + R.maxSuccessDropPp + ' percentage points.',
+      );
+    if (f.tooSlow) out.push('The tasks are more than ' + R.maxSlowerPct + ' % slower.');
+    if (f.alwaysWorse) out.push('The token use increases in all repeats.');
+    if (f.unstable) out.push('The result is not stable across repeats.');
+    return out;
+  }
+  function headlineSentence(best, codes) {
+    var code = codes[best];
+    if (code === 'HARMFUL') return 'Result: code-context makes the result worse.';
+    if (code === 'NO_CLEAR_EFFECT') return 'Result: code-context shows no clear effect.';
+    var both = codes.cc !== undefined && codes.cc_guided !== undefined;
+    if (!both) return 'Result: code-context helps.';
+    if (codes.cc === 'BENEFICIAL' && codes.cc_guided === 'BENEFICIAL')
+      return 'Result: code-context helps with and without the instruction to use it.';
+    return best === 'cc_guided'
+      ? 'Result: code-context helps when the agent gets the instruction to use it.'
+      : 'Result: code-context helps when the agent gets no instruction to use it.';
+  }
+  function otherArmSentences(key, a, f, bestCode) {
+    var p = VERDICT_PREFIX[key];
+    if (f.code === 'BENEFICIAL') {
+      var out = [p + 'code-context also helps.'];
+      if (isNum(a.uncached_saved_pct) && whole(a.uncached_saved_pct) > 0)
+        out.push('It decreases the token use by ' + whole(a.uncached_saved_pct) + ' %.');
+      return out;
+    }
+    if (f.code === 'HARMFUL')
+      return [
+        p + 'code-context ' + (bestCode === 'HARMFUL' ? 'also ' : '') + 'makes the result worse.',
+      ].concat(warningSentences(f));
+    var small =
+      !isNum(a.uncached_saved_pct) || Math.abs(a.uncached_saved_pct) < VERDICT_RULE.smallEffectPct;
+    return [p + 'the effect is ' + (small ? 'small' : 'not clear') + '.'];
+  }
+
+  /** Same contract as verdict.mts computeVerdict(input); null when no arm has data. */
+  function computeVerdict(input) {
+    if (!isObj(input)) return null;
+    var repeats = isNum(input.repeats) && input.repeats > 0 ? Math.round(input.repeats) : 1;
+    var keys = [];
+    if (input.cc) keys.push('cc');
+    if (input.cc_guided) keys.push('cc_guided');
+    if (!keys.length) return null;
+    var both = keys.length === 2;
+    var facts = {};
+    var codes = {};
+    var arms = {};
+    keys.forEach(function (k) {
+      var f = armFacts(input[k], repeats);
+      facts[k] = f;
+      codes[k] = f.code;
+      arms[k] = {
+        code: f.code,
+        sentences: factSentences(input[k], both ? VERDICT_PREFIX[k] : '').concat(
+          warningSentences(f),
+        ),
+      };
+    });
+    var best = keys[0];
+    keys.forEach(function (k) {
+      if (VERDICT_RANK[codes[k]] >= VERDICT_RANK[codes[best]]) best = k;
+    });
+    var bestCode = codes[best];
+    var indicative = repeats < VERDICT_RULE.minRepeats;
+    var sentences = [headlineSentence(best, codes)].concat(arms[best].sentences);
+    keys.forEach(function (k) {
+      if (k !== best)
+        sentences = sentences.concat(otherArmSentences(k, input[k], facts[k], bestCode));
+    });
+    if (indicative)
+      sentences.push(
+        'This result is indicative only: the run has ' +
+          repeats +
+          (repeats === 1 ? ' repeat.' : ' repeats.'),
+      );
+    return {
+      code: bestCode,
+      indicative: indicative,
+      repeats: repeats,
+      arm: best,
+      arms: arms,
+      sentences: sentences,
+    };
+  }
+
+  function wallFasterPct(van, arm) {
+    return isNum(van) && isNum(arm) && van > 0 ? round1(((van - arm) / van) * 100) : null;
+  }
+
+  /** A stored verdict that is safe to render as is. */
+  function isRunVerdict(x) {
+    return (
+      isObj(x) &&
+      VERDICT_CODES.indexOf(x.code) >= 0 &&
+      typeof x.indicative === 'boolean' &&
+      (x.arm === 'cc' || x.arm === 'cc_guided') &&
+      Array.isArray(x.sentences) &&
+      x.sentences.every(function (t) {
+        return typeof t === 'string';
+      })
+    );
+  }
+
+  // Repeats per task and arm: the highest vanilla session count of any task.
+  function repeatsOfRun(r) {
+    var arms = isObj(r.arms) ? r.arms : {};
+    var counts = {};
+    var max = 0;
+    arr(isObj(arms.vanilla) ? arms.vanilla.results : null).forEach(function (x) {
+      if (!isObj(x) || typeof x.task_id !== 'string') return;
+      counts[x.task_id] = (counts[x.task_id] || 0) + 1;
+      if (counts[x.task_id] > max) max = counts[x.task_id];
+    });
+    return max;
+  }
+
+  /**
+   * Verdict of an agent run (full run or index entry): headline.verdict when
+   * the run carries one, else computed from its headline, wall means and
+   * repeats. Null when the run has no success rates.
+   */
+  function agentVerdictOf(run) {
+    var r = isObj(run) && isObj(run.raw) ? run.raw : run;
+    if (!isObj(r) || !isAgentKind(kindOf(r))) return null;
+    var h = isObj(r.headline) ? r.headline : {};
+    if (isRunVerdict(h.verdict)) return h.verdict;
+    var a = agentOf(r);
+    // No uncached-token figure (a pre-CCA-08 entry without sessions): no verdict.
+    if (!a || !isNum(a.successVanillaPct) || !isNum(a.successCcPct) || !isNum(a.uncachedSavedPct))
+      return null;
+    var w = a.wall || {};
+    var cc = {
+      success_vanilla_pct: a.successVanillaPct,
+      success_arm_pct: a.successCcPct,
+      uncached_saved_pct: isNum(a.uncachedSavedPct) ? a.uncachedSavedPct : null,
+      spread: vSpread(a.uncachedSpread),
+      cost_saved_pct: a.costSavedPct,
+      wall_faster_pct: wallFasterPct(w.vanilla_mean, w.cc_mean),
+    };
+    var g = isNum(a.successCcGuidedPct)
+      ? {
+          success_vanilla_pct: a.successVanillaPct,
+          success_arm_pct: a.successCcGuidedPct,
+          uncached_saved_pct: isNum(a.guidedUncachedSavedPct) ? a.guidedUncachedSavedPct : null,
+          spread: vSpread(a.guidedUncachedSpread),
+          cost_saved_pct: a.guidedCostSavedPct,
+          wall_faster_pct: wallFasterPct(w.vanilla_mean, w.cc_guided_mean),
+        }
+      : null;
+    var fromSpread = Math.max(
+      cc.spread ? cc.spread.repeats : 0,
+      g && g.spread ? g.spread.repeats : 0,
+    );
+    var input = { repeats: repeatsOfRun(r) || fromSpread || 1, cc: cc };
+    if (g) input.cc_guided = g;
+    return computeVerdict(input);
+  }
+
+  /** Verdict of a private-summary block ({ arms, saved, verdict? }); same rule. */
+  function blockVerdictOf(block, repeats) {
+    if (!isObj(block)) return null;
+    if (isRunVerdict(block.verdict)) return block.verdict;
+    var arms = isObj(block.arms) ? block.arms : {};
+    var saved = isObj(block.saved) ? block.saved : {};
+    var v = isObj(arms.vanilla) ? arms.vanilla : {};
+    if (!isNum(v.success_pct)) return null;
+    function arm(k) {
+      var x = isObj(arms[k]) ? arms[k] : {};
+      var sv = isObj(saved[k]) ? saved[k] : null;
+      if (!isNum(x.success_pct) || !sv) return null;
+      return {
+        success_vanilla_pct: v.success_pct,
+        success_arm_pct: x.success_pct,
+        uncached_saved_pct: isNum(sv.uncached_saved_pct) ? sv.uncached_saved_pct : null,
+        spread: vSpread(sv.uncached_saved_spread),
+        cost_saved_pct: isNum(sv.cost_saved_pct) ? sv.cost_saved_pct : null,
+        wall_faster_pct: wallFasterPct(v.wall_mean_ms, x.wall_mean_ms),
+      };
+    }
+    var input = { repeats: repeats, cc: arm('cc') };
+    var g = arm('cc_guided');
+    if (g) input.cc_guided = g;
+    return computeVerdict(input);
   }
 
   function kindMeta(kind) {
@@ -542,5 +841,11 @@
     kindMeta: kindMeta,
     privateIndexOf: privateIndexOf,
     privateSummaryOf: privateSummaryOf,
+    VERDICT_RULE: VERDICT_RULE,
+    VERDICT_LABELS: VERDICT_LABELS,
+    computeVerdict: computeVerdict,
+    isRunVerdict: isRunVerdict,
+    agentVerdictOf: agentVerdictOf,
+    blockVerdictOf: blockVerdictOf,
   };
 })();

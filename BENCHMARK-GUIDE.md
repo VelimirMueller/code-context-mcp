@@ -182,6 +182,73 @@ npm run bench:renormalize -- --out <dir> data/runs/glm-*.json data/runs/dsk-*.js
 
 The opus provider needs a long-lived token: run `claude setup-token` and store it as `CLAUDE_CODE_OAUTH_TOKEN`. It uses your Claude plan quota.
 
+## Verdict rule
+
+Every agent run gets a rule-based verdict (CCA-20): `headline.verdict` in the run JSON, and `verdict` per run and per group in a private summary. The owner's rule: a feature that is 5 % better but 25 % slower is not worth it. The rule and its sentences live in one module, `scripts/bench/lib/verdict.mts`; `site/data.js` carries a port that a test runs against the module on the same inputs.
+
+Each code-context arm (cc, cc-guided) is compared with vanilla:
+
+| Verdict | When |
+|---|---|
+| HARMFUL | The success rate drops by more than 5 percentage points, OR the uncached-token spread is below 0 in every repeat (`max < 0`), OR the mean wall time is more than 25 % slower. |
+| BENEFICIAL | Not HARMFUL, AND the success rate does not drop by more than 5 pp, AND the uncached tokens decrease in every repeat (`spread.min > 0`; with fewer than 3 repeats: `uncached_saved_pct >= 10`), AND the tasks are not more than 25 % slower, AND `cost_saved_pct` is `null` or `>= 0`. |
+| NO CLEAR EFFECT | Every other case. |
+
+- "More than" is strict: a drop of exactly 5 pp and exactly 25 % slower still pass. A spread with `min = 0` is not BENEFICIAL; `max = 0` is not HARMFUL.
+- Fewer than 3 repeats: the verdict is computed and marked **indicative**.
+- Wall time change = `(vanilla mean − arm mean) / vanilla mean × 100` from `aggregate.wall_ms`; positive = faster. An unknown wall time blocks nothing; the text says so.
+- The run verdict is the verdict of the best arm (BENEFICIAL > NO CLEAR EFFECT > HARMFUL). On a tie, cc-guided wins. The text calls cc-guided "with guidance" and cc "without guidance".
+- The thresholds are one frozen object, `VERDICT_RULE`: `minRepeats: 3`, `maxSuccessDropPp: 5`, `maxSlowerPct: 25`, `minSavedPctFewRepeats: 10`, `smallEffectPct: 10` (below it, a NO CLEAR EFFECT arm reads "the effect is small").
+
+The rule in ASD-STE100:
+
+- Code-context is harmful when the success rate decreases by more than 5 percentage points.
+- Code-context is harmful when the token use increases in all repeats.
+- Code-context is harmful when the tasks are more than 25 % slower.
+- Code-context is beneficial when it is not harmful, the token use decreases in all repeats, and the cost does not increase.
+- With fewer than 3 repeats, the token use must decrease by 10 % or more. The verdict is then indicative only.
+- In all other cases, code-context has no clear effect.
+
+The text comes from fixed templates: short sentences, active voice, present tense, one fact per sentence, whole % values. The same numbers always give the same text. Three realistic cases:
+
+```text
+BENEFICIAL, indicative (1 repeat; guided: −28 % tokens, −26 % cost, 25 % faster, 67 % → 75 % success)
+  Result: code-context helps when the agent gets the instruction to use it.
+  With guidance, code-context decreases the token use by 28 %.
+  It decreases the cost by 26 %.
+  The tasks complete 25 % faster.
+  The success rate increases from 67 % to 75 %.
+  Without guidance, the effect is small.
+  This result is indicative only: the run has 1 repeat.
+
+NO CLEAR EFFECT (3 repeats; guided spread −2 % … +41 %)
+  Result: code-context shows no clear effect.
+  With guidance, code-context decreases the token use by 30 %.
+  The tasks complete 8 % faster.
+  The success rate increases from 67 % to 93 %.
+  The result is not stable across repeats.
+  Without guidance, the effect is small.
+
+HARMFUL (3 repeats; 5–6 % fewer tokens, 31–40 % slower)
+  Result: code-context makes the result worse.
+  With guidance, code-context decreases the token use by 6 %.
+  It decreases the cost by 5 %.
+  The tasks complete 40 % slower.
+  The success rate decreases from 80 % to 70 %.
+  The success rate decreases by more than 5 percentage points.
+  The tasks are more than 25 % slower.
+  Without guidance, code-context also makes the result worse.
+  The tasks are more than 25 % slower.
+```
+
+Where it shows:
+
+- Dashboard: a chip (green BENEFICIAL, grey NO CLEAR EFFECT, red HARMFUL, plus "indicative") on each latest-per-kind card, and a "Verdict" section with the sentences at the top of the run detail.
+- Site: a verdict card above the headline numbers and the run detail, the verdict label in each history row, and in a private-suite card the run verdict plus a verdict column per group.
+- A run without an uncached-token figure (a pre-CCA-08 index entry without sessions) gets no verdict.
+- Older runs and summaries need no rewrite: `data/index.json`, the dashboard and the site compute the verdict from the same fields when a file has none. A recorded verdict is never overwritten.
+- Private summaries: the shape check recomputes each `verdict` from the block's own numbers and refuses any other text, so a verdict can never carry a suite-derived word. The guard scans it like every other string.
+
 ## Sandbox model
 
 A live agent run executes untrusted code — a model through the OpenCode CLI, then vitest over the code that model wrote. The runner hardens this but it is **not a full container sandbox**:
@@ -271,7 +338,7 @@ What the summary holds (schema `ccc-bench-private-summary/1`), and nothing else:
 
 - `alias`, `generated` (date), `code_context_version`.
 - `scope`: number of sources, files and total MB of the sources at their commits (from `git ls-tree`, local; `null` when a clone is missing), task count, task count per group.
-- Per run: `model`, `provider_kind`, `date`, `repeats`; per arm `sessions`, `success_pct`, `uncached_per_session`, `uncached_per_pass`, `cost_usd`, `cost_per_pass`, `wall_mean_ms`; per arm vs vanilla `uncached_saved_pct` with its min–max `uncached_saved_spread` and `cost_saved_pct`. The same per group.
+- Per run: `model`, `provider_kind`, `date`, `repeats`; per arm `sessions`, `success_pct`, `uncached_per_session`, `uncached_per_pass`, `cost_usd`, `cost_per_pass`, `wall_mean_ms`; per arm vs vanilla `uncached_saved_pct` with its min–max `uncached_saved_spread` and `cost_saved_pct`; the `verdict` (see [Verdict rule](#verdict-rule)). The same per group.
 
 Every number is recomputed from the sessions; the run's own aggregate and notes are not read.
 

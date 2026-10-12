@@ -7,6 +7,8 @@
  * and kept clean via `npm run lint`.
  */
 
+import type { RunVerdict } from './verdict.mts';
+
 export type NewRunKind = 'simulated' | 'agent-glm' | 'agent-deepseek' | 'agent-opus';
 export type IndexKind = NewRunKind | 'agent-claude';
 
@@ -128,6 +130,12 @@ export interface AgentHeadline {
   tokens_saved_pct: number;
   tool_calls_saved_pct: number;
   guided_tokens_saved_pct?: number;
+  /**
+   * Rule-based verdict with ASD-STE100 sentences (CCA-20, lib/verdict.mts).
+   * Absent in runs normalised before 2026-10-12: the index builder, the
+   * dashboard and the site compute it from the same fields.
+   */
+  verdict?: RunVerdict | null;
 }
 
 export interface AgentRun extends RunEnvelope {

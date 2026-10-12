@@ -14,6 +14,7 @@
  * index order and latest.json can never disagree.
  */
 import { honestMetrics } from './metrics.mts';
+import { repeatsOf, verdictFromHeadline } from './verdict.mts';
 import type { IndexEntry, IndexJson, IndexKind, NewRunKind, SessionResult } from './types.mts';
 
 function asRecord(x: unknown): Record<string, unknown> {
@@ -111,16 +112,49 @@ function resultsOf(arms: Record<string, unknown>, key: string): SessionResult[] 
   return Array.isArray(arm.results) ? (arm.results as SessionResult[]) : null;
 }
 
+/** Mean wall_ms per arm from the sessions (runs without aggregate.wall_ms). */
+function wallOf(r: Record<string, unknown>): unknown {
+  const agg = asRecord(r.aggregate);
+  if (agg.wall_ms && typeof agg.wall_ms === 'object') return agg.wall_ms;
+  const arms = asRecord(r.arms);
+  const mean = (key: string): number | undefined => {
+    const rs = resultsOf(arms, key);
+    if (!rs || rs.length === 0) return undefined;
+    return Math.round(rs.reduce((s, x) => s + (Number(x.wall_ms) || 0), 0) / rs.length);
+  };
+  return { vanilla_mean: mean('vanilla'), cc_mean: mean('cc'), cc_guided_mean: mean('cc_guided') };
+}
+
 /**
  * Agent headline for the index (CCA-08). A run normalised since CCA-08
  * carries the honest fields (uncached saved %, cost saved %, uncached per
  * PASS) itself. An older run file gets them derived from its sessions here,
  * so the site and dashboard can show them without loading the run; the
- * recorded fields are never overwritten.
+ * recorded fields are never overwritten. The same holds for the CCA-20
+ * verdict: computed here from the headline, the wall means and the repeats
+ * when the run file has none.
  */
 function agentHeadline(r: Record<string, unknown>): unknown {
   const h = r.headline;
   if (!h || typeof h !== 'object') return h ?? null;
+  const honest = honestHeadline(r, h as Record<string, unknown>);
+  if ('verdict' in honest) return honest;
+  const vanilla = resultsOf(asRecord(r.arms), 'vanilla');
+  try {
+    const verdict = verdictFromHeadline(honest, {
+      repeats: vanilla ? repeatsOf(vanilla) : null,
+      wall: wallOf(r),
+    });
+    return verdict ? { ...honest, verdict } : honest;
+  } catch {
+    return honest; // malformed fields: no verdict
+  }
+}
+
+function honestHeadline(
+  r: Record<string, unknown>,
+  h: Record<string, unknown>,
+): Record<string, unknown> {
   if ('uncached_saved_pct' in h) return h;
   const arms = asRecord(r.arms);
   const vanilla = resultsOf(arms, 'vanilla');

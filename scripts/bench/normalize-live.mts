@@ -20,6 +20,7 @@ import {
   type HonestAggregate,
   type PairedDelta,
 } from './lib/metrics.mts';
+import { repeatsOf, verdictFromHeadline } from './lib/verdict.mts';
 
 export type LiveProvider = 'glm' | 'deepseek' | 'opus';
 
@@ -328,6 +329,12 @@ export function aggregateLive(
     tool_calls_saved_pct: aggregate.tool_calls.saved_pct,
     ...(hasGuided ? { guided_tokens_saved_pct: aggregate.tokens.guided_saved_pct } : {}),
   };
+  // CCA-20: the rule-based verdict with its ASD-STE100 sentences, so the
+  // dashboard and the site only render it.
+  headline.verdict = verdictFromHeadline(headline, {
+    repeats: repeatsOf(sessions.vanilla),
+    wall: aggregate.wall_ms,
+  });
   return { aggregate, headline };
 }
 

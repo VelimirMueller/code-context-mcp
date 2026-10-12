@@ -26,6 +26,12 @@
  *      never the value.
  *
  * Task ids never appear in a summary: groups carry a task count, not ids.
+ *
+ * Verdict (CCA-20): every run and group carries `verdict` (lib/verdict.mts):
+ * a code and ASD-STE100 sentences built from fixed templates and the block's
+ * own numbers. The shape check recomputes it from those numbers and refuses
+ * any other text, so a verdict can never carry a suite-derived word; the
+ * guard scans it like every other string.
  */
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -41,6 +47,7 @@ import {
   uncachedOf,
 } from './lib/metrics.mts';
 import type { SessionResult } from './lib/types.mts';
+import { computeVerdict, verdictInputFromBlock, type RunVerdict } from './lib/verdict.mts';
 import {
   GROUP_RE,
   PUBLIC_LABEL_RE,
@@ -95,6 +102,8 @@ export interface SummaryBlock {
 export interface SummaryGroup extends SummaryBlock {
   group: string;
   tasks: number;
+  /** Same rule as the run verdict, on this group's tasks (CCA-20). */
+  verdict: RunVerdict;
 }
 
 export interface SummaryRun extends SummaryBlock {
@@ -103,6 +112,8 @@ export interface SummaryRun extends SummaryBlock {
   date: string;
   /** Repeats per task and arm. */
   repeats: number;
+  /** Rule-based verdict with ASD-STE100 sentences (CCA-20). */
+  verdict: RunVerdict;
   groups: SummaryGroup[];
 }
 
@@ -224,6 +235,14 @@ function blockOf(arms: Partial<Record<ArmKey, SessionResult[]>>, taskIds: string
     out.saved.cc_guided = savedOf(taskIds, v, g);
   }
   return out;
+}
+
+/** The CCA-20 verdict of one block (vanilla and cc are always present). */
+function blockVerdict(block: SummaryBlock, repeats: number): RunVerdict {
+  const input = verdictInputFromBlock(block, repeats);
+  const v = input ? computeVerdict(input) : null;
+  if (!v) throw new SummaryRefused('summary block has no arm to judge');
+  return v;
 }
 
 /** Group id of a task: its `group`, else its first letter (groupByPrefix), else "all". */
@@ -482,12 +501,25 @@ const SAVED_FIELDS = ['uncached_saved_pct', 'uncached_saved_spread', 'cost_saved
 export const SUMMARY_KEYS = {
   top: ['schema', 'alias', 'generated', 'code_context_version', 'scope', 'runs'],
   scope: ['sources', 'files', 'total_mb', 'tasks', 'tasks_per_group'],
-  run: ['model', 'provider_kind', 'date', 'repeats', 'arms', 'saved', 'groups'],
-  group: ['group', 'tasks', 'arms', 'saved'],
+  run: ['model', 'provider_kind', 'date', 'repeats', 'arms', 'saved', 'verdict', 'groups'],
+  group: ['group', 'tasks', 'arms', 'saved', 'verdict'],
   arm: ARM_FIELDS,
   saved: SAVED_FIELDS,
   spread: ['min', 'max', 'repeats'],
 } as const;
+
+/** JSON with sorted keys: equal values give equal text. */
+function canonical(v: unknown): string {
+  return JSON.stringify(v, (_k, x: unknown) =>
+    isObj(x)
+      ? Object.fromEntries(
+          Object.keys(x)
+            .sort()
+            .map((k) => [k, x[k]]),
+        )
+      : x,
+  );
+}
 
 /** Every deviation of `x` from the summary allowlist (exact keys, types, string patterns). */
 export function summaryShapeProblems(x: unknown): string[] {
@@ -550,6 +582,14 @@ export function summaryShapeProblems(x: unknown): string[] {
       }
     }
   };
+  // The verdict must be exactly what the rule makes of the block's own numbers:
+  // fixed template text and digits, nothing copied from anywhere else.
+  const verdict = (b: Record<string, unknown>, repeats: unknown, at: string) => {
+    const input = typeof repeats === 'number' ? verdictInputFromBlock(b, repeats) : null;
+    const want = input ? computeVerdict(input) : null;
+    if (!want || canonical(b.verdict) !== canonical(want))
+      p.push(`${at}.verdict: must be the rule's verdict for this block`);
+  };
   if (!keys(x, SUMMARY_KEYS.top, '$')) return p;
   const s = x as Record<string, unknown>;
   if (s.schema !== PRIVATE_SUMMARY_SCHEMA) p.push(`$.schema: must be ${PRIVATE_SUMMARY_SCHEMA}`);
@@ -590,6 +630,7 @@ export function summaryShapeProblems(x: unknown): string[] {
         p.push(`${at}.date: must be YYYY-MM-DD`);
       n(run.repeats, `${at}.repeats`);
       block(run, at);
+      verdict(run, run.repeats, at);
       if (!Array.isArray(run.groups)) p.push(`${at}.groups: must be an array`);
       else
         run.groups.forEach((g, j) => {
@@ -600,6 +641,7 @@ export function summaryShapeProblems(x: unknown): string[] {
             p.push(`${gat}.group: must be a public label`);
           n(grp.tasks, `${gat}.tasks`);
           block(grp, gat);
+          verdict(grp, run.repeats, gat);
         });
     });
   return p;
@@ -696,13 +738,18 @@ function summaryRun(suite: SuiteFile, run: Record<string, unknown>): SummaryRun 
   }
   const groups: SummaryGroup[] = [...byGroup.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([label, ids]) => ({ group: label, tasks: ids.length, ...blockOf(arms, ids) }));
+    .map(([label, ids]) => {
+      const b = blockOf(arms, ids);
+      return { group: label, tasks: ids.length, ...b, verdict: blockVerdict(b, repeats) };
+    });
+  const block = blockOf(arms, taskIds);
   return {
     model,
     provider_kind: kind as ProviderKind,
     date,
     repeats,
-    ...blockOf(arms, taskIds),
+    ...block,
+    verdict: blockVerdict(block, repeats),
     groups,
   };
 }
