@@ -1,0 +1,13 @@
+/* Shared options. A "/*" or "//" inside a string is not a comment. */
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "moduleResolution": "bundler",
+    "paths": {
+      "@/*": ["./src/*"],
+      // "@decoy/*": ["./src/decoy/*"],
+      /* "~old/*": ["./src/decoy/*"], */
+      "@shared/*": ["./src/generated/*", "./src/shared/*"],
+    },
+  },
+}

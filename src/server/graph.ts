@@ -25,6 +25,7 @@ import { freshnessNotice, type FreshnessGuard, type FreshRow } from "./freshness
 import { resolveToolPath, displayBase, canonicalPath } from "./path-resolve.js";
 import { parseStoredImportLines } from "./signatures.js";
 import { parseImports, parsePythonImports, resolveImportPath, resolvePythonImportTargets, isPathInside } from "./indexer.js";
+import { AliasResolver } from "./tsconfig-paths.js";
 
 export const MAX_LISTED_IMPORTERS = 100;
 export const MAX_LISTED_EXPORTS_IN = 150;
@@ -80,6 +81,7 @@ class Graph {
   private readonly starStmt: Database.Statement;
   private readonly edgeCache = new Map<number, Edge[]>();
   private readonly nameCache = new Map<number, Set<string>>();
+  private readonly aliasCache = new Map<string, AliasResolver>();
 
   constructor(private readonly db: Database.Database) {
     this.edgesStmt = db.prepare(
@@ -132,6 +134,16 @@ class Graph {
     return null;
   }
 
+  /** tsconfig/jsconfig alias resolver for an index root, shared by one answer. */
+  aliasesFor(root: string): AliasResolver {
+    let r = this.aliasCache.get(root);
+    if (!r) {
+      r = new AliasResolver(root);
+      this.aliasCache.set(root, r);
+    }
+    return r;
+  }
+
   /** True when any indexed file imports `name` from file `fileId`, directly or through re-exports. */
   isUsed(fileId: number, name: string, seen = new Set<string>()): boolean {
     const key = `${fileId}:${name}`;
@@ -161,7 +173,7 @@ function rootOf(db: Database.Database, p: string): string {
 }
 
 /** Line numbers in `importer`'s stored import lines whose module resolves to `targetPath`. */
-function importLinesTo(db: Database.Database, importer: FileRow, targetPath: string): number[] {
+function importLinesTo(db: Database.Database, g: Graph, importer: FileRow, targetPath: string): number[] {
   const lines = parseStoredImportLines(importer.import_lines);
   if (lines.length === 0) return [];
   const root = rootOf(db, importer.path);
@@ -172,7 +184,7 @@ function importLinesTo(db: Database.Database, importer: FileRow, targetPath: str
       ? parsePythonImports(l.text).some((imp) =>
           resolvePythonImportTargets(imp.source, imp.symbols, importer.path, root, imp.fromImport !== false).includes(targetPath),
         )
-      : parseImports(l.text).some((imp) => resolveImportPath(imp.source, importer.path, root) === targetPath);
+      : parseImports(l.text).some((imp) => resolveImportPath(imp.source, importer.path, root, g.aliasesFor(root)) === targetPath);
     if (hit) out.push(l.line);
   }
   return out;
@@ -216,7 +228,7 @@ function importersOf(db: Database.Database, g: Graph, target: FileRow, name: str
     direct.push({
       file: edge.source,
       symbols: edge.symbols,
-      lines: importLinesTo(db, edge.source, target.path),
+      lines: importLinesTo(db, g, edge.source, target.path),
       note: isBarrel ? " (re-export)" : how === "whole" ? " (whole module)" : "",
     });
   }
@@ -229,7 +241,7 @@ function importersOf(db: Database.Database, g: Graph, target: FileRow, name: str
       const takes = [...b.names].some((n) => g.takes(edge, b.file.id, n) !== null);
       if (!takes) continue;
       seen.add(edge.source.id);
-      via.push({ file: edge.source, symbols: edge.symbols, lines: importLinesTo(db, edge.source, b.file.path), note: b.file.path });
+      via.push({ file: edge.source, symbols: edge.symbols, lines: importLinesTo(db, g, edge.source, b.file.path), note: b.file.path });
     }
   }
   return { direct, via };

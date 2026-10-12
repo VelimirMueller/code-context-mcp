@@ -4,6 +4,7 @@ import Database from "better-sqlite3";
 import { SKIP_DIR_NAMES } from "../shared/ignore.js";
 import { admitFile, isDeniedDir, isDeniedFileName, looksBinary } from "./index-policy.js";
 import { gitListFiles, isGitCheckout, readGitHead } from "./git.js";
+import { AliasResolver, probeFile } from "./tsconfig-paths.js";
 import { DEFAULT_EXPORT_SRC, NAMED_EXPORT_SRC, exportDetails, importLines, serializeImportLines } from "./signatures.js";
 
 // ─── .gitignore support ─────────────────────────────────────────────────────
@@ -557,37 +558,32 @@ export function isPathInside(child: string, parent: string): boolean {
   return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
 }
 
-export function resolveImportPath(importSource: string, fromFile: string, rootDir: string): string | null {
-  if (!importSource.startsWith(".") && !importSource.startsWith("/")) return null;
-
+/**
+ * The repo file a JS/TS import names, or null (external package, missing
+ * file, outside rootDir). Relative and `/`-rooted specifiers resolve against
+ * the importing file / rootDir; with `aliases`, a bare specifier goes through
+ * the governing tsconfig/jsconfig `paths` and `baseUrl` (CCA-18, #151).
+ */
+export function resolveImportPath(importSource: string, fromFile: string, rootDir: string, aliases?: AliasResolver): string | null {
+  if (!importSource.startsWith(".") && !importSource.startsWith("/")) {
+    return aliases ? aliases.resolve(importSource, fromFile) : null;
+  }
   const base = importSource.startsWith("/")
     ? path.resolve(rootDir, importSource.slice(1))
     : path.resolve(path.dirname(fromFile), importSource);
+  return probeFile(base, rootDir, aliases?.isFile ?? isFileOnDisk);
+}
 
-  const stripped = base.replace(/\.(m|c)?js$/, "");
-  const tryExts = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
-
-  const candidates = [
-    base,
-    stripped,
-    ...tryExts.map(ext => base + ext),
-    ...tryExts.map(ext => stripped + ext),
-    ...tryExts.map(ext => path.join(base, "index" + ext)),
-  ];
-
-  for (const c of candidates) {
-    // Containment check: never resolve an import to a file outside rootDir,
-    // even if a ../ sequence points at a real file elsewhere on disk (#14).
-    if (fs.existsSync(c) && fs.statSync(c).isFile() && isPathInside(c, rootDir)) return c;
-  }
-  return null;
+function isFileOnDisk(p: string): boolean {
+  try { return fs.statSync(p).isFile(); } catch { return false; }
 }
 
 // ─── Extract external package names ──────────────────────────────────────────
-function extractExternalImports(imports: ParsedImport[]): string[] {
+function extractExternalImports(imports: ParsedImport[], filePath: string, aliases?: AliasResolver): string[] {
   const packages = new Set<string>();
   for (const imp of imports) {
     if (imp.source.startsWith(".") || imp.source.startsWith("/")) continue;
+    if (aliases?.resolve(imp.source, filePath)) continue; // a tsconfig alias to a repo file
     const parts = imp.source.split("/");
     const name = imp.source.startsWith("@") ? parts.slice(0, 2).join("/") : parts[0];
     packages.add(name);
@@ -1074,7 +1070,7 @@ function prepareFileStatements(db: Database.Database): FileStatements {
  * Upsert one file row and its exports. Returns its line count and export
  * count, or null when the file is unreadable or binary (no row written).
  */
-function storeFile(st: FileStatements, filePath: string, rootDir: string): { lines: number; exports: number; content: string } | null {
+function storeFile(st: FileStatements, filePath: string, rootDir: string, aliases: AliasResolver): { lines: number; exports: number; content: string } | null {
   const ext = path.extname(filePath).toLowerCase();
   const lang = LANG_MAP[ext] ?? "unknown";
   let meta: ReturnType<typeof getFileMeta>;
@@ -1087,7 +1083,7 @@ function storeFile(st: FileStatements, filePath: string, rootDir: string): { lin
 
   let externals: string | null = null;
   if (PARSEABLE_EXTENSIONS.has(ext)) {
-    externals = extractExternalImports(parseImports(content)).join(", ") || null;
+    externals = extractExternalImports(parseImports(content), filePath, aliases).join(", ") || null;
   } else if (PYTHON_EXTENSIONS.has(ext)) {
     externals = extractPythonExternalPackages(content, filePath, rootDir).join(", ") || null;
   }
@@ -1115,7 +1111,7 @@ function storeFile(st: FileStatements, filePath: string, rootDir: string): { lin
 }
 
 /** Rebuild the outgoing dependency edges of one JS/TS or Python file. */
-function storeDeps(st: FileStatements, filePath: string, content: string, rootDir: string): number {
+function storeDeps(st: FileStatements, filePath: string, content: string, rootDir: string, aliases: AliasResolver): number {
   const ext = path.extname(filePath).toLowerCase();
   if (!isParsedExtension(ext)) return 0;
   const sourceRow = st.getFileId.get(filePath) as { id: number } | undefined;
@@ -1127,7 +1123,7 @@ function storeDeps(st: FileStatements, filePath: string, content: string, rootDi
   for (const imp of parseFileImports(content, ext)) {
     const targets = PYTHON_EXTENSIONS.has(ext)
       ? resolvePythonImportTargets(imp.source, imp.symbols, filePath, rootDir, imp.fromImport !== false)
-      : [resolveImportPath(imp.source, filePath, rootDir)].filter((t): t is string => !!t);
+      : [resolveImportPath(imp.source, filePath, rootDir, aliases)].filter((t): t is string => !!t);
     for (const resolved of targets) {
       const targetRow = st.getFileId.get(resolved) as { id: number } | undefined;
       if (!targetRow || targetRow.id === sourceRow.id) continue;
@@ -1187,6 +1183,7 @@ export function refreshFiles(
   if (unique.length === 0) return { reindexed: 0, dropped: 0 };
   const before = snapshotFromDb(db, { paths: unique });
   const st0 = prepareFileStatements(db);
+  const aliases = new AliasResolver(root);
   const keep: { path: string; content: string }[] = [];
   const drop: string[] = [];
   db.transaction(() => {
@@ -1199,11 +1196,11 @@ export function refreshFiles(
       const adm = admitFile(p, root, realRoot);
       if (!adm.ok) { if (adm.reason !== "unreadable") drop.push(p); continue; }
       if (isIgnored?.(p)) { drop.push(p); continue; }
-      const stored = storeFile(st0, p, root);
+      const stored = storeFile(st0, p, root, aliases);
       if (stored) keep.push({ path: p, content: stored.content });
       else if (readText(p) === null && fs.existsSync(p) && isBinaryOnDisk(p)) drop.push(p);
     }
-    for (const k of keep) storeDeps(st0, k.path, k.content, root);
+    for (const k of keep) storeDeps(st0, k.path, k.content, root, aliases);
   })();
   const dropped = removeFiles(db, drop);
   diffAndLogChanges(db, before, snapshotFromDb(db, { paths: unique }));
@@ -1330,6 +1327,7 @@ export function indexDirectory(db: Database.Database, dirPath: string): { files:
 
   const candidates = listIndexableFiles(rootDir);
   const st = prepareFileStatements(db);
+  const aliases = new AliasResolver(rootDir);
 
   let exportCount = 0;
   let depCount = 0;
@@ -1339,7 +1337,7 @@ export function indexDirectory(db: Database.Database, dirPath: string): { files:
   // Phase 1: index all files
   db.transaction(() => {
     for (const filePath of candidates) {
-      const stored = storeFile(st, filePath, rootDir);
+      const stored = storeFile(st, filePath, rootDir, aliases);
       if (!stored) continue;
       filePaths.push(filePath);
       lineCounts.set(filePath, stored.lines);
@@ -1353,7 +1351,7 @@ export function indexDirectory(db: Database.Database, dirPath: string): { files:
       if (!isParsedExtension(path.extname(filePath).toLowerCase())) continue;
       const content = readText(filePath);
       if (content === null) continue;
-      depCount += storeDeps(st, filePath, content, rootDir);
+      depCount += storeDeps(st, filePath, content, rootDir, aliases);
     }
   })();
 

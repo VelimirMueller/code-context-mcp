@@ -1,0 +1,9 @@
+{
+  // the package config is not installed: TypeScript would fail, the indexer ignores it
+  "extends": ["@fixture/tsconfig-strict/tsconfig.json", "./tsconfig.base.json"],
+  "compilerOptions": {
+    "jsx": "react-jsx",
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"],
+}
