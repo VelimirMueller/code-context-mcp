@@ -1,0 +1,1053 @@
+{
+  "schema": "ccc-bench-private-summary/1",
+  "alias": "Real-world suite A",
+  "generated": "2026-10-12",
+  "code_context_version": "2.12.0",
+  "scope": {
+    "sources": 7,
+    "files": 10488,
+    "total_mb": 195.1,
+    "tasks": 12,
+    "tasks_per_group": {
+      "spa": 4,
+      "php": 5,
+      "cross-repo": 3
+    }
+  },
+  "runs": [
+    {
+      "model": "zai-coding-plan/glm-5.3",
+      "provider_kind": "agent-glm",
+      "date": "2026-10-12",
+      "repeats": 3,
+      "arms": {
+        "vanilla": {
+          "sessions": 36,
+          "success_pct": 91.7,
+          "uncached_per_session": 34252,
+          "uncached_per_pass": 37366,
+          "cost_usd": null,
+          "cost_per_pass": null,
+          "wall_mean_ms": 78739
+        },
+        "cc": {
+          "sessions": 36,
+          "success_pct": 83.3,
+          "uncached_per_session": 30277,
+          "uncached_per_pass": 36332,
+          "cost_usd": null,
+          "cost_per_pass": null,
+          "wall_mean_ms": 66091
+        },
+        "cc_guided": {
+          "sessions": 36,
+          "success_pct": 86.1,
+          "uncached_per_session": 25694,
+          "uncached_per_pass": 29838,
+          "cost_usd": null,
+          "cost_per_pass": null,
+          "wall_mean_ms": 60332
+        }
+      },
+      "saved": {
+        "cc": {
+          "uncached_saved_pct": 11.6,
+          "uncached_saved_spread": {
+            "min": 1.9,
+            "max": 23.2,
+            "repeats": 3
+          },
+          "cost_saved_pct": null
+        },
+        "cc_guided": {
+          "uncached_saved_pct": 25,
+          "uncached_saved_spread": {
+            "min": 9.2,
+            "max": 34.2,
+            "repeats": 3
+          },
+          "cost_saved_pct": null
+        }
+      },
+      "verdict": {
+        "code": "SUBOPTIMAL",
+        "indicative": false,
+        "repeats": 3,
+        "arm": "cc_guided",
+        "arms": {
+          "cc": {
+            "code": "SUBOPTIMAL",
+            "sentences": [
+              "Without guidance, code-context decreases the token use by 12 %.",
+              "The tasks complete 16 % faster.",
+              "The success rate decreases from 92 % to 83 %.",
+              "The success rate decreases by more than 5 percentage points."
+            ]
+          },
+          "cc_guided": {
+            "code": "SUBOPTIMAL",
+            "sentences": [
+              "With guidance, code-context decreases the token use by 25 %.",
+              "The tasks complete 23 % faster.",
+              "The success rate decreases from 92 % to 86 %.",
+              "The success rate decreases by more than 5 percentage points."
+            ]
+          }
+        },
+        "sentences": [
+          "Result: code-context is suboptimal for these tasks.",
+          "With guidance, code-context decreases the token use by 25 %.",
+          "The tasks complete 23 % faster.",
+          "The success rate decreases from 92 % to 86 %.",
+          "The success rate decreases by more than 5 percentage points.",
+          "Without guidance, code-context is also suboptimal.",
+          "The success rate decreases by more than 5 percentage points."
+        ]
+      },
+      "groups": [
+        {
+          "group": "cross-repo",
+          "tasks": 3,
+          "arms": {
+            "vanilla": {
+              "sessions": 9,
+              "success_pct": 66.7,
+              "uncached_per_session": 64558,
+              "uncached_per_pass": 96836,
+              "cost_usd": null,
+              "cost_per_pass": null,
+              "wall_mean_ms": 148266
+            },
+            "cc": {
+              "sessions": 9,
+              "success_pct": 66.7,
+              "uncached_per_session": 52959,
+              "uncached_per_pass": 79438,
+              "cost_usd": null,
+              "cost_per_pass": null,
+              "wall_mean_ms": 111031
+            },
+            "cc_guided": {
+              "sessions": 9,
+              "success_pct": 77.8,
+              "uncached_per_session": 58767,
+              "uncached_per_pass": 75558,
+              "cost_usd": null,
+              "cost_per_pass": null,
+              "wall_mean_ms": 118410
+            }
+          },
+          "saved": {
+            "cc": {
+              "uncached_saved_pct": 18,
+              "uncached_saved_spread": {
+                "min": 5.1,
+                "max": 24.9,
+                "repeats": 3
+              },
+              "cost_saved_pct": null
+            },
+            "cc_guided": {
+              "uncached_saved_pct": 9,
+              "uncached_saved_spread": {
+                "min": -27.9,
+                "max": 32.4,
+                "repeats": 3
+              },
+              "cost_saved_pct": null
+            }
+          },
+          "verdict": {
+            "code": "BENEFICIAL",
+            "indicative": false,
+            "repeats": 3,
+            "arm": "cc",
+            "arms": {
+              "cc": {
+                "code": "BENEFICIAL",
+                "sentences": [
+                  "Without guidance, code-context decreases the token use by 18 %.",
+                  "The tasks complete 25 % faster.",
+                  "The success rate is 67 % with and without code-context."
+                ]
+              },
+              "cc_guided": {
+                "code": "NO_CLEAR_EFFECT",
+                "sentences": [
+                  "With guidance, code-context decreases the token use by 9 %.",
+                  "The tasks complete 20 % faster.",
+                  "The success rate increases from 67 % to 78 %.",
+                  "The result is not stable across repeats."
+                ]
+              }
+            },
+            "sentences": [
+              "Result: code-context helps when the agent gets no instruction to use it.",
+              "Without guidance, code-context decreases the token use by 18 %.",
+              "The tasks complete 25 % faster.",
+              "The success rate is 67 % with and without code-context.",
+              "With guidance, the effect is small."
+            ]
+          }
+        },
+        {
+          "group": "php",
+          "tasks": 5,
+          "arms": {
+            "vanilla": {
+              "sessions": 15,
+              "success_pct": 100,
+              "uncached_per_session": 16086,
+              "uncached_per_pass": 16086,
+              "cost_usd": null,
+              "cost_per_pass": null,
+              "wall_mean_ms": 31755
+            },
+            "cc": {
+              "sessions": 15,
+              "success_pct": 80,
+              "uncached_per_session": 14466,
+              "uncached_per_pass": 18082,
+              "cost_usd": null,
+              "cost_per_pass": null,
+              "wall_mean_ms": 33710
+            },
+            "cc_guided": {
+              "sessions": 15,
+              "success_pct": 80,
+              "uncached_per_session": 8418,
+              "uncached_per_pass": 10523,
+              "cost_usd": null,
+              "cost_per_pass": null,
+              "wall_mean_ms": 26239
+            }
+          },
+          "saved": {
+            "cc": {
+              "uncached_saved_pct": 10.1,
+              "uncached_saved_spread": {
+                "min": -21,
+                "max": 29.3,
+                "repeats": 3
+              },
+              "cost_saved_pct": null
+            },
+            "cc_guided": {
+              "uncached_saved_pct": 47.7,
+              "uncached_saved_spread": {
+                "min": 38.5,
+                "max": 59.3,
+                "repeats": 3
+              },
+              "cost_saved_pct": null
+            }
+          },
+          "verdict": {
+            "code": "SUBOPTIMAL",
+            "indicative": false,
+            "repeats": 3,
+            "arm": "cc_guided",
+            "arms": {
+              "cc": {
+                "code": "SUBOPTIMAL",
+                "sentences": [
+                  "Without guidance, code-context decreases the token use by 10 %.",
+                  "The tasks complete 6 % slower.",
+                  "The success rate decreases from 100 % to 80 %.",
+                  "The success rate decreases by more than 5 percentage points.",
+                  "The result is not stable across repeats."
+                ]
+              },
+              "cc_guided": {
+                "code": "SUBOPTIMAL",
+                "sentences": [
+                  "With guidance, code-context decreases the token use by 48 %.",
+                  "The tasks complete 17 % faster.",
+                  "The success rate decreases from 100 % to 80 %.",
+                  "The success rate decreases by more than 5 percentage points."
+                ]
+              }
+            },
+            "sentences": [
+              "Result: code-context is suboptimal for these tasks.",
+              "With guidance, code-context decreases the token use by 48 %.",
+              "The tasks complete 17 % faster.",
+              "The success rate decreases from 100 % to 80 %.",
+              "The success rate decreases by more than 5 percentage points.",
+              "Without guidance, code-context is also suboptimal.",
+              "The success rate decreases by more than 5 percentage points.",
+              "The result is not stable across repeats."
+            ]
+          }
+        },
+        {
+          "group": "spa",
+          "tasks": 4,
+          "arms": {
+            "vanilla": {
+              "sessions": 12,
+              "success_pct": 100,
+              "uncached_per_session": 34231,
+              "uncached_per_pass": 34231,
+              "cost_usd": null,
+              "cost_per_pass": null,
+              "wall_mean_ms": 85325
+            },
+            "cc": {
+              "sessions": 12,
+              "success_pct": 100,
+              "uncached_per_session": 33029,
+              "uncached_per_pass": 33029,
+              "cost_usd": null,
+              "cost_per_pass": null,
+              "wall_mean_ms": 72863
+            },
+            "cc_guided": {
+              "sessions": 12,
+              "success_pct": 100,
+              "uncached_per_session": 22484,
+              "uncached_per_pass": 22484,
+              "cost_usd": null,
+              "cost_per_pass": null,
+              "wall_mean_ms": 59389
+            }
+          },
+          "saved": {
+            "cc": {
+              "uncached_saved_pct": 3.5,
+              "uncached_saved_spread": {
+                "min": -37.1,
+                "max": 40.6,
+                "repeats": 3
+              },
+              "cost_saved_pct": null
+            },
+            "cc_guided": {
+              "uncached_saved_pct": 34.3,
+              "uncached_saved_spread": {
+                "min": 21.9,
+                "max": 45.9,
+                "repeats": 3
+              },
+              "cost_saved_pct": null
+            }
+          },
+          "verdict": {
+            "code": "BENEFICIAL",
+            "indicative": false,
+            "repeats": 3,
+            "arm": "cc_guided",
+            "arms": {
+              "cc": {
+                "code": "NO_CLEAR_EFFECT",
+                "sentences": [
+                  "Without guidance, code-context decreases the token use by 4 %.",
+                  "The tasks complete 15 % faster.",
+                  "The success rate is 100 % with and without code-context.",
+                  "The result is not stable across repeats."
+                ]
+              },
+              "cc_guided": {
+                "code": "BENEFICIAL",
+                "sentences": [
+                  "With guidance, code-context decreases the token use by 34 %.",
+                  "The tasks complete 30 % faster.",
+                  "The success rate is 100 % with and without code-context."
+                ]
+              }
+            },
+            "sentences": [
+              "Result: code-context helps when the agent gets the instruction to use it.",
+              "With guidance, code-context decreases the token use by 34 %.",
+              "The tasks complete 30 % faster.",
+              "The success rate is 100 % with and without code-context.",
+              "Without guidance, the effect is small."
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "model": "deepseek/deepseek-v4-pro",
+      "provider_kind": "agent-deepseek",
+      "date": "2026-10-12",
+      "repeats": 3,
+      "arms": {
+        "vanilla": {
+          "sessions": 36,
+          "success_pct": 91.7,
+          "uncached_per_session": 42417,
+          "uncached_per_pass": 46273,
+          "cost_usd": 0.8948,
+          "cost_per_pass": 0.0271,
+          "wall_mean_ms": 69655
+        },
+        "cc": {
+          "sessions": 36,
+          "success_pct": 94.4,
+          "uncached_per_session": 38164,
+          "uncached_per_pass": 40409,
+          "cost_usd": 0.8701,
+          "cost_per_pass": 0.0256,
+          "wall_mean_ms": 73879
+        },
+        "cc_guided": {
+          "sessions": 36,
+          "success_pct": 94.4,
+          "uncached_per_session": 38209,
+          "uncached_per_pass": 40457,
+          "cost_usd": 0.8723,
+          "cost_per_pass": 0.0257,
+          "wall_mean_ms": 58548
+        }
+      },
+      "saved": {
+        "cc": {
+          "uncached_saved_pct": 10,
+          "uncached_saved_spread": {
+            "min": 4.7,
+            "max": 14.6,
+            "repeats": 3
+          },
+          "cost_saved_pct": 2.8
+        },
+        "cc_guided": {
+          "uncached_saved_pct": 9.9,
+          "uncached_saved_spread": {
+            "min": 6.8,
+            "max": 15.1,
+            "repeats": 3
+          },
+          "cost_saved_pct": 2.5
+        }
+      },
+      "verdict": {
+        "code": "BENEFICIAL",
+        "indicative": false,
+        "repeats": 3,
+        "arm": "cc_guided",
+        "arms": {
+          "cc": {
+            "code": "BENEFICIAL",
+            "sentences": [
+              "Without guidance, code-context decreases the token use by 10 %.",
+              "It decreases the cost by 3 %.",
+              "The tasks complete 6 % slower.",
+              "The success rate increases from 92 % to 94 %."
+            ]
+          },
+          "cc_guided": {
+            "code": "BENEFICIAL",
+            "sentences": [
+              "With guidance, code-context decreases the token use by 10 %.",
+              "It decreases the cost by 3 %.",
+              "The tasks complete 16 % faster.",
+              "The success rate increases from 92 % to 94 %."
+            ]
+          }
+        },
+        "sentences": [
+          "Result: code-context helps with and without the instruction to use it.",
+          "With guidance, code-context decreases the token use by 10 %.",
+          "It decreases the cost by 3 %.",
+          "The tasks complete 16 % faster.",
+          "The success rate increases from 92 % to 94 %.",
+          "Without guidance, code-context also helps.",
+          "It decreases the token use by 10 %."
+        ]
+      },
+      "groups": [
+        {
+          "group": "cross-repo",
+          "tasks": 3,
+          "arms": {
+            "vanilla": {
+              "sessions": 9,
+              "success_pct": 77.8,
+              "uncached_per_session": 71168,
+              "uncached_per_pass": 91501,
+              "cost_usd": 0.3792,
+              "cost_per_pass": 0.0542,
+              "wall_mean_ms": 130185
+            },
+            "cc": {
+              "sessions": 9,
+              "success_pct": 77.8,
+              "uncached_per_session": 62120,
+              "uncached_per_pass": 79869,
+              "cost_usd": 0.3051,
+              "cost_per_pass": 0.0436,
+              "wall_mean_ms": 141935
+            },
+            "cc_guided": {
+              "sessions": 9,
+              "success_pct": 77.8,
+              "uncached_per_session": 63268,
+              "uncached_per_pass": 81345,
+              "cost_usd": 0.3194,
+              "cost_per_pass": 0.0456,
+              "wall_mean_ms": 99462
+            }
+          },
+          "saved": {
+            "cc": {
+              "uncached_saved_pct": 12.7,
+              "uncached_saved_spread": {
+                "min": -5.7,
+                "max": 23.3,
+                "repeats": 3
+              },
+              "cost_saved_pct": 19.6
+            },
+            "cc_guided": {
+              "uncached_saved_pct": 11.1,
+              "uncached_saved_spread": {
+                "min": 3.1,
+                "max": 15.3,
+                "repeats": 3
+              },
+              "cost_saved_pct": 15.8
+            }
+          },
+          "verdict": {
+            "code": "BENEFICIAL",
+            "indicative": false,
+            "repeats": 3,
+            "arm": "cc_guided",
+            "arms": {
+              "cc": {
+                "code": "NO_CLEAR_EFFECT",
+                "sentences": [
+                  "Without guidance, code-context decreases the token use by 13 %.",
+                  "It decreases the cost by 20 %.",
+                  "The tasks complete 9 % slower.",
+                  "The success rate is 78 % with and without code-context.",
+                  "The result is not stable across repeats."
+                ]
+              },
+              "cc_guided": {
+                "code": "BENEFICIAL",
+                "sentences": [
+                  "With guidance, code-context decreases the token use by 11 %.",
+                  "It decreases the cost by 16 %.",
+                  "The tasks complete 24 % faster.",
+                  "The success rate is 78 % with and without code-context."
+                ]
+              }
+            },
+            "sentences": [
+              "Result: code-context helps when the agent gets the instruction to use it.",
+              "With guidance, code-context decreases the token use by 11 %.",
+              "It decreases the cost by 16 %.",
+              "The tasks complete 24 % faster.",
+              "The success rate is 78 % with and without code-context.",
+              "Without guidance, the effect is not clear."
+            ]
+          }
+        },
+        {
+          "group": "php",
+          "tasks": 5,
+          "arms": {
+            "vanilla": {
+              "sessions": 15,
+              "success_pct": 100,
+              "uncached_per_session": 21545,
+              "uncached_per_pass": 21545,
+              "cost_usd": 0.1636,
+              "cost_per_pass": 0.0109,
+              "wall_mean_ms": 25774
+            },
+            "cc": {
+              "sessions": 15,
+              "success_pct": 100,
+              "uncached_per_session": 18971,
+              "uncached_per_pass": 18971,
+              "cost_usd": 0.1751,
+              "cost_per_pass": 0.0117,
+              "wall_mean_ms": 27015
+            },
+            "cc_guided": {
+              "sessions": 15,
+              "success_pct": 100,
+              "uncached_per_session": 23188,
+              "uncached_per_pass": 23188,
+              "cost_usd": 0.1914,
+              "cost_per_pass": 0.0128,
+              "wall_mean_ms": 26209
+            }
+          },
+          "saved": {
+            "cc": {
+              "uncached_saved_pct": 11.9,
+              "uncached_saved_spread": {
+                "min": -3.9,
+                "max": 29.1,
+                "repeats": 3
+              },
+              "cost_saved_pct": -7
+            },
+            "cc_guided": {
+              "uncached_saved_pct": -7.6,
+              "uncached_saved_spread": {
+                "min": -14.2,
+                "max": 2.4,
+                "repeats": 3
+              },
+              "cost_saved_pct": -17
+            }
+          },
+          "verdict": {
+            "code": "NO_CLEAR_EFFECT",
+            "indicative": false,
+            "repeats": 3,
+            "arm": "cc_guided",
+            "arms": {
+              "cc": {
+                "code": "NO_CLEAR_EFFECT",
+                "sentences": [
+                  "Without guidance, code-context decreases the token use by 12 %.",
+                  "It increases the cost by 7 %.",
+                  "The tasks complete 5 % slower.",
+                  "The success rate is 100 % with and without code-context.",
+                  "The result is not stable across repeats."
+                ]
+              },
+              "cc_guided": {
+                "code": "NO_CLEAR_EFFECT",
+                "sentences": [
+                  "With guidance, code-context increases the token use by 8 %.",
+                  "It increases the cost by 17 %.",
+                  "The tasks complete 2 % slower.",
+                  "The success rate is 100 % with and without code-context.",
+                  "The result is not stable across repeats."
+                ]
+              }
+            },
+            "sentences": [
+              "Result: code-context shows no clear effect.",
+              "With guidance, code-context increases the token use by 8 %.",
+              "It increases the cost by 17 %.",
+              "The tasks complete 2 % slower.",
+              "The success rate is 100 % with and without code-context.",
+              "The result is not stable across repeats.",
+              "Without guidance, the effect is not clear."
+            ]
+          }
+        },
+        {
+          "group": "spa",
+          "tasks": 4,
+          "arms": {
+            "vanilla": {
+              "sessions": 12,
+              "success_pct": 91.7,
+              "uncached_per_session": 46944,
+              "uncached_per_pass": 51212,
+              "cost_usd": 0.352,
+              "cost_per_pass": 0.032,
+              "wall_mean_ms": 79108
+            },
+            "cc": {
+              "sessions": 12,
+              "success_pct": 100,
+              "uncached_per_session": 44187,
+              "uncached_per_pass": 44187,
+              "cost_usd": 0.39,
+              "cost_per_pass": 0.0325,
+              "wall_mean_ms": 81416
+            },
+            "cc_guided": {
+              "sessions": 12,
+              "success_pct": 100,
+              "uncached_per_session": 38192,
+              "uncached_per_pass": 38192,
+              "cost_usd": 0.3615,
+              "cost_per_pass": 0.0301,
+              "wall_mean_ms": 68286
+            }
+          },
+          "saved": {
+            "cc": {
+              "uncached_saved_pct": 5.9,
+              "uncached_saved_spread": {
+                "min": 1.1,
+                "max": 14.6,
+                "repeats": 3
+              },
+              "cost_saved_pct": -10.8
+            },
+            "cc_guided": {
+              "uncached_saved_pct": 18.6,
+              "uncached_saved_spread": {
+                "min": 1.2,
+                "max": 32.7,
+                "repeats": 3
+              },
+              "cost_saved_pct": -2.7
+            }
+          },
+          "verdict": {
+            "code": "NO_CLEAR_EFFECT",
+            "indicative": false,
+            "repeats": 3,
+            "arm": "cc_guided",
+            "arms": {
+              "cc": {
+                "code": "NO_CLEAR_EFFECT",
+                "sentences": [
+                  "Without guidance, code-context decreases the token use by 6 %.",
+                  "It increases the cost by 11 %.",
+                  "The tasks complete 3 % slower.",
+                  "The success rate increases from 92 % to 100 %."
+                ]
+              },
+              "cc_guided": {
+                "code": "NO_CLEAR_EFFECT",
+                "sentences": [
+                  "With guidance, code-context decreases the token use by 19 %.",
+                  "It increases the cost by 3 %.",
+                  "The tasks complete 14 % faster.",
+                  "The success rate increases from 92 % to 100 %."
+                ]
+              }
+            },
+            "sentences": [
+              "Result: code-context shows no clear effect.",
+              "With guidance, code-context decreases the token use by 19 %.",
+              "It increases the cost by 3 %.",
+              "The tasks complete 14 % faster.",
+              "The success rate increases from 92 % to 100 %.",
+              "Without guidance, the effect is small."
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "model": "claude-opus-5-5",
+      "provider_kind": "agent-opus",
+      "date": "2026-10-12",
+      "repeats": 1,
+      "arms": {
+        "vanilla": {
+          "sessions": 12,
+          "success_pct": 66.7,
+          "uncached_per_session": 26860,
+          "uncached_per_pass": 40291,
+          "cost_usd": 3.1247,
+          "cost_per_pass": 0.3906,
+          "wall_mean_ms": 23742
+        },
+        "cc": {
+          "sessions": 12,
+          "success_pct": 75,
+          "uncached_per_session": 24521,
+          "uncached_per_pass": 32695,
+          "cost_usd": 2.869,
+          "cost_per_pass": 0.3188,
+          "wall_mean_ms": 21687
+        },
+        "cc_guided": {
+          "sessions": 12,
+          "success_pct": 75,
+          "uncached_per_session": 19290,
+          "uncached_per_pass": 25720,
+          "cost_usd": 2.3088,
+          "cost_per_pass": 0.2565,
+          "wall_mean_ms": 17721
+        }
+      },
+      "saved": {
+        "cc": {
+          "uncached_saved_pct": 8.7,
+          "uncached_saved_spread": null,
+          "cost_saved_pct": 8.2
+        },
+        "cc_guided": {
+          "uncached_saved_pct": 28.2,
+          "uncached_saved_spread": null,
+          "cost_saved_pct": 26.1
+        }
+      },
+      "verdict": {
+        "code": "BENEFICIAL",
+        "indicative": true,
+        "repeats": 1,
+        "arm": "cc_guided",
+        "arms": {
+          "cc": {
+            "code": "NO_CLEAR_EFFECT",
+            "sentences": [
+              "Without guidance, code-context decreases the token use by 9 %.",
+              "It decreases the cost by 8 %.",
+              "The tasks complete 9 % faster.",
+              "The success rate increases from 67 % to 75 %."
+            ]
+          },
+          "cc_guided": {
+            "code": "BENEFICIAL",
+            "sentences": [
+              "With guidance, code-context decreases the token use by 28 %.",
+              "It decreases the cost by 26 %.",
+              "The tasks complete 25 % faster.",
+              "The success rate increases from 67 % to 75 %."
+            ]
+          }
+        },
+        "sentences": [
+          "Result: code-context helps when the agent gets the instruction to use it.",
+          "With guidance, code-context decreases the token use by 28 %.",
+          "It decreases the cost by 26 %.",
+          "The tasks complete 25 % faster.",
+          "The success rate increases from 67 % to 75 %.",
+          "Without guidance, the effect is small.",
+          "This result is indicative only: the run has 1 repeat."
+        ]
+      },
+      "groups": [
+        {
+          "group": "cross-repo",
+          "tasks": 3,
+          "arms": {
+            "vanilla": {
+              "sessions": 3,
+              "success_pct": 33.3,
+              "uncached_per_session": 50162,
+              "uncached_per_pass": 150486,
+              "cost_usd": 1.4702,
+              "cost_per_pass": 1.4702,
+              "wall_mean_ms": 35457
+            },
+            "cc": {
+              "sessions": 3,
+              "success_pct": 33.3,
+              "uncached_per_session": 54388,
+              "uncached_per_pass": 163164,
+              "cost_usd": 1.608,
+              "cost_per_pass": 1.608,
+              "wall_mean_ms": 39195
+            },
+            "cc_guided": {
+              "sessions": 3,
+              "success_pct": 33.3,
+              "uncached_per_session": 43501,
+              "uncached_per_pass": 130503,
+              "cost_usd": 1.3037,
+              "cost_per_pass": 1.3037,
+              "wall_mean_ms": 31667
+            }
+          },
+          "saved": {
+            "cc": {
+              "uncached_saved_pct": -8.4,
+              "uncached_saved_spread": null,
+              "cost_saved_pct": -9.4
+            },
+            "cc_guided": {
+              "uncached_saved_pct": 13.3,
+              "uncached_saved_spread": null,
+              "cost_saved_pct": 11.3
+            }
+          },
+          "verdict": {
+            "code": "BENEFICIAL",
+            "indicative": true,
+            "repeats": 1,
+            "arm": "cc_guided",
+            "arms": {
+              "cc": {
+                "code": "NO_CLEAR_EFFECT",
+                "sentences": [
+                  "Without guidance, code-context increases the token use by 8 %.",
+                  "It increases the cost by 9 %.",
+                  "The tasks complete 10 % slower.",
+                  "The success rate is 33 % with and without code-context."
+                ]
+              },
+              "cc_guided": {
+                "code": "BENEFICIAL",
+                "sentences": [
+                  "With guidance, code-context decreases the token use by 13 %.",
+                  "It decreases the cost by 11 %.",
+                  "The tasks complete 11 % faster.",
+                  "The success rate is 33 % with and without code-context."
+                ]
+              }
+            },
+            "sentences": [
+              "Result: code-context helps when the agent gets the instruction to use it.",
+              "With guidance, code-context decreases the token use by 13 %.",
+              "It decreases the cost by 11 %.",
+              "The tasks complete 11 % faster.",
+              "The success rate is 33 % with and without code-context.",
+              "Without guidance, the effect is small.",
+              "This result is indicative only: the run has 1 repeat."
+            ]
+          }
+        },
+        {
+          "group": "php",
+          "tasks": 5,
+          "arms": {
+            "vanilla": {
+              "sessions": 5,
+              "success_pct": 80,
+              "uncached_per_session": 10613,
+              "uncached_per_pass": 13266,
+              "cost_usd": 0.5174,
+              "cost_per_pass": 0.1294,
+              "wall_mean_ms": 13483
+            },
+            "cc": {
+              "sessions": 5,
+              "success_pct": 80,
+              "uncached_per_session": 11434,
+              "uncached_per_pass": 14292,
+              "cost_usd": 0.5613,
+              "cost_per_pass": 0.1403,
+              "wall_mean_ms": 14258
+            },
+            "cc_guided": {
+              "sessions": 5,
+              "success_pct": 80,
+              "uncached_per_session": 6932,
+              "uncached_per_pass": 8665,
+              "cost_usd": 0.3536,
+              "cost_per_pass": 0.0884,
+              "wall_mean_ms": 10819
+            }
+          },
+          "saved": {
+            "cc": {
+              "uncached_saved_pct": -7.7,
+              "uncached_saved_spread": null,
+              "cost_saved_pct": -8.5
+            },
+            "cc_guided": {
+              "uncached_saved_pct": 34.7,
+              "uncached_saved_spread": null,
+              "cost_saved_pct": 31.7
+            }
+          },
+          "verdict": {
+            "code": "BENEFICIAL",
+            "indicative": true,
+            "repeats": 1,
+            "arm": "cc_guided",
+            "arms": {
+              "cc": {
+                "code": "NO_CLEAR_EFFECT",
+                "sentences": [
+                  "Without guidance, code-context increases the token use by 8 %.",
+                  "It increases the cost by 8 %.",
+                  "The tasks complete 6 % slower.",
+                  "The success rate is 80 % with and without code-context."
+                ]
+              },
+              "cc_guided": {
+                "code": "BENEFICIAL",
+                "sentences": [
+                  "With guidance, code-context decreases the token use by 35 %.",
+                  "It decreases the cost by 32 %.",
+                  "The tasks complete 20 % faster.",
+                  "The success rate is 80 % with and without code-context."
+                ]
+              }
+            },
+            "sentences": [
+              "Result: code-context helps when the agent gets the instruction to use it.",
+              "With guidance, code-context decreases the token use by 35 %.",
+              "It decreases the cost by 32 %.",
+              "The tasks complete 20 % faster.",
+              "The success rate is 80 % with and without code-context.",
+              "Without guidance, the effect is small.",
+              "This result is indicative only: the run has 1 repeat."
+            ]
+          }
+        },
+        {
+          "group": "spa",
+          "tasks": 4,
+          "arms": {
+            "vanilla": {
+              "sessions": 4,
+              "success_pct": 75,
+              "uncached_per_session": 29694,
+              "uncached_per_pass": 39591,
+              "cost_usd": 1.1371,
+              "cost_per_pass": 0.379,
+              "wall_mean_ms": 27779
+            },
+            "cc": {
+              "sessions": 4,
+              "success_pct": 100,
+              "uncached_per_session": 18480,
+              "uncached_per_pass": 18480,
+              "cost_usd": 0.6997,
+              "cost_per_pass": 0.1749,
+              "wall_mean_ms": 17842
+            },
+            "cc_guided": {
+              "sessions": 4,
+              "success_pct": 100,
+              "uncached_per_session": 16579,
+              "uncached_per_pass": 16579,
+              "cost_usd": 0.6515,
+              "cost_per_pass": 0.1629,
+              "wall_mean_ms": 15888
+            }
+          },
+          "saved": {
+            "cc": {
+              "uncached_saved_pct": 37.8,
+              "uncached_saved_spread": null,
+              "cost_saved_pct": 38.5
+            },
+            "cc_guided": {
+              "uncached_saved_pct": 44.2,
+              "uncached_saved_spread": null,
+              "cost_saved_pct": 42.7
+            }
+          },
+          "verdict": {
+            "code": "BENEFICIAL",
+            "indicative": true,
+            "repeats": 1,
+            "arm": "cc_guided",
+            "arms": {
+              "cc": {
+                "code": "BENEFICIAL",
+                "sentences": [
+                  "Without guidance, code-context decreases the token use by 38 %.",
+                  "It decreases the cost by 39 %.",
+                  "The tasks complete 36 % faster.",
+                  "The success rate increases from 75 % to 100 %."
+                ]
+              },
+              "cc_guided": {
+                "code": "BENEFICIAL",
+                "sentences": [
+                  "With guidance, code-context decreases the token use by 44 %.",
+                  "It decreases the cost by 43 %.",
+                  "The tasks complete 43 % faster.",
+                  "The success rate increases from 75 % to 100 %."
+                ]
+              }
+            },
+            "sentences": [
+              "Result: code-context helps with and without the instruction to use it.",
+              "With guidance, code-context decreases the token use by 44 %.",
+              "It decreases the cost by 43 %.",
+              "The tasks complete 43 % faster.",
+              "The success rate increases from 75 % to 100 %.",
+              "Without guidance, code-context also helps.",
+              "It decreases the token use by 38 %.",
+              "This result is indicative only: the run has 1 repeat."
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
