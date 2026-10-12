@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.13.0] - 2026-10-12
+
+- 2.12.0 was not published to npm; 2.13.0 contains its changes too.
+
 ### Added
 - **Rule-based verdict in ASD-STE100 on the dashboard and the site.** Each agent run gets `headline.verdict`: BENEFICIAL, NO CLEAR EFFECT or SUBOPTIMAL per arm vs vanilla, from success change, uncached saved % and its spread, cost saved % and wall time change. SUBOPTIMAL: success drops by more than 5 pp, tokens increase in every repeat, or more than 25 % slower. Fewer than 3 repeats mark the verdict "indicative". Fixed templates make short sentences, e.g. "With guidance, code-context decreases the token use by 28 %." The dashboard shows a chip on the latest cards and a Verdict section in the run detail; the site shows a verdict card, the label in the history and per group on private-suite cards. Older runs and summaries get the verdict computed from the same fields, so no published file changes. Private summaries carry `verdict` per run and group; the shape check accepts only the text the rule makes from the block's numbers. Rule and constants: `scripts/bench/lib/verdict.mts`, documented in BENCHMARK-GUIDE.md "Verdict rule". (#156)
 - **Private suite runs in the local dashboard.** `CODE_CONTEXT_BENCH_PRIVATE_DIRS` (path list of suite dirs or their `data/` dirs) merges private runs into the Benchmark page with a **private** chip and the suite alias, plus an All / Public / Private filter. `/api/bench/run/:id?suite=pN` serves them under the same id, index and realpath rules, per dir. The files are read from disk only and sent nowhere. (#154)
