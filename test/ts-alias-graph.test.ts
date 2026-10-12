@@ -88,6 +88,12 @@ describe("matchPaths and globMatch follow TypeScript's rules", () => {
     expect(matchPaths({ "@/*.js": ["src/*.ts"] }, "@/a.js")).toEqual(["src/a.ts"]);
   });
 
+  it("substitutes the captured text literally and skips targets with two *", () => {
+    expect(matchPaths({ "@/*": ["src/*"] }, "@/$&x")).toEqual(["src/$&x"]);
+    expect(matchPaths({ "@/*": ["src/*"] }, "@/a$1b")).toEqual(["src/a$1b"]);
+    expect(matchPaths({ "@/*": ["src/*/*", "lib/*", "fixed.ts"] }, "@/m")).toEqual(["lib/m", "fixed.ts"]);
+  });
+
   it("include globs: directories, **, * and ?, and bounded cost on hostile patterns", () => {
     expect(globMatch("/p/src", "/p/src/a/b.ts")).toBe(true);
     expect(globMatch("/p/src/**/*", "/p/src/b.ts")).toBe(true);

@@ -409,5 +409,13 @@ export function matchPaths(paths: Record<string, string[]>, specifier: string): 
   }
   if (!best) return [];
   const captured = best.star;
-  return paths[best.key].map((t) => t.replace("*", captured));
+  // Substitute by index: String#replace would read `$&`/`$1` in the captured
+  // text as patterns. TypeScript allows at most one `*` per target; skip others.
+  const out: string[] = [];
+  for (const t of paths[best.key]) {
+    const i = t.indexOf("*");
+    if (i === -1) out.push(t);
+    else if (t.indexOf("*", i + 1) === -1) out.push(t.slice(0, i) + captured + t.slice(i + 1));
+  }
+  return out;
 }
