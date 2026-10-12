@@ -64,7 +64,7 @@
         </p>
         <div class="header-row">
           <nav aria-label="Sections">
-            <a href="#latest">Latest</a><a href="#history">All runs</a><a href="#detail">Detail</a
+            <a href="#latest">Latest</a><a href="#bench-details">Details</a
             ><a href="#method">Method</a>
           </nav>
           <button
@@ -83,79 +83,92 @@
         <h2 id="h-latest" class="visually-hidden">
           <span class="marker" aria-hidden="true">// 01</span> LATEST RUN
         </h2>
-        <div id="latest-body"></div>
+        <div id="simple-body"></div>
       </section>
 
-      <section id="history" aria-labelledby="h-history">
-        <img class="divider" src="assets/divider-history-v2.svg" width="1280" height="200" alt="" />
-        <h2 id="h-history" class="visually-hidden">
-          <span class="marker" aria-hidden="true">// 02</span> ALL RUNS
-        </h2>
-        <p class="sub">
-          Every published run, newest first, across all kinds. History is append-only: runs are
-          never rewritten or deleted.
-        </p>
-        <div class="note" id="history-caveat">
-          <strong>Agent runs before 2026-10-11 00:00 UTC are not comparable.</strong>
-          <ul>
-            <li>
-              Their task prompts told every arm to "use the built-in file tools", so the cc arm
-              never called code-context (0 calls in 30 sessions). Their cc token figures measure
-              the cost of loading the tool list, not of using the server.
-            </li>
-            <li>
-              Runs since then use neutral prompts, a third arm <em>cc-guided</em> (the server plus
-              the instruction to use it first) and the 11-tool code profile.
-            </li>
-            <li>
-              Uncached tokens (input + output + cache write) and cost show as
-              <em>N× vanilla</em>: below 1× is a saving. All tokens incl. cache reads are mostly
-              cache volume, billed at about 1 % of input, so they stay in the run detail.
-            </li>
-            <li>
-              Per PASS divides an arm's tokens by its passing sessions: an arm that fails more is
-              not cheaper. At 3 repeats, read the min–max spread before the mean.
-            </li>
-          </ul>
-        </div>
-        <div id="history-body"></div>
-      </section>
+      <!-- #160: the page opens with the one table above; everything else is
+           in this one collapsed block. Links to a section inside open it. -->
+      <details id="bench-details" class="more">
+        <summary>Show details</summary>
 
-      <section id="detail" aria-labelledby="h-detail">
-        <img class="divider" src="assets/divider-detail-v2.svg" width="1280" height="200" alt="" />
-        <h2 id="h-detail" class="visually-hidden">
-          <span class="marker" aria-hidden="true">// 03</span> RUN DETAIL
-        </h2>
-        <div id="detail-body"></div>
-      </section>
+        <section id="newest" aria-labelledby="h-newest">
+          <h2 id="h-newest">
+            <span class="marker" aria-hidden="true">// 01b</span> NEWEST RUN OF ANY KIND
+          </h2>
+          <div id="latest-body"></div>
+        </section>
 
-      <section id="private" aria-labelledby="h-private" hidden>
-        <h2 id="h-private">
-          <span class="marker" aria-hidden="true">// 03b</span> REAL-WORLD PRIVATE SUITES
-        </h2>
-        <p class="sub">
-          Runs on real code that cannot be public. Only a redacted summary is published: the suite's
-          public alias, scope counts and the numbers below.
-        </p>
-        <div class="note" id="private-caveat">
-          <strong>Task texts, code, repository names and answers are private.</strong>
-          <ul>
-            <li>
-              Nobody outside the owner can rerun or inspect these tasks. Read the numbers as a field
-              report next to the public runs, not as a reproducible benchmark.
-            </li>
-            <li>
-              Uncached tokens (input + output + cache write) and cost show as
-              <em>N× vanilla</em>: below 1× is a saving. The range is the min–max over repeats.
-            </li>
-            <li>
-              Per PASS divides an arm's uncached tokens by its passing sessions. Groups are small: a
-              group of one or two tasks says little on its own.
-            </li>
-          </ul>
-        </div>
-        <div id="private-body"></div>
-      </section>
+        <section id="history" aria-labelledby="h-history">
+          <img class="divider" src="assets/divider-history-v2.svg" width="1280" height="200" alt="" />
+          <h2 id="h-history" class="visually-hidden">
+            <span class="marker" aria-hidden="true">// 02</span> ALL RUNS
+          </h2>
+          <p class="sub">
+            Every published run, newest first, across all kinds. History is append-only: runs are
+            never rewritten or deleted.
+          </p>
+          <div class="note" id="history-caveat">
+            <strong>Agent runs before 2026-10-11 00:00 UTC are not comparable.</strong>
+            <ul>
+              <li>
+                Their task prompts told every arm to "use the built-in file tools", so the cc arm
+                never called code-context (0 calls in 30 sessions). Their cc token figures measure
+                the cost of loading the tool list, not of using the server.
+              </li>
+              <li>
+                Runs since then use neutral prompts, a third arm <em>cc-guided</em> (the server plus
+                the instruction to use it first) and the 11-tool code profile.
+              </li>
+              <li>
+                Uncached tokens (input + output + cache write) and cost show as
+                <em>N× vanilla</em>: below 1× is a saving. All tokens incl. cache reads are mostly
+                cache volume, billed at about 1 % of input, so they stay in the run detail.
+              </li>
+              <li>
+                Per PASS divides an arm's tokens by its passing sessions: an arm that fails more is
+                not cheaper. At 3 repeats, read the min–max spread before the mean.
+              </li>
+            </ul>
+          </div>
+          <div id="history-body"></div>
+        </section>
+
+        <section id="detail" aria-labelledby="h-detail">
+          <img class="divider" src="assets/divider-detail-v2.svg" width="1280" height="200" alt="" />
+          <h2 id="h-detail" class="visually-hidden">
+            <span class="marker" aria-hidden="true">// 03</span> RUN DETAIL
+          </h2>
+          <div id="detail-body"></div>
+        </section>
+
+        <section id="private" aria-labelledby="h-private" hidden>
+          <h2 id="h-private">
+            <span class="marker" aria-hidden="true">// 03b</span> REAL-WORLD PRIVATE SUITES
+          </h2>
+          <p class="sub">
+            Runs on real code that cannot be public. Only a redacted summary is published: the suite's
+            public alias, scope counts and the numbers below.
+          </p>
+          <div class="note" id="private-caveat">
+            <strong>Task texts, code, repository names and answers are private.</strong>
+            <ul>
+              <li>
+                Nobody outside the owner can rerun or inspect these tasks. Read the numbers as a field
+                report next to the public runs, not as a reproducible benchmark.
+              </li>
+              <li>
+                Uncached tokens (input + output + cache write) and cost show as
+                <em>N× vanilla</em>: below 1× is a saving. The range is the min–max over repeats.
+              </li>
+              <li>
+                Per PASS divides an arm's uncached tokens by its passing sessions. Groups are small: a
+                group of one or two tasks says little on its own.
+              </li>
+            </ul>
+          </div>
+          <div id="private-body"></div>
+        </section>
+      </details>
 
       <section id="method" aria-labelledby="h-method">
         <img class="divider" src="assets/divider-method-v2.svg" width="1280" height="200" alt="" />

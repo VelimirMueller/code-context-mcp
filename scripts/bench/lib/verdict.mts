@@ -497,3 +497,24 @@ export function normalizeVerdict(x: unknown): RunVerdict | null {
   };
   return isRunVerdict(out) ? out : null;
 }
+
+// ─── short summary (#160) ─────────────────────────────────────────────────────
+
+/** The warning templates of warningSentences(), as one pattern. */
+const WARNING_RE =
+  /^The (success rate decreases by more than |tasks are more than |token use increases (in all repeats|by \d+ % in )|result is not stable across repeats)/;
+
+/**
+ * Two sentences for a plain summary line (#160): the result sentence of the
+ * verdict and its main reason. The reason is the first warning sentence when
+ * the verdict is not BENEFICIAL and has one, else the first fact of the best
+ * arm (the token sentence when the token use is known). No new rule: both
+ * sentences come from the verdict as is.
+ */
+export function verdictSummary(v: RunVerdict | null | undefined): string[] {
+  if (!v || v.sentences.length === 0) return [];
+  const [head, ...rest] = v.sentences;
+  const warning = v.code === 'BENEFICIAL' ? undefined : rest.find((s) => WARNING_RE.test(s));
+  const reason = warning ?? rest[0];
+  return reason ? [head, reason] : [head];
+}

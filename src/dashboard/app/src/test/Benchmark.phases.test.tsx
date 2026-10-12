@@ -109,6 +109,7 @@ describe('Benchmark run detail: cold vs warm', () => {
     expect(screen.getByText('L1')).toBeTruthy();
     expect(screen.queryByRole('table', { name: 'Cold vs warm' })).toBeNull();
     expect(screen.queryByText(/Cold vs warm/)).toBeNull();
-    expect(screen.getAllByRole('table')).toHaveLength(1);
+    // The latest-run table (#160) sits above; the run detail inside "Show details" has one table.
+    expect(within(screen.getByTestId('bench-details')).getAllByRole('table')).toHaveLength(1);
   });
 });

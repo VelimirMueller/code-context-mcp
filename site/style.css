@@ -395,6 +395,135 @@ dl.meta dd {
   }
 }
 
+/* ---- latest run: one plain table, one row per model (#160) ----
+ * Fixed column widths and tabular numbers, so values line up and labels
+ * never wrap. Below 600 px the table keeps its width and the wrapper
+ * scrolls sideways; above it, the table fits the column. */
+.simple-caption {
+  color: var(--sub);
+  font-size: 0.9rem;
+  margin: 18px 0 10px;
+  max-width: none;
+}
+.simple-caption strong {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-weight: 400;
+}
+.simplewrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+table.simple {
+  table-layout: fixed;
+  min-width: 772px; /* the sum of the column widths below */
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+/* Each width fits the longest usual value ("NO CLEAR EFFECT", "92 % → 86 %",
+ * "23 % slower") on one line; wider tables share the rest in proportion. */
+table.simple col.c-model {
+  width: 108px;
+}
+table.simple col.c-result {
+  width: 156px;
+}
+table.simple col.c-success {
+  width: 116px;
+}
+table.simple col.c-tokens,
+table.simple col.c-cost {
+  width: 100px;
+}
+table.simple col.c-speed {
+  width: 112px;
+}
+table.simple col.c-repeats {
+  width: 80px;
+}
+table.simple th,
+table.simple td {
+  padding: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+  vertical-align: middle;
+}
+table.simple thead th {
+  font-size: 0.72rem;
+}
+/* The model column stays in view while the table scrolls sideways. */
+table.simple tbody th,
+table.simple thead th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--panel);
+}
+table.simple tbody tr:last-child > * {
+  border-bottom: 0;
+}
+table.simple tbody th {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text);
+}
+table.simple .num {
+  text-align: right;
+}
+table.simple td.num {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+}
+table.simple td.na {
+  color: var(--faint);
+}
+.chip {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  border: 1px solid currentColor;
+  border-radius: 5px;
+  padding: 1px 7px;
+  line-height: 1.5;
+}
+table.simple .ind {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--faint);
+  line-height: 1.3;
+  margin-top: 2px;
+}
+ul.simple-notes {
+  margin: 14px 0 0;
+  padding-left: 1.2em;
+  color: var(--sub);
+  font-size: 0.92rem;
+}
+ul.simple-notes strong {
+  color: var(--text);
+}
+details.more {
+  margin: 40px 0 0;
+  border-top: 1px solid var(--line);
+}
+details.more > summary {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  color: var(--accent-text);
+  cursor: pointer;
+  padding: 18px 0;
+}
+
 /* ---- box-drawing frames (headline numbers) ----
  * Pixel-exact rules: every line of a frame has the same character count and
  * the same font — one family for corners, bars AND letters (Menlo stack),

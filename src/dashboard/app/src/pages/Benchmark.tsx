@@ -16,7 +16,6 @@ import {
   type BenchPairedDelta,
   type BenchPhaseArmStats,
   type SavedSpread,
-  type AgentHeadline,
   type SimulatedHeadline,
   type LegacyHeadline,
 } from '@/stores/benchmarkStore';
@@ -25,14 +24,18 @@ import { AnimatedNumber } from '@/components/atoms/AnimatedNumber';
 import { HeroText } from '@/components/molecules/HeroText';
 import { SubTabBar } from '@/components/molecules/SubTabBar';
 import { tabVariants, tabTransition } from '@/lib/motion';
+import { VERDICT_LABELS, type RunVerdict, type VerdictCode } from '@bench/verdict.mts';
 import {
-  normalizeVerdict,
-  repeatsOf,
-  verdictFromHeadline,
-  VERDICT_LABELS,
-  type RunVerdict,
-  type VerdictCode,
-} from '@bench/verdict.mts';
+  changeSign,
+  changeText,
+  isAgentHeadline,
+  latestPerModel,
+  plainSummary,
+  simpleRow,
+  successText,
+  verdictOf,
+  type SimpleRow,
+} from '@/lib/latestRun';
 
 const MCP_COLOR = '#10b981';
 const VANILLA_COLOR = '#fbbf24';
@@ -360,32 +363,11 @@ function RunFilter({ value, onChange, counts }: {
   );
 }
 
-function isAgentHeadline(h: BenchIndexEntry['headline']): h is AgentHeadline {
-  return !!h && 'success_vanilla_pct' in h;
-}
 function isSimulatedHeadline(h: BenchIndexEntry['headline']): h is SimulatedHeadline {
   return !!h && 'tokensSavedPct' in h;
 }
 function isLegacyHeadline(h: BenchIndexEntry['headline']): h is LegacyHeadline {
   return !!h && 'nv_mean' in h;
-}
-
-/**
- * The CCA-20 verdict of an agent run: the stored one (run file, then index
- * entry), else computed from the headline with the run's wall means and
- * repeats when the run file is loaded. Same rule as scripts/bench.
- */
-function verdictOf(entry: BenchIndexEntry, run: BenchRun | undefined): RunVerdict | null {
-  const h = entry.headline;
-  if (!isAgentHeadline(h)) return null;
-  // normalizeVerdict reads an old HARMFUL verdict as SUBOPTIMAL (#158).
-  const stored = normalizeVerdict(run?.headline?.verdict) ?? normalizeVerdict(h.verdict);
-  if (stored) return stored;
-  const results = run?.arms?.vanilla?.results;
-  return verdictFromHeadline(h, {
-    wall: run?.aggregate?.wall_ms,
-    repeats: Array.isArray(results) ? repeatsOf(results) : null,
-  });
 }
 
 /** Status colours: green = beneficial, grey = no clear effect, red = suboptimal. */
@@ -890,6 +872,135 @@ function LiveRunsView() {
   );
 }
 
+/* ─── Latest run: one plain table (#160) ─────────────────────────────────── */
+
+/** Green = better than vanilla, red = worse, muted = unknown. */
+function changeColor(value: number | null): string {
+  const s = changeSign(value);
+  return s === null ? 'var(--text3)' : s > 0 ? 'var(--green)' : s < 0 ? 'var(--red)' : 'var(--text2)';
+}
+
+/** Verdict chip for the table: BENEFICIAL / NO CLEAR EFFECT / SUBOPTIMAL + "indicative". */
+function ResultChip({ verdict }: { verdict: RunVerdict | null }) {
+  if (!verdict) return <span style={{ color: 'var(--text3)' }}>—</span>;
+  const color = VERDICT_COLORS[verdict.code];
+  return (
+    <span data-testid="result-chip" data-verdict={verdict.code} style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+      <span style={{
+        fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', fontFamily: 'var(--mono)',
+        color, border: `1px solid ${color}`, borderRadius: 4, padding: '1px 6px', whiteSpace: 'nowrap',
+      }}>
+        {VERDICT_LABELS[verdict.code]}
+      </span>
+      {verdict.indicative && (
+        <span title={`${verdict.repeats} repeat(s): fewer than 3`} style={{ fontSize: 10, color: 'var(--text3)' }}>
+          indicative
+        </span>
+      )}
+    </span>
+  );
+}
+
+// Column widths in px: the minimum each column needs for its longest value
+// ("NO CLEAR EFFECT", "100 % → 100 %", "23 % slower") without wrapping. The
+// table stretches above their sum and scrolls sideways below it, with the
+// model column pinned.
+const SIMPLE_COLS: Array<{ label: string; width: number; num?: boolean }> = [
+  { label: 'Model', width: 88 },
+  { label: 'Result', width: 136 },
+  { label: 'Success', width: 108, num: true },
+  { label: 'Tokens', width: 88, num: true },
+  { label: 'Cost', width: 88, num: true },
+  { label: 'Speed', width: 100, num: true },
+  { label: 'Repeats', width: 68, num: true },
+];
+const SIMPLE_MIN_WIDTH = SIMPLE_COLS.reduce((n, c) => n + c.width, 0);
+
+const sth: CSSProperties = {
+  ...sectionLabel, padding: '10px 10px', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap', textAlign: 'left',
+};
+const std: CSSProperties = {
+  padding: '12px 10px', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap',
+  overflow: 'hidden', textOverflow: 'ellipsis', verticalAlign: 'middle',
+};
+/** The model column stays in view while the table scrolls sideways. */
+const pinned: CSSProperties = { position: 'sticky', left: 0, zIndex: 1, background: 'var(--surface)' };
+const stdNum: CSSProperties = {
+  ...std, textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 12, fontVariantNumeric: 'tabular-nums',
+};
+
+function SimpleTable({ rows }: { rows: SimpleRow[] }) {
+  return (
+    <div style={{ ...panel, padding: 0, overflowX: 'auto' }}>
+      <table
+        aria-label="Latest run per model"
+        style={{ width: '100%', minWidth: SIMPLE_MIN_WIDTH, borderCollapse: 'collapse', tableLayout: 'fixed', fontVariantNumeric: 'tabular-nums' }}
+      >
+        <colgroup>
+          {SIMPLE_COLS.map((c) => <col key={c.label} style={{ width: c.width }} />)}
+        </colgroup>
+        <thead>
+          <tr>
+            {SIMPLE_COLS.map((c, i) => (
+              <th key={c.label} scope="col" style={c.num ? { ...sth, textAlign: 'right' } : i === 0 ? { ...sth, ...pinned } : sth}>{c.label}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => {
+            const last = i === rows.length - 1 ? { borderBottom: 'none' } : null;
+            return (
+              <tr key={r.kind} data-kind={r.kind}>
+                <th scope="row" style={{ ...std, ...pinned, ...last, textAlign: 'left', fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{r.label}</th>
+                <td style={{ ...std, ...last }}><ResultChip verdict={r.verdict} /></td>
+                <td style={{ ...stdNum, ...last, color: 'var(--text)' }}>{successText(r)}</td>
+                <td style={{ ...stdNum, ...last, color: changeColor(r.tokensSavedPct) }}>{changeText(r.tokensSavedPct, 'less', 'more')}</td>
+                <td style={{ ...stdNum, ...last, color: changeColor(r.costSavedPct) }}>{changeText(r.costSavedPct, 'less', 'more')}</td>
+                <td style={{ ...stdNum, ...last, color: changeColor(r.fasterPct) }}>{changeText(r.fasterPct, 'faster', 'slower')}</td>
+                <td style={{ ...stdNum, ...last, color: 'var(--text2)' }}>{r.repeats !== null ? `${r.repeats}×` : '—'}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function LatestRunTable() {
+  const allRuns = useBenchmarkStore((s) => s.benchRuns);
+  const runDetails = useBenchmarkStore((s) => s.runDetails);
+  const loading = useBenchmarkStore((s) => s.benchLoading);
+  const error = useBenchmarkStore((s) => s.benchError);
+
+  const rows = latestPerModel(allRuns).map((e) => simpleRow(e, runDetails[runKey(e)]));
+  if (rows.length === 0) {
+    return (
+      <div style={{ ...panel, fontSize: 13, color: error ? 'var(--red)' : 'var(--text2)', textAlign: 'center', padding: 24 }}>
+        {loading ? 'Loading the latest run…' : error ? `Could not load the benchmark runs: ${error}` : 'No GLM, Opus or DeepSeek run yet.'}
+      </div>
+    );
+  }
+  const dates = [...new Set(rows.map((r) => r.entry.date))].join(' / ');
+  const suites = [...new Set(rows.map((r) => (r.entry.private ? r.entry.suite ?? 'private suite' : 'test fixture')))].join(' / ');
+  return (
+    <section aria-label="Latest run">
+      <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 10, lineHeight: 1.6 }}>
+        <span style={{ fontFamily: 'var(--mono)', color: 'var(--text)', fontWeight: 700 }}>{dates} · {suites}</span>
+        {' — '}Tokens = tokens the model had to process (cache excluded). With code-context = the better of the two code-context setups.
+      </div>
+      <SimpleTable rows={rows} />
+      <ul aria-label="Result per model" style={{ margin: '12px 0 0', paddingLeft: 18, listStyleType: 'disc', fontSize: 12, color: 'var(--text2)', lineHeight: 1.7 }}>
+        {rows.filter((r) => r.summary.length > 0).map((r) => (
+          <li key={r.kind}>
+            <strong style={{ color: 'var(--text)' }}>{r.label}:</strong> {plainSummary(r.summary)}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 /* ─── Simulated (2026-06) ────────────────────────────────────────────────── */
 
 function SimulatedView() {
@@ -992,23 +1103,37 @@ export function Benchmark() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      <SubTabBar tabs={BENCHMARK_TABS} />
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={simulated ? 'simulated' : 'overview'}
-          variants={tabVariants}
-          initial="initial"
-          animate="animate"
-          exit="exit"
-          transition={tabTransition}
-          style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
-        >
-          {simulated
-            ? <HeroText>Simulated MCP vs Vanilla (2026-06) — <AnimatedNumber value={taskCount} /> tasks</HeroText>
-            : <HeroText>Real agent runs — <AnimatedNumber value={runCount} /> runs, vanilla vs code-context</HeroText>}
-          {simulated ? <SimulatedView /> : <LiveRunsView />}
-        </motion.div>
-      </AnimatePresence>
+      <HeroText>Latest benchmark run — vanilla vs code-context</HeroText>
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div style={{ padding: '20px 20px 8px' }}>
+          <LatestRunTable />
+        </div>
+        {/* #160: everything else stays one click away, collapsed by default. */}
+        <details data-testid="bench-details" style={{ margin: '12px 20px 20px', ...panel, padding: 0 }}>
+          <summary style={{ padding: '12px 16px', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--accent)' }}>
+            Show details <span style={{ color: 'var(--text3)', fontWeight: 400 }}>— all {runCount} runs, filter, per-run numbers, simulated benchmark</span>
+          </summary>
+          <SubTabBar tabs={BENCHMARK_TABS} />
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={simulated ? 'simulated' : 'overview'}
+              variants={tabVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={tabTransition}
+              style={{ display: 'flex', flexDirection: 'column' }}
+            >
+              <div style={{ padding: '12px 20px 0', fontSize: 12, color: 'var(--text3)' }}>
+                {simulated
+                  ? <>Simulated MCP vs Vanilla (2026-06) — <AnimatedNumber value={taskCount} /> tasks</>
+                  : <>Real agent runs — <AnimatedNumber value={runCount} /> runs, vanilla vs code-context</>}
+              </div>
+              {simulated ? <SimulatedView /> : <LiveRunsView />}
+            </motion.div>
+          </AnimatePresence>
+        </details>
+      </div>
     </div>
   );
 }
