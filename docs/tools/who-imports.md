@@ -24,7 +24,19 @@ Symbol mode lists the file that defines the symbol (not a barrel that only re-ex
 
 ## What the graph holds
 
-Edges come from relative imports of indexed files: `import … from`, `import type`, side-effect `import '…'`, `export … from`, dynamic `import('…')` and `require('…')` (JS/TS), and `import` / `from … import` (Python). Not in the graph: package imports, tsconfig path aliases (`@/…`), and files the index skips (git-ignored, binary or over the size limit). Databases indexed before this release lack the re-export, type-import and dynamic-import edges until the next full re-index.
+Edges come from relative imports of indexed files and from tsconfig/jsconfig path aliases: `import … from`, `import type`, side-effect `import '…'`, `export … from`, dynamic `import('…')` and `require('…')` (JS/TS), and `import` / `from … import` (Python). Not in the graph: package imports and files the index skips (git-ignored, binary or over the size limit). Databases indexed before this release lack the re-export, type-import and dynamic-import edges until the next full re-index.
+
+### Path aliases (tsconfig / jsconfig)
+
+A bare specifier such as `@/lib/format` or `components/Button` resolves the way TypeScript resolves it:
+
+- **Config**: the nearest `tsconfig.json` (else `jsconfig.json`) from the importing file up to the index root. Its `extends` chain applies (relative files, and package configs such as `@tsconfig/…` from `node_modules`; a missing package is ignored).
+- **Solution configs**: when that config does not hold `paths`/`baseUrl` for the file itself, the first `references` entry whose `files`/`include` (minus `exclude`) covers the file is used. A Vite app's `tsconfig.json` → `tsconfig.app.json` works with no setup.
+- **`paths`**: exact keys first, then the `*` pattern with the longest prefix; targets are tried in order. They are relative to `baseUrl`, else to the config that sets `paths`. `${configDir}` is expanded.
+- **`baseUrl`**: a bare import resolves when `<baseUrl>/<specifier>` exists, else it stays an external package.
+- **Files**: the same probing as a relative import (`.ts`, `.tsx`, `.d.ts`, `.js`, `.jsx`, `.mjs`, `.cjs`, `/index.*`); a `.js` specifier finds its `.ts` source. A target outside the index root never resolves.
+
+Not read: Vite `resolve.alias` (the usual setup mirrors tsconfig `paths`), webpack aliases, `package.json` `imports`. A changed tsconfig takes effect on the next full re-index of the repo.
 
 ## Example
 
