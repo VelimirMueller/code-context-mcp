@@ -137,6 +137,30 @@ describe('normalizeLive', () => {
       uncached_per_pass: { vanilla: 17_400, cc: 3_775 }, // 1 pass vs 2 passes
       tokens_saved_pct: 56.3,
       tool_calls_saved_pct: 58.3,
+      // CCA-20: rule-based verdict, one repeat → indicative.
+      verdict: {
+        code: 'BENEFICIAL',
+        indicative: true,
+        repeats: 1,
+        arm: 'cc',
+        arms: {
+          cc: {
+            code: 'BENEFICIAL',
+            sentences: [
+              'Code-context decreases the token use by 57 %.',
+              'The tasks complete 44 % faster.',
+              'The success rate increases from 50 % to 100 %.',
+            ],
+          },
+        },
+        sentences: [
+          'Result: code-context helps.',
+          'Code-context decreases the token use by 57 %.',
+          'The tasks complete 44 % faster.',
+          'The success rate increases from 50 % to 100 %.',
+          'This result is indicative only: the run has 1 repeat.',
+        ],
+      },
     });
     expect(Object.keys(run.headline).slice(0, 3)).toEqual([
       'success_vanilla_pct',
@@ -235,12 +259,19 @@ describe('normalizeLive — cold-warm cache mode (2026-10-11)', () => {
     // re-pinned for CCA-08: the headline leads with uncached / cost / per-PASS fields and the
     // aggregate gains per_pass, uncached_tokens, cost_saved_pct and per-task paired deltas,
     // re-pinned for CCA-12: the embedded L1 pattern ("doesn't import anything.", "no file dependencies").
+    // re-pinned for CCA-20: the headline gains `verdict` (the hash without it is unchanged).
     const run = normalizeLive('glm', 'zai-coding-plan/glm-5.3', [L1, L2], sessions, ctx);
     expect('by_phase' in (run.aggregate as object)).toBe(false);
+    const { verdict: _verdict, ...pre } = run.headline;
+    expect(
+      createHash('sha256')
+        .update(JSON.stringify({ ...run, headline: pre }, null, 2))
+        .digest('hex'),
+    ).toBe('050d65a772e3b3f284eebd9065414c1a0237e7e8ae13df823d6df9a9d30b418e');
     const hash = createHash('sha256')
       .update(JSON.stringify(run, null, 2))
       .digest('hex');
-    expect(hash).toBe('050d65a772e3b3f284eebd9065414c1a0237e7e8ae13df823d6df9a9d30b418e');
+    expect(hash).toBe('a8314592801e257bf952d461bee23fa3e018ada78fa56c003e4f8f3abd41ef99');
   });
 
   const phased = (r: SessionResult, phase: 'cold' | 'warm', indexMs = 0): SessionResult => ({

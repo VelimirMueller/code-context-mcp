@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { get } from '@/lib/api';
+import type { RunVerdict } from '@bench/verdict.mts';
 
 export interface BenchmarkTask {
   id: string;
@@ -107,6 +108,8 @@ export interface AgentHeadline {
   tokens_saved_pct: number;
   tool_calls_saved_pct: number;
   guided_tokens_saved_pct?: number;
+  /** Rule-based verdict (CCA-20); absent in index entries built before it. */
+  verdict?: RunVerdict | null;
 }
 
 export interface SimulatedHeadline {
@@ -229,7 +232,16 @@ export interface BenchRun {
   tasks?: Array<{ id: string; size?: string; prompt?: string; prompt_sha256?: string }>;
   /** Suite runs (CCA-17): privacy flags; sources are hashes when redacted. */
   suite?: { id: string; private: boolean; redact: boolean };
-  aggregate?: { per_task?: BenchPerTask[]; by_phase?: BenchByPhase };
+  aggregate?: {
+    per_task?: BenchPerTask[];
+    by_phase?: BenchByPhase;
+    /** Mean wall time per session and arm (the verdict's speed input). */
+    wall_ms?: { vanilla_mean?: number; cc_mean?: number; cc_guided_mean?: number };
+  };
+  /** Run headline; `verdict` since CCA-20. */
+  headline?: { verdict?: RunVerdict | null } & Record<string, unknown>;
+  /** Sessions per arm (the verdict's repeat count). */
+  arms?: { vanilla?: { results?: Array<{ task_id: string }> } };
 }
 
 interface BenchIndexResponse {

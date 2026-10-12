@@ -12,7 +12,8 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "paths": { "@/*": ["./src/*"] }
+    "allowImportingTsExtensions": true,
+    "paths": { "@/*": ["./src/*"], "@bench/*": ["../../../scripts/bench/lib/*"] }
   },
   "include": ["src"]
 }

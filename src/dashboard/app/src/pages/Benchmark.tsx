@@ -25,6 +25,14 @@ import { AnimatedNumber } from '@/components/atoms/AnimatedNumber';
 import { HeroText } from '@/components/molecules/HeroText';
 import { SubTabBar } from '@/components/molecules/SubTabBar';
 import { tabVariants, tabTransition } from '@/lib/motion';
+import {
+  isRunVerdict,
+  repeatsOf,
+  verdictFromHeadline,
+  VERDICT_LABELS,
+  type RunVerdict,
+  type VerdictCode,
+} from '@bench/verdict.mts';
 
 const MCP_COLOR = '#10b981';
 const VANILLA_COLOR = '#fbbf24';
@@ -362,6 +370,72 @@ function isLegacyHeadline(h: BenchIndexEntry['headline']): h is LegacyHeadline {
   return !!h && 'nv_mean' in h;
 }
 
+/**
+ * The CCA-20 verdict of an agent run: the stored one (run file, then index
+ * entry), else computed from the headline with the run's wall means and
+ * repeats when the run file is loaded. Same rule as scripts/bench.
+ */
+function verdictOf(entry: BenchIndexEntry, run: BenchRun | undefined): RunVerdict | null {
+  const h = entry.headline;
+  if (!isAgentHeadline(h)) return null;
+  const stored = run?.headline?.verdict;
+  if (isRunVerdict(stored)) return stored;
+  if (isRunVerdict(h.verdict)) return h.verdict;
+  const results = run?.arms?.vanilla?.results;
+  return verdictFromHeadline(h, {
+    wall: run?.aggregate?.wall_ms,
+    repeats: Array.isArray(results) ? repeatsOf(results) : null,
+  });
+}
+
+/** Status colours: green = beneficial, grey = no clear effect, red = harmful. */
+const VERDICT_COLORS: Record<VerdictCode, string> = {
+  BENEFICIAL: 'var(--green)',
+  NO_CLEAR_EFFECT: 'var(--text3)',
+  HARMFUL: 'var(--red)',
+};
+
+/** One-line verdict chip: BENEFICIAL / NO CLEAR EFFECT / HARMFUL + "indicative". */
+function VerdictChip({ verdict }: { verdict: RunVerdict | null }) {
+  if (!verdict) return null;
+  const color = VERDICT_COLORS[verdict.code];
+  return (
+    <div
+      data-testid="verdict-chip"
+      title={verdict.sentences[0]}
+      style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}
+    >
+      <span style={{
+        fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
+        color, border: `1px solid ${color}`, borderRadius: 4, padding: '1px 6px', whiteSpace: 'nowrap',
+      }}>
+        {VERDICT_LABELS[verdict.code]}
+      </span>
+      {verdict.indicative && (
+        <span title={`${verdict.repeats} repeat(s): fewer than 3`} style={{ fontSize: 10, color: 'var(--text3)' }}>
+          indicative
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** "Verdict" section: the chip and the ASD-STE100 sentences. */
+function VerdictSection({ verdict }: { verdict: RunVerdict | null }) {
+  if (!verdict) return null;
+  const [headline, ...rest] = verdict.sentences;
+  return (
+    <section aria-label="Verdict" style={{ marginBottom: 14 }}>
+      <div style={{ ...sectionLabel, marginBottom: 6 }}>Verdict</div>
+      <VerdictChip verdict={verdict} />
+      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>{headline}</div>
+      <ul style={{ margin: 0, paddingLeft: 16, fontSize: 11, color: 'var(--text2)', lineHeight: 1.6 }}>
+        {rest.map((t, i) => <li key={i}>{t}</li>)}
+      </ul>
+    </section>
+  );
+}
+
 /** Whole calendar days (UTC) between the run date and today. */
 function daysAgo(date: string): number | null {
   const t = Date.parse(date.slice(0, 10));
@@ -483,6 +557,7 @@ function LatestRunCard({ entry, run, selected, onSelect }: {
       <div style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)', marginBottom: 10 }}>
         code-context {run?.code_context_version ?? '…'}
       </div>
+      <VerdictChip verdict={verdictOf(entry, run)} />
       <HeadlineStats entry={entry} />
     </button>
   );
@@ -662,6 +737,7 @@ function RunDetail({ entry, run, error }: { entry: BenchIndexEntry; run: BenchRu
         {run?.code_context_version ? ` · code-context ${run.code_context_version}` : ''}
         {run?.duration_ms ? ` · ${Math.round(run.duration_ms / 1000)}s` : ''}
       </div>
+      <VerdictSection verdict={verdictOf(entry, run)} />
       {entry.private && (
         <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 14, lineHeight: 1.6 }}>
           Private suite{entry.suite ? ` ${entry.suite}` : ''}: shown from your local suite dir only, never published.
