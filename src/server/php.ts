@@ -18,6 +18,13 @@
  * An unqualified, un-imported class name is a same-namespace guess: it becomes
  * an edge only when such a class is indexed, and never an external package.
  *
+ * Untrusted input: the indexer runs on every file of a cloned repo, inside the
+ * MCP server and the dashboard watcher. Every pass is linear in the file size
+ * (no backtracking-prone regex on unbounded input, no recursion, no rescans),
+ * and hard caps bound the rest: files over MAX_PHP_PARSE_BYTES get no
+ * structure at all, and tokens, exports, references and name lengths are
+ * capped per file (PhpParse.limited says which cap was hit).
+ *
  * Files are found through the nearest composer.json `autoload` /
  * `autoload-dev` PSR-4 maps (paths relative to that composer.json, every
  * composer.json up to the index root is tried), then through the indexed
@@ -25,7 +32,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { oneLine, MAX_STORED_IMPORT_LINES, type ImportLine } from "./signatures.js";
+import { oneLine, MAX_SIGNATURE_CHARS, MAX_STORED_IMPORT_LINES, type ImportLine } from "./signatures.js";
 
 export type PhpRefKind = "class" | "function" | "const";
 
@@ -50,6 +57,11 @@ export interface PhpRef {
 }
 
 export interface PhpParse {
+  /**
+   * Set when the file was not parsed (too large) or a per-file cap cut the
+   * parse short: a short note for the file summary. Normal files never set it.
+   */
+  limited?: string;
   /** Namespace of the first declaration (or the last `namespace` seen). */
   namespace: string;
   exports: PhpExport[];
@@ -57,6 +69,27 @@ export interface PhpParse {
   useLines: ImportLine[];
   refs: PhpRef[];
 }
+
+// ─── Limits (crafted files must not hang or exhaust the process) ─────────────
+
+/** Larger files (UTF-8 bytes) are indexed as plain files: no exports, use lines or edges. */
+export const MAX_PHP_PARSE_BYTES = 2 * 1024 * 1024;
+/** Tokens read per file; the rest of a larger token stream is not parsed. */
+export const MAX_PHP_TOKENS = 500_000;
+/** Declarations (exports) kept per file (the most in 34k real vendor files: 379). */
+export const MAX_PHP_EXPORTS = 2_000;
+/** Distinct references (future edges) kept per file (the most in 34k real vendor files: 624). */
+export const MAX_PHP_REFS = 10_000;
+/** Longest namespace / declaration name / qualified reference taken (characters). */
+export const MAX_PHP_NAME_CHARS = 1_024;
+/**
+ * Most source characters a signature or use line is cut from. oneLine keeps
+ * MAX_SIGNATURE_CHARS (160) of it anyway, so only a header with kilobytes of
+ * whitespace could read differently.
+ */
+const MAX_SIGNATURE_SOURCE = 4_096;
+/** Names between `const` and the constant name (`const string NAME =` has one). */
+const MAX_CONST_TYPE_NAMES = 4;
 
 // ─── Pass 1: blank comments, strings and inline HTML ─────────────────────────
 
@@ -80,29 +113,77 @@ function skipSingle(src: string, i: number): number {
 /**
  * End (exclusive) of a double-quoted or backtick string starting at `i`.
  * `{$…}` / `${…}` interpolation may hold nested quotes (`"{$a["k"]}"`), so it
- * is skipped with its own brace depth.
+ * is skipped with its own brace depth. Iterative with an explicit stack: a
+ * crafted file can nest `"{$"{$…` without bound, and recursion would overflow
+ * the call stack.
  */
 function skipDouble(src: string, i: number, quote: string): number {
   const n = src.length;
   let j = i + 1;
   while (j < n) {
     const c = src[j];
-    if (c === "\\") { j += 2; continue; }
-    if (c === quote) return j + 1;
-    if ((c === "{" && src[j + 1] === "$") || (c === "$" && src[j + 1] === "{")) {
-      let depth = 1;
-      j += 2;
-      while (j < n && depth > 0) {
-        const d = src[j];
-        if (d === "'") j = skipSingle(src, j);
-        else if (d === '"') j = skipDouble(src, j, '"');
-        else { if (d === "{") depth++; else if (d === "}") depth--; j++; }
-      }
-      continue;
-    }
-    j++;
+    if (c === "\\") j += 2;
+    else if (c === quote) return j + 1;
+    else if ((c === "{" && src[j + 1] === "$") || (c === "$" && src[j + 1] === "{")) return skipInterpolated(src, j, quote);
+    else j++;
   }
   return n;
+}
+
+/** skipDouble from the first `{$` / `${` at `j` on, with a stack of open strings and brace depths. */
+function skipInterpolated(src: string, j: number, quote: string): number {
+  const n = src.length;
+  // frames: STRING (inside a "…" string; the outermost may be `…`) or a brace depth >= 1 (inside {$…})
+  const STRING = 0;
+  const frames: number[] = [STRING, 1];
+  j += 2;
+  while (j < n) {
+    const top = frames[frames.length - 1];
+    const c = src[j];
+    if (top === STRING) {
+      if (c === "\\") { j += 2; continue; }
+      if (c === (frames.length === 1 ? quote : '"')) {
+        frames.pop();
+        j++;
+        if (frames.length === 0) return j;
+        continue;
+      }
+      if ((c === "{" && src[j + 1] === "$") || (c === "$" && src[j + 1] === "{")) { frames.push(1); j += 2; continue; }
+      j++;
+    } else if (c === "'") {
+      j = skipSingle(src, j);
+    } else if (c === '"') {
+      frames.push(STRING);
+      j++;
+    } else {
+      if (c === "{") frames[frames.length - 1] = top + 1;
+      else if (c === "}") { if (top === 1) frames.pop(); else frames[frames.length - 1] = top - 1; }
+      j++;
+    }
+  }
+  return n;
+}
+
+const isLabelChar = (code: number): boolean =>
+  (code >= 48 && code <= 57) || (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || code === 95 || code >= 0x80;
+const isLineBreak = (code: number): boolean => code === 10 || code === 13 || code === 0x2028 || code === 0x2029;
+
+/**
+ * End (exclusive) of the closing marker of a heredoc / nowdoc whose
+ * body starts at `from`: `label` at the start of a line after optional spaces
+ * or tabs (PHP 7.3+), not followed by a label character; -1 when absent.
+ * A plain indexOf scan, so a long body costs one linear pass and no regex is
+ * built from file content.
+ */
+function heredocClose(src: string, label: string, from: number): number {
+  for (let k = src.indexOf(label, from); k >= 0; k = src.indexOf(label, k + 1)) {
+    const after = k + label.length;
+    if (after < src.length && isLabelChar(src.charCodeAt(after))) continue;
+    let b = k;
+    while (b > from && (src[b - 1] === " " || src[b - 1] === "\t")) b--;
+    if (b === from || isLineBreak(src.charCodeAt(b - 1))) return after;
+  }
+  return -1;
 }
 
 /**
@@ -157,10 +238,8 @@ export function stripPhp(src: string): string {
       const h = HEREDOC_START.exec(src);
       if (h) {
         // PHP 7.3+: the closing marker may be indented and followed by `;`, `,`, `)`…
-        const close = new RegExp(String.raw`^[ \t]*${h[2]}(?![\w\x80-\uffff])`, "gm");
-        close.lastIndex = i + h[0].length;
-        const cm = close.exec(src);
-        end = cm ? cm.index + cm[0].length : n;
+        const close = heredocClose(src, h[2], i + h[0].length);
+        end = close < 0 ? n : close;
       }
     }
     if (end < 0) { i++; continue; }
@@ -176,22 +255,64 @@ export function stripPhp(src: string): string {
 // ─── Pass 2: tokens and declarations ─────────────────────────────────────────
 
 const NAME_CHARS = String.raw`[A-Za-z_\x80-\uffff][\w\x80-\uffff]*`;
-// name (optionally qualified / fully qualified) | $var | punctuation the parser needs | number
+// name (optionally qualified / fully qualified) | $var | punctuation the parser needs | number.
+// No alternative can backtrack over an unbounded run: a name's `\` segments
+// each need a backslash, and `$var` takes one `$` (`$$x` reads as `$` + `$x`;
+// `\$+name` was quadratic on a long run of `$`).
 const TOKEN = new RegExp(
-  String.raw`(\\?${NAME_CHARS}(?:\\${NAME_CHARS})*)|(\$+${NAME_CHARS})|(::|\?->|->|=>|[{}()\[\];,:|&?=])|(\d[\w.]*)`,
+  String.raw`(\\?${NAME_CHARS}(?:\\${NAME_CHARS})*)|(\$${NAME_CHARS})|(::|\?->|->|=>|[{}()\[\];,:|&?=])|(\d[\w.]*)`,
   "g",
 );
 
 const enum T { Name, Var, Punct, Num }
 interface Tok { t: T; s: string; pos: number }
 
-function tokenize(code: string): Tok[] {
+function tokenize(code: string): { toks: Tok[]; capped: boolean } {
   const out: Tok[] = [];
   TOKEN.lastIndex = 0;
   let m: RegExpExecArray | null;
   while ((m = TOKEN.exec(code)) !== null) {
+    if (out.length >= MAX_PHP_TOKENS) return { toks: out, capped: true };
     const t = m[1] !== undefined ? T.Name : m[2] !== undefined ? T.Var : m[3] !== undefined ? T.Punct : T.Num;
     out.push({ t, s: m[0], pos: m.index });
+  }
+  return { toks: out, capped: false };
+}
+
+/**
+ * For every token i: the index of the first `{` or `;` at j >= i that is not
+ * inside a `(…)` group opened at or after i (toks.length when none). This is
+ * what the old per-header forward scan returned, computed for all headers in
+ * one right-to-left sweep, O(n log n): rescanning to the end of the file for
+ * every `class X` / `function f(` without a body was quadratic.
+ */
+function headerEnds(toks: Tok[]): Int32Array {
+  const n = toks.length;
+  // P[j]: open minus close parens among toks[0..j)
+  const P = new Int32Array(n + 1);
+  for (let j = 0; j < n; j++) {
+    const s = toks[j].s;
+    P[j + 1] = P[j] + (s === "(" ? 1 : s === ")" ? -1 : 0);
+  }
+  // stack[0..top): stop tokens, nearest on top; P[stack[k]] strictly increases with k
+  const stack = new Int32Array(n);
+  let top = 0;
+  const out = new Int32Array(n);
+  for (let i = n - 1; i >= 0; i--) {
+    const s = toks[i].s;
+    if (s === "{" || s === ";") {
+      while (top > 0 && P[stack[top - 1]] >= P[i]) top--;
+      stack[top++] = i;
+    }
+    // the nearest stop j with P[j] <= P[i]: the highest stack entry with that property
+    let lo = 0;
+    let hi = top - 1;
+    let ans = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (P[stack[mid]] <= P[i]) { ans = mid; lo = mid + 1; } else hi = mid - 1;
+    }
+    out[i] = ans < 0 ? n : stack[ans];
   }
   return out;
 }
@@ -202,6 +323,7 @@ const NOT_A_CLASS = new Set([
   "mixed", "void", "never", "bool", "boolean", "int", "integer", "float", "double", "string", "list",
   "class", "interface", "trait", "enum", "function", "fn", "new", "clone", "instanceof", "insteadof",
   "namespace", "use", "as", "const", "case", "default", "match", "yield", "from", "and", "or", "xor",
+  "extends", "implements",
 ]);
 /** Constructs followed by `(` that are not function calls. */
 const NOT_A_FUNCTION = new Set([
@@ -211,11 +333,29 @@ const NOT_A_FUNCTION = new Set([
   "parent", "and", "or", "xor", "instanceof", "global", "use", "as", "class", "enum",
 ]);
 const MODIFIERS = new Set(["abstract", "final", "readonly"]);
+const HEADER_KEYWORDS = new Set(["extends", "implements"]);
 const CLASS_LIKE = new Set(["class", "interface", "trait", "enum"]);
 
 const isStudly = (s: string): boolean => /^[A-Z]/.test(s) && /[a-z]/.test(s);
 const lastSegment = (fqn: string): string => fqn.slice(fqn.lastIndexOf("\\") + 1);
 const qualify = (ns: string, name: string): string => (ns ? `${ns}\\${name}` : name);
+
+/**
+ * oneLine(content.slice(from, to)) without reading more than it needs: a
+ * header without a body can run to the end of the file, and cutting it for
+ * each of thousands of declarations was quadratic. The slice grows until its
+ * collapsed text is long enough that oneLine's 160-character cut cannot change
+ * (its rewrites shrink text at most 3:1 and differ only in the last few
+ * characters of a cut), capped at MAX_SIGNATURE_SOURCE.
+ */
+function boundedOneLine(content: string, from: number, to: number): string {
+  const enough = 3 * (MAX_SIGNATURE_CHARS + 8);
+  for (let lim = 512; ; lim *= 2) {
+    const cut = Math.min(to, from + lim, from + MAX_SIGNATURE_SOURCE);
+    const text = content.slice(from, cut);
+    if (cut === to || cut === from + MAX_SIGNATURE_SOURCE || text.replace(/\s+/g, " ").trim().length >= enough) return oneLine(text);
+  }
+}
 
 /** 1-based line of `pos`, via a precomputed table of line starts. */
 function lineFinder(content: string): (pos: number) => number {
@@ -240,13 +380,31 @@ function lineFinder(content: string): (pos: number) => number {
  * contribute (stripPhp).
  */
 export function parsePhp(content: string): PhpParse {
+  // a UTF-16 code unit is at most 3 UTF-8 bytes: count bytes only near the limit
+  if (content.length > MAX_PHP_PARSE_BYTES || (content.length * 3 > MAX_PHP_PARSE_BYTES && Buffer.byteLength(content, "utf8") > MAX_PHP_PARSE_BYTES)) {
+    return { limited: `PHP structure not indexed: file larger than ${MAX_PHP_PARSE_BYTES / (1024 * 1024)} MB`, namespace: "", exports: [], useLines: [], refs: [] };
+  }
   const code = stripPhp(content);
-  const toks = tokenize(code);
+  const { toks, capped } = tokenize(code);
   const lineOf = lineFinder(content);
   const exports: PhpExport[] = [];
   const useLines: ImportLine[] = [];
   const refs: PhpRef[] = [];
-  const seenRefs = new Set<string>();
+  const seenRefs = new Map<string, PhpRef>();
+  const limits = new Set<string>();
+  if (capped) limits.add(`first ${MAX_PHP_TOKENS} tokens`);
+  /** Room for one more export? Checked before its signature is cut from the source. */
+  const canExport = (): boolean => {
+    if (exports.length < MAX_PHP_EXPORTS) return true;
+    limits.add(`first ${MAX_PHP_EXPORTS} declarations`);
+    return false;
+  };
+  /** A namespace / declaration name short enough to keep (crafted names can be megabytes). */
+  const sane = (name: string): boolean => {
+    if (name.length <= MAX_PHP_NAME_CHARS) return true;
+    limits.add(`names over ${MAX_PHP_NAME_CHARS} characters skipped`);
+    return false;
+  };
 
   let ns = "";
   let firstNs: string | null = null;
@@ -259,15 +417,18 @@ export function parsePhp(content: string): PhpParse {
   let pendingClass = false; // a class header is open: the next `{` starts its body
 
   const addRef = (fqn: string, kind: PhpRefKind, pos: number, fromUse: boolean, tentative: boolean) => {
-    if (!fqn) return;
+    if (!fqn || !sane(fqn)) return;
     const key = `${kind}:${fqn.toLowerCase()}`;
-    if (seenRefs.has(key)) {
+    const seen = seenRefs.get(key);
+    if (seen) {
       // a later `use` of a name first seen in code still marks it as imported
-      if (fromUse) for (const r of refs) if (r.kind === kind && r.fqn.toLowerCase() === fqn.toLowerCase()) { r.fromUse = true; r.tentative = false; }
+      if (fromUse) { seen.fromUse = true; seen.tentative = false; }
       return;
     }
-    seenRefs.add(key);
-    refs.push({ fqn, kind, line: lineOf(pos), fromUse, tentative });
+    if (refs.length >= MAX_PHP_REFS) { limits.add(`first ${MAX_PHP_REFS} references`); return; }
+    const ref: PhpRef = { fqn, kind, line: lineOf(pos), fromUse, tentative };
+    seenRefs.set(key, ref);
+    refs.push(ref);
   };
 
   /** Resolve a class name as written in code; null for self/static/parent and the like. */
@@ -346,25 +507,86 @@ export function parsePhp(content: string): PhpParse {
       j++;
     }
     const endPos = j < toks.length ? toks[j].pos + 1 : content.length;
-    if (useLines.length < MAX_STORED_IMPORT_LINES) useLines.push({ line: lineOf(start), text: oneLine(content.slice(start, endPos)) });
+    if (useLines.length < MAX_STORED_IMPORT_LINES) useLines.push({ line: lineOf(start), text: boundedOneLine(content, start, endPos) });
     return j;
   };
 
   /** Index of the `{` or `;` ending a header that starts at tokens[i], skipping (…) groups. */
+  // A short forward scan answers almost every real header; a longer one (or
+  // a crafted file's endless one) is looked up in the precomputed table.
+  let ends: Int32Array | null = null;
   const headerEnd = (i: number): number => {
     let paren = 0;
-    for (let j = i; j < toks.length; j++) {
+    for (let j = i, stop = Math.min(toks.length, i + 64); j < stop; j++) {
       const s = toks[j].s;
       if (s === "(") paren++;
       else if (s === ")") paren--;
       else if (paren <= 0 && (s === "{" || s === ";")) return j;
     }
-    return toks.length;
+    if (i + 64 >= toks.length) return toks.length;
+    ends ??= headerEnds(toks);
+    return ends[i];
   };
-  const sliceTo = (from: number, endTok: number): string =>
-    oneLine(content.slice(from, endTok < toks.length ? toks[endTok].pos : content.length));
+  const sliceTo = (from: number, endTok: number): string => boundedOneLine(content, from, endTok < toks.length ? toks[endTok].pos : content.length);
+
+  /**
+   * `extends` / `implements` keywords not yet handled, as a union-find "next
+   * unhandled at or after j" (toks.length = none). Headers without a `{` can
+   * overlap (`class A class B …`); each keyword's name list is read once, by
+   * the first header that reaches it, exactly as before, instead of once per
+   * overlapping header (quadratic).
+   */
+  let kwNext: Int32Array | null = null;
+  const nextKeyword = (j: number): number => {
+    if (!kwNext) {
+      kwNext = new Int32Array(toks.length + 1);
+      for (let k = 0; k < toks.length; k++) {
+        const { t, s } = toks[k];
+        kwNext[k] = t === T.Name && (s.length === 7 || s.length === 10) && HEADER_KEYWORDS.has(s.toLowerCase()) ? k : k + 1;
+      }
+      kwNext[toks.length] = toks.length;
+    }
+    const nx = kwNext;
+    let k = Math.min(j, toks.length);
+    while (nx[k] !== k) { nx[k] = nx[nx[k]]; k = nx[k]; }
+    return k;
+  };
 
   const atTop = () => depth === nsDepth && classBodies.length === 0;
+
+  /** Index of the `[` matching each `]` (-1 when unmatched); built on first use, one pass. */
+  let openOf: Int32Array | null = null;
+  const matchingOpen = (k: number): number => {
+    if (!openOf) {
+      openOf = new Int32Array(toks.length).fill(-1);
+      const stack: number[] = [];
+      for (let j = 0; j < toks.length; j++) {
+        if (toks[j].s === "[") stack.push(j);
+        else if (toks[j].s === "]" && stack.length) openOf[j] = stack.pop()!;
+      }
+    }
+    return openOf[k];
+  };
+  /**
+   * `class` at tokens[i] is anonymous: `new class`, `new readonly class`
+   * (PHP 8.3), `new #[Attr] class`. Walks back over modifiers and whole
+   * attribute groups only, each group by one `class` at most, so it stays linear.
+   */
+  const isAnonymousClass = (i: number): boolean => {
+    let k = i - 1;
+    while (k >= 0) {
+      const t = toks[k];
+      if (t.t === T.Name && MODIFIERS.has(t.s.toLowerCase())) { k--; continue; }
+      if (t.s === "]") {
+        const open = matchingOpen(k);
+        if (open < 0 || code[toks[open].pos - 1] !== "#") return false;
+        k = open - 1;
+        continue;
+      }
+      break;
+    }
+    return k >= 0 && toks[k].t === T.Name && toks[k].s.toLowerCase() === "new";
+  };
 
   for (let i = 0; i < toks.length; i++) {
     const tok = toks[i];
@@ -389,7 +611,7 @@ export function parsePhp(content: string): PhpParse {
 
     // namespace X;  namespace X { … }  namespace { … }
     if (lower === "namespace" && depth === 0 && (next?.t === T.Name || next?.s === "{")) {
-      if (next.t === T.Name) { ns = next.s.replace(/^\\/, ""); i++; } else ns = "";
+      if (next.t === T.Name) { ns = sane(next.s) ? next.s.replace(/^\\/, "") : ""; i++; } else ns = "";
       if (firstNs === null) firstNs = ns;
       classAliases = new Map();
       fnAliases = new Map();
@@ -411,24 +633,23 @@ export function parsePhp(content: string): PhpParse {
     }
 
     if (CLASS_LIKE.has(lower)) {
-      const anonymous = lower === "class" && prev?.s.toLowerCase() === "new";
-      const named = next?.t === T.Name && !NOT_A_CLASS.has(next.s.toLowerCase()) && !next.s.includes("\\");
+      const anonymous = lower === "class" && isAnonymousClass(i);
+      const named = !anonymous && next?.t === T.Name && !NOT_A_CLASS.has(next.s.toLowerCase()) && !next.s.includes("\\");
       // `enum` is not reserved: only `enum Name {`, `enum Name:` or `enum Name implements` declare one
       const isDecl = lower !== "enum" || (named && ["{", ":"].includes(toks[i + 2]?.s ?? "") || toks[i + 2]?.s.toLowerCase() === "implements");
       if (!isDecl || (!named && !anonymous)) continue;
       pendingClass = true;
       const end = headerEnd(i);
       // extends / implements lists
-      for (let j = i + 1; j < end; j++) {
-        const w = toks[j].s.toLowerCase();
-        if (w !== "extends" && w !== "implements") continue;
-        for (j++; j < end && toks[j].t === T.Name && !["extends", "implements"].includes(toks[j].s.toLowerCase()); j++) {
+      for (let k = nextKeyword(i + 1); k < end; k = nextKeyword(k + 1)) {
+        kwNext![k] = k + 1; // handled
+        for (let j = k + 1; j < end && toks[j].t === T.Name && !HEADER_KEYWORDS.has(toks[j].s.toLowerCase()); j++) {
           classRef(toks[j]);
           if (toks[j + 1]?.s !== ",") break;
           j++;
         }
       }
-      if (named && atTop()) {
+      if (named && atTop() && sane(next.s) && canExport()) {
         let first = i;
         while (first > 0 && toks[first - 1].t === T.Name && MODIFIERS.has(toks[first - 1].s.toLowerCase())) first--;
         const name = next.s;
@@ -444,7 +665,7 @@ export function parsePhp(content: string): PhpParse {
       if (toks[j]?.s === "&") j++;
       const nameTok = toks[j];
       if (nameTok?.t === T.Name && toks[j + 1]?.s === "(") {
-        if (classBodies.length === 0 && !nameTok.s.includes("\\")) {
+        if (classBodies.length === 0 && !nameTok.s.includes("\\") && sane(nameTok.s) && canExport()) {
           const end = headerEnd(j + 1);
           exports.push({ name: nameTok.s, fqn: qualify(ns, nameTok.s), kind: "function", signature: sliceTo(tok.pos, end), line: lineOf(tok.pos) });
         }
@@ -456,9 +677,9 @@ export function parsePhp(content: string): PhpParse {
     if (lower === "const") {
       // `const NAME =` (a typed class constant puts a type first: `const string NAME =`)
       let j = i + 1;
-      while (toks[j]?.t === T.Name && toks[j + 1]?.t === T.Name) j++;
+      while (toks[j]?.t === T.Name && toks[j + 1]?.t === T.Name && j - i < MAX_CONST_TYPE_NAMES) j++;
       if (toks[j]?.t === T.Name && toks[j + 1]?.s === "=") {
-        if (atTop()) {
+        if (atTop() && sane(toks[j].s) && canExport()) {
           const end = headerEnd(j);
           exports.push({ name: toks[j].s, fqn: qualify(ns, toks[j].s), kind: "const", signature: sliceTo(tok.pos, end), line: lineOf(tok.pos) });
         }
@@ -468,7 +689,8 @@ export function parsePhp(content: string): PhpParse {
     }
 
     if (lower === "new" || lower === "instanceof") {
-      if (next?.t === T.Name && !CLASS_LIKE.has(next.s.toLowerCase())) { classRef(next); i++; }
+      // `new readonly class` (PHP 8.3): the modifier is not a class name
+      if (next?.t === T.Name && !CLASS_LIKE.has(next.s.toLowerCase()) && !MODIFIERS.has(next.s.toLowerCase())) { classRef(next); i++; }
       continue;
     }
     if (lower === "catch" && next?.s === "(") {
@@ -492,7 +714,9 @@ export function parsePhp(content: string): PhpParse {
     if (isStudly(tok.s)) classRef(tok);
   }
 
-  return { namespace: firstNs ?? ns, exports, useLines, refs };
+  const result: PhpParse = { namespace: firstNs ?? ns, exports, useLines, refs };
+  if (limits.size) result.limited = `PHP structure capped: ${[...limits].join(", ")}`;
+  return result;
 }
 
 // ─── Resolution: composer.json PSR-4, then the indexed declarations ─────────
@@ -513,18 +737,41 @@ export interface PhpLookup {
 
 const CLASS_KINDS = new Set(["class", "interface", "trait", "enum"]);
 
+// A crafted repo can ship a huge composer.json, thousands of PSR-4 prefixes or
+// a composer.json in every directory; these bound the work per reference.
+/** composer.json files larger than this are ignored. */
+export const MAX_COMPOSER_JSON_BYTES = 1024 * 1024;
+/** PSR-4 prefixes read per composer.json (autoload + autoload-dev). */
+export const MAX_PSR4_ENTRIES = 256;
+/** Base directories read per PSR-4 prefix. */
+const MAX_PSR4_DIRS = 16;
+/** composer.json files consulted per directory, nearest first. */
+export const MAX_COMPOSER_CHAIN = 8;
+/** Candidate files checked per class reference. */
+const MAX_PSR4_CANDIDATES = 64;
+
 function readPsr4(composerPath: string): Psr4Map | null {
   type Autoload = { "psr-4"?: Record<string, unknown> } | undefined;
   let json: { autoload?: Autoload; "autoload-dev"?: Autoload } | null;
-  try { json = JSON.parse(fs.readFileSync(composerPath, "utf-8")); } catch { return null; }
+  try {
+    if (fs.statSync(composerPath).size > MAX_COMPOSER_JSON_BYTES) return null;
+    json = JSON.parse(fs.readFileSync(composerPath, "utf-8"));
+  } catch { return null; }
   const dir = path.dirname(composerPath);
   const entries: Psr4Map["entries"] = [];
   for (const section of [json?.autoload?.["psr-4"], json?.["autoload-dev"]?.["psr-4"]]) {
     if (!section || typeof section !== "object") continue;
     for (const [rawPrefix, target] of Object.entries(section)) {
-      const prefix = rawPrefix.replace(/^\\+/, "").replace(/\\*$/, rawPrefix ? "\\" : "");
-      const dirs = (Array.isArray(target) ? target : [target]).filter((d): d is string => typeof d === "string").map((d) => path.resolve(dir, d));
-      if (dirs.length) entries.push({ prefix: prefix === "\\" ? "" : prefix, dirs });
+      if (entries.length >= MAX_PSR4_ENTRIES) break;
+      if (rawPrefix.length > MAX_PHP_NAME_CHARS) continue;
+      // trim by hand: /\\*$/ on a long run of backslashes backtracks quadratically
+      let a = 0;
+      let b = rawPrefix.length;
+      while (a < b && rawPrefix[a] === "\\") a++;
+      while (b > a && rawPrefix[b - 1] === "\\") b--;
+      const prefix = a < b ? `${rawPrefix.slice(a, b)}\\` : "";
+      const dirs = (Array.isArray(target) ? target : [target]).slice(0, MAX_PSR4_DIRS).filter((d): d is string => typeof d === "string").map((d) => path.resolve(dir, d));
+      if (dirs.length) entries.push({ prefix, dirs });
     }
   }
   entries.sort((a, b) => b.prefix.length - a.prefix.length);
@@ -557,7 +804,7 @@ export class PhpResolver {
         this.composers.set(dir, own);
       }
       const parent = dir === this.rootDir ? [] : this.psr4For(path.dirname(dir));
-      chain = own ? [own, ...parent] : parent;
+      chain = own ? [own, ...parent].slice(0, MAX_COMPOSER_CHAIN) : parent;
     }
     this.chains.set(dir, chain);
     return chain;
@@ -573,11 +820,13 @@ export class PhpResolver {
   resolve(ref: PhpRef, fromFile: string): { path: string; name: string } | null {
     const fqn = ref.fqn;
     if (ref.kind === "class") {
-      for (const map of this.psr4For(path.dirname(fromFile))) {
+      let budget = MAX_PSR4_CANDIDATES;
+      psr4: for (const map of this.psr4For(path.dirname(fromFile))) {
         for (const { prefix, dirs } of map.entries) {
           if (!fqn.startsWith(prefix) || fqn.length === prefix.length) continue;
           const rel = fqn.slice(prefix.length).split("\\").join("/") + ".php";
           for (const d of dirs) {
+            if (budget-- <= 0) break psr4;
             const candidate = path.join(d, rel);
             if (this.lookup.isIndexed(candidate)) return { path: candidate, name: lastSegment(fqn) };
           }

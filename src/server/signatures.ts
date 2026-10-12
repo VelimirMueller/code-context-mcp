@@ -314,7 +314,9 @@ export function declarationLines(content: string, line: number, ext: string, max
     for (let i = startIdx; i < all.length; i++) {
       const s = all[i];
       out.push(s);
-      const code = s.replace(/\/\/.*$/, "").replace(/(['"`])(?:\\.|(?!\1).)*\1/g, "''");
+      // a string literal: `\\.` or one non-backslash, never both (`\\.|.` let a
+      // run of backslashes split 2^n ways: exponential on an unterminated string)
+      const code = s.replace(/\/\/.*$/, "").replace(/(['"`])(?:\\.|(?!\1)[^\\\n\r\u2028\u2029])*\1/g, "''");
       for (const ch of code) {
         if (ch === "{" || ch === "(" || ch === "[") { depth++; opened = true; }
         else if (ch === "}" || ch === ")" || ch === "]") depth--;

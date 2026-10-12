@@ -1095,7 +1095,7 @@ function storeFile(st: FileStatements, filePath: string, rootDir: string, aliase
   if (content === null) return null;
 
   const lineCount = countLines(content);
-  const summary = extractSummary(content, filePath, ext);
+  let summary = extractSummary(content, filePath, ext);
 
   let externals: string | null = null;
   // PHP: parsed once; edges and exact externals follow in storeDeps (phase 2),
@@ -1103,6 +1103,8 @@ function storeFile(st: FileStatements, filePath: string, rootDir: string, aliase
   // prefixes (enough for the auto description).
   const php: PhpParse | null = ext === PHP_EXTENSION ? parsePhp(content) : null;
   if (php) {
+    // a file too large to parse, or one a per-file cap cut short, says so (php.ts limits)
+    if (php.limited) summary = `${summary} (${php.limited})`;
     const resolver = new PhpResolver(rootDir, { isIndexed: () => false, declared: () => [] });
     externals = [...new Set(php.refs.map((r) => resolver.externalOf(r, filePath)).filter((x): x is string => !!x))].sort().join(", ") || null;
   } else if (PARSEABLE_EXTENSIONS.has(ext)) {
