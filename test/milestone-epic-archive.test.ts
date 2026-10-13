@@ -458,6 +458,37 @@ describe('dashboard archive routes', () => {
     }
   });
 
+  it('POST /api/milestones saves the body the dashboard sends and returns the saved row (#199)', async () => {
+    const res = await fetch(`${BASE}/api/milestones`, {
+      method: 'POST',
+      headers: { ...auth(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'api-created', target_date: '2026-12-01' }),
+    });
+    expect(res.status).toBe(200);
+    const row = (await res.json()) as any;
+    expect(row.id).toEqual(expect.any(Number));
+    expect(row).toMatchObject({
+      name: 'api-created',
+      target_date: '2026-12-01',
+      status: 'planned',
+      description: null,
+    });
+    const saved = withDb((db) =>
+      db.prepare('SELECT name, target_date, status FROM milestones WHERE id = ?').get(row.id),
+    );
+    expect(saved).toEqual({ name: 'api-created', target_date: '2026-12-01', status: 'planned' });
+  });
+
+  it('POST /api/milestones still answers 400 for a body without name (old `title` field)', async () => {
+    const res = await fetch(`${BASE}/api/milestones`, {
+      method: 'POST',
+      headers: { ...auth(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'wrong-field' }),
+    });
+    expect(res.status).toBe(400);
+    expect(String(((await res.json()) as any).error)).toContain('name is required');
+  });
+
   it('keeps the existing gates: no token → 401, foreign Host → 421, cross-origin write → 403', async () => {
     const id = withDb((db) => addMilestone(db, 'api-gated'));
     const noAuth = await fetch(`${BASE}/api/milestone/${id}/archive`, { method: 'POST' });

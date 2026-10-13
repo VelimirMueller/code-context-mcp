@@ -62,7 +62,7 @@ import {
   RestoreBody,
   SprintProcessBody,
 } from './handlers/schemas.js';
-import type { DiscoveryRow } from '../scrum/rows.js';
+import type { DiscoveryRow, MilestoneRow } from '../scrum/rows.js';
 
 // Read version from package.json
 const PKG_VERSION = (() => {
@@ -1108,7 +1108,10 @@ function apiCreateMilestone(raw: unknown) {
   const result = writeDb
     .prepare(`INSERT INTO milestones (name, description, target_date, status) VALUES (?, ?, ?, ?)`)
     .run(name, description || null, target_date || null, status || 'planned');
-  return { id: result.lastInsertRowid, name };
+  // The saved row (#199); `id` and `name` keep the old response keys.
+  return writeDb
+    .prepare(`SELECT * FROM milestones WHERE id = ?`)
+    .get(result.lastInsertRowid) as MilestoneRow;
 }
 
 function apiMilestoneUpdate(id: number, raw: unknown) {
