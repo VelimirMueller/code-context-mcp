@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **A bad POST body no longer stops the dashboard.** `/api/notify/event`, `/api/claude-output` and `/api/claude-step` answer 400 on invalid JSON, an empty body or a body that is not an object, and 413 on a body over 5 MB. Other `/api/*` write routes answer 400 on invalid JSON instead of 500. An outer guard answers any other request error with 500, so the process never gets an unhandled rejection. (#188)
 - **`reset_agents` and `reset_skills` do not run `npm run build` in your project.** The tools spawn no process, so they work in a project without a `build` script and write nothing to the JSON-RPC stream. The delete and the re-seed run in one transaction; when a step fails, the old rows stay. (#187)
 
 ## [2.13.0] - 2026-10-12

@@ -947,21 +947,68 @@ function apiProjectStatus() {
 
 const MAX_BODY_BYTES = 5 * 1024 * 1024; // 5 MB
 
+/** Body read error with the HTTP status to answer (400 bad JSON, 413 too large). */
+class BodyError extends Error {
+  constructor(message: string, readonly status: 400 | 413) {
+    super(message);
+  }
+}
+
 function readBody(req: http.IncomingMessage): Promise<any> {
   return new Promise((resolve, reject) => {
     let body = "";
     let bytes = 0;
+    let done = false;
     req.on("data", (chunk: Buffer) => {
+      if (done) return;
       bytes += chunk.length;
-      if (bytes > MAX_BODY_BYTES) { req.destroy(); reject(Object.assign(new Error("Request body too large"), { status: 413 })); return; }
+      if (bytes > MAX_BODY_BYTES) {
+        // Stop reading; the caller answers 413 and closes the connection.
+        done = true;
+        req.pause();
+        reject(new BodyError("Request body too large", 413));
+        return;
+      }
       body += chunk.toString();
     });
     req.on("end", () => {
+      if (done) return;
+      done = true;
       try { resolve(JSON.parse(body)); }
-      catch { reject(new Error("Invalid JSON body")); }
+      catch { reject(new BodyError("Invalid JSON body", 400)); }
     });
-    req.on("error", reject);
+    req.on("error", (e) => {
+      if (done) return;
+      done = true;
+      reject(e);
+    });
   });
+}
+
+/** Read a JSON body that must be an object (not null, an array or a scalar). */
+async function readJsonObject(req: http.IncomingMessage): Promise<Record<string, unknown>> {
+  const body: unknown = await readBody(req);
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    throw new BodyError("JSON body must be an object", 400);
+  }
+  return body as Record<string, unknown>;
+}
+
+/**
+ * Answer a failed request without stopping the process. A BodyError gets its
+ * 400/413; anything else is a 500. After a 413 the unread rest of the upload
+ * is not drained, so the connection is closed once the answer is sent.
+ */
+function sendRequestError(req: http.IncomingMessage, res: http.ServerResponse, e: unknown, pathname: string): void {
+  const status = e instanceof BodyError ? e.status : 500;
+  const routePath = pathname.replace(/\/\d+(?=\/|$)/g, "/:id").slice(0, 120);
+  slog(status >= 500 ? "CRITICAL" : "WARN", `dashboard: request failed status=${status} method=${req.method} path=${routePath} error=${errorClass(e)}`);
+  if (res.headersSent) { res.destroy(); return; }
+  const headers: http.OutgoingHttpHeaders = { "Content-Type": "application/json" };
+  if (status === 413) headers.Connection = "close";
+  res.writeHead(status, headers);
+  res.end(JSON.stringify({ ok: false, error: e instanceof BodyError ? e.message : "internal error" }));
+  if (status === 413) res.on("finish", () => req.socket.destroy());
 }
 
 // ─── Server ──────────────────────────────────────────────────────────────────
@@ -974,7 +1021,15 @@ function injectToken(html: string): string {
   return html.includes("</head>") ? html.replace("</head>", `${tag}</head>`) : tag + html;
 }
 
-const server = http.createServer(async (req, res) => {
+const server = http.createServer((req, res) => {
+  // Outer guard (#188): an async handler error must answer the request, never
+  // become an unhandled rejection that stops the dashboard for every client.
+  handleRequest(req, res).catch((e) => {
+    sendRequestError(req, res, e, (req.url ?? "/").split("?")[0]);
+  });
+});
+
+async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
   const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
 
   // DNS-rebinding guard: the server binds 127.0.0.1, so every peer is local —
@@ -1018,7 +1073,9 @@ const server = http.createServer(async (req, res) => {
 
   // MCP→Dashboard typed event endpoint (sends specific SSE event like input_requested)
   if (url.pathname === "/api/notify/event" && req.method === "POST") {
-    const body = await readBody(req);
+    let body: Record<string, any>;
+    try { body = await readJsonObject(req); }
+    catch (e) { sendRequestError(req, res, e, url.pathname); return; }
     if (body.type) {
       notifyClients({ type: body.type, entityType: body.entityType, entityId: body.entityId, change: body.change, stepProgress: body.stepProgress, claudeOutput: body.claudeOutput, claudeStep: body.claudeStep });
     }
@@ -1045,7 +1102,9 @@ const server = http.createServer(async (req, res) => {
 
   // Claude output streaming endpoint — MCP tools POST text chunks here to stream into the wizard
   if (url.pathname === "/api/claude-output" && req.method === "POST") {
-    const body = await readBody(req);
+    let body: Record<string, any>;
+    try { body = await readJsonObject(req); }
+    catch (e) { sendRequestError(req, res, e, url.pathname); return; }
     if (body.text) {
       notifyClients({
         type: "claude_output",
@@ -1063,7 +1122,9 @@ const server = http.createServer(async (req, res) => {
 
   // Claude step status endpoint — MCP tools POST step transitions here
   if (url.pathname === "/api/claude-step" && req.method === "POST") {
-    const body = await readBody(req);
+    let body: Record<string, any>;
+    try { body = await readJsonObject(req); }
+    catch (e) { sendRequestError(req, res, e, url.pathname); return; }
     if (body.name) {
       notifyClients({
         type: "claude_step",
@@ -1455,6 +1516,7 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200);
       res.end(JSON.stringify(data));
     } catch (e: any) {
+      if (e instanceof BodyError) { sendRequestError(req, res, e, url.pathname); return; }
       const payload: any = { ok: false, error: e.message };
       if (e.gate) payload.gate = e.gate;
       const status = Number(e?.status ?? 500);
@@ -1514,7 +1576,7 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200);
     res.end(injectToken(HTML));
   }
-});
+}
 
 function startServer(port: number, maxRetries = 10): void {
   server.once("error", (err: NodeJS.ErrnoException) => {
