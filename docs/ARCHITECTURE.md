@@ -63,48 +63,48 @@ pages/       → Benchmark, CodeExplorer, Dashboard, ProjectManagement, Retro, T
 
 ### Code Context (read-only)
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `GET /api/files` | GET | All indexed files with export/import counts |
-| `GET /api/file/:id` | GET | Full file context: exports, imports, importedBy |
-| `GET /api/file/:id/changes` | GET | Per-file change history with diffs |
-| `GET /api/directories` | GET | All directory metadata |
-| `GET /api/stats` | GET | Aggregate counts, language breakdown, extensions |
-| `GET /api/graph` | GET | Dependency graph nodes and edges |
-| `GET /api/changes` | GET | Recent changes across all files (with `?limit=`) |
-| `GET /api/events` | SSE | Server-Sent Events stream for live reload |
+| Endpoint                    | Method | Description                                      |
+| --------------------------- | ------ | ------------------------------------------------ |
+| `GET /api/files`            | GET    | All indexed files with export/import counts      |
+| `GET /api/file/:id`         | GET    | Full file context: exports, imports, importedBy  |
+| `GET /api/file/:id/changes` | GET    | Per-file change history with diffs               |
+| `GET /api/directories`      | GET    | All directory metadata                           |
+| `GET /api/stats`            | GET    | Aggregate counts, language breakdown, extensions |
+| `GET /api/graph`            | GET    | Dependency graph nodes and edges                 |
+| `GET /api/changes`          | GET    | Recent changes across all files (with `?limit=`) |
+| `GET /api/events`           | SSE    | Server-Sent Events stream for live reload        |
 
 ### Skills & Agents
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `GET /api/skills` | GET | All skills with name, content, owner_role |
-| `GET /api/skill/:name` | GET | Single skill by name |
-| `GET /api/agents` | GET | Agent health + computed mood scores |
+| Endpoint               | Method | Description                               |
+| ---------------------- | ------ | ----------------------------------------- |
+| `GET /api/skills`      | GET    | All skills with name, content, owner_role |
+| `GET /api/skill/:name` | GET    | Single skill by name                      |
+| `GET /api/agents`      | GET    | Agent health + computed mood scores       |
 
 ### Scrum (Sprint 8 additions)
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `GET /api/sprints` | GET | All sprints with ticket/done/qa/retro/blocker counts |
-| `GET /api/sprint/:id` | GET | Single sprint detail |
-| `GET /api/sprint/:id/tickets` | GET | Tickets for a sprint |
-| `GET /api/sprint/:id/retro` | GET | Retro findings for a sprint |
-| `GET /api/milestones` | GET | All milestones with ticket counts |
-| `POST /api/milestones` | POST | Create a new milestone |
-| `PUT /api/milestone/:id` | PUT | Update milestone status/progress/description |
-| `GET /api/backlog` | GET | Unassigned and carried-over tickets |
-| `POST /api/sprints/plan` | POST | Create sprint and assign tickets in one call |
-| `PUT /api/vision` | PUT | Update PRODUCT_VISION skill content |
+| Endpoint                      | Method | Description                                          |
+| ----------------------------- | ------ | ---------------------------------------------------- |
+| `GET /api/sprints`            | GET    | All sprints with ticket/done/qa/retro/blocker counts |
+| `GET /api/sprint/:id`         | GET    | Single sprint detail                                 |
+| `GET /api/sprint/:id/tickets` | GET    | Tickets for a sprint                                 |
+| `GET /api/sprint/:id/retro`   | GET    | Retro findings for a sprint                          |
+| `GET /api/milestones`         | GET    | All milestones with ticket counts                    |
+| `POST /api/milestones`        | POST   | Create a new milestone                               |
+| `PUT /api/milestone/:id`      | PUT    | Update milestone status/progress/description         |
+| `GET /api/backlog`            | GET    | Unassigned and carried-over tickets                  |
+| `POST /api/sprints/plan`      | POST   | Create sprint and assign tickets in one call         |
+| `PUT /api/vision`             | PUT    | Update PRODUCT_VISION skill content                  |
 
 ### Benchmark
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `GET /api/bench/index` | GET | Real bench runs index (`ccc-bench-index/1`) + source; `index: null` and a how-to `message` when no data |
-| `GET /api/bench/run/:id` | GET | One run file (`ccc-bench/1`); id must match `^[a-z0-9][a-z0-9-]{0,80}$` and be listed in the index |
-| `GET /api/bench/run/:id?suite=pN` | GET | One run of private suite dir N of `CODE_CONTEXT_BENCH_PRIVATE_DIRS` (key `^p[0-9]{1,3}$`); same id, index and realpath rules, per dir |
-| `GET /api/benchmark`, `GET /api/benchmark-stochastic` | GET | Simulated June 2026 benchmark (the "Simulated (2026-06)" tab) |
+| Endpoint                                              | Method | Description                                                                                                                           |
+| ----------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/bench/index`                                | GET    | Real bench runs index (`ccc-bench-index/1`) + source; `index: null` and a how-to `message` when no data                               |
+| `GET /api/bench/run/:id`                              | GET    | One run file (`ccc-bench/1`); id must match `^[a-z0-9][a-z0-9-]{0,80}$` and be listed in the index                                    |
+| `GET /api/bench/run/:id?suite=pN`                     | GET    | One run of private suite dir N of `CODE_CONTEXT_BENCH_PRIVATE_DIRS` (key `^p[0-9]{1,3}$`); same id, index and realpath rules, per dir |
+| `GET /api/benchmark`, `GET /api/benchmark-stochastic` | GET    | Simulated June 2026 benchmark (the "Simulated (2026-06)" tab)                                                                         |
 
 Bench source order (`src/dashboard/handlers/bench.ts`): env `CODE_CONTEXT_BENCH_DIR` → `<dirname(dbPath)>/bench/` → `git show origin/bench-results:data/…` in the dashboard package's own checkout (local ref only, no fetch, 5 min cache) → empty state.
 
