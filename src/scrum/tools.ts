@@ -25,6 +25,28 @@ import { registerGithubTools } from "./tools/github.js";
 import { EFFECTIVE_PROJECT_SQL, TICKET_PROJECT_JOINS, TYPE_LABELS, unknownProject } from "./github-sync.js";
 import { log as slog } from "../sessionlog.js";
 import { archiveEntity, assertArchivable, unarchiveEntity } from "./archive.js";
+import {
+  errorMessage,
+  type AgentRow,
+  type BlockerRow,
+  type BugRow,
+  type CountRow,
+  type DecisionRow,
+  type DiscoveryRow,
+  type EpicRow,
+  type EventLogRow,
+  type MilestoneRow,
+  type PendingActionRow,
+  type RetroFindingRow,
+  type SkillRow,
+  type SprintMetricRow,
+  type SprintRow,
+  type SubtaskRow,
+  type TagRow,
+  type TicketDependencyRow,
+  type TicketRevisionRow,
+  type TicketRow,
+} from "./rows.js";
 
 const DASHBOARD_PORT = process.env.DASHBOARD_PORT || "3333";
 
@@ -48,7 +70,7 @@ interface DashboardEvent {
   type: string;
   entityType?: string;
   entityId?: number;
-  change?: any;
+  change?: unknown;
   stepProgress?: {
     step: string;
     title: string;
@@ -107,36 +129,36 @@ function resolvePhase(status: string): string {
  * Shared gate checks used by both advance_sprint and get_sprint_playbook.
  * Returns an advisory object: warnings are informational, canProceed is always true.
  */
-export function checkSprintGates(db: Database.Database, sprint: any, nextPhase: string): { warnings: string[]; canProceed: boolean } {
+export function checkSprintGates(db: Database.Database, sprint: Pick<SprintRow, "id" | "velocity_committed">, nextPhase: string): { warnings: string[]; canProceed: boolean } {
   const warnings: string[] = [];
-  const tickets = getTicketsBySprint(db, sprint.id) as any[];
+  const tickets = getTicketsBySprint(db, sprint.id);
 
   if (nextPhase === "implementation") {
     if (tickets.length === 0) warnings.push("No tickets assigned to this sprint. Use create_ticket to add tickets.");
     // Assignment is optional — no warning for unassigned tickets
-    const noPoints = tickets.filter((t: any) => t.story_points == null);
-    if (noPoints.length > 0) warnings.push(`${noPoints.length} ticket(s) missing story points: ${noPoints.map((t: any) => t.ticket_ref || `#${t.id}`).join(", ")}. Use update_ticket to estimate them.`);
+    const noPoints = tickets.filter((t) => t.story_points == null);
+    if (noPoints.length > 0) warnings.push(`${noPoints.length} ticket(s) missing story points: ${noPoints.map((t) => t.ticket_ref || `#${t.id}`).join(", ")}. Use update_ticket to estimate them.`);
     if (!sprint.velocity_committed || sprint.velocity_committed <= 0) warnings.push("velocity_committed not set. Use update_sprint to set committed velocity.");
   }
   if (nextPhase === "done" || nextPhase === "qa") {
-    const undone = tickets.filter((t: any) => !["DONE", "BLOCKED", "NOT_DONE"].includes(t.status));
-    if (undone.length > 0) warnings.push(`${undone.length} tickets still in progress: ${undone.map((t: any) => t.ticket_ref || `#${t.id}`).join(", ")}. Use update_ticket to mark them DONE/BLOCKED/NOT_DONE.`);
-    const openBlockerCount = (db.prepare(`SELECT COUNT(*) as c FROM blockers WHERE sprint_id = ? AND status = 'open'`).get(sprint.id) as any).c;
+    const undone = tickets.filter((t) => !["DONE", "BLOCKED", "NOT_DONE"].includes(t.status));
+    if (undone.length > 0) warnings.push(`${undone.length} tickets still in progress: ${undone.map((t) => t.ticket_ref || `#${t.id}`).join(", ")}. Use update_ticket to mark them DONE/BLOCKED/NOT_DONE.`);
+    const openBlockerCount = (db.prepare(`SELECT COUNT(*) as c FROM blockers WHERE sprint_id = ? AND status = 'open'`).get(sprint.id) as CountRow).c;
     if (openBlockerCount > 0) warnings.push(`${openBlockerCount} open blocker(s). Use resolve_blocker to close them.`);
   }
   if (nextPhase === "closed" || nextPhase === "review") {
-    const doneNoQA = tickets.filter((t: any) => t.status === "DONE" && !t.qa_verified);
+    const doneNoQA = tickets.filter((t) => t.status === "DONE" && !t.qa_verified);
     if (doneNoQA.length > 0) {
-      const ticketList = doneNoQA.map((t: any) => `${t.ticket_ref || '#' + t.id} ${t.title}`).join(", ");
+      const ticketList = doneNoQA.map((t) => `${t.ticket_ref || '#' + t.id} ${t.title}`).join(", ");
       warnings.push(`Tickets need QA verification: ${ticketList}. Use update_ticket to verify them (qa_verified=true).`);
     }
   }
   if (nextPhase === "retro") {
-    const inProgress = tickets.filter((t: any) => t.status === "IN_PROGRESS");
-    if (inProgress.length > 0) warnings.push(`${inProgress.length} ticket(s) still IN_PROGRESS: ${inProgress.map((t: any) => t.ticket_ref || `#${t.id}`).join(", ")}. Complete or mark as NOT_DONE before retro.`);
+    const inProgress = tickets.filter((t) => t.status === "IN_PROGRESS");
+    if (inProgress.length > 0) warnings.push(`${inProgress.length} ticket(s) still IN_PROGRESS: ${inProgress.map((t) => t.ticket_ref || `#${t.id}`).join(", ")}. Complete or mark as NOT_DONE before retro.`);
   }
   if (nextPhase === "rest") {
-    const retroCount = (db.prepare(`SELECT COUNT(*) as c FROM retro_findings WHERE sprint_id = ?`).get(sprint.id) as any).c;
+    const retroCount = (db.prepare(`SELECT COUNT(*) as c FROM retro_findings WHERE sprint_id = ?`).get(sprint.id) as CountRow).c;
     if (retroCount === 0) warnings.push("No retro findings — consider using add_retro_finding before rest.");
   }
 
@@ -158,14 +180,22 @@ export function fenceCard(card: string): string {
  * directive (with per-assignment override resolution); multi-agent tickets get the
  * lead-implements / supporters-verify block (decision #4).
  */
+/** A ticket_assignments row joined with the agent's default model. */
+interface AssignmentRoutingRow {
+  role: string;
+  override: string | null;
+  is_lead: number;
+  agent_default: string | null;
+}
+
 export function buildModelRoutingSection(db: Database.Database, ticket: { id: number; assigned_to?: string | null }): string | null {
-  let assignments: any[] = [];
+  let assignments: AssignmentRoutingRow[] = [];
   try {
     assignments = db.prepare(`
       SELECT ta.role, ta.model as override, ta.is_lead, a.model as agent_default
       FROM ticket_assignments ta LEFT JOIN agents a ON a.role = ta.role
       WHERE ta.ticket_id = ? ORDER BY ta.is_lead DESC, ta.role ASC
-    `).all(ticket.id) as any[];
+    `).all(ticket.id) as AssignmentRoutingRow[];
   } catch { /* pre-v23 DB — fall through to single-agent path */ }
 
   if (assignments.length > 1) {
@@ -238,25 +268,25 @@ export function applyTicketAssignments(
  * latest field-level revision diff. Returns null when the board is quiet.
  */
 export function buildChangedTicketsBlock(db: Database.Database, sprintId?: number): string | null {
-  let rows: any[] = [];
+  let rows: Pick<TicketRow, "id" | "ticket_ref" | "title" | "status">[] = [];
   try {
     rows = db.prepare(`
       SELECT id, ticket_ref, title, status FROM tickets
       WHERE pending_change = 1 AND deleted_at IS NULL ${sprintId ? "AND sprint_id = ?" : ""}
       ORDER BY id ASC
-    `).all(...(sprintId ? [sprintId] : [])) as any[];
+    `).all(...(sprintId ? [sprintId] : [])) as Pick<TicketRow, "id" | "ticket_ref" | "title" | "status">[];
   } catch { return null; /* pre-v23 DB */ }
   if (rows.length === 0) return null;
 
   const lines = [`## ⚠ CHANGED TICKETS (${rows.length}) — board edits awaiting acknowledgment`];
   for (const t of rows) {
     lines.push(`- ${t.ticket_ref || "#" + t.id} [${t.status}] ${t.title}`);
-    const rev = db.prepare(`SELECT changed_fields, old_values, new_values FROM ticket_revisions WHERE ticket_id = ? ORDER BY id DESC LIMIT 1`).get(t.id) as any;
+    const rev = db.prepare(`SELECT changed_fields, old_values, new_values FROM ticket_revisions WHERE ticket_id = ? ORDER BY id DESC LIMIT 1`).get(t.id) as Pick<TicketRevisionRow, "changed_fields" | "old_values" | "new_values"> | undefined;
     if (rev) {
       try {
         const fields: string[] = JSON.parse(rev.changed_fields);
-        const oldV = JSON.parse(rev.old_values);
-        const newV = JSON.parse(rev.new_values);
+        const oldV: Record<string, unknown> = JSON.parse(rev.old_values);
+        const newV: Record<string, unknown> = JSON.parse(rev.new_values);
         fields.forEach((f) => lines.push(`    ${f}: ${JSON.stringify(oldV[f])} → ${JSON.stringify(newV[f])}`));
       } catch { /* unparseable revision — list without diff */ }
     }
@@ -378,9 +408,9 @@ export function clusterRecurringIssues(
  * ticket counts, day-in-sprint, and warning lines (blockers, QA pending).
  */
 export function buildSprintPulseData(db: Database.Database, sprintId: number): SprintPulseData | null {
-  const sprint = getSprintById(db, sprintId) as any;
+  const sprint = getSprintById(db, sprintId);
   if (!sprint) return null;
-  const tickets = db.prepare(`SELECT status, story_points, qa_verified FROM tickets WHERE sprint_id = ? AND deleted_at IS NULL`).all(sprintId) as any[];
+  const tickets = db.prepare(`SELECT status, story_points, qa_verified FROM tickets WHERE sprint_id = ? AND deleted_at IS NULL`).all(sprintId) as Pick<TicketRow, "status" | "story_points" | "qa_verified">[];
   const counts = { done: 0, inProgress: 0, todo: 0, blocked: 0 };
   for (const t of tickets) {
     if (t.status === "DONE") counts.done++;
@@ -388,21 +418,21 @@ export function buildSprintPulseData(db: Database.Database, sprintId: number): S
     else if (t.status === "BLOCKED") counts.blocked++;
     else counts.todo++;
   }
-  const totalPoints = tickets.reduce((s: number, t: any) => s + (t.story_points || 0), 0);
-  const donePoints = tickets.filter((t: any) => t.status === "DONE").reduce((s: number, t: any) => s + (t.story_points || 0), 0);
-  const burndown = (db.prepare(`SELECT completed_points FROM sprint_metrics WHERE sprint_id = ? ORDER BY date`).all(sprintId) as any[]).map((r: any) => r.completed_points || 0);
+  const totalPoints = tickets.reduce((s: number, t) => s + (t.story_points || 0), 0);
+  const donePoints = tickets.filter((t) => t.status === "DONE").reduce((s: number, t) => s + (t.story_points || 0), 0);
+  const burndown = (db.prepare(`SELECT completed_points FROM sprint_metrics WHERE sprint_id = ? ORDER BY date`).all(sprintId) as Pick<SprintMetricRow, "completed_points">[]).map((r) => r.completed_points || 0);
 
   const dayTotal = 5;
   let day = 1;
   if (sprint.start_date) {
-    const d = db.prepare(`SELECT CAST(julianday('now') - julianday(?) AS INTEGER) + 1 as day`).get(sprint.start_date) as any;
+    const d = db.prepare(`SELECT CAST(julianday('now') - julianday(?) AS INTEGER) + 1 as day`).get(sprint.start_date) as { day: number | null } | undefined;
     day = Math.min(Math.max(d?.day ?? 1, 1), dayTotal);
   }
 
   const warnings: string[] = [];
-  const openBlockers = (db.prepare(`SELECT COUNT(*) as c FROM blockers WHERE sprint_id = ? AND status = 'open'`).get(sprintId) as any).c;
+  const openBlockers = (db.prepare(`SELECT COUNT(*) as c FROM blockers WHERE sprint_id = ? AND status = 'open'`).get(sprintId) as CountRow).c;
   if (openBlockers > 0) warnings.push(`${openBlockers} open blocker(s)`);
-  const qaPending = tickets.filter((t: any) => t.status === "DONE" && !t.qa_verified).length;
+  const qaPending = tickets.filter((t) => t.status === "DONE" && !t.qa_verified).length;
   if (qaPending > 0) warnings.push(`QA pending on ${qaPending} done ticket(s)`);
 
   return { sprintName: sprint.name, day, dayTotal, donePoints, totalPoints, burndown, counts, warnings };
@@ -414,24 +444,24 @@ export function buildSprintPulseData(db: Database.Database, sprintId: number): S
  * created_at). Removed = tickets whose sprint_id audit trail shows them leaving.
  */
 export function getScopeDeltas(db: Database.Database, sprintId: number): { addedPoints: number; addedTickets: number; removedTickets: number } {
-  const sprint = db.prepare(`SELECT start_date, created_at FROM sprints WHERE id = ?`).get(sprintId) as any;
+  const sprint = db.prepare(`SELECT start_date, created_at FROM sprints WHERE id = ?`).get(sprintId) as Pick<SprintRow, "start_date" | "created_at"> | undefined;
   if (!sprint) return { addedPoints: 0, addedTickets: 0, removedTickets: 0 };
   const implEvent = db.prepare(`
     SELECT created_at FROM event_log
     WHERE entity_type = 'sprint' AND entity_id = ? AND action = 'status_changed' AND new_value = 'implementation'
     ORDER BY created_at ASC LIMIT 1
-  `).get(sprintId) as any;
+  `).get(sprintId) as Pick<EventLogRow, "created_at"> | undefined;
   const implStart = implEvent?.created_at || sprint.start_date || sprint.created_at;
 
   const added = db.prepare(`
     SELECT COUNT(*) as c, COALESCE(SUM(story_points), 0) as pts FROM tickets
     WHERE sprint_id = ? AND deleted_at IS NULL AND created_at > ?
-  `).get(sprintId, implStart) as any;
+  `).get(sprintId, implStart) as { c: number; pts: number };
 
   const removed = db.prepare(`
     SELECT COUNT(DISTINCT entity_id) as c FROM event_log
     WHERE entity_type = 'ticket' AND field_name = 'sprint_id' AND old_value = CAST(? AS TEXT)
-  `).get(sprintId) as any;
+  `).get(sprintId) as CountRow;
 
   return { addedPoints: added.pts, addedTickets: added.c, removedTickets: removed.c };
 }
@@ -454,7 +484,16 @@ export function autoApplyRetroActions(db: Database.Database): number {
  * deferred within the last 24h (a planning session fits in a day; the next planning
  * re-surfaces deferred items).
  */
-export function getUntriagedTryNext(db: Database.Database): any[] {
+export interface UntriagedTryNextRow {
+  id: number;
+  finding: string;
+  role: string | null;
+  action_owner: string | null;
+  origin_sprint: string;
+  age_sprints: number;
+}
+
+export function getUntriagedTryNext(db: Database.Database): UntriagedTryNextRow[] {
   return db.prepare(`
     SELECT rf.id, rf.finding, rf.role, rf.action_owner, s.name as origin_sprint,
       (SELECT COUNT(*) FROM sprints s2 WHERE s2.id > rf.sprint_id AND s2.deleted_at IS NULL) as age_sprints
@@ -462,22 +501,32 @@ export function getUntriagedTryNext(db: Database.Database): any[] {
     WHERE rf.category = 'try_next' AND rf.status = 'open'
       AND (rf.deferred_at IS NULL OR rf.deferred_at < datetime('now', '-24 hours'))
     ORDER BY rf.sprint_id ASC, rf.id ASC
-  `).all() as any[];
+  `).all() as UntriagedTryNextRow[];
 }
 
 /**
  * A2: open discoveries with sprint-age annotation. P0/P1 items older than 3 sprints
  * are flagged escalated and block the planning gate.
  */
-export function getOpenDiscoveries(db: Database.Database): any[] {
+export interface OpenDiscoveryRow {
+  id: number;
+  finding: string;
+  priority: string | null;
+  category: string;
+  origin_sprint: string;
+  age_sprints: number;
+  escalated: boolean;
+}
+
+export function getOpenDiscoveries(db: Database.Database): OpenDiscoveryRow[] {
   const rows = db.prepare(`
     SELECT d.id, d.finding, d.priority, d.category, s.name as origin_sprint,
       (SELECT COUNT(*) FROM sprints s2 WHERE s2.id > d.discovery_sprint_id AND s2.deleted_at IS NULL) as age_sprints
     FROM discoveries d JOIN sprints s ON d.discovery_sprint_id = s.id
     WHERE d.status = 'discovered'
     ORDER BY d.priority ASC, age_sprints DESC, d.id ASC
-  `).all() as any[];
-  return rows.map((d: any) => ({ ...d, escalated: (d.priority === "P0" || d.priority === "P1") && d.age_sprints > 3 }));
+  `).all() as Omit<OpenDiscoveryRow, "escalated">[];
+  return rows.map((d) => ({ ...d, escalated: (d.priority === "P0" || d.priority === "P1") && d.age_sprints > 3 }));
 }
 
 /**
@@ -491,15 +540,15 @@ export function checkPlanningGate(db: Database.Database): { blocked: boolean; se
   if (untriaged.length > 0) {
     sections.push(`## Untriaged try_next findings (${untriaged.length})`);
     sections.push(`Triage each with triage_retro_finding — adopt (requires ticket_id), drop (requires dropped_reason), or defer:`);
-    untriaged.slice(0, 10).forEach((f: any) =>
+    untriaged.slice(0, 10).forEach((f) =>
       sections.push(`- #${f.id} [${f.origin_sprint}, ${f.age_sprints} sprint(s) old${f.action_owner ? `, owner: ${f.action_owner}` : ""}] ${truncateFinding(f.finding)}`));
     if (untriaged.length > 10) sections.push(`- …and ${untriaged.length - 10} more — list_retro_findings({ category: "try_next" })`);
   }
-  const escalated = getOpenDiscoveries(db).filter((d: any) => d.escalated);
+  const escalated = getOpenDiscoveries(db).filter((d) => d.escalated);
   if (escalated.length > 0) {
     sections.push(`## Escalated open discoveries (${escalated.length}) — P0/P1 older than 3 sprints`);
     sections.push(`Pull each into the sprint (link_discovery_to_ticket) or defer/drop it (update_discovery):`);
-    escalated.forEach((d: any) =>
+    escalated.forEach((d) =>
       sections.push(`- ⚠ ${d.priority} #${d.id} [open ${d.age_sprints} sprints] ${truncateFinding(d.finding)}`));
   }
   return { blocked: sections.length > 0, sections, untriaged: untriaged.length, escalated: escalated.length };
@@ -514,6 +563,14 @@ export function buildPlanningGateContext(db: Database.Database): string {
   autoApplyRetroActions(db);
   const sections: string[] = [];
 
+  interface OpenTryNextRow {
+    id: number;
+    finding: string;
+    action_owner: string | null;
+    origin_sprint: string;
+    age_sprints: number;
+    recently_deferred: number;
+  }
   const tryNext = db.prepare(`
     SELECT rf.id, rf.finding, rf.action_owner, s.name as origin_sprint,
       (SELECT COUNT(*) FROM sprints s2 WHERE s2.id > rf.sprint_id AND s2.deleted_at IS NULL) as age_sprints,
@@ -521,18 +578,18 @@ export function buildPlanningGateContext(db: Database.Database): string {
     FROM retro_findings rf JOIN sprints s ON rf.sprint_id = s.id
     WHERE rf.category = 'try_next' AND rf.status = 'open'
     ORDER BY rf.sprint_id ASC, rf.id ASC
-  `).all() as any[];
+  `).all() as OpenTryNextRow[];
   sections.push(`## Open try_next (${tryNext.length})`);
   if (tryNext.length === 0) sections.push("None — all triaged. ✓");
   else {
-    tryNext.forEach((f: any) =>
+    tryNext.forEach((f) =>
       sections.push(`- #${f.id} [${f.age_sprints} sprint(s) old${f.action_owner ? `, owner: ${f.action_owner}` : ""}]${f.recently_deferred ? " (deferred)" : ""} ${truncateFinding(f.finding)}`));
   }
 
   const discoveries = getOpenDiscoveries(db);
   sections.push(`\n## Open discoveries (${discoveries.length})`);
   if (discoveries.length === 0) sections.push("None ✓");
-  else discoveries.forEach((d: any) =>
+  else discoveries.forEach((d) =>
     sections.push(`- ${d.escalated ? "⚠ ESCALATED " : ""}${d.priority} #${d.id} [open ${d.age_sprints} sprint(s)] ${truncateFinding(d.finding)}`));
 
   if (tryNext.length > 0 || discoveries.length > 0) {
@@ -557,11 +614,18 @@ export function snapshotSprintMetrics(
   date?: string,
 ): { date: string; remaining: number; completed: number } {
   const d = date || new Date().toISOString().split("T")[0];
-  const tickets = db.prepare(`SELECT status, story_points FROM tickets WHERE sprint_id = ? AND deleted_at IS NULL`).all(sprintId) as any[];
+  const tickets = db.prepare(`SELECT status, story_points FROM tickets WHERE sprint_id = ? AND deleted_at IS NULL`).all(sprintId) as Pick<TicketRow, "status" | "story_points">[];
   const remaining = tickets.filter((t) => t.status !== "DONE").reduce((s, t) => s + (t.story_points || 0), 0);
   const completed = tickets.filter((t) => t.status === "DONE").reduce((s, t) => s + (t.story_points || 0), 0);
   db.prepare(`INSERT INTO sprint_metrics (sprint_id, date, remaining_points, completed_points) VALUES (?, ?, ?, ?) ON CONFLICT(sprint_id, date) DO UPDATE SET remaining_points=excluded.remaining_points, completed_points=excluded.completed_points`).run(sprintId, d, remaining, completed);
   return { date: d, remaining, completed };
+}
+
+/** Shape of a dump_database / export_to_file JSON file (validated where it is read). */
+interface DatabaseDump {
+  version: string;
+  exported_at: string;
+  tables: Record<string, Record<string, unknown>[] | undefined>;
 }
 
 /**
@@ -578,7 +642,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     "List all scrum team agents with their roles and capabilities",
     {},
     async () => {
-      const agents = db.prepare(`SELECT role, name, description, model FROM agents ORDER BY role`).all() as any[];
+      const agents = db.prepare(`SELECT role, name, description, model FROM agents ORDER BY role`).all() as Pick<AgentRow, "role" | "name" | "description" | "model">[];
       if (agents.length === 0) return { content: [{ type: "text" as const, text: "No agents found. Run reset_agents to seed factory defaults." }] };
       const text = agents.map(a => `**${a.name}** (${a.role}) — ${a.description || "No description"}\nModel: ${a.model || "default"}`).join("\n\n");
       return { content: [{ type: "text" as const, text: `# Agents (${agents.length})\n\n${text}` }] };
@@ -590,7 +654,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     "Get full details of a scrum agent by role",
     { role: z.string().describe("Agent role (e.g. 'backend-developer')") },
     async ({ role }) => {
-      const agent = db.prepare(`SELECT * FROM agents WHERE role = ?`).get(role) as any;
+      const agent = db.prepare(`SELECT * FROM agents WHERE role = ?`).get(role) as AgentRow | undefined;
       if (!agent) return { content: [{ type: "text" as const, text: `Agent "${role}" not found. Use list_agents to see available roles.` }] };
       const sections = [`# ${agent.name} (${agent.role})`, agent.description || "", `Model: ${agent.model || "default"}`, `Tools: ${agent.tools || "none"}`, "", "## System Prompt", agent.system_prompt || "(none)"];
       return { content: [{ type: "text" as const, text: sections.join("\n") }] };
@@ -626,7 +690,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       sets.push("updated_at=datetime('now')");
       db.prepare(`UPDATE agents SET ${sets.join(", ")} WHERE role = ?`).run(...vals, role);
       notifyDashboard(db);
-      const updated = db.prepare(`SELECT role, name, model FROM agents WHERE role = ?`).get(role) as any;
+      const updated = db.prepare(`SELECT role, name, model FROM agents WHERE role = ?`).get(role) as Pick<AgentRow, "role" | "name" | "model">; // exists: checked above
       return { content: [{ type: "text" as const, text: `Agent ${updated.name} (${updated.role}) updated — model ${updated.model ?? "default"} → tier ${modelToTier(updated.model)}.` }] };
     }
   );
@@ -644,27 +708,27 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       const limit = last_n ?? 20;
       if (compact) {
         let q = `SELECT id, name, status FROM sprints`;
-        const params: any[] = [];
+        const params: unknown[] = [];
         const where: string[] = [];
         if (status) { where.push("status=?"); params.push(status); }
         if (project) { where.push("project=?"); params.push(project); }
         if (where.length) q += ` WHERE ${where.join(" AND ")}`;
         q += ` ORDER BY created_at DESC LIMIT ?`;
         params.push(limit);
-        const sprints = db.prepare(q).all(...params) as any[];
+        const sprints = db.prepare(q).all(...params) as Pick<SprintRow, "id" | "name" | "status">[];
         if (sprints.length === 0) return { content: [{ type: "text" as const, text: "No sprints found." }] };
-        const text = sprints.map((s: any) => `#${s.id} ${s.name} [${s.status}]`).join("\n");
+        const text = sprints.map((s) => `#${s.id} ${s.name} [${s.status}]`).join("\n");
         return { content: [{ type: "text" as const, text: `# Sprints (${sprints.length})\n${text}` }] };
       }
       let q = `SELECT s.*, COUNT(t.id) as ticket_count, SUM(CASE WHEN t.status='DONE' THEN 1 ELSE 0 END) as done_count FROM sprints s LEFT JOIN tickets t ON t.sprint_id=s.id`;
-      const params: any[] = [];
+      const params: unknown[] = [];
       const where: string[] = [];
       if (status) { where.push("s.status=?"); params.push(status); }
       if (project) { where.push("s.project=?"); params.push(project); }
       if (where.length) q += ` WHERE ${where.join(" AND ")}`;
       q += ` GROUP BY s.id ORDER BY s.created_at DESC LIMIT ?`;
       params.push(limit);
-      const sprints = db.prepare(q).all(...params) as any[];
+      const sprints = db.prepare(q).all(...params) as (SprintRow & { ticket_count: number; done_count: number | null })[];
       if (sprints.length === 0) return { content: [{ type: "text" as const, text: "No sprints found." }] };
       const text = sprints.map(s => `**${s.name}** [${s.status.toUpperCase()}]\nGoal: ${s.goal || "—"}\nTickets: ${s.done_count}/${s.ticket_count} done | Velocity: ${s.velocity_completed}/${s.velocity_committed}`).join("\n\n");
       return { content: [{ type: "text" as const, text: `# Sprints (${sprints.length})\n\n${text}` }] };
@@ -685,10 +749,11 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         FROM sprints s LEFT JOIN tickets t ON t.sprint_id = s.id
         WHERE s.deleted_at IS NULL
         GROUP BY s.id ORDER BY s.created_at DESC LIMIT ?
-      `).all(limit) as any[];
+      `).all(limit) as (Pick<SprintRow, "name" | "status" | "velocity_committed" | "velocity_completed"> & { tickets: number; done: number | null })[];
       if (sprints.length === 0) return { content: [{ type: "text" as const, text: "No sprints." }] };
-      const lines = sprints.map((s: any) => {
-        const pct = s.velocity_committed > 0 ? Math.round((s.velocity_completed / s.velocity_committed) * 100) : 0;
+      const lines = sprints.map((s) => {
+        // NULL columns: `null > 0` is false and `null / n` is 0 — the guards below keep that
+        const pct = s.velocity_committed !== null && s.velocity_committed > 0 ? Math.round(((s.velocity_completed ?? 0) / s.velocity_committed) * 100) : 0;
         return `${s.name} [${s.status}] ${s.velocity_completed}/${s.velocity_committed}pts (${pct}%) ${s.done}/${s.tickets} tickets`;
       });
       return { content: [{ type: "text" as const, text: lines.join("\n") }] };
@@ -700,12 +765,12 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     "Get full sprint details with tickets, bugs, blockers, and retro findings",
     { sprint_id: z.number().describe("Sprint ID") },
     async ({ sprint_id }) => {
-      const sprint = getSprintById(db, sprint_id) as any;
+      const sprint = getSprintById(db, sprint_id);
       if (!sprint) return { content: [{ type: "text" as const, text: `Sprint ${sprint_id} not found.` }] };
-      const tickets = db.prepare(`SELECT id, ticket_ref, title, status, priority, assigned_to, story_points, qa_verified FROM tickets WHERE sprint_id=? ORDER BY priority`).all(sprint_id) as any[];
-      const bugs = db.prepare(`SELECT id, severity, description, status FROM bugs WHERE sprint_id=?`).all(sprint_id) as any[];
-      const blockers = db.prepare(`SELECT id, description, status FROM blockers WHERE sprint_id=?`).all(sprint_id) as any[];
-      const findings = db.prepare(`SELECT category, role, finding, action_owner, action_applied FROM retro_findings WHERE sprint_id=?`).all(sprint_id) as any[];
+      const tickets = db.prepare(`SELECT id, ticket_ref, title, status, priority, assigned_to, story_points, qa_verified FROM tickets WHERE sprint_id=? ORDER BY priority`).all(sprint_id) as Pick<TicketRow, "id" | "ticket_ref" | "title" | "status" | "priority" | "assigned_to" | "story_points" | "qa_verified">[];
+      const bugs = db.prepare(`SELECT id, severity, description, status FROM bugs WHERE sprint_id=?`).all(sprint_id) as Pick<BugRow, "id" | "severity" | "description" | "status">[];
+      const blockers = db.prepare(`SELECT id, description, status FROM blockers WHERE sprint_id=?`).all(sprint_id) as Pick<BlockerRow, "id" | "description" | "status">[];
+      const findings = db.prepare(`SELECT category, role, finding, action_owner, action_applied FROM retro_findings WHERE sprint_id=?`).all(sprint_id) as Pick<RetroFindingRow, "category" | "role" | "finding" | "action_owner" | "action_applied">[];
 
       const sections = [`# ${sprint.name} [${sprint.status.toUpperCase()}]`, `Goal: ${sprint.goal || "—"}`, `Velocity: ${sprint.velocity_completed}/${sprint.velocity_committed}`, ""];
       sections.push(`## Tickets (${tickets.length})`);
@@ -736,25 +801,25 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     async ({ sprint_id, status, assigned_to, project, compact }) => {
       if (compact) {
         let q = `SELECT t.id, t.title, t.status FROM tickets t ${project ? TICKET_PROJECT_JOINS : ""} WHERE 1=1`;
-        const p: any[] = [];
+        const p: unknown[] = [];
         if (sprint_id !== undefined) { q += " AND t.sprint_id=?"; p.push(sprint_id); }
         if (status) { q += " AND t.status=?"; p.push(status); }
         if (assigned_to) { q += " AND t.assigned_to=?"; p.push(assigned_to); }
         if (project) { q += ` AND ${EFFECTIVE_PROJECT_SQL}=?`; p.push(project); }
         q += " ORDER BY t.status, t.id LIMIT 50";
-        const tickets = db.prepare(q).all(...p) as any[];
+        const tickets = db.prepare(q).all(...p) as Pick<TicketRow, "id" | "title" | "status">[];
         if (tickets.length === 0) return { content: [{ type: "text" as const, text: "No tickets found." }] };
-        const text = tickets.map((t: any) => `#${t.id} [${t.status}] ${t.title}`).join("\n");
+        const text = tickets.map((t) => `#${t.id} [${t.status}] ${t.title}`).join("\n");
         return { content: [{ type: "text" as const, text: `# Tickets (${tickets.length})\n${text}` }] };
       }
       let q = `SELECT t.*, s.name as sprint_name FROM tickets t ${TICKET_PROJECT_JOINS} WHERE 1=1`;
-      const p: any[] = [];
+      const p: unknown[] = [];
       if (sprint_id !== undefined) { q += " AND t.sprint_id=?"; p.push(sprint_id); }
       if (status) { q += " AND t.status=?"; p.push(status); }
       if (assigned_to) { q += " AND t.assigned_to=?"; p.push(assigned_to); }
       if (project) { q += ` AND ${EFFECTIVE_PROJECT_SQL}=?`; p.push(project); }
       q += " ORDER BY t.priority, t.status LIMIT 50";
-      const tickets = db.prepare(q).all(...p) as any[];
+      const tickets = db.prepare(q).all(...p) as (TicketRow & { sprint_name: string | null })[];
       if (tickets.length === 0) return { content: [{ type: "text" as const, text: "No tickets found." }] };
       const text = tickets.map(t => `[${t.status}] ${t.priority} ${t.ticket_ref || "#"+t.id}: ${t.title} (${t.story_points || 0}sp) @${t.assigned_to || "?"} — ${t.sprint_name || "backlog"}${t.github_issue ? ` gh#${t.github_issue}` : ""}`).join("\n");
       return { content: [{ type: "text" as const, text: `# Tickets (${tickets.length})\n\n${text}` }] };
@@ -766,10 +831,10 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     "Get full ticket details with subtasks and linked bugs",
     { ticket_id: z.number().describe("Ticket ID") },
     async ({ ticket_id }) => {
-      const t = db.prepare(`SELECT t.*, s.name as sprint_name FROM tickets t LEFT JOIN sprints s ON t.sprint_id=s.id WHERE t.id=?`).get(ticket_id) as any;
+      const t = db.prepare(`SELECT t.*, s.name as sprint_name FROM tickets t LEFT JOIN sprints s ON t.sprint_id=s.id WHERE t.id=?`).get(ticket_id) as (TicketRow & { sprint_name: string | null }) | undefined;
       if (!t) return { content: [{ type: "text" as const, text: `Ticket #${ticket_id} not found.` }] };
-      const subtasks = db.prepare(`SELECT * FROM subtasks WHERE ticket_id=?`).all(ticket_id) as any[];
-      const bugs = db.prepare(`SELECT * FROM bugs WHERE ticket_id=?`).all(ticket_id) as any[];
+      const subtasks = db.prepare(`SELECT * FROM subtasks WHERE ticket_id=?`).all(ticket_id) as SubtaskRow[];
+      const bugs = db.prepare(`SELECT * FROM bugs WHERE ticket_id=?`).all(ticket_id) as BugRow[];
       const sections = [`# ${t.ticket_ref || "#"+t.id}: ${t.title}`, `Status: ${t.status} | Priority: ${t.priority} | Points: ${t.story_points || 0}`, `Sprint: ${t.sprint_name || "backlog"} | Assigned: ${t.assigned_to || "—"} | QA: ${t.qa_verified ? "Yes" : "No"}`];
       if (t.project || t.type || t.github_issue) sections.push(`Project: ${t.project || "—"} | Type: ${t.type || "—"} | GitHub: ${t.github_issue ? `${t.github_repo ?? ""}#${t.github_issue}` : "—"}`);
       sections.push("");
@@ -789,11 +854,11 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     { sprint_id: z.number().optional(), category: z.enum(["went_well", "went_wrong", "try_next"]).optional() },
     async ({ sprint_id, category }) => {
       let q = `SELECT rf.*, s.name as sprint_name FROM retro_findings rf JOIN sprints s ON rf.sprint_id=s.id WHERE 1=1`;
-      const p: any[] = [];
+      const p: unknown[] = [];
       if (sprint_id !== undefined) { q += " AND rf.sprint_id=?"; p.push(sprint_id); }
       if (category) { q += " AND rf.category=?"; p.push(category); }
       q += " ORDER BY rf.sprint_id DESC, rf.category";
-      const findings = db.prepare(q).all(...p) as any[];
+      const findings = db.prepare(q).all(...p) as (RetroFindingRow & { sprint_name: string })[];
       if (findings.length === 0) return { content: [{ type: "text" as const, text: "No retro findings found." }] };
       const text = findings.map(f => `[${f.category.replace("_", " ")}] ${f.finding} (${f.role || "team"}, Sprint: ${f.sprint_name})${f.action_applied ? " [APPLIED]" : ""}`).join("\n");
       return { content: [{ type: "text" as const, text: `# Retro Findings (${findings.length})\n\n${text}` }] };
@@ -807,11 +872,11 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     async ({ query }) => {
       const pattern = `%${query}%`;
       const results: string[] = [`# Search: "${query}"`, ""];
-      const tickets = db.prepare(`SELECT id, ticket_ref, title, status, priority FROM tickets WHERE title LIKE ? OR description LIKE ? LIMIT 10`).all(pattern, pattern) as any[];
+      const tickets = db.prepare(`SELECT id, ticket_ref, title, status, priority FROM tickets WHERE title LIKE ? OR description LIKE ? LIMIT 10`).all(pattern, pattern) as Pick<TicketRow, "id" | "ticket_ref" | "title" | "status" | "priority">[];
       if (tickets.length) { results.push(`## Tickets (${tickets.length})`); tickets.forEach(t => results.push(`- [${t.status}] ${t.priority} ${t.ticket_ref || "#"+t.id}: ${t.title}`)); results.push(""); }
-      const findings = db.prepare(`SELECT finding, category, role FROM retro_findings WHERE finding LIKE ? LIMIT 10`).all(pattern) as any[];
+      const findings = db.prepare(`SELECT finding, category, role FROM retro_findings WHERE finding LIKE ? LIMIT 10`).all(pattern) as Pick<RetroFindingRow, "finding" | "category" | "role">[];
       if (findings.length) { results.push(`## Retro (${findings.length})`); findings.forEach(f => results.push(`- [${f.category}] ${f.finding}`)); results.push(""); }
-      const bugs = db.prepare(`SELECT id, severity, description, status FROM bugs WHERE description LIKE ? LIMIT 10`).all(pattern) as any[];
+      const bugs = db.prepare(`SELECT id, severity, description, status FROM bugs WHERE description LIKE ? LIMIT 10`).all(pattern) as Pick<BugRow, "id" | "severity" | "description" | "status">[];
       if (bugs.length) { results.push(`## Bugs (${bugs.length})`); bugs.forEach(b => results.push(`- [${b.status}] ${b.severity}: ${b.description}`)); }
       if (tickets.length + findings.length + bugs.length === 0) return { content: [{ type: "text" as const, text: `No results for "${query}".` }] };
       return { content: [{ type: "text" as const, text: results.join("\n") }] };
@@ -840,8 +905,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         const result = db.prepare(`INSERT INTO sprints (name, goal, start_date, end_date, milestone_id, status, project) VALUES (?, ?, ?, ?, ?, 'planning', ?)`).run(name, goal || null, start_date || null, end_date || null, milestone_id || null, project ?? null);
         notifyDashboard(db);
         return { content: [{ type: "text" as const, text: `Sprint created: ${name} (id: ${result.lastInsertRowid})` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -859,7 +924,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       project: z.string().nullable().optional().describe("Project key (see set_project), null to unassign"),
     },
     async ({ sprint_id, status, goal, velocity_committed, velocity_completed, milestone_id, project }) => {
-      const sprint = getSprintById(db, sprint_id) as any;
+      const sprint = getSprintById(db, sprint_id);
       if (!sprint) return { content: [{ type: "text" as const, text: `Sprint #${sprint_id} not found.` }], isError: true };
       const badProject = unknownProject(db, project);
       if (badProject) return { content: [{ type: "text" as const, text: badProject }], isError: true };
@@ -879,7 +944,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       }
 
       // ─── Apply updates ──────────────────────────────────────────
-      const sets: string[] = []; const vals: any[] = [];
+      const sets: string[] = []; const vals: unknown[] = [];
       const oldStatus = sprint.status;
       if (status) { sets.push("status=?"); vals.push(status); }
       if (goal) { sets.push("goal=?"); vals.push(goal); }
@@ -896,8 +961,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       if (status && status !== oldStatus) {
         try {
           db.prepare(`INSERT INTO event_log (entity_type, entity_id, action, field_name, old_value, new_value, actor) VALUES ('sprint', ?, 'status_changed', 'status', ?, ?, 'mcp')`).run(sprint_id, oldStatus, status);
-        } catch (e: any) {
-          console.error(`[audit] update_sprint sprint #${sprint_id} status ${oldStatus}→${status}: ` + (e?.message ?? String(e)));
+        } catch (e) {
+          console.error(`[audit] update_sprint sprint #${sprint_id} status ${oldStatus}→${status}: ` + errorMessage(e));
         }
         slog("INFO", `update_sprint: sprint=${sprint_id} phase ${oldStatus}→${status}`);
       }
@@ -909,20 +974,20 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       let retroNote = "";
       if (status === "closed" || status === "done") {
         try {
-          const sprint = getSprintById(db, sprint_id) as any;
-          const tickets = db.prepare(`SELECT id, status, story_points FROM tickets WHERE sprint_id=?`).all(sprint_id) as any[];
+          const sprint = getSprintById(db, sprint_id)!; // missing row throws into the catch below, as before
+          const tickets = db.prepare(`SELECT id, status, story_points FROM tickets WHERE sprint_id=?`).all(sprint_id) as Pick<TicketRow, "id" | "status" | "story_points">[];
           const totalTickets = tickets.length;
-          const doneTickets = tickets.filter((t: any) => t.status === "DONE").length;
+          const doneTickets = tickets.filter((t) => t.status === "DONE").length;
           const completionRate = totalTickets > 0 ? Math.round((doneTickets / totalTickets) * 100) : 0;
           const committedPts = sprint.velocity_committed || 0;
-          const completedPts = sprint.velocity_completed || tickets.filter((t: any) => t.status === "DONE").reduce((s: number, t: any) => s + (t.story_points || 0), 0);
+          const completedPts = sprint.velocity_completed || tickets.filter((t) => t.status === "DONE").reduce((s: number, t) => s + (t.story_points || 0), 0);
           const velocityDelta = completedPts - committedPts;
-          const blockerCount = (db.prepare(`SELECT COUNT(*) as c FROM blockers WHERE sprint_id=?`).get(sprint_id) as any).c;
+          const blockerCount = (db.prepare(`SELECT COUNT(*) as c FROM blockers WHERE sprint_id=?`).get(sprint_id) as CountRow).c;
 
           // Velocity trend from last 5 closed sprints
-          const recentSprints = db.prepare(`SELECT name, velocity_committed, velocity_completed FROM sprints WHERE status='closed' AND id != ? ORDER BY id DESC LIMIT 5`).all(sprint_id) as any[];
+          const recentSprints = db.prepare(`SELECT name, velocity_committed, velocity_completed FROM sprints WHERE status='closed' AND id != ? ORDER BY id DESC LIMIT 5`).all(sprint_id) as Pick<SprintRow, "name" | "velocity_committed" | "velocity_completed">[];
           const trendText = recentSprints.length > 0
-            ? recentSprints.map((s: any) => `${s.name}: ${s.velocity_completed}/${s.velocity_committed}`).join(", ")
+            ? recentSprints.map((s) => `${s.name}: ${s.velocity_completed}/${s.velocity_committed}`).join(", ")
             : "No prior sprints";
 
           const summary = [
@@ -973,7 +1038,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     },
     async ({ sprint_id, velocity_completed: _velocity_completed, format, acknowledge_open_items }) => {
       let velocity_completed = _velocity_completed;
-      const sprint = getSprintById(db, sprint_id) as any;
+      const sprint = getSprintById(db, sprint_id);
       if (!sprint) return { content: [{ type: "text" as const, text: `Sprint #${sprint_id} not found.` }], isError: true };
 
       // Resolve legacy phases to the nearest simplified phase for transition lookup
@@ -997,11 +1062,11 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         }
       }
 
-      const tickets = getTicketsBySprint(db, sprint_id) as any[];
+      const tickets = getTicketsBySprint(db, sprint_id);
 
       // A3: freeze commitment at implementation start if not explicitly set — never recalculated after
       if (nextPhase === "implementation" && (!sprint.velocity_committed || sprint.velocity_committed <= 0)) {
-        const frozen = tickets.reduce((s: number, t: any) => s + (t.story_points || 0), 0);
+        const frozen = tickets.reduce((s: number, t) => s + (t.story_points || 0), 0);
         db.prepare(`UPDATE sprints SET velocity_committed = ? WHERE id = ?`).run(frozen, sprint_id);
         sprint.velocity_committed = frozen;
       }
@@ -1011,7 +1076,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
 
       // Auto-calculate velocity_completed from DONE tickets if not provided
       if ((nextPhase === "done" || nextPhase === "closed") && !velocity_completed && !sprint.velocity_completed) {
-        const autoVelocity = tickets.filter((t: any) => t.status === "DONE").reduce((s: number, t: any) => s + (t.story_points || 0), 0);
+        const autoVelocity = tickets.filter((t) => t.status === "DONE").reduce((s: number, t) => s + (t.story_points || 0), 0);
         velocity_completed = autoVelocity;
       }
 
@@ -1024,7 +1089,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       let archivedDropped = 0;
       db.transaction(() => {
         const sets = ["status=?", "updated_at=datetime('now')"];
-        const vals: any[] = [nextPhase];
+        const vals: unknown[] = [nextPhase];
         if (velocity_completed !== undefined) { sets.push("velocity_completed=?"); vals.push(velocity_completed); }
         vals.push(sprint_id);
         db.prepare(`UPDATE sprints SET ${sets.join(",")} WHERE id=?`).run(...vals);
@@ -1034,9 +1099,9 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         // Auto retro analysis when reaching done or closed
         if (nextPhase === "done" || nextPhase === "closed") {
           const totalTickets = tickets.length;
-          const doneTickets = tickets.filter((t: any) => t.status === "DONE").length;
+          const doneTickets = tickets.filter((t) => t.status === "DONE").length;
           const completionRate = totalTickets > 0 ? Math.round((doneTickets / totalTickets) * 100) : 0;
-          const pts = velocity_completed || sprint.velocity_completed || tickets.filter((t: any) => t.status === "DONE").reduce((s: number, t: any) => s + (t.story_points || 0), 0);
+          const pts = velocity_completed || sprint.velocity_completed || tickets.filter((t) => t.status === "DONE").reduce((s: number, t) => s + (t.story_points || 0), 0);
           const summary = `Auto-analysis: ${doneTickets}/${totalTickets} tickets done (${completionRate}% completion rate). Velocity: ${pts}pt completed of ${sprint.velocity_committed || 0}pt committed.`;
           db.prepare(`INSERT INTO retro_findings (sprint_id, category, finding, role) VALUES (?, 'auto_analysis', ?, 'system')`).run(sprint_id, summary);
           retroNote = "\nAuto retro analysis generated.";
@@ -1082,8 +1147,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       // pattern) after the transition has already committed above.
       try {
         snapshotSprintMetrics(db, sprint_id);
-      } catch (e: any) {
-        console.error(`[audit] advance_sprint sprint #${sprint_id} auto-snapshot (${sprint.status}→${nextPhase}): ` + (e?.message ?? String(e)));
+      } catch (e) {
+        console.error(`[audit] advance_sprint sprint #${sprint_id} auto-snapshot (${sprint.status}→${nextPhase}): ` + errorMessage(e));
       }
 
       // B4: server-side auto-emit — phase transitions appear in the wizard timeline
@@ -1112,18 +1177,18 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
             sprintName: sprint.name,
             goal: sprint.goal || "",
             ticketCount: tickets.length,
-            points: tickets.reduce((s: number, t: any) => s + (t.story_points || 0), 0),
+            points: tickets.reduce((s: number, t) => s + (t.story_points || 0), 0),
             phase: "implementation",
           });
         } else if (nextPhase === "rest") {
-          const doneTickets = tickets.filter((t: any) => t.status === "DONE");
+          const doneTickets = tickets.filter((t) => t.status === "DONE");
           card = sprintCompleteCard({
             sprintName: sprint.name,
-            completed: velocity_completed ?? sprint.velocity_completed ?? doneTickets.reduce((s: number, t: any) => s + (t.story_points || 0), 0),
+            completed: velocity_completed ?? sprint.velocity_completed ?? doneTickets.reduce((s: number, t) => s + (t.story_points || 0), 0),
             committed: sprint.velocity_committed || 0,
             ticketsDone: doneTickets.length,
             ticketsTotal: tickets.length,
-            qaAllVerified: doneTickets.length > 0 && doneTickets.every((t: any) => t.qa_verified),
+            qaAllVerified: doneTickets.length > 0 && doneTickets.every((t) => t.qa_verified),
           });
         } else {
           const pulse = buildSprintPulseData(db, sprint_id);
@@ -1170,7 +1235,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         // Resolve milestone name from milestone_id if not provided directly
         let milestoneName = milestone || null;
         if (milestone_id && !milestoneName) {
-          const ms = db.prepare(`SELECT name FROM milestones WHERE id = ?`).get(milestone_id) as any;
+          const ms = db.prepare(`SELECT name FROM milestones WHERE id = ?`).get(milestone_id) as Pick<MilestoneRow, "name"> | undefined;
           if (ms) milestoneName = ms.name;
         }
         const result = db.prepare(`INSERT INTO tickets (sprint_id, ticket_ref, title, description, priority, assigned_to, story_points, milestone, milestone_id, epic_id, project, type, origin) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(sprint_id, ticket_ref || null, title, description || null, priority, assigned_to || null, story_points || null, milestoneName, milestone_id || null, epic_id || null, project ?? null, type ?? null, origin ?? null);
@@ -1179,8 +1244,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         if (agents) {
           try {
             applyTicketAssignments(db, newTicketId, agents);
-          } catch (e: any) {
-            return { content: [{ type: "text" as const, text: `Ticket created (#${newTicketId}) but assignments failed: ${e.message}` }], isError: true };
+          } catch (e) {
+            return { content: [{ type: "text" as const, text: `Ticket created (#${newTicketId}) but assignments failed: ${errorMessage(e)}` }], isError: true };
           }
         } else if (assigned_to) {
           try {
@@ -1190,8 +1255,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         notifyDashboard(db);
         notifyDashboard(db, { type: "entity_changed", entityType: "ticket", entityId: newTicketId }); // B4
         return { content: [{ type: "text" as const, text: `Ticket created: ${ticket_ref || '#'+newTicketId} — ${title}` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -1221,7 +1286,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       github_issue: z.number().int().positive().nullable().optional().describe("Linked GitHub issue number, null to unlink"),
     },
     async ({ ticket_id, status, assigned_to, qa_verified, verified_by, notes, milestone_id, epic_id, actual_hours, agents, format, project, type, origin, github_issue }) => {
-      const ticket = db.prepare(`SELECT t.*, s.status as sprint_status, s.name as sprint_name FROM tickets t LEFT JOIN sprints s ON t.sprint_id = s.id WHERE t.id = ?`).get(ticket_id) as any;
+      const ticket = db.prepare(`SELECT t.*, s.status as sprint_status, s.name as sprint_name FROM tickets t LEFT JOIN sprints s ON t.sprint_id = s.id WHERE t.id = ?`).get(ticket_id) as (TicketRow & { sprint_status: string | null; sprint_name: string | null }) | undefined;
       if (!ticket) return { content: [{ type: "text" as const, text: `Ticket #${ticket_id} not found.` }], isError: true };
 
       // ─── Gate enforcement ───────────────────────────────────────
@@ -1229,10 +1294,10 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
 
       if (status === "DONE") {
         // Assignment is optional — no gate for unassigned tickets
-        if (ticket.sprint_id && !["implementation", "qa", "done"].includes(ticket.sprint_status)) gates.push(`Sprint "${ticket.sprint_name}" is in ${ticket.sprint_status} phase — must be in implementation, qa, or done`);
+        if (ticket.sprint_id && !["implementation", "qa", "done"].includes(ticket.sprint_status ?? "")) gates.push(`Sprint "${ticket.sprint_name}" is in ${ticket.sprint_status} phase — must be in implementation, qa, or done`);
       }
       if (status === "IN_PROGRESS") {
-        if (ticket.sprint_id && !["implementation", "qa", "done"].includes(ticket.sprint_status)) gates.push(`Sprint "${ticket.sprint_name}" is in ${ticket.sprint_status} phase — must be in implementation, qa, or done`);
+        if (ticket.sprint_id && !["implementation", "qa", "done"].includes(ticket.sprint_status ?? "")) gates.push(`Sprint "${ticket.sprint_name}" is in ${ticket.sprint_status} phase — must be in implementation, qa, or done`);
       }
 
       if (gates.length > 0) {
@@ -1263,7 +1328,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       if (badProject) return { content: [{ type: "text" as const, text: badProject }], isError: true };
 
       // ─── Apply updates ──────────────────────────────────────────
-      const sets: string[] = []; const vals: any[] = [];
+      const sets: string[] = []; const vals: unknown[] = [];
       const oldStatus = ticket.status;
       if (status) { sets.push("status=?"); vals.push(status); }
       if (assigned_to) { sets.push("assigned_to=?"); vals.push(assigned_to); }
@@ -1284,7 +1349,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       if (milestone_id !== undefined) {
         sets.push("milestone_id=?"); vals.push(milestone_id);
         if (milestone_id) {
-          const ms = db.prepare(`SELECT name FROM milestones WHERE id = ?`).get(milestone_id) as any;
+          const ms = db.prepare(`SELECT name FROM milestones WHERE id = ?`).get(milestone_id) as Pick<MilestoneRow, "name"> | undefined;
           sets.push("milestone=?"); vals.push(ms?.name || null);
         } else {
           sets.push("milestone=?"); vals.push(null);
@@ -1296,8 +1361,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       if (agents) {
         try {
           applyTicketAssignments(db, ticket_id, agents);
-        } catch (e: any) {
-          return { content: [{ type: "text" as const, text: `Assignment error: ${e.message}` }], isError: true };
+        } catch (e) {
+          return { content: [{ type: "text" as const, text: `Assignment error: ${errorMessage(e)}` }], isError: true };
         }
       }
       if (sets.length === 0) {
@@ -1330,16 +1395,16 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       if (status && status !== oldStatus) {
         try {
           db.prepare(`INSERT INTO event_log (entity_type, entity_id, action, field_name, old_value, new_value, actor) VALUES ('ticket', ?, 'status_changed', 'status', ?, ?, 'mcp')`).run(ticket_id, oldStatus, status);
-        } catch (e: any) {
-          console.error(`[audit] update_ticket ticket #${ticket_id} status ${oldStatus}→${status}: ` + (e?.message ?? String(e)));
+        } catch (e) {
+          console.error(`[audit] update_ticket ticket #${ticket_id} status ${oldStatus}→${status}: ` + errorMessage(e));
         }
         slog("INFO", `update_ticket: ticket=${ticket_id} status ${oldStatus}→${status}`);
       }
       if (qa_verified !== undefined) {
         try {
           db.prepare(`INSERT INTO event_log (entity_type, entity_id, action, field_name, old_value, new_value, actor) VALUES ('ticket', ?, 'updated', 'qa_verified', ?, ?, 'mcp')`).run(ticket_id, ticket.qa_verified ? 'true' : 'false', qa_verified ? 'true' : 'false');
-        } catch (e: any) {
-          console.error(`[audit] update_ticket ticket #${ticket_id} qa_verified→${qa_verified}: ` + (e?.message ?? String(e)));
+        } catch (e) {
+          console.error(`[audit] update_ticket ticket #${ticket_id} qa_verified→${qa_verified}: ` + errorMessage(e));
         }
       }
 
@@ -1355,14 +1420,14 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         try {
           snapshotSprintMetrics(db, ticket.sprint_id);
           notifyDashboard(db);
-        } catch (e: any) {
-          console.error(`[audit] update_ticket ticket #${ticket_id} auto-snapshot sprint #${ticket.sprint_id}: ` + (e?.message ?? String(e)));
+        } catch (e) {
+          console.error(`[audit] update_ticket ticket #${ticket_id} auto-snapshot sprint #${ticket.sprint_id}: ` + errorMessage(e));
         }
       }
 
       // B4: server-side auto-emit — wizard mirrors terminal-driven ticket updates without extra LLM calls
       if (status && status !== oldStatus && ticket.sprint_id) {
-        const prog = db.prepare(`SELECT COUNT(*) as total, SUM(CASE WHEN status = 'DONE' THEN 1 ELSE 0 END) as done FROM tickets WHERE sprint_id = ? AND deleted_at IS NULL`).get(ticket.sprint_id) as any;
+        const prog = db.prepare(`SELECT COUNT(*) as total, SUM(CASE WHEN status = 'DONE' THEN 1 ELSE 0 END) as done FROM tickets WHERE sprint_id = ? AND deleted_at IS NULL`).get(ticket.sprint_id) as { total: number; done: number | null };
         notifyDashboard(db, {
           type: "step_progress",
           entityType: "ticket",
@@ -1382,7 +1447,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       if (format === "card" && ticket.sprint_id) {
         const pulse = buildSprintPulseData(db, ticket.sprint_id);
         if (pulse) {
-          const updated = db.prepare(`SELECT status, qa_verified FROM tickets WHERE id = ?`).get(ticket_id) as any;
+          const updated = db.prepare(`SELECT status, qa_verified FROM tickets WHERE id = ?`).get(ticket_id) as Pick<TicketRow, "status" | "qa_verified">; // exists: checked above
           const card = updated.status === "DONE"
             ? ticketDoneCard({
                 ref: ticket.ticket_ref || `#${ticket_id}`,
@@ -1430,13 +1495,13 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     },
     async ({ finding_id, resolution, ticket_id, dropped_reason }) => {
       try {
-        const f = db.prepare(`SELECT id, category, status, finding FROM retro_findings WHERE id = ?`).get(finding_id) as any;
+        const f = db.prepare(`SELECT id, category, status, finding FROM retro_findings WHERE id = ?`).get(finding_id) as Pick<RetroFindingRow, "id" | "category" | "status" | "finding"> | undefined;
         if (!f) return { content: [{ type: "text" as const, text: `Retro finding #${finding_id} not found.` }], isError: true };
         if (f.category !== "try_next") return { content: [{ type: "text" as const, text: `Finding #${finding_id} is '${f.category}' — only try_next findings are triaged.` }], isError: true };
 
         if (resolution === "adopt") {
           if (!ticket_id) return { content: [{ type: "text" as const, text: `adopt requires ticket_id — create the ticket first, then link it here.` }], isError: true };
-          const t = db.prepare(`SELECT id, ticket_ref, title, status FROM tickets WHERE id = ?`).get(ticket_id) as any;
+          const t = db.prepare(`SELECT id, ticket_ref, title, status FROM tickets WHERE id = ?`).get(ticket_id) as Pick<TicketRow, "id" | "ticket_ref" | "title" | "status"> | undefined;
           if (!t) return { content: [{ type: "text" as const, text: `Ticket #${ticket_id} not found.` }], isError: true };
           db.prepare(`UPDATE retro_findings SET status = 'adopted', linked_ticket_id = ?, dropped_reason = NULL, deferred_at = NULL WHERE id = ?`).run(ticket_id, finding_id);
           autoApplyRetroActions(db);
@@ -1459,8 +1524,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         db.prepare(`INSERT INTO event_log (entity_type, entity_id, action, field_name, old_value, new_value, actor) VALUES ('retro_finding', ?, 'triaged', 'deferred', NULL, datetime('now'), 'mcp')`).run(finding_id);
         notifyDashboard(db);
         return { content: [{ type: "text" as const, text: `Finding #${finding_id} deferred — gate satisfied for 24h; it re-surfaces at the next planning.` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -1483,8 +1548,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         })();
         notifyDashboard(db);
         return { content: [{ type: "text" as const, text: `Acknowledged ${cleared} changed ticket(s) — flags cleared, bridge actions completed.` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -1535,13 +1600,13 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       // T-3670: Auto-regress sprint to implementation when CRITICAL bug logged during QA
       let regressionNote = "";
       if (severity === "CRITICAL") {
-        const sprint = getSprintById(db, sprint_id) as any;
+        const sprint = getSprintById(db, sprint_id);
         if (sprint && sprint.status === "qa") {
           db.prepare(`UPDATE sprints SET status = 'implementation', updated_at = datetime('now') WHERE id = ? AND status = 'qa'`).run(sprint_id);
           try {
             db.prepare(`INSERT INTO event_log (entity_type, entity_id, action, field_name, old_value, new_value, actor) VALUES ('sprint', ?, 'status_changed', 'status', 'qa', 'implementation', 'mcp')`).run(sprint_id);
-          } catch (e: any) {
-            console.error(`[audit] log_bug sprint #${sprint_id} regression qa→implementation: ` + (e?.message ?? String(e)));
+          } catch (e) {
+            console.error(`[audit] log_bug sprint #${sprint_id} regression qa→implementation: ` + errorMessage(e));
           }
           regressionNote = " Sprint regressed to implementation due to CRITICAL bug.";
         }
@@ -1562,8 +1627,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         const result = seedDefaults(db);
         notifyDashboard(db);
         return { content: [{ type: "text" as const, text: `Seed check: ${result.agents} agents seeded, ${result.skills} skills seeded (0 means tables already had data)` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Sync error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Sync error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -1589,8 +1654,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         const result = db.prepare(`INSERT INTO milestones (name, description, target_date, status, project) VALUES (?, ?, ?, ?, ?)`).run(name, description || null, target_date || null, status, project ?? null);
         notifyDashboard(db);
         return { content: [{ type: "text" as const, text: `Milestone created: ${name} (id: ${result.lastInsertRowid})` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -1612,7 +1677,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     async ({ milestone_id, status, description, progress, target_date, archived, force, project, github_milestone }) => {
       const badProject = unknownProject(db, project);
       if (badProject) return { content: [{ type: "text" as const, text: badProject }], isError: true };
-      const sets: string[] = []; const vals: any[] = [];
+      const sets: string[] = []; const vals: unknown[] = [];
       if (project !== undefined) { sets.push("project=?"); vals.push(project); }
       if (github_milestone !== undefined) { sets.push("github_milestone=?", "github_node_id=NULL"); vals.push(github_milestone); }
       if (status) { sets.push("status=?"); vals.push(status); }
@@ -1640,8 +1705,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         })();
         notifyDashboard(db);
         return { content: [{ type: "text" as const, text: `Milestone ${milestone_id} updated.${archiveNote}` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -1656,8 +1721,9 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       project: z.string().optional().describe("Filter by project key"),
     },
     async ({ status, include_archived, compact, project }) => {
+      type MilestoneListRow = Pick<MilestoneRow, "id" | "name" | "status" | "progress" | "target_date" | "description" | "archived_at" | "project" | "github_milestone"> & { ticket_count: number; done_count: number };
       const conditions = ["m.deleted_at IS NULL"];
-      const params: any[] = [];
+      const params: unknown[] = [];
       if (status) { conditions.push("m.status = ?"); params.push(status); }
       if (project) { conditions.push("m.project = ?"); params.push(project); }
       if (!include_archived) conditions.push("m.archived_at IS NULL");
@@ -1666,12 +1732,12 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
           (SELECT COUNT(*) FROM tickets WHERE milestone_id = m.id AND deleted_at IS NULL) as ticket_count,
           (SELECT COUNT(*) FROM tickets WHERE milestone_id = m.id AND status = 'DONE' AND deleted_at IS NULL) as done_count
         FROM milestones m WHERE ${conditions.join(" AND ")} ORDER BY m.id
-      `).all(...params) as any[];
+      `).all(...params) as MilestoneListRow[];
       if (rows.length === 0) return { content: [{ type: "text" as const, text: "No milestones found." }] };
-      const tag = (m: any) => (m.archived_at ? " (archived)" : "");
+      const tag = (m: MilestoneListRow) => (m.archived_at ? " (archived)" : "");
       const text = compact
-        ? rows.map((m: any) => `#${m.id} ${m.name} [${m.status}]${tag(m)}`).join("\n")
-        : rows.map((m: any) => `**${m.name}** (#${m.id}) [${m.status}]${tag(m)} progress=${m.progress}%${m.target_date ? ` target=${m.target_date}` : ""}${m.project ? ` project=${m.project}` : ""}${m.github_milestone ? ` gh-milestone=${m.github_milestone}` : ""}\n${m.description || "—"}\nTickets: ${m.done_count}/${m.ticket_count} done`).join("\n\n");
+        ? rows.map((m) => `#${m.id} ${m.name} [${m.status}]${tag(m)}`).join("\n")
+        : rows.map((m) => `**${m.name}** (#${m.id}) [${m.status}]${tag(m)} progress=${m.progress}%${m.target_date ? ` target=${m.target_date}` : ""}${m.project ? ` project=${m.project}` : ""}${m.github_milestone ? ` gh-milestone=${m.github_milestone}` : ""}\n${m.description || "—"}\nTickets: ${m.done_count}/${m.ticket_count} done`).join("\n\n");
       return { content: [{ type: "text" as const, text: `# Milestones (${rows.length})\n${compact ? "" : "\n"}${text}` }] };
     }
   );
@@ -1685,13 +1751,13 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     },
     async ({ ticket_id, milestone_id }) => {
       try {
-        const milestone = db.prepare(`SELECT id, name FROM milestones WHERE id=?`).get(milestone_id) as any;
+        const milestone = db.prepare(`SELECT id, name FROM milestones WHERE id=?`).get(milestone_id) as Pick<MilestoneRow, "id" | "name"> | undefined;
         if (!milestone) return { content: [{ type: "text" as const, text: `Milestone ${milestone_id} not found.` }], isError: true };
         db.prepare(`UPDATE tickets SET milestone_id=?, milestone=?, updated_at=datetime('now') WHERE id=?`).run(milestone_id, milestone.name, ticket_id);
         notifyDashboard(db);
         return { content: [{ type: "text" as const, text: `Ticket #${ticket_id} linked to milestone "${milestone.name}" (id: ${milestone_id}).` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -1707,8 +1773,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         db.prepare(`INSERT INTO skills (name, content, owner_role) VALUES ('PRODUCT_VISION', ?, 'product-owner') ON CONFLICT(name) DO UPDATE SET content=excluded.content, updated_at=datetime('now')`).run(content);
         notifyDashboard(db);
         return { content: [{ type: "text" as const, text: `Product vision updated (${content.length} chars).` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -1724,7 +1790,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         WHERE t.sprint_id IS NULL
           OR (t.status IN ('TODO','NOT_DONE') AND t.sprint_id IN (SELECT id FROM sprints WHERE status = 'closed'))
         ORDER BY t.priority, t.created_at
-      `).all() as any[];
+      `).all() as Pick<TicketRow, "id" | "ticket_ref" | "title" | "priority" | "status" | "story_points" | "assigned_to" | "milestone">[];
       if (tickets.length === 0) return { content: [{ type: "text" as const, text: "Backlog is empty." }] };
       const text = tickets.map(t => `[${t.status}] ${t.priority} ${t.ticket_ref || "#"+t.id}: ${t.title} (${t.story_points || 0}sp) @${t.assigned_to || "?"}`).join("\n");
       return { content: [{ type: "text" as const, text: `# Backlog (${tickets.length})\n\n${text}` }] };
@@ -1750,8 +1816,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         }
         notifyDashboard(db);
         return { content: [{ type: "text" as const, text: `Sprint "${name}" created (id: ${sprintId}) with ${ticket_ids.length} tickets assigned.` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -1765,25 +1831,25 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       format: z.enum(["text", "card"]).optional().describe("card = diff-fence pulse card above the playbook"),
     },
     async ({ sprint_id, format }) => {
-      let sprint: any;
+      let sprint: SprintRow | undefined;
       if (sprint_id) {
-        sprint = db.prepare(`SELECT * FROM sprints WHERE id = ? AND deleted_at IS NULL`).get(sprint_id);
+        sprint = db.prepare(`SELECT * FROM sprints WHERE id = ? AND deleted_at IS NULL`).get(sprint_id) as SprintRow | undefined;
       } else {
         sprint = getLatestSprint(db);
       }
       if (!sprint) return { content: [{ type: "text" as const, text: "No active sprint found." }] };
 
-      const tickets = getTicketsBySprint(db, sprint.id) as any[];
-      const retroCount = (db.prepare(`SELECT COUNT(*) as c FROM retro_findings WHERE sprint_id = ?`).get(sprint.id) as any).c;
-      const blockerCount = (db.prepare(`SELECT COUNT(*) as c FROM blockers WHERE sprint_id = ? AND status = 'open'`).get(sprint.id) as any).c;
+      const tickets = getTicketsBySprint(db, sprint.id);
+      const retroCount = (db.prepare(`SELECT COUNT(*) as c FROM retro_findings WHERE sprint_id = ?`).get(sprint.id) as CountRow).c;
+      const blockerCount = (db.prepare(`SELECT COUNT(*) as c FROM blockers WHERE sprint_id = ? AND status = 'open'`).get(sprint.id) as CountRow).c;
 
       const byStatus: Record<string, number> = {};
       for (const t of tickets) byStatus[t.status] = (byStatus[t.status] || 0) + 1;
 
       const doneCount = tickets.filter(t => t.status === "DONE").length;
       const qaVerified = tickets.filter(t => t.qa_verified).length;
-      const totalPts = tickets.reduce((s: number, t: any) => s + (t.story_points || 0), 0);
-      const donePts = tickets.filter(t => t.status === "DONE").reduce((s: number, t: any) => s + (t.story_points || 0), 0);
+      const totalPts = tickets.reduce((s: number, t) => s + (t.story_points || 0), 0);
+      const donePts = tickets.filter(t => t.status === "DONE").reduce((s: number, t) => s + (t.story_points || 0), 0);
 
       // Gate check for next phase (uses shared function)
       const effectivePhase = resolvePhase(sprint.status);
@@ -1807,7 +1873,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
 
       // C1 (#11 smart verbosity): the lifecycle tutorial earns its tokens for the first
       // few sprints; an experienced project gets the numbers and the gate, nothing else.
-      const sprintCount = (db.prepare(`SELECT COUNT(*) as c FROM sprints WHERE deleted_at IS NULL`).get() as any).c;
+      const sprintCount = (db.prepare(`SELECT COUNT(*) as c FROM sprints WHERE deleted_at IS NULL`).get() as CountRow).c;
       const experienced = sprintCount > 3;
 
       const pulseCard = format === "card" ? buildSprintPulseData(db, sprint.id) : null;
@@ -1890,7 +1956,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
           const sid = Number(sprintResult.lastInsertRowid);
 
           const ticketStmt = db.prepare(`INSERT INTO tickets (title, description, priority, assigned_to, story_points, sprint_id, epic_id, milestone_id, ticket_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-          const maxRef = (db.prepare(`SELECT MAX(id) as m FROM tickets`).get() as any)?.m ?? 0;
+          const maxRef = (db.prepare(`SELECT MAX(id) as m FROM tickets`).get() as { m: number | null } | undefined)?.m ?? 0;
 
           for (let i = 0; i < tickets.length; i++) {
             const t = tickets[i];
@@ -1908,8 +1974,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         // Log event
         try {
           db.prepare(`INSERT INTO event_log (entity_type, entity_id, action, field_name, old_value, new_value, actor) VALUES ('sprint', ?, 'created', 'status', NULL, 'planning', 'mcp')`).run(sprintId);
-        } catch (e: any) {
-          console.error(`[audit] create_sprint sprint #${sprintId} created: ` + (e?.message ?? String(e)));
+        } catch (e) {
+          console.error(`[audit] create_sprint sprint #${sprintId} created: ` + errorMessage(e));
         }
 
         const totalPts = tickets.reduce((s, t) => s + (t.story_points || 0), 0);
@@ -1943,8 +2009,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
           `4. Update tickets via \`update_ticket\` as work progresses`,
           `5. Use \`advance_sprint\` to move through implementation → done → rest`,
         ].filter(Boolean).join("\n") }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error creating sprint: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error creating sprint: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -1968,7 +2034,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         ];
         const targetTables = tables && tables.length > 0 ? tables : allTables;
 
-        const dump: Record<string, any[]> = {};
+        const dump: Record<string, unknown[]> = {};
         for (const table of targetTables) {
           try {
             dump[table] = db.prepare(`SELECT * FROM ${table}`).all();
@@ -1984,8 +2050,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         };
 
         return { content: [{ type: "text" as const, text: JSON.stringify(output) }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -1998,7 +2064,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     },
     async ({ dump_json }) => {
       try {
-        const dump = JSON.parse(dump_json);
+        const dump = JSON.parse(dump_json) as DatabaseDump;
         if (!dump.version || !dump.tables) {
           return { content: [{ type: "text" as const, text: "Error: Invalid dump format. Expected {version, tables}." }], isError: true };
         }
@@ -2046,8 +2112,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
 
         notifyDashboard(db);
         return { content: [{ type: "text" as const, text: `# Restore Complete\n\nVersion: ${dump.version}\nExported: ${dump.exported_at}\n\n${results.join("\n")}` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -2068,7 +2134,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
           "files", "exports", "dependencies", "directories", "changes"
         ];
 
-        const dump: Record<string, any[]> = {};
+        const dump: Record<string, unknown[]> = {};
         for (const table of allTables) {
           try { dump[table] = db.prepare(`SELECT * FROM ${table}`).all(); } catch {}
         }
@@ -2088,8 +2154,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         const rowCount = Object.values(dump).reduce((s, rows) => s + rows.length, 0);
 
         return { content: [{ type: "text" as const, text: `Exported to ${filePath} (${sizeMB}MB, ${tableCount} tables, ${rowCount} rows)` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -2108,7 +2174,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         }
 
         const json = fs.readFileSync(input_path, "utf-8");
-        const dump = JSON.parse(json);
+        const dump = JSON.parse(json) as DatabaseDump;
 
         if (!dump.version || !dump.tables) {
           return { content: [{ type: "text" as const, text: "Error: Invalid dump format." }], isError: true };
@@ -2149,8 +2215,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
 
         notifyDashboard(db);
         return { content: [{ type: "text" as const, text: `# Restored from ${input_path}\n\nVersion: ${dump.version}\nExported: ${dump.exported_at}\n\n${results.join("\n")}` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -2161,11 +2227,11 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     "Check if the project is properly set up and return health status",
     {},
     async () => {
-      const fileCount = (db.prepare("SELECT COUNT(*) as c FROM files").get() as any).c;
-      const agentCount = (db.prepare("SELECT COUNT(*) as c FROM agents").get() as any).c;
-      const sprintCount = (db.prepare("SELECT COUNT(*) as c FROM sprints").get() as any).c;
-      const ticketCount = (db.prepare("SELECT COUNT(*) as c FROM tickets").get() as any).c;
-      const skillCount = (db.prepare("SELECT COUNT(*) as c FROM skills").get() as any).c;
+      const fileCount = (db.prepare("SELECT COUNT(*) as c FROM files").get() as CountRow).c;
+      const agentCount = (db.prepare("SELECT COUNT(*) as c FROM agents").get() as CountRow).c;
+      const sprintCount = (db.prepare("SELECT COUNT(*) as c FROM sprints").get() as CountRow).c;
+      const ticketCount = (db.prepare("SELECT COUNT(*) as c FROM tickets").get() as CountRow).c;
+      const skillCount = (db.prepare("SELECT COUNT(*) as c FROM skills").get() as CountRow).c;
 
       const status = {
         initialized: fileCount > 0,
@@ -2198,27 +2264,27 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     "Single-call resume detection. Returns minimal structured data (~150 tokens) for all command Step 0 flows. Replaces get_project_status + list_sprints + list_epics + list_discoveries.",
     {},
     async () => {
-      const files = (db.prepare("SELECT COUNT(*) as c FROM files").get() as any).c;
-      const exports = (db.prepare("SELECT COUNT(*) as c FROM exports").get() as any).c;
-      const agents = (db.prepare("SELECT COUNT(*) as c FROM agents").get() as any).c;
+      const files = (db.prepare("SELECT COUNT(*) as c FROM files").get() as CountRow).c;
+      const exports = (db.prepare("SELECT COUNT(*) as c FROM exports").get() as CountRow).c;
+      const agents = (db.prepare("SELECT COUNT(*) as c FROM agents").get() as CountRow).c;
 
       // Vision
       const vision = db.prepare("SELECT content FROM skills WHERE name = 'PRODUCT_VISION' LIMIT 1").get() as { content: string } | undefined;
       const hasVision = !!(vision?.content);
 
       // Sprints
-      const sprintsCompleted = (db.prepare("SELECT COUNT(*) as c FROM sprints WHERE status IN ('rest', 'done', 'closed') AND deleted_at IS NULL").get() as any).c;
-      const activeSprint = db.prepare("SELECT id, name, status FROM sprints WHERE status NOT IN ('rest', 'done', 'closed') AND deleted_at IS NULL ORDER BY id DESC LIMIT 1").get() as any | undefined;
+      const sprintsCompleted = (db.prepare("SELECT COUNT(*) as c FROM sprints WHERE status IN ('rest', 'done', 'closed') AND deleted_at IS NULL").get() as CountRow).c;
+      const activeSprint = db.prepare("SELECT id, name, status FROM sprints WHERE status NOT IN ('rest', 'done', 'closed') AND deleted_at IS NULL ORDER BY id DESC LIMIT 1").get() as Pick<SprintRow, "id" | "name" | "status"> | undefined;
 
       // Discoveries
-      const activeDiscoveries = (db.prepare("SELECT COUNT(*) as c FROM discoveries WHERE status IN ('discovered', 'planned')").get() as any).c;
+      const activeDiscoveries = (db.prepare("SELECT COUNT(*) as c FROM discoveries WHERE status IN ('discovered', 'planned')").get() as CountRow).c;
 
       // Milestones
-      const activeMilestone = db.prepare("SELECT id, name, status, progress FROM milestones WHERE status IN ('planned', 'active') AND deleted_at IS NULL AND archived_at IS NULL ORDER BY id DESC LIMIT 1").get() as any | undefined;
+      const activeMilestone = db.prepare("SELECT id, name, status, progress FROM milestones WHERE status IN ('planned', 'active') AND deleted_at IS NULL AND archived_at IS NULL ORDER BY id DESC LIMIT 1").get() as Pick<MilestoneRow, "id" | "name" | "status" | "progress"> | undefined;
 
       // Epics
-      const activeEpics = (db.prepare("SELECT COUNT(*) as c FROM epics WHERE status IN ('planned', 'active') AND archived_at IS NULL").get() as any).c;
-      const completedEpics = (db.prepare("SELECT COUNT(*) as c FROM epics WHERE status = 'completed'").get() as any).c;
+      const activeEpics = (db.prepare("SELECT COUNT(*) as c FROM epics WHERE status IN ('planned', 'active') AND archived_at IS NULL").get() as CountRow).c;
+      const completedEpics = (db.prepare("SELECT COUNT(*) as c FROM epics WHERE status = 'completed'").get() as CountRow).c;
 
       // Determine next phase
       let nextPhase = "vision";
@@ -2266,21 +2332,21 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
             FROM discoveries d JOIN sprints s ON d.discovery_sprint_id = s.id
             WHERE d.status IN ('discovered', 'planned')
             ORDER BY d.priority, d.created_at
-          `).all() as any[];
+          `).all() as (Pick<DiscoveryRow, "id" | "finding" | "status" | "priority" | "category" | "created_by" | "resolution_plan"> & { sprint_name: string })[];
           sections.push(`## Active Discoveries (${discoveries.length})`);
           if (discoveries.length === 0) sections.push("None");
-          else discoveries.forEach((d: any) => sections.push(`- [${d.status}] ${d.priority} #${d.id}: ${d.finding}${d.resolution_plan ? " (has plan)" : ""}`));
+          else discoveries.forEach((d) => sections.push(`- [${d.status}] ${d.priority} #${d.id}: ${d.finding}${d.resolution_plan ? " (has plan)" : ""}`));
 
-          const decisions = db.prepare(`SELECT id, title, category, rationale FROM decisions ORDER BY created_at DESC LIMIT 10`).all() as any[];
+          const decisions = db.prepare(`SELECT id, title, category, rationale FROM decisions ORDER BY created_at DESC LIMIT 10`).all() as Pick<DecisionRow, "id" | "title" | "category" | "rationale">[];
           sections.push(`\n## Recent Decisions (${decisions.length})`);
           if (decisions.length === 0) sections.push("None");
-          else decisions.forEach((d: any) => sections.push(`- #${d.id} [${d.category}] ${d.title}`));
+          else decisions.forEach((d) => sections.push(`- #${d.id} [${d.category}] ${d.title}`));
 
           // Discovery coverage counts
-          const coverage = db.prepare(`SELECT status, COUNT(*) as c FROM discoveries GROUP BY status`).all() as any[];
+          const coverage = db.prepare(`SELECT status, COUNT(*) as c FROM discoveries GROUP BY status`).all() as { status: string; c: number }[];
           if (coverage.length > 0) {
             sections.push(`\n## Coverage`);
-            coverage.forEach((c: any) => sections.push(`- ${c.status}: ${c.c}`));
+            coverage.forEach((c) => sections.push(`- ${c.status}: ${c.c}`));
           }
         }
 
@@ -2291,14 +2357,14 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
             FROM epics e LEFT JOIN tickets t ON t.epic_id = e.id
             WHERE e.status IN ('planned', 'active') AND e.archived_at IS NULL
             GROUP BY e.id ORDER BY e.priority DESC, e.id
-          `).all() as any[];
+          `).all() as (EpicRow & { ticket_count: number; done_count: number | null })[];
           sections.push(`## Active Epics (${epics.length})`);
           if (epics.length === 0) sections.push("None");
-          else epics.forEach((e: any) => sections.push(`- #${e.id} ${e.name} [${e.status}] ${e.done_count || 0}/${e.ticket_count || 0} tickets done`));
+          else epics.forEach((e) => sections.push(`- #${e.id} ${e.name} [${e.status}] ${e.done_count || 0}/${e.ticket_count || 0} tickets done`));
 
-          const agents = db.prepare(`SELECT role, name FROM agents ORDER BY role`).all() as any[];
+          const agents = db.prepare(`SELECT role, name FROM agents ORDER BY role`).all() as Pick<AgentRow, "role" | "name">[];
           sections.push(`\n## Agents (${agents.length})`);
-          agents.forEach((a: any) => sections.push(`- ${a.role}: ${a.name}`));
+          agents.forEach((a) => sections.push(`- ${a.role}: ${a.name}`));
         }
 
         else if (phase === "tickets") {
@@ -2306,19 +2372,19 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
           const velocity = db.prepare(`
             SELECT s.name as sprint_name, s.velocity_committed as committed, s.velocity_completed as completed
             FROM sprints s WHERE s.deleted_at IS NULL ORDER BY s.created_at DESC LIMIT 5
-          `).all() as any[];
-          const avgVelocity = velocity.length > 0 ? Math.round(velocity.reduce((s: number, v: any) => s + (v.completed || 0), 0) / velocity.length) : 0;
+          `).all() as { sprint_name: string; committed: number | null; completed: number | null }[];
+          const avgVelocity = velocity.length > 0 ? Math.round(velocity.reduce((s: number, v) => s + (v.completed || 0), 0) / velocity.length) : 0;
           sections.push(`## Velocity (last ${velocity.length} sprints, avg: ${avgVelocity}pts)`);
-          velocity.forEach((v: any) => sections.push(`- ${v.sprint_name}: ${v.completed || 0}/${v.committed || 0}pts`));
+          velocity.forEach((v) => sections.push(`- ${v.sprint_name}: ${v.completed || 0}/${v.committed || 0}pts`));
 
-          const backlog = db.prepare(`SELECT id, title, story_points, priority FROM tickets WHERE sprint_id IS NULL AND status NOT IN ('DONE', 'NOT_DONE') ORDER BY priority, id`).all() as any[];
+          const backlog = db.prepare(`SELECT id, title, story_points, priority FROM tickets WHERE sprint_id IS NULL AND status NOT IN ('DONE', 'NOT_DONE') ORDER BY priority, id`).all() as Pick<TicketRow, "id" | "title" | "story_points" | "priority">[];
           sections.push(`\n## Backlog (${backlog.length} tickets)`);
           if (backlog.length === 0) sections.push("None");
-          else backlog.forEach((t: any) => sections.push(`- #${t.id}: ${t.title} (${t.story_points || 0}pts) ${t.priority}`));
+          else backlog.forEach((t) => sections.push(`- #${t.id}: ${t.title} (${t.story_points || 0}pts) ${t.priority}`));
 
-          const epics = db.prepare(`SELECT id, name, status FROM epics WHERE status IN ('planned', 'active') AND archived_at IS NULL ORDER BY priority DESC`).all() as any[];
+          const epics = db.prepare(`SELECT id, name, status FROM epics WHERE status IN ('planned', 'active') AND archived_at IS NULL ORDER BY priority DESC`).all() as Pick<EpicRow, "id" | "name" | "status">[];
           sections.push(`\n## Active Epics (${epics.length})`);
-          epics.forEach((e: any) => sections.push(`- #${e.id} ${e.name} [${e.status}]`));
+          epics.forEach((e) => sections.push(`- #${e.id} ${e.name} [${e.status}]`));
 
           // A1+A2: planning gate context — open try_next + open discoveries + triage directive
           sections.push("");
@@ -2327,26 +2393,26 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
 
         else if (phase === "implementation") {
           // Bundles: get_ticket + sprint progress
-          const sid = sprint_id || (db.prepare(`SELECT id FROM sprints WHERE status NOT IN ('rest', 'done', 'closed') AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`).get() as any)?.id;
+          const sid = sprint_id || (db.prepare(`SELECT id FROM sprints WHERE status NOT IN ('rest', 'done', 'closed') AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`).get() as Pick<SprintRow, "id"> | undefined)?.id;
           if (!sid) { return { content: [{ type: "text" as const, text: "No active sprint found." }] }; }
 
           // D1: board edits surface before anything else
           const changed = buildChangedTicketsBlock(db, sid);
           if (changed) sections.push(changed, "");
 
-          const tickets = db.prepare(`SELECT id, ticket_ref, title, status, story_points, assigned_to, qa_verified FROM tickets WHERE sprint_id = ? ORDER BY priority, status`).all(sid) as any[];
-          const done = tickets.filter((t: any) => t.status === "DONE").length;
-          const totalPts = tickets.reduce((s: number, t: any) => s + (t.story_points || 0), 0);
-          const donePts = tickets.filter((t: any) => t.status === "DONE").reduce((s: number, t: any) => s + (t.story_points || 0), 0);
+          const tickets = db.prepare(`SELECT id, ticket_ref, title, status, story_points, assigned_to, qa_verified FROM tickets WHERE sprint_id = ? ORDER BY priority, status`).all(sid) as Pick<TicketRow, "id" | "ticket_ref" | "title" | "status" | "story_points" | "assigned_to" | "qa_verified">[];
+          const done = tickets.filter((t) => t.status === "DONE").length;
+          const totalPts = tickets.reduce((s: number, t) => s + (t.story_points || 0), 0);
+          const donePts = tickets.filter((t) => t.status === "DONE").reduce((s: number, t) => s + (t.story_points || 0), 0);
           sections.push(`## Sprint Progress: ${donePts}/${totalPts}pts | ${done}/${tickets.length} tickets`);
-          tickets.forEach((t: any) => {
+          tickets.forEach((t) => {
             const qa = t.qa_verified ? " ✓QA" : "";
             sections.push(`- [${t.status}] ${t.ticket_ref || "#"+t.id}: ${t.title} (${t.story_points || 0}pts) @${t.assigned_to || "?"}${qa}`);
           });
 
           // If specific ticket requested, include full details
           if (ticket_id) {
-            const t = getTicketById(db, ticket_id) as any;
+            const t = getTicketById(db, ticket_id);
             if (t) {
               sections.push(`\n## Ticket Detail: ${t.ticket_ref || "#"+t.id} — ${t.title}`);
               if (t.description) sections.push(`Description: ${t.description}`);
@@ -2364,17 +2430,17 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
             }
           }
 
-          const blockers = db.prepare(`SELECT id, description FROM blockers WHERE sprint_id = ? AND status = 'open'`).all(sid) as any[];
+          const blockers = db.prepare(`SELECT id, description FROM blockers WHERE sprint_id = ? AND status = 'open'`).all(sid) as Pick<BlockerRow, "id" | "description">[];
           if (blockers.length > 0) {
             sections.push(`\n## Open Blockers (${blockers.length})`);
-            blockers.forEach((b: any) => sections.push(`- #${b.id}: ${b.description}`));
+            blockers.forEach((b) => sections.push(`- #${b.id}: ${b.description}`));
           }
 
           // C1: house-style primer only with the sprint's FIRST fe ticket — later loads
           // get a pointer; granular pulls go through get_skill (deterministic, no session state)
-          const feTickets = tickets.filter((t: any) => t.assigned_to === "fe-engineer");
+          const feTickets = tickets.filter((t) => t.assigned_to === "fe-engineer");
           if (feTickets.length > 0) {
-            const fePrior = feTickets.some((t: any) => ["IN_PROGRESS", "DONE"].includes(t.status) && t.id !== ticket_id);
+            const fePrior = feTickets.some((t) => ["IN_PROGRESS", "DONE"].includes(t.status) && t.id !== ticket_id);
             if (!fePrior) {
               const playbook = buildFrontendPlaybook(db);
               if (playbook) sections.push(playbook);
@@ -2387,7 +2453,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
           // keyed on any ticket having started rather than fe assignment.
           const wfPlaybook = buildWorkflowPlaybook(db);
           if (wfPlaybook) {
-            const anyPrior = tickets.some((t: any) => ["IN_PROGRESS", "DONE"].includes(t.status) && t.id !== ticket_id);
+            const anyPrior = tickets.some((t) => ["IN_PROGRESS", "DONE"].includes(t.status) && t.id !== ticket_id);
             if (!anyPrior) {
               sections.push(wfPlaybook);
             } else {
@@ -2398,35 +2464,35 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
 
         else if (phase === "retro") {
           // Bundles: get_sprint + get_burndown + get_mood_trends + analyze_retro_patterns + get_velocity_trends
-          const sid = sprint_id || (db.prepare(`SELECT id FROM sprints WHERE deleted_at IS NULL ORDER BY id DESC LIMIT 1`).get() as any)?.id;
+          const sid = sprint_id || (db.prepare(`SELECT id FROM sprints WHERE deleted_at IS NULL ORDER BY id DESC LIMIT 1`).get() as Pick<SprintRow, "id"> | undefined)?.id;
           if (!sid) { return { content: [{ type: "text" as const, text: "No sprints found." }] }; }
 
-          const sprint = getSprintById(db, sid) as any;
+          const sprint = getSprintById(db, sid)!; // missing row throws into the catch below, as before
           sections.push(`## Sprint: ${sprint.name} [${sprint.status}]`);
           sections.push(`Velocity: ${sprint.velocity_completed || 0}/${sprint.velocity_committed || 0}pts`);
 
-          const tickets = getTicketStatusCounts(db, sid) as any[];
-          sections.push(`Tickets: ${tickets.map((t: any) => `${t.status}: ${t.c}`).join(", ")}`);
+          const tickets = getTicketStatusCounts(db, sid);
+          sections.push(`Tickets: ${tickets.map((t) => `${t.status}: ${t.c}`).join(", ")}`);
 
           // Burndown
-          const burndown = db.prepare(`SELECT date, completed_points, remaining_points FROM sprint_metrics WHERE sprint_id = ? ORDER BY date`).all(sid) as any[];
+          const burndown = db.prepare(`SELECT date, completed_points, remaining_points FROM sprint_metrics WHERE sprint_id = ? ORDER BY date`).all(sid) as Pick<SprintMetricRow, "date" | "completed_points" | "remaining_points">[];
           if (burndown.length > 0) {
             sections.push(`\n## Burndown (${burndown.length} snapshots)`);
-            burndown.forEach((b: any) => sections.push(`- ${b.date}: ${b.completed_points}pts done, ${b.remaining_points}pts remaining`));
+            burndown.forEach((b) => sections.push(`- ${b.date}: ${b.completed_points}pts done, ${b.remaining_points}pts remaining`));
           }
 
           // Mood trends — aggregate in SQL instead of shipping 35 rows to average one number (#13)
           const moodAgg = db.prepare(`
             SELECT ROUND(AVG(mood), 1) as avg_mood, COUNT(*) as readings
             FROM (SELECT mood FROM agent_mood_history ORDER BY sprint_id DESC LIMIT 35)
-          `).get() as any;
+          `).get() as { avg_mood: number | null; readings: number };
           if (moodAgg?.readings > 0) {
             sections.push(`\n## Mood: avg ${moodAgg.avg_mood}/5 (${moodAgg.readings} readings)`);
           }
 
           // Retro patterns
           autoApplyRetroActions(db);
-          const categories = db.prepare(`SELECT category, COUNT(*) as count FROM retro_findings GROUP BY category ORDER BY count DESC`).all() as any[];
+          const categories = db.prepare(`SELECT category, COUNT(*) as count FROM retro_findings GROUP BY category ORDER BY count DESC`).all() as { category: string; count: number }[];
           const lifecycle = db.prepare(`
             SELECT
               SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) as open,
@@ -2434,24 +2500,24 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
               SUM(CASE WHEN status = 'adopted' AND action_applied = 1 THEN 1 ELSE 0 END) as applied,
               SUM(CASE WHEN status = 'dropped' THEN 1 ELSE 0 END) as dropped
             FROM retro_findings WHERE category = 'try_next'
-          `).get() as any;
+          `).get() as { open: number | null; adopted: number | null; applied: number | null; dropped: number | null };
           if (categories.length > 0) {
             sections.push(`\n## Retro Patterns`);
-            categories.forEach((c: any) => sections.push(`- ${c.category}: ${c.count}`));
+            categories.forEach((c) => sections.push(`- ${c.category}: ${c.count}`));
             sections.push(`try_next lifecycle: ${lifecycle.open || 0} open | ${lifecycle.adopted || 0} adopted (${lifecycle.applied || 0} applied) | ${lifecycle.dropped || 0} dropped`);
           }
 
           // Recent velocity for comparison
-          const recentVelocity = db.prepare(`SELECT name, velocity_completed, velocity_committed FROM sprints WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 3`).all() as any[];
+          const recentVelocity = db.prepare(`SELECT name, velocity_completed, velocity_committed FROM sprints WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 3`).all() as Pick<SprintRow, "name" | "velocity_completed" | "velocity_committed">[];
           if (recentVelocity.length > 1) {
             sections.push(`\n## Recent Velocity`);
-            recentVelocity.forEach((v: any) => sections.push(`- ${v.name}: ${v.velocity_completed || 0}/${v.velocity_committed || 0}pts`));
+            recentVelocity.forEach((v) => sections.push(`- ${v.name}: ${v.velocity_completed || 0}/${v.velocity_committed || 0}pts`));
           }
         }
 
         return { content: [{ type: "text" as const, text: sections.join("\n") }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error loading ${phase} context: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error loading ${phase} context: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -2464,12 +2530,12 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     async () => {
       const checks = [
         { name: "Database initialized", check: () => { try { db.prepare("SELECT 1 FROM files LIMIT 1").get(); return true; } catch { return false; } }, fix: "Run: code-context-mcp setup ." },
-        { name: "Files indexed", check: () => (db.prepare("SELECT COUNT(*) as c FROM files").get() as any).c > 0, fix: "Run: code-context-mcp setup . (or index_directory tool)" },
-        { name: "Agents configured", check: () => (db.prepare("SELECT COUNT(*) as c FROM agents").get() as any).c > 0, fix: "Run reset_agents to seed factory defaults" },
-        { name: "Sprint process loaded", check: () => { const s = db.prepare("SELECT COUNT(*) as c FROM skills WHERE name IN ('SPRINT_PROCESS','SPRINT_PROCESS_JSON')").get() as any; return s.c > 0; }, fix: "Run reset_sprint_process to seed factory defaults" },
-        { name: "Product vision exists", check: () => { const s = db.prepare("SELECT COUNT(*) as c FROM skills WHERE name='PRODUCT_VISION'").get() as any; return s.c > 0; }, fix: "Use update_vision tool to set the product vision" },
-        { name: "Milestones defined", check: () => { const m = db.prepare("SELECT COUNT(*) as c FROM milestones").get() as any; const s = db.prepare("SELECT COUNT(*) as c FROM skills WHERE name='MILESTONES'").get() as any; return m.c > 0 || s.c > 0; }, fix: "Create milestones with create_milestone tool" },
-        { name: "At least one sprint", check: () => (db.prepare("SELECT COUNT(*) as c FROM sprints").get() as any).c > 0, fix: "Create a sprint with create_sprint or plan_sprint tool" },
+        { name: "Files indexed", check: () => (db.prepare("SELECT COUNT(*) as c FROM files").get() as CountRow).c > 0, fix: "Run: code-context-mcp setup . (or index_directory tool)" },
+        { name: "Agents configured", check: () => (db.prepare("SELECT COUNT(*) as c FROM agents").get() as CountRow).c > 0, fix: "Run reset_agents to seed factory defaults" },
+        { name: "Sprint process loaded", check: () => { const s = db.prepare("SELECT COUNT(*) as c FROM skills WHERE name IN ('SPRINT_PROCESS','SPRINT_PROCESS_JSON')").get() as CountRow; return s.c > 0; }, fix: "Run reset_sprint_process to seed factory defaults" },
+        { name: "Product vision exists", check: () => { const s = db.prepare("SELECT COUNT(*) as c FROM skills WHERE name='PRODUCT_VISION'").get() as CountRow; return s.c > 0; }, fix: "Use update_vision tool to set the product vision" },
+        { name: "Milestones defined", check: () => { const m = db.prepare("SELECT COUNT(*) as c FROM milestones").get() as CountRow; const s = db.prepare("SELECT COUNT(*) as c FROM skills WHERE name='MILESTONES'").get() as CountRow; return m.c > 0 || s.c > 0; }, fix: "Create milestones with create_milestone tool" },
+        { name: "At least one sprint", check: () => (db.prepare("SELECT COUNT(*) as c FROM sprints").get() as CountRow).c > 0, fix: "Create a sprint with create_sprint or plan_sprint tool" },
       ];
 
       const results = checks.map(c => {
@@ -2495,7 +2561,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       const projectDir = project_path || process.cwd();
 
       // Step 1: Check agents — seed from factory defaults if empty
-      const agentCount = (db.prepare("SELECT COUNT(*) as c FROM agents").get() as any).c;
+      const agentCount = (db.prepare("SELECT COUNT(*) as c FROM agents").get() as CountRow).c;
       if (agentCount === 0) {
         const { seedDefaults } = await import("./defaults.js");
         const result = seedDefaults(db);
@@ -2505,7 +2571,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       }
 
       // Step 2: Check sprint process
-      const sprintProcess = db.prepare("SELECT COUNT(*) as c FROM skills WHERE name IN ('SPRINT_PROCESS','SPRINT_PROCESS_JSON')").get() as any;
+      const sprintProcess = db.prepare("SELECT COUNT(*) as c FROM skills WHERE name IN ('SPRINT_PROCESS','SPRINT_PROCESS_JSON')").get() as CountRow;
       if (sprintProcess.c === 0) {
         const { resetSprintProcess } = await import("./defaults.js");
         resetSprintProcess(db);
@@ -2515,7 +2581,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       }
 
       // Step 3: Check files indexed
-      const fileCount = (db.prepare("SELECT COUNT(*) as c FROM files").get() as any).c;
+      const fileCount = (db.prepare("SELECT COUNT(*) as c FROM files").get() as CountRow).c;
       if (fileCount === 0) {
         steps.push("⚠️ No files indexed — run: code-context-mcp setup . (or index_directory tool)");
       } else {
@@ -2541,10 +2607,10 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         // Gather data from database
         const vision = db.prepare("SELECT content FROM skills WHERE name = 'PRODUCT_VISION' LIMIT 1").get() as { content: string } | undefined;
         const milestoneRows = db.prepare("SELECT name, status FROM milestones ORDER BY id").all() as { name: string; status: string }[];
-        const sprintCount = (db.prepare("SELECT COUNT(*) as c FROM sprints WHERE status = 'closed'").get() as any).c;
-        const ticketCount = (db.prepare("SELECT COUNT(*) as c FROM tickets WHERE status = 'DONE'").get() as any).c;
-        const totalPoints = (db.prepare("SELECT COALESCE(SUM(velocity_completed), 0) as p FROM sprints WHERE status = 'closed'").get() as any).p;
-        const agentCount = (db.prepare("SELECT COUNT(*) as c FROM agents").get() as any).c;
+        const sprintCount = (db.prepare("SELECT COUNT(*) as c FROM sprints WHERE status = 'closed'").get() as CountRow).c;
+        const ticketCount = (db.prepare("SELECT COUNT(*) as c FROM tickets WHERE status = 'DONE'").get() as CountRow).c;
+        const totalPoints = (db.prepare("SELECT COALESCE(SUM(velocity_completed), 0) as p FROM sprints WHERE status = 'closed'").get() as { p: number }).p;
+        const agentCount = (db.prepare("SELECT COUNT(*) as c FROM agents").get() as CountRow).c;
 
         const data = {
           productName: "vlm-code-context-mcp",
@@ -2588,8 +2654,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         ];
 
         return { content: [{ type: "text" as const, text: lines.join("\n") }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -2618,8 +2684,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         return {
           content: [{ type: "text" as const, text: `Epic created — id: ${result.lastInsertRowid}, name: "${name}"` }],
         };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error creating epic: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error creating epic: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -2643,7 +2709,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         const badProject = unknownProject(db, project);
         if (badProject) return { content: [{ type: "text" as const, text: badProject }], isError: true };
         const fields: string[] = [];
-        const values: any[] = [];
+        const values: unknown[] = [];
         if (project !== undefined) { fields.push("project = ?"); values.push(project); }
         if (name !== undefined) { fields.push("name = ?"); values.push(name); }
         if (description !== undefined) { fields.push("description = ?"); values.push(description); }
@@ -2674,8 +2740,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         }
         notifyDashboard(db);
         return { content: [{ type: "text" as const, text: `Epic ${epic_id} updated (${fields.length} field(s)).${archiveNote}` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error updating epic: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error updating epic: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -2694,31 +2760,31 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       if (compact) {
         let q = `SELECT e.id, e.name, e.status, e.archived_at FROM epics e`;
         const conditions: string[] = [];
-        const params: any[] = [];
+        const params: unknown[] = [];
         if (status) { conditions.push("e.status = ?"); params.push(status); }
         if (milestone_id !== undefined) { conditions.push("e.milestone_id = ?"); params.push(milestone_id); }
         if (project) { conditions.push("e.project = ?"); params.push(project); }
         if (!include_archived) conditions.push("e.archived_at IS NULL");
         if (conditions.length) { q += " WHERE " + conditions.join(" AND "); }
         q += " ORDER BY e.priority DESC, e.id";
-        const epics = db.prepare(q).all(...params) as any[];
+        const epics = db.prepare(q).all(...params) as Pick<EpicRow, "id" | "name" | "status" | "archived_at">[];
         if (epics.length === 0) return { content: [{ type: "text" as const, text: "No epics found." }] };
-        const text = epics.map((e: any) => `#${e.id} ${e.name} [${e.status || "open"}]${e.archived_at ? " (archived)" : ""}`).join("\n");
+        const text = epics.map((e) => `#${e.id} ${e.name} [${e.status || "open"}]${e.archived_at ? " (archived)" : ""}`).join("\n");
         return { content: [{ type: "text" as const, text: `# Epics (${epics.length})\n${text}` }] };
       }
       let q = `SELECT e.*, COUNT(t.id) as ticket_count, SUM(CASE WHEN t.status='DONE' THEN 1 ELSE 0 END) as done_count FROM epics e LEFT JOIN tickets t ON t.epic_id = e.id`;
       const conditions: string[] = [];
-      const params: any[] = [];
+      const params: unknown[] = [];
       if (status) { conditions.push("e.status = ?"); params.push(status); }
       if (milestone_id !== undefined) { conditions.push("e.milestone_id = ?"); params.push(milestone_id); }
       if (project) { conditions.push("e.project = ?"); params.push(project); }
       if (!include_archived) conditions.push("e.archived_at IS NULL");
       if (conditions.length) { q += " WHERE " + conditions.join(" AND "); }
       q += " GROUP BY e.id ORDER BY e.priority DESC, e.id";
-      const epics = db.prepare(q).all(...params) as any[];
+      const epics = db.prepare(q).all(...params) as (EpicRow & { ticket_count: number; done_count: number | null })[];
       if (epics.length === 0) return { content: [{ type: "text" as const, text: "No epics found." }] };
       const text = epics.map(
-        (e: any) => `**${e.name}** (#${e.id}) [${e.status || "open"}]${e.archived_at ? " (archived)" : ""} priority=${e.priority || 0} color=${e.color || "#3b82f6"}\n${e.description || "—"}\nTickets: ${e.done_count || 0}/${e.ticket_count || 0} done`
+        (e) => `**${e.name}** (#${e.id}) [${e.status || "open"}]${e.archived_at ? " (archived)" : ""} priority=${e.priority || 0} color=${e.color || "#3b82f6"}\n${e.description || "—"}\nTickets: ${e.done_count || 0}/${e.ticket_count || 0} done`
       ).join("\n\n");
       return { content: [{ type: "text" as const, text: `# Epics (${epics.length})\n\n${text}` }] };
     }
@@ -2740,8 +2806,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         const action = epic_id === null ? "unlinked from epic" : `linked to epic ${epic_id}`;
         notifyDashboard(db);
         return { content: [{ type: "text" as const, text: `Ticket ${ticket_id} ${action}.` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error linking ticket: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error linking ticket: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -2765,8 +2831,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         const result = db.prepare(`INSERT INTO decisions (title, rationale, alternatives, outcome, category) VALUES (?,?,?,?,?)`).run(title, rationale || null, alternatives || null, outcome || null, category);
         notifyDashboard(db);
         return { content: [{ type: "text" as const, text: `Decision logged: #${result.lastInsertRowid} — ${title}` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -2780,13 +2846,13 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     },
     async ({ category, limit }) => {
       let q = `SELECT * FROM decisions WHERE 1=1`;
-      const p: any[] = [];
+      const p: unknown[] = [];
       if (category) { q += " AND category=?"; p.push(category); }
       q += ` ORDER BY created_at DESC LIMIT ?`;
       p.push(limit);
-      const decisions = db.prepare(q).all(...p) as any[];
+      const decisions = db.prepare(q).all(...p) as DecisionRow[];
       if (decisions.length === 0) return { content: [{ type: "text" as const, text: "No decisions found." }] };
-      const text = decisions.map((d: any) => [
+      const text = decisions.map((d) => [
         `**#${d.id}: ${d.title}** [${d.category}]`,
         d.rationale ? `  Rationale: ${d.rationale}` : null,
         d.alternatives ? `  Alternatives: ${d.alternatives}` : null,
@@ -2805,13 +2871,13 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     {},
     async () => {
       try {
-        const row = db.prepare(`SELECT content, owner_role, updated_at FROM skills WHERE name = ?`).get("SPRINT_PROCESS") as any;
+        const row = db.prepare(`SELECT content, owner_role, updated_at FROM skills WHERE name = ?`).get("SPRINT_PROCESS") as Pick<SkillRow, "content" | "owner_role" | "updated_at"> | undefined;
         if (!row) {
           return { content: [{ type: "text" as const, text: "No SPRINT_PROCESS config found in skills table. Use update_sprint_config to create one." }] };
         }
         return { content: [{ type: "text" as const, text: `# Sprint Process Config\n\nOwner: ${row.owner_role || "—"}\nUpdated: ${row.updated_at || "—"}\n\n${row.content}` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -2829,8 +2895,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         ).run(content);
         notifyDashboard(db);
         return { content: [{ type: "text" as const, text: `Sprint process config updated (${content.length} chars).` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -2851,8 +2917,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         const { date: d, remaining, completed } = snapshotSprintMetrics(db, sprint_id, date);
         notifyDashboard(db);
         return { content: [{ type: "text" as const, text: `Snapshot ${d}: ${completed}pts done, ${remaining}pts remaining` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -2880,9 +2946,9 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         db.prepare(`INSERT INTO ticket_dependencies (source_ticket_id, target_ticket_id, dependency_type) VALUES (?, ?, ?)`).run(source_ticket_id, target_ticket_id, dependency_type);
         notifyDashboard(db);
         return { content: [{ type: "text" as const, text: `Dependency added: ticket ${source_ticket_id} ${dependency_type} ticket ${target_ticket_id}` }] };
-      } catch (e: any) {
-        if (e.message.includes("UNIQUE")) return { content: [{ type: "text" as const, text: "Dependency already exists" }], isError: true };
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        if (errorMessage(e).includes("UNIQUE")) return { content: [{ type: "text" as const, text: "Dependency already exists" }], isError: true };
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -2899,8 +2965,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         const result = db.prepare(`DELETE FROM ticket_dependencies WHERE source_ticket_id = ? AND target_ticket_id = ?`).run(source_ticket_id, target_ticket_id);
         if (result.changes > 0) notifyDashboard(db);
         return { content: [{ type: "text" as const, text: result.changes > 0 ? "Dependency removed." : "No dependency found." }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -2913,8 +2979,9 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       sprint_id: z.number().optional().describe("Sprint ID (get all deps in sprint)"),
     },
     async ({ ticket_id, sprint_id }) => {
+      type DependencyGraphRow = TicketDependencyRow & { source_ref: string | null; source_title: string; target_ref: string | null; target_title: string };
       try {
-        let rows: any[];
+        let rows: DependencyGraphRow[];
         if (ticket_id) {
           rows = db.prepare(`
             SELECT d.*, s.ticket_ref as source_ref, s.title as source_title, t.ticket_ref as target_ref, t.title as target_title
@@ -2922,7 +2989,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
             JOIN tickets s ON d.source_ticket_id = s.id
             JOIN tickets t ON d.target_ticket_id = t.id
             WHERE d.source_ticket_id = ? OR d.target_ticket_id = ?
-          `).all(ticket_id, ticket_id) as any[];
+          `).all(ticket_id, ticket_id) as DependencyGraphRow[];
         } else if (sprint_id) {
           rows = db.prepare(`
             SELECT d.*, s.ticket_ref as source_ref, s.title as source_title, t.ticket_ref as target_ref, t.title as target_title
@@ -2930,15 +2997,15 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
             JOIN tickets s ON d.source_ticket_id = s.id
             JOIN tickets t ON d.target_ticket_id = t.id
             WHERE s.sprint_id = ? OR t.sprint_id = ?
-          `).all(sprint_id, sprint_id) as any[];
+          `).all(sprint_id, sprint_id) as DependencyGraphRow[];
         } else {
           return { content: [{ type: "text" as const, text: "Provide ticket_id or sprint_id" }], isError: true };
         }
         if (rows.length === 0) return { content: [{ type: "text" as const, text: "No dependencies found." }] };
-        const lines = rows.map((r: any) => `${r.source_ref} (${r.source_title}) —[${r.dependency_type}]→ ${r.target_ref} (${r.target_title})`);
+        const lines = rows.map((r) => `${r.source_ref} (${r.source_title}) —[${r.dependency_type}]→ ${r.target_ref} (${r.target_title})`);
         return { content: [{ type: "text" as const, text: `# Dependencies (${rows.length})\n\n${lines.join("\n")}` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -2958,12 +3025,12 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     async ({ ticket_id, tag_name, color }) => {
       try {
         db.prepare(`INSERT OR IGNORE INTO tags (name, color) VALUES (?, ?)`).run(tag_name, color || "#6b7280");
-        const tag = db.prepare(`SELECT id FROM tags WHERE name = ?`).get(tag_name) as any;
+        const tag = db.prepare(`SELECT id FROM tags WHERE name = ?`).get(tag_name) as Pick<TagRow, "id">; // exists: inserted above
         db.prepare(`INSERT OR IGNORE INTO ticket_tags (ticket_id, tag_id) VALUES (?, ?)`).run(ticket_id, tag.id);
         notifyDashboard(db);
         return { content: [{ type: "text" as const, text: `Tag '${tag_name}' added to ticket ${ticket_id}` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -2977,13 +3044,13 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     },
     async ({ ticket_id, tag_name }) => {
       try {
-        const tag = db.prepare(`SELECT id FROM tags WHERE name = ?`).get(tag_name) as any;
+        const tag = db.prepare(`SELECT id FROM tags WHERE name = ?`).get(tag_name) as Pick<TagRow, "id"> | undefined;
         if (!tag) return { content: [{ type: "text" as const, text: `Tag '${tag_name}' not found` }], isError: true };
         db.prepare(`DELETE FROM ticket_tags WHERE ticket_id = ? AND tag_id = ?`).run(ticket_id, tag.id);
         notifyDashboard(db);
         return { content: [{ type: "text" as const, text: `Tag '${tag_name}' removed from ticket ${ticket_id}` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -2994,12 +3061,12 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     {},
     async () => {
       try {
-        const rows = db.prepare(`SELECT t.name, t.color, COUNT(tt.ticket_id) as usage_count FROM tags t LEFT JOIN ticket_tags tt ON t.id = tt.tag_id GROUP BY t.id ORDER BY usage_count DESC`).all() as any[];
+        const rows = db.prepare(`SELECT t.name, t.color, COUNT(tt.ticket_id) as usage_count FROM tags t LEFT JOIN ticket_tags tt ON t.id = tt.tag_id GROUP BY t.id ORDER BY usage_count DESC`).all() as (Pick<TagRow, "name" | "color"> & { usage_count: number })[];
         if (rows.length === 0) return { content: [{ type: "text" as const, text: "No tags defined." }] };
-        const lines = rows.map((r: any) => `- **${r.name}** (${r.color}) — ${r.usage_count} tickets`);
+        const lines = rows.map((r) => `- **${r.name}** (${r.color}) — ${r.usage_count} tickets`);
         return { content: [{ type: "text" as const, text: `# Tags (${rows.length})\n\n${lines.join("\n")}` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -3018,7 +3085,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     },
     async ({ ticket_id, estimated_hours, actual_hours }) => {
       try {
-        const sets: string[] = []; const vals: any[] = [];
+        const sets: string[] = []; const vals: unknown[] = [];
         if (estimated_hours !== undefined) { sets.push("estimated_hours=?"); vals.push(estimated_hours); }
         if (actual_hours !== undefined) { sets.push("actual_hours=?"); vals.push(actual_hours); }
         if (sets.length === 0) return { content: [{ type: "text" as const, text: "Provide estimated_hours or actual_hours" }], isError: true };
@@ -3026,8 +3093,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         db.prepare(`UPDATE tickets SET ${sets.join(",")} WHERE id=?`).run(...vals);
         notifyDashboard(db);
         return { content: [{ type: "text" as const, text: `Time logged on ticket ${ticket_id}${estimated_hours !== undefined ? ` — est: ${estimated_hours}h` : ""}${actual_hours !== undefined ? ` — actual: ${actual_hours}h` : ""}` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -3052,8 +3119,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         const warning = mood <= 2 ? "\n⚠️ BURNOUT RISK — mood ≤ 2. Reduce workload next sprint." : "";
         notifyDashboard(db);
         return { content: [{ type: "text" as const, text: `Mood recorded: agent ${agent_id}, sprint ${sprint_id}, mood ${mood}/5${warning}` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -3084,8 +3151,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         );
         notifyDashboard(db);
         return { content: [{ type: "text" as const, text: `Token usage recorded: ${total.toLocaleString()} total (${input_tokens.toLocaleString()} in + ${output_tokens.toLocaleString()} out)${label ? ` [${label}]` : ""}` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -3104,12 +3171,12 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     },
     async ({ entity_type, entity_id, limit }) => {
       try {
-        const rows = db.prepare(`SELECT * FROM event_log WHERE entity_type = ? AND entity_id = ? ORDER BY created_at DESC LIMIT ?`).all(entity_type, entity_id, limit || 50) as any[];
+        const rows = db.prepare(`SELECT * FROM event_log WHERE entity_type = ? AND entity_id = ? ORDER BY created_at DESC LIMIT ?`).all(entity_type, entity_id, limit || 50) as EventLogRow[];
         if (rows.length === 0) return { content: [{ type: "text" as const, text: `No audit trail for ${entity_type} #${entity_id}` }] };
-        const lines = rows.map((r: any) => `[${r.created_at}] ${r.action}${r.field_name ? ` ${r.field_name}` : ""}: ${r.old_value || "—"} → ${r.new_value || "—"}${r.actor ? ` (by ${r.actor})` : ""}`);
+        const lines = rows.map((r) => `[${r.created_at}] ${r.action}${r.field_name ? ` ${r.field_name}` : ""}: ${r.old_value || "—"} → ${r.new_value || "—"}${r.actor ? ` (by ${r.actor})` : ""}`);
         return { content: [{ type: "text" as const, text: `# Audit Trail: ${entity_type} #${entity_id} (${rows.length} events)\n\n${lines.join("\n")}` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -3131,8 +3198,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         db.prepare(`INSERT INTO event_log (entity_type, entity_id, action, field_name, old_value, new_value, actor) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(entity_type, entity_id, action, field_name || null, old_value || null, new_value || null, actor || null);
         notifyDashboard(db);
         return { content: [{ type: "text" as const, text: `Event logged: ${entity_type} #${entity_id} ${action}` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -3152,16 +3219,16 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       try {
         const max = limit || 20;
         let sql = `SELECT * FROM event_log`;
-        const params: any[] = [];
+        const params: unknown[] = [];
         if (entity_type) { sql += ` WHERE entity_type = ?`; params.push(entity_type); }
         sql += ` ORDER BY created_at DESC LIMIT ?`;
         params.push(max);
-        const rows = db.prepare(sql).all(...params) as any[];
+        const rows = db.prepare(sql).all(...params) as EventLogRow[];
         if (rows.length === 0) return { content: [{ type: "text" as const, text: "No recent events." }] };
-        const lines = rows.map((r: any) => `[${r.created_at}] ${r.action} ${r.entity_type}#${r.entity_id}${r.field_name ? ` (${r.field_name}: ${r.old_value || '—'} → ${r.new_value || '—'})` : ""}${r.actor ? ` by ${r.actor}` : ""}`);
+        const lines = rows.map((r) => `[${r.created_at}] ${r.action} ${r.entity_type}#${r.entity_id}${r.field_name ? ` (${r.field_name}: ${r.old_value || '—'} → ${r.new_value || '—'})` : ""}${r.actor ? ` by ${r.actor}` : ""}`);
         return { content: [{ type: "text" as const, text: `# Recent Events (${rows.length})\n\n${lines.join("\n")}` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -3183,7 +3250,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     },
     async ({ sprint_id, finding, resolution_plan, category, priority, created_by }) => {
       try {
-        const sprint = db.prepare("SELECT id, name, status FROM sprints WHERE id = ?").get(sprint_id) as any;
+        const sprint = db.prepare("SELECT id, name, status FROM sprints WHERE id = ?").get(sprint_id) as Pick<SprintRow, "id" | "name" | "status"> | undefined;
         if (!sprint) return { content: [{ type: "text" as const, text: `Sprint ${sprint_id} not found.` }] };
         const cat = category || "general";
         const pri = priority || "P1";
@@ -3194,8 +3261,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         const planNote = resolution_plan ? " (with resolution plan)" : " (no resolution plan)";
         notifyDashboard(db);
         return { content: [{ type: "text" as const, text: `Discovery #${result.lastInsertRowid} created in sprint "${sprint.name}" [${cat}] ${pri}${planNote}` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -3212,27 +3279,27 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     async ({ sprint_id, status, category, verbose }) => {
       try {
         let sql = `SELECT d.*, s.name as sprint_name, t.title as ticket_title FROM discoveries d JOIN sprints s ON d.discovery_sprint_id = s.id LEFT JOIN tickets t ON d.implementation_ticket_id = t.id WHERE 1=1`;
-        const params: any[] = [];
+        const params: unknown[] = [];
         if (sprint_id) { sql += " AND d.discovery_sprint_id = ?"; params.push(sprint_id); }
         if (status) { sql += " AND d.status = ?"; params.push(status); }
         else if (!verbose) { sql += " AND d.status IN ('discovered', 'planned')"; } // compact default: open work only
         if (category) { sql += " AND d.category = ?"; params.push(category); }
         sql += " ORDER BY s.created_at DESC, d.priority, d.created_at";
-        const rows = db.prepare(sql).all(...params) as any[];
+        const rows = db.prepare(sql).all(...params) as (DiscoveryRow & { sprint_name: string; ticket_title: string | null })[];
         if (rows.length === 0) return { content: [{ type: "text" as const, text: verbose ? "No discoveries found." : "No open discoveries. (verbose=true includes implemented/dropped.)" }] };
         if (!verbose) {
-          const text = rows.map((d: any) =>
+          const text = rows.map((d) =>
             `- [${d.status}] ${d.priority} #${d.id} ${truncateFinding(d.finding, 110)}${d.implementation_ticket_id ? ` → #${d.implementation_ticket_id}` : ""}`).join("\n");
           return { content: [{ type: "text" as const, text: `# Discoveries (${rows.length} open)\n${text}` }] };
         }
-        const text = rows.map((d: any) => {
+        const text = rows.map((d) => {
           const ticket = d.ticket_title ? ` → T-${d.implementation_ticket_id}: ${d.ticket_title}` : "";
           const drop = d.drop_reason ? ` (${d.drop_reason})` : "";
           return `[${d.status.toUpperCase()}] ${d.priority} #${d.id}: ${d.finding}${ticket}${drop}\n  Sprint: ${d.sprint_name} | Category: ${d.category} | By: ${d.created_by || "—"}`;
         }).join("\n\n");
         return { content: [{ type: "text" as const, text: `# Discoveries (${rows.length})\n\n${text}` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -3249,10 +3316,10 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     },
     async ({ discovery_id, status, priority, drop_reason, resolution_plan }) => {
       try {
-        const existing = db.prepare("SELECT * FROM discoveries WHERE id = ?").get(discovery_id) as any;
+        const existing = db.prepare("SELECT * FROM discoveries WHERE id = ?").get(discovery_id) as DiscoveryRow | undefined;
         if (!existing) return { content: [{ type: "text" as const, text: `Discovery #${discovery_id} not found.` }] };
         const sets: string[] = [];
-        const vals: any[] = [];
+        const vals: unknown[] = [];
         if (status) { sets.push("status = ?"); vals.push(status); }
         if (priority) { sets.push("priority = ?"); vals.push(priority); }
         if (drop_reason) { sets.push("drop_reason = ?"); vals.push(drop_reason); }
@@ -3266,8 +3333,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         }
         notifyDashboard(db);
         return { content: [{ type: "text" as const, text: `Discovery #${discovery_id} updated.${status ? ` Status: ${existing.status} → ${status}` : ""}${priority ? ` Priority: ${priority}` : ""}` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -3281,9 +3348,9 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     },
     async ({ discovery_id, ticket_id }) => {
       try {
-        const discovery = db.prepare("SELECT * FROM discoveries WHERE id = ?").get(discovery_id) as any;
+        const discovery = db.prepare("SELECT * FROM discoveries WHERE id = ?").get(discovery_id) as DiscoveryRow | undefined;
         if (!discovery) return { content: [{ type: "text" as const, text: `Discovery #${discovery_id} not found.` }] };
-        const ticket = db.prepare("SELECT id, title, status FROM tickets WHERE id = ?").get(ticket_id) as any;
+        const ticket = db.prepare("SELECT id, title, status FROM tickets WHERE id = ?").get(ticket_id) as Pick<TicketRow, "id" | "title" | "status"> | undefined;
         if (!ticket) return { content: [{ type: "text" as const, text: `Ticket #${ticket_id} not found.` }] };
         const newStatus = ticket.status === "DONE" ? "implemented" : "planned";
         db.prepare("UPDATE discoveries SET implementation_ticket_id = ?, status = ?, updated_at = datetime('now') WHERE id = ?").run(ticket_id, newStatus, discovery_id);
@@ -3293,8 +3360,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         }
         notifyDashboard(db);
         return { content: [{ type: "text" as const, text: `Discovery #${discovery_id} linked to ticket #${ticket_id} "${ticket.title}" — status: ${newStatus}` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -3354,8 +3421,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
             text: JSON.stringify({ fallback: false, action_id: Number(actionId), step, title }),
           }],
         };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -3371,7 +3438,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       try {
         const timeout = timeout_ms ?? 0;
         const start = Date.now();
-        const check = () => db.prepare("SELECT status, result FROM pending_actions WHERE id = ?").get(action_id) as any;
+        const check = () => db.prepare("SELECT status, result FROM pending_actions WHERE id = ?").get(action_id) as Pick<PendingActionRow, "status" | "result"> | undefined;
 
         let row = check();
         if (!row) return { content: [{ type: "text" as const, text: JSON.stringify({ status: "not_found" }) }] };
@@ -3380,7 +3447,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         if (timeout > 0 && row.status === "pending") {
           while (Date.now() - start < timeout) {
             await new Promise(resolve => setTimeout(resolve, 500));
-            row = check();
+            row = check()!; // a row deleted mid-poll throws into the catch below, as before
             if (row.status !== "pending") break;
           }
         }
@@ -3390,7 +3457,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         }
 
         if (row.status === "completed" && row.result) {
-          let parsed: any;
+          let parsed: unknown;
           try { parsed = JSON.parse(row.result); } catch { parsed = row.result; }
           return { content: [{ type: "text" as const, text: JSON.stringify({ status: "completed", response: parsed }) }] };
         }
@@ -3400,8 +3467,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         }
 
         return { content: [{ type: "text" as const, text: JSON.stringify({ status: row.status }) }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -3442,8 +3509,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         return {
           content: [{ type: "text" as const, text: `Step progress sent: ${title} (${current}/${total})` }],
         };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -3467,8 +3534,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
           }).catch(() => {});
         } catch {}
         return { content: [{ type: "text" as const, text: `Output streamed: ${text.slice(0, 80)}${text.length > 80 ? "..." : ""}` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -3493,8 +3560,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
           }).catch(() => {});
         } catch {}
         return { content: [{ type: "text" as const, text: `Step '${name}' status: ${status}` }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -3515,15 +3582,15 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         `).run();
 
         let sql = `SELECT d.status, COUNT(*) as count FROM discoveries d WHERE 1=1`;
-        const params: any[] = [];
+        const params: unknown[] = [];
         if (sprint_id) { sql += " AND d.discovery_sprint_id = ?"; params.push(sprint_id); }
         sql += " GROUP BY d.status";
-        const rows = db.prepare(sql).all(...params) as any[];
-        const total = rows.reduce((sum: number, r: any) => sum + r.count, 0);
+        const rows = db.prepare(sql).all(...params) as { status: string; count: number }[];
+        const total = rows.reduce((sum: number, r) => sum + r.count, 0);
         if (total === 0) return { content: [{ type: "text" as const, text: sprint_id ? `No discoveries in sprint ${sprint_id}.` : "No discoveries found." }] };
 
         const counts: Record<string, number> = { discovered: 0, planned: 0, implemented: 0, dropped: 0 };
-        rows.forEach((r: any) => { counts[r.status] = r.count; });
+        rows.forEach((r) => { counts[r.status] = r.count; });
         const pct = (n: number) => total > 0 ? Math.round(n / total * 100) : 0;
 
         // Per-sprint breakdown if no filter
@@ -3533,9 +3600,9 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
             SELECT s.id, s.name, d.status, COUNT(*) as count
             FROM discoveries d JOIN sprints s ON d.discovery_sprint_id = s.id
             GROUP BY s.id, d.status ORDER BY s.created_at DESC
-          `).all() as any[];
+          `).all() as { id: number; name: string; status: string; count: number }[];
           const sprintMap = new Map<number, { name: string; counts: Record<string, number>; total: number }>();
-          sprintRows.forEach((r: any) => {
+          sprintRows.forEach((r) => {
             if (!sprintMap.has(r.id)) sprintMap.set(r.id, { name: r.name, counts: { discovered: 0, planned: 0, implemented: 0, dropped: 0 }, total: 0 });
             const entry = sprintMap.get(r.id)!;
             entry.counts[r.status] = r.count;
@@ -3548,8 +3615,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
 
         const text = `# Discovery Coverage\n\nTotal: ${total} discoveries\n\n| Status | Count | % |\n|--------|-------|---|\n| Implemented | ${counts.implemented} | ${pct(counts.implemented)}% |\n| Planned | ${counts.planned} | ${pct(counts.planned)}% |\n| Discovered | ${counts.discovered} | ${pct(counts.discovered)}% |\n| Dropped | ${counts.dropped} | ${pct(counts.dropped)}% |${breakdown}`;
         return { content: [{ type: "text" as const, text }] };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -3571,8 +3638,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
             text: "RUN_KICKOFF_CEREMONY: The dashboard has requested a project kickoff. Please execute the /kickoff skill to guide the user through the full scrum lifecycle (vision → discovery → milestone → epics → tickets → sprint launch → implementation → retro → close).",
           }],
         };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -3585,13 +3652,13 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     },
     async ({ sprint_id }) => {
       try {
-        const sprint = db.prepare("SELECT id, name, status FROM sprints WHERE id = ?").get(sprint_id) as any;
+        const sprint = db.prepare("SELECT id, name, status FROM sprints WHERE id = ?").get(sprint_id) as Pick<SprintRow, "id" | "name" | "status"> | undefined;
         if (!sprint) {
           return { content: [{ type: "text" as const, text: `Error: Sprint ${sprint_id} not found` }], isError: true };
         }
 
         // Check if retro findings already exist
-        const existing = db.prepare("SELECT COUNT(*) as c FROM retro_findings WHERE sprint_id = ?").get(sprint_id) as any;
+        const existing = db.prepare("SELECT COUNT(*) as c FROM retro_findings WHERE sprint_id = ?").get(sprint_id) as CountRow;
         const hasFindings = existing.c > 0;
 
         return {
@@ -3600,8 +3667,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
             text: `RUN_RETRO_CEREMONY: The dashboard has requested a retrospective for Sprint "${sprint.name}" (#${sprint_id}).\n\n${hasFindings ? `Note: ${existing.c} retro findings already exist for this sprint.\n\n` : ""}Please guide the user through the retrospective ceremony:\n1. What went well?\n2. What went wrong?\n3. What to try next sprint?\n\nUse add_retro_finding to save each response.`,
           }],
         };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );
@@ -3614,13 +3681,13 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     },
     async ({ sprint_id }) => {
       try {
-        const sprint = db.prepare("SELECT id, name, status, goal, velocity_committed, velocity_completed FROM sprints WHERE id = ?").get(sprint_id) as any;
+        const sprint = db.prepare("SELECT id, name, status, goal, velocity_committed, velocity_completed FROM sprints WHERE id = ?").get(sprint_id) as Pick<SprintRow, "id" | "name" | "status" | "goal" | "velocity_committed" | "velocity_completed"> | undefined;
         if (!sprint) {
           return { content: [{ type: "text" as const, text: `Error: Sprint ${sprint_id} not found` }], isError: true };
         }
 
-        const tickets = db.prepare("SELECT id, title, status, ticket_ref FROM tickets WHERE sprint_id = ?").all(sprint_id) as any[];
-        const done = tickets.filter((t: any) => t.status === 'DONE');
+        const tickets = db.prepare("SELECT id, title, status, ticket_ref FROM tickets WHERE sprint_id = ?").all(sprint_id) as Pick<TicketRow, "id" | "title" | "status" | "ticket_ref">[];
+        const done = tickets.filter((t) => t.status === 'DONE');
         const total = tickets.length;
 
         return {
@@ -3629,8 +3696,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
             text: `RUN_REVIEW_CEREMONY: The dashboard has requested a sprint review for Sprint "${sprint.name}" (#${sprint_id}).\n\n## Sprint Summary\n- **Goal**: ${sprint.goal || 'N/A'}\n- **Velocity**: ${sprint.velocity_completed || 0}/${sprint.velocity_committed || 0} points\n- **Tickets**: ${done.length}/${total} completed\n\nPlease facilitate the sprint review:\n1. Show completed tickets and their value\n2. Demo any working features\n3. Discuss any incomplete work\n4. Celebrate wins with the team`,
           }],
         };
-      } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${e.message}` }], isError: true };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     }
   );

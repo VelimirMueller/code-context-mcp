@@ -12,8 +12,24 @@
  * rebuilds marketing stats itself (the router does that when status='closed').
  */
 import type Database from "better-sqlite3";
+import type { CountRow, SprintRow, TicketRow } from "../../scrum/rows.js";
 import { validateEnum, validateSprintTransition, badRequest, ALLOWED_AGENT_MODELS } from "./validation.js";
 import { log as slog } from "../../sessionlog.js";
+import {
+  parseBody,
+  RetroFindingCreateBody,
+  RetroFindingUpdateBody,
+  SprintStuckBody,
+  BlockerCreateBody,
+  StatusOnlyBody,
+  BugCreateBody,
+  MilestoneLinkBody,
+  PlanSprintBody,
+  SprintUpdateBody,
+  TicketCreateBody,
+  TicketUpdateBody,
+  TicketPatchBody,
+} from "./schemas.js";
 
 // ─── Scrum reads ────────────────────────────────────────────────────────────
 
@@ -83,15 +99,17 @@ export function apiSprintRetro(db: Database.Database, sprintId: number) {
   } catch { return []; }
 }
 
-export function createRetroFinding(db: Database.Database, sprintId: number, body: { role?: string; category: string; finding: string; action_owner?: string }) {
+export function createRetroFinding(db: Database.Database, sprintId: number, raw: unknown) {
+  const body = parseBody(RetroFindingCreateBody, raw);
   db.prepare(
     `INSERT INTO retro_findings (sprint_id, role, category, finding, action_owner) VALUES (?, ?, ?, ?, ?)`
   ).run(sprintId, body.role ?? null, body.category, body.finding, body.action_owner ?? null);
 }
 
-export function updateRetroFinding(db: Database.Database, findingId: number, body: { action_applied?: boolean; action_owner?: string; linked_ticket_id?: number | null }) {
+export function updateRetroFinding(db: Database.Database, findingId: number, raw: unknown) {
+  const body = parseBody(RetroFindingUpdateBody, raw);
   const updates: string[] = [];
-  const params: any[] = [];
+  const params: (string | number | null)[] = [];
   if (body.action_applied !== undefined) { updates.push('action_applied = ?'); params.push(body.action_applied ? 1 : 0); }
   if (body.action_owner) { updates.push('action_owner = ?'); params.push(body.action_owner); }
   if (body.linked_ticket_id !== undefined) { updates.push('linked_ticket_id = ?'); params.push(body.linked_ticket_id); }
@@ -172,7 +190,8 @@ export function apiAllRetroFindings(db: Database.Database) {
 
 // ─── Sprint stuck / Blocker / Bug CRUD ─────────────────────────────────────
 
-export function apiReportSprintStuck(db: Database.Database, sprintId: number, body: any) {
+export function apiReportSprintStuck(db: Database.Database, sprintId: number, raw: unknown) {
+  const body = parseBody(SprintStuckBody, raw);
   const sprint = db.prepare(`SELECT name, status FROM sprints WHERE id = ? AND deleted_at IS NULL`).get(sprintId) as any;
   if (!sprint) throw Object.assign(new Error("sprint not found"), { status: 404 });
   db.prepare(`INSERT INTO blockers (sprint_id, description, reported_by, status) VALUES (?, ?, ?, 'open')`).run(
@@ -181,14 +200,16 @@ export function apiReportSprintStuck(db: Database.Database, sprintId: number, bo
   return { ok: true, message: `Blocker created: sprint ${sprint.name} stuck in ${sprint.status}` };
 }
 
-export function apiCreateBlocker(db: Database.Database, sprintId: number, body: any) {
+export function apiCreateBlocker(db: Database.Database, sprintId: number, raw: unknown) {
+  const body = parseBody(BlockerCreateBody, raw);
   db.prepare(`INSERT INTO blockers (sprint_id, ticket_id, description, reported_by, escalated_to, status) VALUES (?, ?, ?, ?, ?, 'open')`).run(
     sprintId, body.ticket_id ?? null, body.description, body.reported_by ?? null, body.escalated_to ?? null
   );
   return { ok: true };
 }
 
-export function apiUpdateBlocker(db: Database.Database, blockerId: number, body: any) {
+export function apiUpdateBlocker(db: Database.Database, blockerId: number, raw: unknown) {
+  const body = parseBody(StatusOnlyBody, raw);
   if (body.status === 'resolved') {
     db.prepare(`UPDATE blockers SET status = 'resolved', resolved_at = datetime('now') WHERE id = ?`).run(blockerId);
   } else if (body.status) {
@@ -197,14 +218,16 @@ export function apiUpdateBlocker(db: Database.Database, blockerId: number, body:
   return { ok: true };
 }
 
-export function apiCreateBug(db: Database.Database, sprintId: number, body: any) {
+export function apiCreateBug(db: Database.Database, sprintId: number, raw: unknown) {
+  const body = parseBody(BugCreateBody, raw);
   db.prepare(`INSERT INTO bugs (sprint_id, ticket_id, severity, description, steps_to_reproduce, expected, actual, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'open')`).run(
     sprintId, body.ticket_id ?? null, body.severity, body.description, body.steps_to_reproduce ?? null, body.expected ?? null, body.actual ?? null
   );
   return { ok: true };
 }
 
-export function apiUpdateBug(db: Database.Database, bugId: number, body: any) {
+export function apiUpdateBug(db: Database.Database, bugId: number, raw: unknown) {
+  const body = parseBody(StatusOnlyBody, raw);
   if (body.status) {
     db.prepare(`UPDATE bugs SET status = ? WHERE id = ?`).run(body.status, bugId);
   }
@@ -268,27 +291,27 @@ export function apiArchiveCompletedSprints(db: Database.Database) {
   return { archived: bulk() };
 }
 
-export function apiUpdateTicketMilestone(db: Database.Database, ticketId: number, body: any) {
-  const milestoneId = body.milestone_id;
+export function apiUpdateTicketMilestone(db: Database.Database, ticketId: number, raw: unknown) {
+  const milestoneId = parseBody(MilestoneLinkBody, raw).milestone_id;
   if (milestoneId === null || milestoneId === undefined) {
     db.prepare("UPDATE tickets SET milestone = NULL, milestone_id = NULL WHERE id = ?").run(ticketId);
   } else {
-    const milestone = db.prepare("SELECT name FROM milestones WHERE id = ?").get(milestoneId) as any;
+    const milestone = db.prepare("SELECT name FROM milestones WHERE id = ?").get(milestoneId) as { name: string } | undefined;
     if (!milestone) throw Object.assign(new Error("milestone not found"), { status: 404 });
     db.prepare("UPDATE tickets SET milestone = ?, milestone_id = ? WHERE id = ?").run(milestone.name, milestoneId, ticketId);
   }
   return { ok: true };
 }
 
-export function apiPlanSprint(db: Database.Database, body: any) {
+export function apiPlanSprint(db: Database.Database, raw: unknown) {
+  const body = parseBody(PlanSprintBody, raw);
   const name = body.name;
   const goal = body.goal;
-  const ticketIds = body.ticketIds ?? body.ticket_ids;
+  // The schema refine guarantees one of the two arrays.
+  const ticketIds = body.ticketIds ?? body.ticket_ids ?? [];
   const velocity = body.targetVelocity ?? body.velocity_committed ?? 0;
   const startDate = body.startDate ?? body.start_date ?? null;
   const endDate = body.endDate ?? body.end_date ?? null;
-  if (!name) throw new Error("name is required");
-  if (!ticketIds || !Array.isArray(ticketIds)) throw new Error("ticket_ids array is required");
   const result = db.prepare(`INSERT INTO sprints (name, goal, status, velocity_committed, start_date, end_date) VALUES (?, ?, 'planning', ?, ?, ?)`).run(name, goal || null, velocity, startDate, endDate);
   const sprintId = result.lastInsertRowid;
   const updateStmt = db.prepare(`UPDATE tickets SET sprint_id=?, updated_at=datetime('now') WHERE id=?`);
@@ -458,21 +481,24 @@ export function verifyPhaseGate(db: Database.Database, sprintId: number, targetP
  * was closed (status='closed'); the router rebuilds marketing stats in that case
  * — that side-effect stays out of the handler per the migration contract.
  */
-export function apiSprintUpdate(db: Database.Database, id: number, body: any): { result: any; marketingDirty: boolean } {
+export function apiSprintUpdate(
+  db: Database.Database,
+  id: number,
+  raw: unknown,
+): { result: { id: number; updated: true; review_warnings?: string[] }; marketingDirty: boolean } {
+  const body = parseBody(SprintUpdateBody, raw);
   // Read current sprint state before updating
-  const current = db.prepare(`SELECT * FROM sprints WHERE id = ?`).get(id) as any;
+  const current = db.prepare(`SELECT * FROM sprints WHERE id = ?`).get(id) as SprintRow | undefined;
   if (!current) throw new Error("sprint not found");
 
-  const sets: string[] = []; const vals: any[] = [];
+  const sets: string[] = []; const vals: (string | number | null)[] = [];
+  let reviewWarnings: string[] | undefined;
 
   // Phase gate verification before transition (advisory — never blocks)
   const gateWarnings: string[] = [];
   if (body.status && body.status !== current.status) {
     const gate = verifyPhaseGate(db, id, body.status);
     gateWarnings.push(...gate.warnings);
-    if (gateWarnings.length > 0) {
-      (body as any)._gate_warnings = gateWarnings;
-    }
   }
 
   // Phase transition validation when status is changing
@@ -489,7 +515,7 @@ export function apiSprintUpdate(db: Database.Database, id: number, body: any): {
     if (newStatus === 'done' || newStatus === 'qa') {
       const undone = (db.prepare(
         `SELECT COUNT(*) as c FROM tickets WHERE sprint_id = ? AND status != 'DONE' AND deleted_at IS NULL`
-      ).get(id) as any).c;
+      ).get(id) as CountRow).c;
       if (undone > 0) {
         gateWarnings.push(`${undone} ticket(s) are not DONE`);
       }
@@ -501,9 +527,9 @@ export function apiSprintUpdate(db: Database.Database, id: number, body: any): {
            AND status = 'DONE'
            AND assigned_to IN ('architect','lead-developer','scrum-master')
            AND (review_status IS NULL OR review_status != 'approved')`
-      ).all(id) as any[];
+      ).all(id) as Pick<TicketRow, "ticket_ref" | "title" | "assigned_to" | "review_status">[];
       if (unapproved.length > 0) {
-        (body as any)._review_warnings = unapproved.map((t: any) =>
+        reviewWarnings = unapproved.map((t) =>
           `${t.ticket_ref} (${t.assigned_to}): review_status=${t.review_status ?? 'none'}`
         );
       }
@@ -550,28 +576,27 @@ export function apiSprintUpdate(db: Database.Database, id: number, body: any): {
     } catch {}
   }
 
-  const result: any = { id, updated: true };
-  if (body._review_warnings) {
-    result.review_warnings = body._review_warnings;
+  const result: { id: number; updated: true; review_warnings?: string[] } = { id, updated: true };
+  if (reviewWarnings) {
+    result.review_warnings = reviewWarnings;
   }
   return { result, marketingDirty: body.status === 'closed' };
 }
 
 // ─── Ticket CRUD API ────────────────────────────────────────────────────────
-export function apiCreateTicket(db: Database.Database, body: any) {
-  const { title, description, priority, sprint_id, epic_id, milestone_id, assigned_to, story_points } = body;
-  if (!title) throw new Error("title is required");
+export function apiCreateTicket(db: Database.Database, raw: unknown) {
+  const { title, description, priority, sprint_id, epic_id, milestone_id, assigned_to, story_points } = parseBody(TicketCreateBody, raw);
   if (priority) validateEnum(priority, ['P0', 'P1', 'P2', 'P3'], 'priority');
 
   // Generate ticket_ref: T-<next_id>
-  const maxRef = db.prepare(`SELECT MAX(id) as m FROM tickets WHERE deleted_at IS NULL`).get() as any;
+  const maxRef = db.prepare(`SELECT MAX(id) as m FROM tickets WHERE deleted_at IS NULL`).get() as { m: number | null } | undefined;
   const nextNum = (maxRef?.m ?? 0) + 1;
   const ticket_ref = `T-${nextNum}`;
 
   // Resolve milestone name if milestone_id provided
   let milestone: string | null = null;
   if (milestone_id) {
-    const ms = db.prepare(`SELECT name FROM milestones WHERE id = ?`).get(milestone_id) as any;
+    const ms = db.prepare(`SELECT name FROM milestones WHERE id = ?`).get(milestone_id) as { name: string } | undefined;
     if (ms) milestone = ms.name;
   }
 
@@ -594,11 +619,12 @@ export function apiCreateTicket(db: Database.Database, body: any) {
   return { id: result.lastInsertRowid, ticket_ref, title };
 }
 
-export function apiUpdateTicket(db: Database.Database, id: number, body: any) {
-  const existing = db.prepare(`SELECT * FROM tickets WHERE id = ?`).get(id) as any;
+export function apiUpdateTicket(db: Database.Database, id: number, raw: unknown) {
+  const body = parseBody(TicketUpdateBody, raw);
+  const existing = db.prepare(`SELECT * FROM tickets WHERE id = ?`).get(id) as TicketRow | undefined;
   if (!existing) throw new Error("ticket not found");
 
-  const sets: string[] = []; const vals: any[] = [];
+  const sets: string[] = []; const vals: (string | number | null)[] = [];
   if (body.title !== undefined) { sets.push("title=?"); vals.push(body.title); }
   if (body.description !== undefined) { sets.push("description=?"); vals.push(body.description); }
   if (body.priority !== undefined) { validateEnum(body.priority, ['P0', 'P1', 'P2', 'P3'], 'priority'); sets.push("priority=?"); vals.push(body.priority); }
@@ -615,7 +641,7 @@ export function apiUpdateTicket(db: Database.Database, id: number, body: any) {
     sets.push("milestone_id=?"); vals.push(body.milestone_id);
     // Also update milestone name
     if (body.milestone_id) {
-      const ms = db.prepare(`SELECT name FROM milestones WHERE id = ?`).get(body.milestone_id) as any;
+      const ms = db.prepare(`SELECT name FROM milestones WHERE id = ?`).get(body.milestone_id) as { name: string } | undefined;
       sets.push("milestone=?"); vals.push(ms?.name || null);
     } else {
       sets.push("milestone=?"); vals.push(null);
@@ -702,10 +728,9 @@ function assignmentSetsEqual(a: TicketAssignmentRow[], b: TicketAssignmentRow[])
   return key(a) === key(b);
 }
 
-export function apiPatchTicket(db: Database.Database, id: number, body: any): { result: { ok: true; ticket: any }; changedFields: string[] } {
-  if (!body || typeof body !== 'object' || Array.isArray(body)) {
-    throw badRequest('request body must be a JSON object');
-  }
+export function apiPatchTicket(db: Database.Database, id: number, raw: unknown): { result: { ok: true; ticket: any }; changedFields: string[] } {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- field rules below check each value's type (D1b)
+  const body: Record<string, any> = parseBody(TicketPatchBody, raw);
   for (const key of Object.keys(body)) {
     if (!UI_TICKET_PATCH_FIELDS.includes(key)) {
       const hint = key === 'qa_verified'

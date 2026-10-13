@@ -534,7 +534,7 @@ export function runMigrations(
   db: Database.Database,
   opts: { freshDb?: boolean } = {},
 ): void {
-  const current = (db.prepare("SELECT MAX(version) as v FROM schema_versions").get() as any)?.v ?? 0;
+  const current = (db.prepare("SELECT MAX(version) as v FROM schema_versions").get() as { v: number | null } | undefined)?.v ?? 0;
   // IMPORTANT: new columns/tables must ALSO be added to initScrumSchema above — enforced by migrations.test.ts "canonical schema parity".
   const migrations = [
     { version: 1, name: 'add_epic_id_to_tickets', sql: "SELECT 1" }, // already done
@@ -817,7 +817,7 @@ export function runMigrations(
 
   // v22: rebuild event_log with extended CHECKs (retro_finding entity, triaged action) —
   // idempotent: skip when the current constraint already allows retro_finding.
-  const eventLogSql = (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='event_log'").get() as any)?.sql ?? "";
+  const eventLogSql = (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='event_log'").get() as { sql: string } | undefined)?.sql ?? "";
   if (eventLogSql && !eventLogSql.includes("'retro_finding'")) {
     db.exec(`
       CREATE TABLE event_log_v2 (
@@ -853,7 +853,7 @@ export function runMigrations(
 
   // Migration 17: Rebuild sprints table with 'done' in CHECK constraint (idempotent)
   // Check if the current sprints CHECK constraint already includes 'done'
-  const sprintTableSql = (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='sprints'").get() as any)?.sql ?? "";
+  const sprintTableSql = (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='sprints'").get() as { sql: string } | undefined)?.sql ?? "";
   if (!sprintTableSql.includes("'done'")) {
     const sprintCols = db.pragma("table_info(sprints)") as Array<{ name: string }>;
     const hasDeletedAt = sprintCols.some((c) => c.name === "deleted_at");

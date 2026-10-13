@@ -37,6 +37,7 @@ import { syncGithub, getProject, liveSyncGate, syncAuth, type GitHubGateway } fr
 import { GhGateway } from "../scrum/github-gateway.js";
 import { upsertProject } from "../scrum/tools/github.js";
 import { log as slog } from "../sessionlog.js";
+import { errorMessage } from "../scrum/rows.js";
 
 export const USAGE =
   "usage: code-context-sync-github --project <name> [--db <file>] [--dry-run [--offline]] [--repo owner/name] [--project-number N] [--project-owner login] [--assignee login] [--milestone <id>[=<gh number>]]... [--adopt N[-M][,…]]... [--max-writes N] [--force]\n\nA live run needs the exact target in CODE_CONTEXT_GITHUB_SYNC_REPOS=owner/repo[@board-owner/N][,…] (a board needs the @board-owner/N form)\nand an assignee that is the repo owner or in CODE_CONTEXT_GITHUB_SYNC_ASSIGNEES=login[,login…].";
@@ -215,9 +216,9 @@ export async function run(a: Args, gateway: GitHubGateway = new GhGateway(), out
     if (a.dryRun) out("\n(dry run on an in-memory copy — the db file was not changed)");
     slog(r.error ? "WARN" : "INFO", `sync-github: project=${a.project} dry_run=${a.dryRun} issues=${r.plan.issues.length} writes=${r.writes}${r.error ? " failed" : ""}`);
     return r.error ? 1 : 0;
-  } catch (e: any) {
-    out(`code-context-sync-github: ${e?.message ?? String(e)}`);
-    slog("WARN", `sync-github: failed error=${e?.name ?? "Error"}`);
+  } catch (e) {
+    out(`code-context-sync-github: ${errorMessage(e)}`);
+    slog("WARN", `sync-github: failed error=${e instanceof Error ? e.name : "Error"}`);
     return 1;
   } finally {
     db.close();

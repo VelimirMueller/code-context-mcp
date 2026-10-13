@@ -36,6 +36,7 @@
  *   set in the process env, never by a tool.
  */
 import type Database from "better-sqlite3";
+import { errorMessage } from "./rows.js";
 
 export const TYPE_LABELS = ["feat", "fix", "chore", "infra", "improvement"] as const;
 export type IssueType = (typeof TYPE_LABELS)[number];
@@ -1070,8 +1071,8 @@ export function planSync(db: Database.Database, project: ProjectRow, remote: Rem
     try {
       title = issueTitle(t);
       body = ownedIssueBody(project.name, t);
-    } catch (e: any) {
-      plan.skipped.push({ ref, reason: e.message });
+    } catch (e) {
+      plan.skipped.push({ ref, reason: errorMessage(e) });
       continue;
     }
     const creating = t.github_issue === null;
@@ -1523,8 +1524,8 @@ export async function syncGithub(db: Database.Database, gw: GitHubGateway, proje
       if (toAdd.length) done.push(`added ${toAdd.length} item(s) to the board`);
       if (toSet.length) done.push(`set Status on ${toSet.length} item(s)`);
     }
-  } catch (e: any) {
-    const msg = String(e?.message ?? e);
+  } catch (e) {
+    const msg = errorMessage(e);
     const text = `${formatPlan(plan, `sync_github ${projectName} — FAILED after ${writes} write(s): ${msg}`)}\n\nDone before the failure: ${done.join("; ") || "nothing"}. Stored issue numbers make a rerun safe.`;
     return { plan, text, writes, error: msg };
   }

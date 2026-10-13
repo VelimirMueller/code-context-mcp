@@ -204,6 +204,79 @@ export interface DecisionRow {
   created_at: string | null;
 }
 
+export interface SubtaskRow {
+  id: number;
+  ticket_id: number;
+  assigned_to: string | null;
+  description: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SprintMetricRow {
+  id: number;
+  sprint_id: number;
+  date: string;
+  remaining_points: number;
+  completed_points: number;
+  added_points: number;
+  removed_points: number;
+  created_at: string;
+}
+
+export interface TicketRevisionRow {
+  id: number;
+  ticket_id: number;
+  source: string;
+  /** JSON array of field names */
+  changed_fields: string;
+  /** JSON object: field → old value */
+  old_values: string;
+  /** JSON object: field → new value */
+  new_values: string;
+  created_at: string;
+}
+
+export interface TicketAssignmentRow {
+  id: number;
+  ticket_id: number;
+  role: string;
+  model: string | null;
+  is_lead: number;
+  created_at: string;
+}
+
+export interface TicketDependencyRow {
+  id: number;
+  source_ticket_id: number;
+  target_ticket_id: number;
+  dependency_type: string;
+  created_at: string;
+}
+
+export interface TagRow {
+  id: number;
+  name: string;
+  color: string;
+  created_at: string;
+}
+
+export interface PendingActionRow {
+  id: number;
+  action: string;
+  entity_type: string | null;
+  entity_id: number | null;
+  payload: string | null;
+  status: string;
+  source: string;
+  created_at: string;
+  claimed_at: string | null;
+  completed_at: string | null;
+  result: string | null;
+  error: string | null;
+}
+
 /** `SELECT COUNT(*) as c ...` */
 export interface CountRow {
   c: number;

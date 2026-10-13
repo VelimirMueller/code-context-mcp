@@ -20,6 +20,7 @@ import { formatIndexSummary } from "./index-summary.js";
 import { resolveToolPath, resolveDirPath, pathDisplay, canonicalPath } from "./path-resolve.js";
 import { declarationLines, hasSignatureParser, parseStoredImportLines } from "./signatures.js";
 import { whoImports, exportsIn } from "./graph.js";
+import { errorMessage, type CountRow } from "../scrum/rows.js";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const DB_PATH = process.argv[2] ?? "./context.db";
@@ -130,6 +131,41 @@ const fresh = new FreshnessGuard(db);
 // The env fallback (CODE_CONTEXT_ABSOLUTE_PATHS=1) is documented in REFERENCE.md.
 const ABSOLUTE_PATHS_DESC = "Print absolute paths";
 
+/** `SELECT * FROM files`. size_bytes is NOT NULL in practice: the indexer always writes it. */
+interface FileRow {
+  id: number;
+  path: string;
+  language: string | null;
+  extension: string | null;
+  size_bytes: number;
+  line_count: number | null;
+  summary: string | null;
+  description: string | null;
+  external_imports: string | null;
+  import_lines: string | null;
+  content: string | null;
+  created_at: string | null;
+  modified_at: string | null;
+  indexed_at: string | null;
+}
+
+/** The columns of a `changes` row that get_file_context and get_changes render. */
+interface ChangeRow {
+  file_path: string;
+  event: string;
+  timestamp: string | null;
+  old_summary: string | null;
+  new_summary: string | null;
+  old_line_count: number | null;
+  new_line_count: number | null;
+  old_size_bytes: number | null;
+  new_size_bytes: number | null;
+  old_exports: string | null;
+  new_exports: string | null;
+  diff_text: string | null;
+  reason: string | null;
+}
+
 // ─── Tool: index_directory ───────────────────────────────────────────────────
 server.tool(
   "index_directory",
@@ -150,9 +186,9 @@ server.tool(
           const ageMs = Date.now() - lastTime;
           const ageMin = Math.round(ageMs / 60000);
           if (ageMs < 5 * 60 * 1000) { // < 5 minutes
-            const fileCount = (db.prepare("SELECT COUNT(*) as c FROM files").get() as any).c;
-            const exportCount = (db.prepare("SELECT COUNT(*) as c FROM exports").get() as any).c;
-            const depCount = (db.prepare("SELECT COUNT(*) as c FROM dependencies").get() as any).c;
+            const fileCount = (db.prepare("SELECT COUNT(*) as c FROM files").get() as CountRow).c;
+            const exportCount = (db.prepare("SELECT COUNT(*) as c FROM exports").get() as CountRow).c;
+            const depCount = (db.prepare("SELECT COUNT(*) as c FROM dependencies").get() as CountRow).c;
             return { content: [{ type: "text", text: `Index fresh (${ageMin}m ago): ${fileCount} files, ${exportCount} exports, ${depCount} deps. Skipped re-index.` }] };
           }
         }
@@ -164,9 +200,9 @@ server.tool(
       slog("INFO", `index_directory: files=${stats.files} exports=${stats.exports} deps=${stats.deps} pruned=${stats.prunedFiles} duration_ms=${Date.now() - indexStart}`);
 
       return { content: [{ type: "text", text: formatIndexSummary(db, root, stats) }] };
-    } catch (err: any) {
+    } catch (err) {
       slog("CRITICAL", `tool index_directory: failed error=${errorClass(err)}`);
-      return { content: [{ type: "text", text: `Error: ${err.message}` }], isError: true };
+      return { content: [{ type: "text", text: `Error: ${errorMessage(err)}` }], isError: true };
     }
   }
 );
@@ -246,7 +282,7 @@ server.tool(
       };
     }
     const filePath = resolved.path;
-    const getFile = () => db.prepare(`SELECT * FROM files WHERE path = ?`).get(filePath) as any | undefined;
+    const getFile = () => db.prepare(`SELECT * FROM files WHERE path = ?`).get(filePath) as FileRow | undefined;
     const getExports = (id: number) => db.prepare(`SELECT name, kind, signature, line FROM exports WHERE file_id = ? ORDER BY COALESCE(line, 1e9), id`)
       .all(id) as { name: string; kind: string; signature: string | null; line: number | null }[];
     const repo = fresh.checkRepos();
@@ -338,7 +374,7 @@ server.tool(
                old_line_count, new_line_count, old_size_bytes, new_size_bytes,
                old_exports, new_exports, diff_text, reason
         FROM changes WHERE file_path = ? ORDER BY timestamp DESC LIMIT ?
-      `).all(filePath, maxChanges) as any[];
+      `).all(filePath, maxChanges) as Omit<ChangeRow, "file_path">[];
 
       sections.push("", `## Recent changes (${changes.length})`);
       for (const c of changes) {
@@ -474,7 +510,7 @@ server.tool(
   async ({ file_path, limit, absolute_paths }) => {
     const show = pathDisplay(db, { absolute: absolute_paths });
     const maxRows = limit ?? 50;
-    let rows: any[];
+    let rows: Omit<ChangeRow, "diff_text">[];
 
     if (file_path) {
       const term = path.isAbsolute(file_path) && !file_path.includes("%") ? canonicalPath(file_path) : file_path;
@@ -489,7 +525,7 @@ server.tool(
         WHERE file_path LIKE ?
         ORDER BY file_path, timestamp DESC
         LIMIT ?
-      `).all(pattern, maxRows);
+      `).all(pattern, maxRows) as Omit<ChangeRow, "diff_text">[];
     } else {
       rows = db.prepare(`
         SELECT file_path, event, timestamp,
@@ -500,7 +536,7 @@ server.tool(
         FROM changes
         ORDER BY file_path, timestamp DESC
         LIMIT ?
-      `).all(maxRows);
+      `).all(maxRows) as Omit<ChangeRow, "diff_text">[];
     }
 
     if (rows.length === 0) {
@@ -508,7 +544,7 @@ server.tool(
     }
 
     // Group by file
-    const grouped = new Map<string, any[]>();
+    const grouped = new Map<string, Omit<ChangeRow, "diff_text">[]>();
     for (const row of rows) {
       const arr = grouped.get(row.file_path) ?? [];
       arr.push(row);
@@ -553,6 +589,7 @@ const searchFilesStmt = db.prepare(`
   ORDER BY path
   LIMIT 25
 `);
+type SearchFileRow = Omit<FileRow, "id" | "description" | "external_imports" | "import_lines" | "content"> & { export_count: number; dep_count: number };
 server.tool(
   "search_files",
   "Which files have this text in their path or summary? Not file contents: grep for code. Max 25.",
@@ -566,9 +603,9 @@ server.tool(
     const term = path.isAbsolute(query) && !query.includes("%") ? canonicalPath(query) : query;
     const pattern = term.includes("%") ? term : `%${term}%`;
     const repo = fresh.checkRepos();
-    let rows = searchFilesStmt.all(pattern, pattern) as any[];
+    let rows = searchFilesStmt.all(pattern, pattern) as SearchFileRow[];
     const files = fresh.checkFiles(rows);
-    if (files.changed) rows = searchFilesStmt.all(pattern, pattern) as any[];
+    if (files.changed) rows = searchFilesStmt.all(pattern, pattern) as SearchFileRow[];
     const notice = freshnessNotice(repo, files);
 
     if (rows.length === 0) {
@@ -629,8 +666,8 @@ server.tool(
     try {
       db.prepare("SELECT 1").get();
       dbHealthy = true;
-    } catch (err: any) {
-      dbError = err.message;
+    } catch (err) {
+      dbError = errorMessage(err);
     }
 
     const fileCount = db.prepare("SELECT COUNT(*) as c FROM files").get() as { c: number };
