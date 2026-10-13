@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A milestone update never reports success for a deleted milestone.** `PUT /api/milestone/:id` checks the row and writes it in one statement (`UPDATE … WHERE deleted_at IS NULL RETURNING *`) and answers 404 when no row changed; earlier a delete between the check and the update gave 200 for a write that changed nothing. The handler moves to `src/dashboard/handlers/planning.ts`. (#214)
 - **An active milestone on the Dashboard sprint list shows the active colour.** `SprintList` colours each milestone header and progress bar by the status the database stores (`planned`, `active`, `completed`); earlier it checked `in_progress`, which the database never stores, so active milestones showed the planned colour. (#211)
 - **A new ticket never gets the ref of a deleted ticket.** `POST /api/tickets` counts all ticket rows, deleted rows too, to make the next `T-<n>` ref, and skips a ref that a row already has; earlier a soft-deleted newest ticket gave its ref again and the insert failed with 500. (#210)
 - **A ticket description can be cleared from the dashboard editor.** `PATCH /api/ticket/:id` accepts `description` as a string or null, the same rule as `notes`; earlier it refused the `null` that the editor sends for an empty description, so the old text stayed. The change gets a revision row and an event log row with a NULL new value. (#206)

@@ -26,6 +26,6 @@ export interface HandlerContext {
 export * as codeHandlers from "./code.js";
 export * as sprintHandlers from "./sprint.js";
 export * as benchHandlers from "./bench.js";
-// export { planningHandlers } from "./planning.js";
+export * as planningHandlers from "./planning.js";
 // export { teamHandlers } from "./team.js";
 // export { bridgeHandlers } from "./bridge.js";
