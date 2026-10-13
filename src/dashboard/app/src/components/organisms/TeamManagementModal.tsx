@@ -116,7 +116,7 @@ export function TeamManagementModal({ open, onClose, agent }: TeamManagementModa
     setError(null);
 
     try {
-      if (isEdit) {
+      if (agent) {
         await put(`/api/agent/${encodeURIComponent(agent.role)}`, {
           name: name.trim(),
           description: description.trim() || null,
@@ -140,6 +140,7 @@ export function TeamManagementModal({ open, onClose, agent }: TeamManagementModa
   }
 
   async function handleDelete() {
+    if (!agent) return;
     setDeleteBusy(true);
     try {
       await del(`/api/agent/${encodeURIComponent(agent.role)}`);

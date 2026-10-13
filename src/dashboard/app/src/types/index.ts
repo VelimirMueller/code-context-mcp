@@ -115,6 +115,8 @@ export interface RetroFinding {
   finding: string;
   action_owner: string | null;
   action_applied: number;
+  /** Set by GET /api/retro/all (apiAllRetroFindings), not by the per-sprint route. */
+  sprint_id?: number;
 }
 
 export interface MilestoneSprint {

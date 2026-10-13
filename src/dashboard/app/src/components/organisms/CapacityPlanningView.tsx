@@ -122,7 +122,9 @@ export function CapacityPlanningView() {
           {[1, 2, 3, 4].map(i => (
             <div key={i} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 16 }}>
               <Skeleton width={120} height={14} />
-              <Skeleton width="100%" height={32} style={{ marginTop: 8 }} />
+              <div style={{ marginTop: 8 }}>
+                <Skeleton width="100%" height={32} />
+              </div>
             </div>
           ))}
         </div>

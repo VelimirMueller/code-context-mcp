@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion, steps } from 'framer-motion';
 
 /** A single line of Claude output */
 export interface ClaudeOutputLine {
@@ -331,7 +331,7 @@ export function ClaudeOutputStream({
               {isActive && (
                 <motion.span
                   animate={reduceMotion ? {} : { opacity: [1, 0] }}
-                  transition={{ duration: 0.8, repeat: Infinity, ease: 'steps(2)' }}
+                  transition={{ duration: 0.8, repeat: Infinity, ease: steps(2) }}
                   style={{
                     display: 'inline-block',
                     width: 7,
