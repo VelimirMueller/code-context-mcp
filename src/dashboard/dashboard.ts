@@ -19,7 +19,7 @@ import { archiveEntity, unarchiveEntity, type ArchivableEntity } from '../scrum/
 import { seedDefaults } from '../scrum/defaults.js';
 import { resolveDashboardToken, isAuthorized, isAllowedHost, isAllowedOrigin } from './auth.js';
 import { makeWatchIgnorePredicate, WATCH_DIR_WARN_THRESHOLD } from '../shared/ignore.js';
-import { codeHandlers, sprintHandlers, benchHandlers } from './handlers/index.js';
+import { codeHandlers, sprintHandlers, benchHandlers, planningHandlers } from './handlers/index.js';
 import { log as slog, errorClass, logThrottled } from '../sessionlog.js';
 
 /** Rejected-request breadcrumb, at most one per status+path per minute (anyone local can trigger these). */
@@ -57,7 +57,6 @@ import {
   BridgeActionBody,
   BridgeRespondBody,
   MilestoneCreateBody,
-  MilestoneUpdateBody,
   VisionBody,
   RestoreBody,
   SprintProcessBody,
@@ -1114,40 +1113,6 @@ function apiCreateMilestone(raw: unknown) {
     .get(result.lastInsertRowid) as MilestoneRow;
 }
 
-function apiMilestoneUpdate(id: number, raw: unknown) {
-  const body = parseBody(MilestoneUpdateBody, raw);
-  const existing = writeDb
-    .prepare('SELECT id FROM milestones WHERE id = ? AND deleted_at IS NULL')
-    .get(id);
-  if (!existing) throw Object.assign(new Error('milestone not found'), { status: 404 });
-  const sets: string[] = [];
-  const vals: (string | number | null)[] = [];
-  if (body.status != null) {
-    validateEnum(body.status, ['planned', 'active', 'completed'], 'milestone status');
-    sets.push('status=?');
-    vals.push(body.status);
-  }
-  // Clearable text: a string sets the value, null or '' clears it, absent keeps it.
-  if (body.description !== undefined) {
-    sets.push('description=?');
-    vals.push(body.description || null);
-  }
-  if (body.progress !== undefined) {
-    sets.push('progress=?');
-    vals.push(body.progress);
-  }
-  if (body.target_date !== undefined) {
-    sets.push('target_date=?');
-    vals.push(body.target_date || null);
-  }
-  if (sets.length === 0) throw Object.assign(new Error('nothing to update'), { status: 400 });
-  sets.push("updated_at=datetime('now')");
-  vals.push(id);
-  writeDb.prepare(`UPDATE milestones SET ${sets.join(',')} WHERE id=?`).run(...vals);
-  // The saved row (#205), like POST /api/milestones; `id` keeps its key.
-  return writeDb.prepare(`SELECT * FROM milestones WHERE id = ?`).get(id) as MilestoneRow;
-}
-
 function apiVisionUpdate(raw: unknown) {
   const { content } = parseBody(VisionBody, raw);
   writeDb
@@ -1756,7 +1721,7 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       } else if (url.pathname.match(/^\/api\/milestone\/\d+$/) && req.method === 'PUT') {
         const mid = Number(url.pathname.split('/')[3]);
         const body = await readBody(req);
-        data = apiMilestoneUpdate(mid, body);
+        data = planningHandlers.apiMilestoneUpdate(db, mid, body);
         notifyClients();
       } else if (url.pathname === '/api/vision' && req.method === 'PUT') {
         const body = await readBody(req);
