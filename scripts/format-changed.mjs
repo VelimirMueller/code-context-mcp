@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const base = process.argv[2] || process.env.FORMAT_BASE || 'origin/main';
-if (!/^[\w./~^-]+$/.test(base)) {
+if (!/^[\w./~^-]+$/.test(base) || base.startsWith('-')) {
   console.error(`format-changed: refusing base ref ${JSON.stringify(base)}`);
   process.exit(64);
 }
