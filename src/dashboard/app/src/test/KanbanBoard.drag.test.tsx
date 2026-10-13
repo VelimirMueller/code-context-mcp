@@ -79,7 +79,10 @@ describe('KanbanBoard drag and drop (#198)', () => {
     expect(init.method).toBe('PATCH');
     expect(JSON.parse(init.body)).toEqual({ status: 'IN_PROGRESS' });
     expect(useSprintStore.getState().tickets[0].status).toBe('IN_PROGRESS');
-    expect(screen.getByText('1 · 2sp')).toBeDefined();
+    const inProgress = screen
+      .getByText('In Progress', { selector: 'span' })
+      .closest('[style*="min-height"]')!;
+    expect(inProgress.textContent).toContain('Ticket 1');
   });
 
   it('moves the card back when the server refuses the status', async () => {

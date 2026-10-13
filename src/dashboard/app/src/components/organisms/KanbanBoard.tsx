@@ -108,8 +108,7 @@ export function KanbanBoard({ tickets }: KanbanBoardProps) {
   // A drop changes the status through PATCH /api/ticket/:id (#198), the same
   // route the ticket editor uses. The server allows TODO, IN_PROGRESS and
   // BLOCKED only; DONE and NOT_DONE stay with the QA gate, so such a drop
-  // reverts and updateTicket shows the server error. updateTicket never
-  // rejects: it returns null on any failure.
+  // reverts and updateTicket shows the server error.
   const handleDrop = async (e: React.DragEvent, targetStatus: string) => {
     e.preventDefault();
     setDraggingId(null);
@@ -123,7 +122,7 @@ export function KanbanBoard({ tickets }: KanbanBoardProps) {
         ts.map((t) => (t.id === ticketId && t.status === from ? { ...t, status: to } : t)),
       );
     swapStatus(previous.status, targetStatus);
-    const updated = await updateTicket(ticketId, { status: targetStatus });
+    const updated = await updateTicket(ticketId, { status: targetStatus }).catch(() => null);
     if (!updated) {
       swapStatus(targetStatus, previous.status);
       return;
