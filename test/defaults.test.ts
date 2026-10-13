@@ -103,9 +103,8 @@ describe("resetAgents", () => {
 });
 
 describe("ESM regression tripwire (discovery #33)", () => {
-  // The live crash ("require is not defined") only reproduced OUTSIDE vitest,
-  // because the build check is skipped under VITEST — so no behavioral test can
-  // catch a reintroduced lazy require(). Guard the source instead.
+  // The live crash ("require is not defined") only reproduced OUTSIDE vitest.
+  // Guard the source against a reintroduced lazy require().
   it("defaults.ts contains no CJS require() calls", async () => {
     const { readFileSync } = await import("node:fs");
     const src = readFileSync(new URL("../src/scrum/defaults.ts", import.meta.url), "utf8");

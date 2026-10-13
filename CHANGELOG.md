@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **`reset_agents` and `reset_skills` do not run `npm run build` in your project.** The tools spawn no process, so they work in a project without a `build` script and write nothing to the JSON-RPC stream. The delete and the re-seed run in one transaction; when a step fails, the old rows stay. (#187)
+
 ## [2.13.0] - 2026-10-12
 
 - 2.12.0 was not published to npm; 2.13.0 contains its changes too.
