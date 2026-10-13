@@ -108,7 +108,8 @@ export function KanbanBoard({ tickets }: KanbanBoardProps) {
   // A drop changes the status through PATCH /api/ticket/:id (#198), the same
   // route the ticket editor uses. The server allows TODO, IN_PROGRESS and
   // BLOCKED only; DONE and NOT_DONE stay with the QA gate, so such a drop
-  // reverts and updateTicket shows the server error.
+  // reverts and updateTicket shows the server error. updateTicket never
+  // rejects: it returns null on any failure.
   const handleDrop = async (e: React.DragEvent, targetStatus: string) => {
     e.preventDefault();
     setDraggingId(null);
@@ -116,12 +117,15 @@ export function KanbanBoard({ tickets }: KanbanBoardProps) {
     const ticketId = Number(e.dataTransfer.getData('ticketId'));
     const previous = localTickets.find((t) => t.id === ticketId);
     if (!previous || previous.status === targetStatus) return;
-    const setStatus = (status: string) =>
-      setLocalTickets((ts) => ts.map((t) => (t.id === ticketId ? { ...t, status } : t)));
-    setStatus(targetStatus);
+    // `from` guards the swap: a later drop or refetch is never overwritten.
+    const swapStatus = (from: string, to: string) =>
+      setLocalTickets((ts) =>
+        ts.map((t) => (t.id === ticketId && t.status === from ? { ...t, status: to } : t)),
+      );
+    swapStatus(previous.status, targetStatus);
     const updated = await updateTicket(ticketId, { status: targetStatus });
     if (!updated) {
-      setStatus(previous.status);
+      swapStatus(targetStatus, previous.status);
       return;
     }
     if (selectedSprintId) fetchTickets(selectedSprintId);
