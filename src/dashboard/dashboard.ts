@@ -1031,7 +1031,11 @@ const server = http.createServer((req, res) => {
   // Outer guard (#188): an async handler error must answer the request, never
   // become an unhandled rejection that stops the dashboard for every client.
   handleRequest(req, res).catch((e) => {
-    sendRequestError(req, res, e, (req.url ?? "/").split("?")[0]);
+    try {
+      sendRequestError(req, res, e, (req.url ?? "/").split("?")[0]);
+    } catch {
+      res.destroy();
+    }
   });
 });
 
