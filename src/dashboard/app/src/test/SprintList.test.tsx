@@ -63,7 +63,16 @@ describe('SprintList archive sections (T-221)', () => {
   it('renders only non-archived sprints in the active section', async () => {
     const groups: MilestoneSprintGroup[] = [
       {
-        milestone: { id: 1, name: 'M1', description: null, status: 'active', target_date: null, progress: 0, ticket_count: 0, done_count: 0 },
+        milestone: {
+          id: 1,
+          name: 'M1',
+          description: null,
+          status: 'active',
+          target_date: null,
+          progress: 0,
+          ticket_count: 0,
+          done_count: 0,
+        },
         sprints: [
           makeSprint({ id: 1, status: 'implementation', archived_at: null }),
           makeSprint({ id: 2, status: 'closed', archived_at: '2026-06-10 09:00:00' }),
@@ -83,7 +92,16 @@ describe('SprintList archive sections (T-221)', () => {
   it('shows archived sprints only inside the archive section after toggling it open', async () => {
     const groups: MilestoneSprintGroup[] = [
       {
-        milestone: { id: 1, name: 'M1', description: null, status: 'active', target_date: null, progress: 0, ticket_count: 0, done_count: 0 },
+        milestone: {
+          id: 1,
+          name: 'M1',
+          description: null,
+          status: 'active',
+          target_date: null,
+          progress: 0,
+          ticket_count: 0,
+          done_count: 0,
+        },
         sprints: [
           makeSprint({ id: 1, status: 'implementation', archived_at: null }),
           makeSprint({ id: 2, status: 'closed', archived_at: '2026-06-10 09:00:00' }),
@@ -109,7 +127,16 @@ describe('SprintList archive sections (T-221)', () => {
   it('hides the bulk archive button when no sprint is eligible', async () => {
     const groups: MilestoneSprintGroup[] = [
       {
-        milestone: { id: 1, name: 'M1', description: null, status: 'active', target_date: null, progress: 0, ticket_count: 0, done_count: 0 },
+        milestone: {
+          id: 1,
+          name: 'M1',
+          description: null,
+          status: 'active',
+          target_date: null,
+          progress: 0,
+          ticket_count: 0,
+          done_count: 0,
+        },
         sprints: [
           // implementation is not an eligible status
           makeSprint({ id: 1, status: 'implementation', archived_at: null }),
@@ -128,11 +155,20 @@ describe('SprintList archive sections (T-221)', () => {
   it('shows the bulk archive button with the correct eligible count', async () => {
     const groups: MilestoneSprintGroup[] = [
       {
-        milestone: { id: 1, name: 'M1', description: null, status: 'active', target_date: null, progress: 0, ticket_count: 0, done_count: 0 },
+        milestone: {
+          id: 1,
+          name: 'M1',
+          description: null,
+          status: 'active',
+          target_date: null,
+          progress: 0,
+          ticket_count: 0,
+          done_count: 0,
+        },
         sprints: [
-          makeSprint({ id: 1, status: 'closed', archived_at: null }),   // eligible
-          makeSprint({ id: 2, status: 'rest', archived_at: null }),     // eligible
-          makeSprint({ id: 3, status: 'done', archived_at: null }),     // eligible
+          makeSprint({ id: 1, status: 'closed', archived_at: null }), // eligible
+          makeSprint({ id: 2, status: 'rest', archived_at: null }), // eligible
+          makeSprint({ id: 3, status: 'done', archived_at: null }), // eligible
           makeSprint({ id: 4, status: 'implementation', archived_at: null }), // not eligible (status)
           makeSprint({ id: 5, status: 'closed', archived_at: '2026-06-10 09:00:00' }), // not eligible (archived)
         ],
@@ -148,7 +184,16 @@ describe('SprintList archive sections (T-221)', () => {
   it('opens the confirmation dialog and calls archiveAllCompleted on confirm', async () => {
     const groups: MilestoneSprintGroup[] = [
       {
-        milestone: { id: 1, name: 'M1', description: null, status: 'active', target_date: null, progress: 0, ticket_count: 0, done_count: 0 },
+        milestone: {
+          id: 1,
+          name: 'M1',
+          description: null,
+          status: 'active',
+          target_date: null,
+          progress: 0,
+          ticket_count: 0,
+          done_count: 0,
+        },
         sprints: [
           makeSprint({ id: 1, status: 'closed', archived_at: null }),
           makeSprint({ id: 2, status: 'done', archived_at: null }),
