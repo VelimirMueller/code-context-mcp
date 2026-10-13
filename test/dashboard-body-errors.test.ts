@@ -188,3 +188,51 @@ describe('dashboard notify endpoints reject bad bodies (#188)', () => {
     await expectAlive();
   });
 });
+
+describe('dashboard write routes parse the body with zod (#190)', () => {
+  function send(method: string, pathname: string, body: unknown): Promise<Response> {
+    return fetch(`${BASE}${pathname}`, {
+      method,
+      headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  }
+
+  it('answers 400 with the field name on a wrong type', async () => {
+    const cases: Array<[string, string, unknown, RegExp]> = [
+      ['POST', '/api/agents', { role: 1, name: 'x' }, /^role: /],
+      ['POST', '/api/agents', { name: 'x' }, /role and name are required/],
+      ['PUT', '/api/milestone/1', { progress: '50' }, /^progress: /],
+      ['POST', '/api/epics', { name: 'e', priority: 'high' }, /^priority: /],
+      ['PUT', '/api/sprint-process', { phases: [] }, /phases array is required/],
+      ['POST', '/api/bridge/actions', { entity_id: 'x', action: 'custom' }, /^entity_id: /],
+      ['PATCH', '/api/bridge/actions/1/respond', {}, /result is required/],
+      ['POST', '/api/sprints/plan', { name: 's' }, /ticket_ids array is required/],
+    ];
+    for (const [method, pathname, body, msg] of cases) {
+      const res = await send(method, pathname, body);
+      expect(res.status, `${method} ${pathname}`).toBe(400);
+      const json = (await res.json()) as { ok: boolean; error: string };
+      expect(json.ok).toBe(false);
+      expect(json.error, `${method} ${pathname}`).toMatch(msg);
+    }
+    await expectAlive();
+  });
+
+  it('still accepts the bodies the dashboard app sends', async () => {
+    const created = await send('POST', '/api/agents', {
+      role: 'zod-qa',
+      name: 'Zod QA',
+      description: null,
+      model: 'claude-sonnet-5',
+    });
+    expect(created.status).toBe(200);
+    const updated = await send('PUT', '/api/agent/zod-qa', {
+      name: 'Zod QA 2',
+      description: null,
+      model: 'claude-sonnet-5',
+    });
+    expect(updated.status).toBe(200);
+    expect(await updated.json()).toMatchObject({ role: 'zod-qa', name: 'Zod QA 2' });
+  });
+});

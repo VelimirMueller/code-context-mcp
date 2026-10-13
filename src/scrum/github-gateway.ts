@@ -65,6 +65,67 @@ const ISSUE_FRAGMENT = `fragment SyncIssue on Issue {
   projectItems(first: 20) { nodes { id project { id } fieldValueByName(name: "Status") { ... on ProjectV2ItemFieldSingleSelectValue { name } } } }
 }`;
 
+/** A REST milestone, as listMilestones reads it (fields are checked where GitHub may omit them). */
+interface RestMilestone {
+  number: number;
+  node_id?: string | null;
+  title: string;
+  description?: string | null;
+  state: "open" | "closed";
+  due_on?: string | null;
+  creator?: { login?: string | null } | null;
+}
+
+/** The REST response of a created milestone or issue. */
+interface RestCreated {
+  number: number;
+  node_id: string;
+}
+
+/** One entry of a GraphQL `errors` array. */
+interface GqlError {
+  path?: unknown;
+  type?: string;
+  message?: string;
+}
+
+/** A project item node from ISSUE_FRAGMENT. */
+interface GqlProjectItem {
+  id: string;
+  project?: { id?: string | null } | null;
+  fieldValueByName?: { name?: string | null } | null;
+}
+
+/** An issue node from ISSUE_FRAGMENT. Identity fields are optional: readIssues verifies them. */
+interface GqlIssueNode {
+  id?: string | null;
+  number?: number | null;
+  title: string;
+  body?: string | null;
+  state?: string | null;
+  author?: { login?: string | null } | null;
+  repository?: { nameWithOwner?: string | null } | null;
+  labels?: { totalCount?: number | null; nodes?: Array<{ name: string }> | null } | null;
+  assignees?: { nodes?: Array<{ login: string }> | null } | null;
+  milestone?: { number: number } | null;
+  projectItems?: { nodes?: Array<GqlProjectItem | null> | null } | null;
+}
+
+/** `data` of the SyncRead query. */
+interface SyncReadData {
+  viewer?: { login?: string | null } | null;
+  repository?: Record<string, GqlIssueNode | null> | null;
+  board?: {
+    projectV2?: {
+      id: string;
+      field?: { id?: string | null; options?: Array<{ id: string; name: string }> | null } | null;
+    } | null;
+  } | null;
+}
+
+/** `data` of the SyncAdd mutation: one `a<k>` alias per content id. */
+type SyncAddData = Record<string, { item?: { id?: string | null } | null } | null | undefined>;
+
 function short(s: string): string {
   const t = s.trim().replace(/\s+/g, " ");
   return t.length > 300 ? `${t.slice(0, 300)}…` : t;
@@ -85,23 +146,24 @@ export class GhGateway implements GitHubGateway {
     return (r.stdout.trim() ? JSON.parse(r.stdout) : null) as T;
   }
 
-  private async graphql(query: string, variables: Record<string, unknown>): Promise<{ data: any; errors: any[] }> {
+  private async graphql<D>(query: string, variables: Record<string, unknown>): Promise<{ data: D; errors: GqlError[] }> {
     this.calls.graphql++;
     const r = await this.run(["api", "graphql", "--input", "-"], JSON.stringify({ query, variables }));
-    let parsed: any = null;
+    let parsed: { data?: D | null; errors?: GqlError[] | null } | null = null;
     try {
       parsed = r.stdout.trim() ? JSON.parse(r.stdout) : null;
     } catch {
       /* not JSON */
     }
     if (!parsed || (!parsed.data && r.code !== 0)) throw new Error(`gh api graphql failed: ${short(r.stderr || r.stdout)}`);
-    return { data: parsed.data ?? {}, errors: parsed.errors ?? [] };
+    // `{}` stands for "no data": every D reads its fields optionally.
+    return { data: parsed.data ?? ({} as D), errors: parsed.errors ?? [] };
   }
 
   async listMilestones(repo: string): Promise<RemoteMilestone[]> {
     const out: RemoteMilestone[] = [];
     for (let page = 1; ; page++) {
-      const rows = await this.rest<any[]>("GET", `repos/${repo}/milestones?state=all&per_page=${MILESTONE_PAGE}&page=${page}`);
+      const rows = await this.rest<RestMilestone[] | null>("GET", `repos/${repo}/milestones?state=all&per_page=${MILESTONE_PAGE}&page=${page}`);
       if (!Array.isArray(rows)) throw new Error(`gh api GET repos/${repo}/milestones returned no list`);
       for (const m of rows) {
         out.push({
@@ -120,7 +182,7 @@ export class GhGateway implements GitHubGateway {
   }
 
   async createMilestone(repo: string, f: MilestoneFields): Promise<{ number: number; nodeId: string }> {
-    const r = await this.rest<any>("POST", `repos/${repo}/milestones`, f);
+    const r = await this.rest<RestCreated>("POST", `repos/${repo}/milestones`, f);
     return { number: r.number, nodeId: r.node_id };
   }
 
@@ -131,7 +193,7 @@ export class GhGateway implements GitHubGateway {
   async createIssue(repo: string, f: IssueFields): Promise<{ number: number; nodeId: string }> {
     const body: Record<string, unknown> = { title: f.title, body: f.body, labels: f.labels, assignees: f.assignees };
     if (f.milestone !== null) body.milestone = f.milestone;
-    const r = await this.rest<any>("POST", `repos/${repo}/issues`, body);
+    const r = await this.rest<RestCreated>("POST", `repos/${repo}/issues`, body);
     return { number: r.number, nodeId: r.node_id };
   }
 
@@ -173,7 +235,7 @@ export class GhGateway implements GitHubGateway {
         parts.push(`board: repositoryOwner(login: $powner) { ... on ProjectV2Owner { projectV2(number: $pnum) { id field(name: "Status") { ... on ProjectV2SingleSelectField { id options { id name } } } } } }`);
       }
       const query = `query SyncRead${decl.length ? `(${decl.join(", ")})` : ""} {\n  ${parts.join("\n  ")}\n}${nums.length ? `\n${ISSUE_FRAGMENT}` : ""}`;
-      const { data, errors } = await this.graphql(query, vars);
+      const { data, errors } = await this.graphql<SyncReadData>(query, vars);
       if (typeof data.viewer?.login === "string" && data.viewer.login) {
         if (viewer !== null && viewer.toLowerCase() !== data.viewer.login.toLowerCase()) throw new Error("GitHub GraphQL returned two different viewer logins in one sync");
         viewer = data.viewer.login;
@@ -193,7 +255,7 @@ export class GhGateway implements GitHubGateway {
         meta = {
           projectId: pv.id,
           statusFieldId: pv.field.id,
-          options: Object.fromEntries((pv.field.options ?? []).map((o: any) => [o.name, o.id])),
+          options: Object.fromEntries((pv.field.options ?? []).map((o) => [o.name, o.id])),
         };
       }
       for (const n of nums) {
@@ -207,16 +269,16 @@ export class GhGateway implements GitHubGateway {
         if (!node || typeof node.id !== "string" || !node.id || node.number !== n) continue;
         if (String(node.repository?.nameWithOwner ?? "").toLowerCase() !== repo.toLowerCase()) continue;
         const labelNodes = node.labels?.nodes ?? [];
-        const item = meta ? (node.projectItems?.nodes ?? []).find((it: any) => it?.project?.id === meta!.projectId) : undefined;
+        const item = meta ? (node.projectItems?.nodes ?? []).find((it) => it?.project?.id === meta!.projectId) : undefined;
         issues.set(n, {
           number: node.number,
           nodeId: node.id,
           title: node.title,
           body: node.body ?? "",
           state: String(node.state).toLowerCase() === "closed" ? "closed" : "open",
-          labels: labelNodes.map((l: any) => l.name),
+          labels: labelNodes.map((l) => l.name),
           labelsTruncated: typeof node.labels?.totalCount === "number" ? node.labels.totalCount > labelNodes.length : false,
-          assignees: (node.assignees?.nodes ?? []).map((a: any) => a.login),
+          assignees: (node.assignees?.nodes ?? []).map((a) => a.login),
           milestone: node.milestone?.number ?? null,
           item: item ? { id: item.id, status: item.fieldValueByName?.name ?? null } : null,
           author: typeof node.author?.login === "string" ? node.author.login : null,
@@ -236,7 +298,7 @@ export class GhGateway implements GitHubGateway {
       decl.push(`$c${k}: ID!`);
       return `a${k}: addProjectV2ItemById(input: { projectId: $p, contentId: $c${k} }) { item { id } }`;
     });
-    const { data, errors } = await this.graphql(`mutation SyncAdd(${decl.join(", ")}) {\n  ${parts.join("\n  ")}\n}`, vars);
+    const { data, errors } = await this.graphql<SyncAddData>(`mutation SyncAdd(${decl.join(", ")}) {\n  ${parts.join("\n  ")}\n}`, vars);
     if (errors.length) throw new Error(`addProjectV2ItemById failed: ${short(String(errors[0].message ?? errors[0].type))}`);
     contentIds.forEach((id, k) => {
       const itemId = data[`a${k}`]?.item?.id;
@@ -255,7 +317,7 @@ export class GhGateway implements GitHubGateway {
       decl.push(`$i${k}: ID!`, `$o${k}: String!`);
       return `s${k}: updateProjectV2ItemFieldValue(input: { projectId: $p, itemId: $i${k}, fieldId: $f, value: { singleSelectOptionId: $o${k} } }) { projectV2Item { id } }`;
     });
-    const { errors } = await this.graphql(`mutation SyncStatus(${decl.join(", ")}) {\n  ${parts.join("\n  ")}\n}`, vars);
+    const { errors } = await this.graphql<unknown>(`mutation SyncStatus(${decl.join(", ")}) {\n  ${parts.join("\n  ")}\n}`, vars);
     if (errors.length) throw new Error(`updateProjectV2ItemFieldValue failed: ${short(String(errors[0].message ?? errors[0].type))}`);
   }
 }

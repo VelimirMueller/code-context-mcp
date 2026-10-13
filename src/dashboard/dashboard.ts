@@ -5,6 +5,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import Database from "better-sqlite3";
+import type { z } from "zod";
 import chokidar from "chokidar";
 import { indexDirectory } from "../server/indexer.js";
 import { initSchema } from "../server/schema.js";
@@ -24,6 +25,25 @@ function logRejected(status: number, reason: string, method: string | undefined,
 // Shared validators live in handlers/validation.ts so the migrated scrum
 // handlers (handlers/sprint.ts) and the remaining inline handlers share one copy.
 import { validateEnum, validateColor, ALLOWED_AGENT_MODELS, DEFAULT_AGENT_MODEL } from "./handlers/validation.js";
+import {
+  parseBody,
+  AgentCreateBody,
+  AgentUpdateBody,
+  DiscoveryLinkBody,
+  DiscoveryUpdateBody,
+  EpicCreateBody,
+  EpicUpdateBody,
+  MilestoneLinkBody,
+  EpicLinkBody,
+  BridgeActionBody,
+  BridgeRespondBody,
+  MilestoneCreateBody,
+  MilestoneUpdateBody,
+  VisionBody,
+  RestoreBody,
+  SprintProcessBody,
+} from "./handlers/schemas.js";
+import type { DiscoveryRow } from "../scrum/rows.js";
 
 // Read version from package.json
 const PKG_VERSION = (() => { try { return JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../../package.json'), 'utf8')).version; } catch { return '2.0.0'; } })();
@@ -290,16 +310,9 @@ function apiGetSprintProcess(): { phases: any[] } {
   return { phases: DEFAULT_SPRINT_PHASES };
 }
 
-function apiPutSprintProcess(body: { phases: SprintPhase[] }): { ok: boolean } {
-  if (!body.phases || !Array.isArray(body.phases) || body.phases.length === 0) {
-    throw Object.assign(new Error("phases array is required"), { status: 400 });
-  }
-  for (const p of body.phases) {
-    if (!p.name || typeof p.name !== "string") throw Object.assign(new Error("Each phase requires a name"), { status: 400 });
-    if (!Array.isArray(p.criteria)) throw Object.assign(new Error("criteria must be an array"), { status: 400 });
-    if (!Array.isArray(p.actions)) throw Object.assign(new Error("actions must be an array"), { status: 400 });
-  }
-  const md = serializeSprintPhasesToMarkdown(body.phases);
+function apiPutSprintProcess(raw: unknown): { ok: boolean } {
+  const phases: SprintPhase[] = parseBody(SprintProcessBody, raw).phases;
+  const md = serializeSprintPhasesToMarkdown(phases);
   writeDb.prepare(
     `INSERT INTO skills (name, content, owner_role) VALUES ('SPRINT_PHASES', ?, 'scrum-master') ON CONFLICT(name) DO UPDATE SET content=excluded.content, updated_at=datetime('now')`
   ).run(md);
@@ -352,7 +365,8 @@ function apiAgentsHealth() {
 
 // ─── Agent CRUD ────────────────────────────────────────────────────────────
 
-function apiCreateAgent(body: any) {
+function apiCreateAgent(raw: unknown) {
+  const body = parseBody(AgentCreateBody, raw);
   if (body.model) validateEnum(body.model, ALLOWED_AGENT_MODELS, 'model');
   const existing = writeDb.prepare("SELECT role FROM agents WHERE role = ?").get(body.role);
   if (existing) throw Object.assign(new Error("agent with this role already exists"), { status: 409 });
@@ -362,11 +376,12 @@ function apiCreateAgent(body: any) {
   return { role: body.role, name: body.name, description: body.description || null, model: body.model || DEFAULT_AGENT_MODEL };
 }
 
-function apiUpdateAgent(role: string, body: any) {
+function apiUpdateAgent(role: string, raw: unknown) {
+  const body = parseBody(AgentUpdateBody, raw);
   if (body.model) validateEnum(body.model, ALLOWED_AGENT_MODELS, 'model');
   const existing = writeDb.prepare("SELECT role FROM agents WHERE role = ?").get(role);
   if (!existing) throw Object.assign(new Error("agent not found"), { status: 404 });
-  const sets: string[] = []; const vals: any[] = [];
+  const sets: string[] = []; const vals: (string | null)[] = [];
   if (body.name !== undefined) { sets.push("name=?"); vals.push(body.name); }
   if (body.description !== undefined) { sets.push("description=?"); vals.push(body.description); }
   if (body.model !== undefined) { sets.push("model=?"); vals.push(body.model); }
@@ -386,21 +401,23 @@ function apiDeleteAgent(role: string) {
 
 // ─── Discovery CRUD ────────────────────────────────────────────────────────
 
-function apiLinkDiscoveryToTicket(discoveryId: number, body: any) {
-  const discovery = writeDb.prepare("SELECT * FROM discoveries WHERE id = ?").get(discoveryId) as any;
+function apiLinkDiscoveryToTicket(discoveryId: number, raw: unknown) {
+  const body = parseBody(DiscoveryLinkBody, raw);
+  const discovery = writeDb.prepare("SELECT * FROM discoveries WHERE id = ?").get(discoveryId) as DiscoveryRow | undefined;
   if (!discovery) throw Object.assign(new Error("discovery not found"), { status: 404 });
-  const ticket = writeDb.prepare("SELECT id, title, status FROM tickets WHERE id = ?").get(body.ticket_id) as any;
+  const ticket = writeDb.prepare("SELECT id, title, status FROM tickets WHERE id = ?").get(body.ticket_id) as { id: number; title: string; status: string } | undefined;
   if (!ticket) throw Object.assign(new Error("ticket not found"), { status: 404 });
   const newStatus = ticket.status === "DONE" ? "implemented" : "planned";
   writeDb.prepare("UPDATE discoveries SET implementation_ticket_id = ?, status = ?, updated_at = datetime('now') WHERE id = ?").run(body.ticket_id, newStatus, discoveryId);
   return { ...discovery, implementation_ticket_id: body.ticket_id, status: newStatus, ticket_title: ticket.title };
 }
 
-function apiUpdateDiscovery(discoveryId: number, body: any) {
-  const existing = writeDb.prepare("SELECT * FROM discoveries WHERE id = ?").get(discoveryId) as any;
+function apiUpdateDiscovery(discoveryId: number, raw: unknown) {
+  const body = parseBody(DiscoveryUpdateBody, raw);
+  const existing = writeDb.prepare("SELECT * FROM discoveries WHERE id = ?").get(discoveryId) as DiscoveryRow | undefined;
   if (!existing) throw Object.assign(new Error("discovery not found"), { status: 404 });
   const sets: string[] = [];
-  const vals: any[] = [];
+  const vals: (string | number)[] = [];
   if (body.status) { sets.push("status = ?"); vals.push(body.status); }
   if (body.priority) { sets.push("priority = ?"); vals.push(body.priority); }
   if (body.drop_reason) { sets.push("drop_reason = ?"); vals.push(body.drop_reason); }
@@ -419,7 +436,8 @@ function apiUpdateDiscovery(discoveryId: number, body: any) {
 // apiArchiveCompletedSprints) and apiUpdateTicketMilestone migrated to
 // ./handlers/sprint.ts (T-278).
 
-function apiCreateEpic(body: any) {
+function apiCreateEpic(raw: unknown) {
+  const body = parseBody(EpicCreateBody, raw);
   if (body.status) validateEnum(body.status, ['planned', 'active', 'completed'], 'epic status');
   if (body.color) validateColor(body.color);
   const result = writeDb.prepare(`INSERT INTO epics (name, description, milestone_id, priority, status) VALUES (?, ?, ?, ?, ?)`).run(
@@ -428,10 +446,11 @@ function apiCreateEpic(body: any) {
   return { id: result.lastInsertRowid, name: body.name };
 }
 
-function apiUpdateEpic(epicId: number, body: any) {
+function apiUpdateEpic(epicId: number, raw: unknown) {
+  const body = parseBody(EpicUpdateBody, raw);
   if (body.status) validateEnum(body.status, ['planned', 'active', 'completed'], 'epic status');
   if (body.color) validateColor(body.color);
-  const sets: string[] = []; const vals: any[] = [];
+  const sets: string[] = []; const vals: (string | number | null)[] = [];
   if (body.name) { sets.push("name=?"); vals.push(body.name); }
   if (body.description !== undefined) { sets.push("description=?"); vals.push(body.description); }
   if (body.milestone_id !== undefined) { sets.push("milestone_id=?"); vals.push(body.milestone_id); }
@@ -444,12 +463,14 @@ function apiUpdateEpic(epicId: number, body: any) {
   return { id: epicId, updated: true };
 }
 
-function apiUpdateSprintMilestone(sprintId: number, body: any) {
+function apiUpdateSprintMilestone(sprintId: number, raw: unknown) {
+  const body = parseBody(MilestoneLinkBody, raw);
   writeDb.prepare("UPDATE sprints SET milestone_id=?, updated_at=datetime('now') WHERE id=?").run(body.milestone_id ?? null, sprintId);
   return { ok: true };
 }
 
-function apiUpdateTicketEpic(ticketId: number, body: any) {
+function apiUpdateTicketEpic(ticketId: number, raw: unknown) {
+  const body = parseBody(EpicLinkBody, raw);
   writeDb.prepare("UPDATE tickets SET epic_id=?, updated_at=datetime('now') WHERE id=?").run(body.epic_id ?? null, ticketId);
   return { ok: true };
 }
@@ -536,7 +557,7 @@ function apiBridgeActions(status: string) {
 // them out — ceremonies are UI-only and never forwarded to the CLI.
 const ALLOWED_BRIDGE_ACTIONS = ['advance_sprint', 'assign_ticket', 'update_ticket', 'create_ticket', 'run_retro', 'run_review', 'run_kickoff', 'plan_sprint', 'custom', 'request_input'];
 
-function apiCreateBridgeAction(body: any) {
+function apiCreateBridgeAction(body: z.infer<typeof BridgeActionBody>) {
   if (!ALLOWED_BRIDGE_ACTIONS.includes(body.action)) {
     throw Object.assign(new Error(`unknown action. Allowed: ${ALLOWED_BRIDGE_ACTIONS.join(', ')}`), { status: 400 });
   }
@@ -722,16 +743,16 @@ function apiMilestones() {
   } catch (e) { console.error("[api] apiMilestones error:", e); return []; }
 }
 
-function apiCreateMilestone(body: any) {
-  const { name, description, target_date, status } = body;
-  if (!name) throw new Error("name is required");
+function apiCreateMilestone(raw: unknown) {
+  const { name, description, target_date, status } = parseBody(MilestoneCreateBody, raw);
   if (status) validateEnum(status, ['planned', 'active', 'completed'], 'milestone status');
   const result = writeDb.prepare(`INSERT INTO milestones (name, description, target_date, status) VALUES (?, ?, ?, ?)`).run(name, description || null, target_date || null, status || "planned");
   return { id: result.lastInsertRowid, name };
 }
 
-function apiMilestoneUpdate(id: number, body: any) {
-  const sets: string[] = []; const vals: any[] = [];
+function apiMilestoneUpdate(id: number, raw: unknown) {
+  const body = parseBody(MilestoneUpdateBody, raw);
+  const sets: string[] = []; const vals: (string | number)[] = [];
   if (body.status) { validateEnum(body.status, ['planned', 'active', 'completed'], 'milestone status'); sets.push("status=?"); vals.push(body.status); }
   if (body.description) { sets.push("description=?"); vals.push(body.description); }
   if (body.progress !== undefined) { sets.push("progress=?"); vals.push(body.progress); }
@@ -743,9 +764,8 @@ function apiMilestoneUpdate(id: number, body: any) {
   return { id, updated: true };
 }
 
-function apiVisionUpdate(body: any) {
-  const { content } = body;
-  if (!content) throw new Error("content is required");
+function apiVisionUpdate(raw: unknown) {
+  const { content } = parseBody(VisionBody, raw);
   writeDb.prepare(`INSERT INTO skills (name, content, owner_role) VALUES ('PRODUCT_VISION', ?, 'product-owner') ON CONFLICT(name) DO UPDATE SET content=excluded.content, updated_at=datetime('now')`).run(content);
   return { updated: true };
 }
@@ -872,8 +892,10 @@ function apiDump() {
   return { version: PKG_VERSION, exported_at: new Date().toISOString(), tables: dump };
 }
 
-async function apiRestore(body: any) {
-  if (!body.version || !body.tables) return { error: "Invalid dump format" };
+async function apiRestore(raw: unknown) {
+  const parsed = RestoreBody.safeParse(raw);
+  if (!parsed.success || !parsed.data.version) return { error: "Invalid dump format" };
+  const body = parsed.data;
 
   const order = [
     "milestones", "epics", "agents", "skills", "processes",
@@ -894,6 +916,9 @@ async function apiRestore(body: any) {
     for (const table of order) {
       const rows = body.tables[table];
       if (!rows || !Array.isArray(rows) || rows.length === 0) continue;
+      if (!rows.every((r): r is Record<string, unknown> => r !== null && typeof r === "object" && !Array.isArray(r))) {
+        throw Object.assign(new Error(`restore: every row of ${table} must be an object`), { status: 400 });
+      }
       const validCols = schemaColumns.get(table);
       if (!validCols) continue;
       // Only accept columns that exist in the schema
@@ -903,7 +928,7 @@ async function apiRestore(body: any) {
         `INSERT OR REPLACE INTO ${table} (${cols.join(",")}) VALUES (${cols.map(() => "?").join(",")})`
       );
       let count = 0;
-      for (const row of rows) { stmt.run(...cols.map((c: string) => row[c] ?? null)); count++; }
+      for (const row of rows) { stmt.run(...cols.map((c: string) => (row[c] ?? null) as string | number | bigint | Buffer | null)); count++; }
       results[table] = count;
     }
   });
@@ -954,7 +979,7 @@ class BodyError extends Error {
   }
 }
 
-function readBody(req: http.IncomingMessage): Promise<any> {
+function readBody(req: http.IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
     let body = "";
     let bytes = 0;
@@ -1177,7 +1202,6 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       }
       else if (url.pathname === "/api/agents" && req.method === "POST") {
         const body = await readBody(req);
-        if (!body.role || !body.name) { res.writeHead(400); res.end('{"error":"role and name are required"}'); return; }
         data = apiCreateAgent(body);
         notifyClients();
       }
@@ -1336,7 +1360,6 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       } else if (url.pathname.match(/^\/api\/sprint\/\d+\/blockers$/) && req.method === "POST") {
         const sid = Number(url.pathname.split("/")[3]);
         const body = await readBody(req);
-        if (!body.description) { res.writeHead(400); res.end('{"error":"description required"}'); return; }
         data = sprintHandlers.apiCreateBlocker(db, sid, body);
         notifyClients();
       } else if (url.pathname.match(/^\/api\/blocker\/\d+$/) && req.method === "PATCH") {
@@ -1350,7 +1373,6 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       } else if (url.pathname.match(/^\/api\/sprint\/\d+\/bugs$/) && req.method === "POST") {
         const sid = Number(url.pathname.split("/")[3]);
         const body = await readBody(req);
-        if (!body.description || !body.severity) { res.writeHead(400); res.end('{"error":"description and severity required"}'); return; }
         data = sprintHandlers.apiCreateBug(db, sid, body);
         notifyClients();
       } else if (url.pathname.match(/^\/api\/bug\/\d+$/) && req.method === "PATCH") {
@@ -1367,7 +1389,6 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       } else if (url.pathname.match(/^\/api\/sprint\/\d+\/retro$/) && req.method === "POST") {
         const sid = Number(url.pathname.split("/")[3]);
         const body = await readBody(req);
-        if (!body.category || !body.finding) { res.writeHead(400); res.end('{"error":"category and finding required"}'); return; }
         sprintHandlers.createRetroFinding(db, sid, body);
         data = { ok: true };
         notifyClients();
@@ -1405,7 +1426,6 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       }
       else if (url.pathname === "/api/epics" && req.method === "POST") {
         const body = await readBody(req);
-        if (!body.name) { res.writeHead(400); res.end('{"error":"name is required"}'); return; }
         data = apiCreateEpic(body);
         notifyClients();
       }
@@ -1487,17 +1507,16 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
         data = apiBridgeActions(status);
       }
       else if (url.pathname === "/api/bridge/actions" && req.method === "POST") {
-        const body = await readBody(req);
-        if (!body.action) { res.writeHead(400); res.end('{"error":"action is required"}'); return; }
-        data = apiCreateBridgeAction(body);
+        const body = parseBody(BridgeActionBody, await readBody(req));
+        const created = apiCreateBridgeAction(body);
+        data = created;
         const eventType = body.action === "request_input" ? "input_requested" : "bridge_action";
-        notifyClients({ type: eventType, entityType: "pending_action", entityId: Number(data.id), change: { action: body.action, payload: body.payload } });
+        notifyClients({ type: eventType, entityType: "pending_action", entityId: Number(created.id), change: { action: body.action, payload: body.payload } });
       }
       else if (url.pathname.match(/^\/api\/bridge\/actions\/\d+\/respond$/) && req.method === "PATCH") {
         const actionId = Number(url.pathname.split("/")[4]);
-        const body = await readBody(req);
-        if (!body.result) { res.writeHead(400); res.end('{"error":"result is required"}'); return; }
-        const existing = writeDb.prepare("SELECT * FROM pending_actions WHERE id = ?").get(actionId) as any;
+        const body = parseBody(BridgeRespondBody, await readBody(req));
+        const existing = writeDb.prepare("SELECT id FROM pending_actions WHERE id = ?").get(actionId);
         if (!existing) { res.writeHead(404); res.end('{"error":"action not found"}'); return; }
         writeDb.prepare("UPDATE pending_actions SET status = 'completed', result = ?, completed_at = datetime('now') WHERE id = ?").run(
           typeof body.result === "string" ? body.result : JSON.stringify(body.result), actionId

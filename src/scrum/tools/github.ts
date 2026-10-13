@@ -3,6 +3,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { log as slog } from "../../sessionlog.js";
 import { GhGateway } from "../github-gateway.js";
+import { errorMessage } from "../rows.js";
 import {
   boardOwnerOf,
   getProject,
@@ -163,9 +164,9 @@ export function registerGithubTools(server: McpServer, db: Database.Database, ga
         });
         slog(r.error ? "WARN" : "INFO", `sync_github: project=${project} dry_run=${!!dry_run} issues=${r.plan.issues.length} writes=${r.writes}${r.error ? " failed" : ""}`);
         return { content: [{ type: "text" as const, text: r.text }], isError: r.error !== null };
-      } catch (e: any) {
-        slog("WARN", `sync_github: project=${project} error=${e?.name ?? "Error"}`);
-        return { content: [{ type: "text" as const, text: `Error: ${e?.message ?? String(e)}` }], isError: true };
+      } catch (e) {
+        slog("WARN", `sync_github: project=${project} error=${e instanceof Error ? e.name : "Error"}`);
+        return { content: [{ type: "text" as const, text: `Error: ${errorMessage(e)}` }], isError: true };
       }
     },
   );

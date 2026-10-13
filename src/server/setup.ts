@@ -278,7 +278,12 @@ const serverEntry = {
 
 // Configure MCP client (.mcp.json)
 if (!UPDATE_MODE) step("Configuring MCP client...");
-let mcpConfig: Record<string, any> = { mcpServers: {} };
+/** The parts of .mcp.json this script touches; other keys pass through unchanged. */
+interface McpConfigFile {
+  mcpServers: Record<string, unknown>;
+  [key: string]: unknown;
+}
+let mcpConfig: McpConfigFile = { mcpServers: {} };
 if (fs.existsSync(mcpConfigPath)) {
   try {
     mcpConfig = JSON.parse(fs.readFileSync(mcpConfigPath, "utf-8"));
@@ -303,7 +308,20 @@ const claudeSettingsDir = path.resolve(TARGET_DIR, ".claude");
 const claudeSettingsPath = path.join(claudeSettingsDir, "settings.json");
 if (!fs.existsSync(claudeSettingsDir)) fs.mkdirSync(claudeSettingsDir, { recursive: true });
 
-let claudeSettings: Record<string, any> = {};
+/** A PreToolUse entry: a matcher group ({ matcher, hooks }) or an old flat { type, command } entry. */
+interface PreToolUseEntry {
+  type?: string;
+  command?: string;
+  matcher?: string;
+  hooks?: Array<{ type?: string; command?: string }>;
+  [key: string]: unknown;
+}
+/** The parts of .claude/settings.json this script touches; other keys pass through unchanged. */
+interface ClaudeSettingsFile {
+  hooks?: { PreToolUse?: PreToolUseEntry[]; [event: string]: unknown };
+  [key: string]: unknown;
+}
+let claudeSettings: ClaudeSettingsFile = {};
 if (fs.existsSync(claudeSettingsPath)) {
   try { claudeSettings = JSON.parse(fs.readFileSync(claudeSettingsPath, "utf-8")); } catch {}
 }
@@ -314,12 +332,12 @@ if (!claudeSettings.hooks.PreToolUse) claudeSettings.hooks.PreToolUse = [];
 const bridgeHookCmd = `node ${hookScript}`;
 // Remove any existing bridge hook entries (including old flat-format ones)
 claudeSettings.hooks.PreToolUse = claudeSettings.hooks.PreToolUse.filter(
-  (entry: any) => {
+  (entry) => {
     // Remove old flat-format entries: { type: "command", command: "...bridge/hook..." }
     if (entry.type === "command" && entry.command?.includes("bridge/hook")) return false;
     // Remove existing matcher-group entries containing bridge hook
     if (Array.isArray(entry.hooks) && entry.hooks.some(
-      (h: any) => h.command?.includes("bridge/hook")
+      (h) => h.command?.includes("bridge/hook")
     )) return false;
     return true;
   }

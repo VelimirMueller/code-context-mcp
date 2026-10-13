@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A bad POST body no longer stops the dashboard.** `/api/notify/event`, `/api/claude-output` and `/api/claude-step` answer 400 on invalid JSON, an empty body or a body that is not an object, and 413 on a body over 5 MB. Other `/api/*` write routes answer 400 on invalid JSON instead of 500. An outer guard answers any other request error with 500, so the process never gets an unhandled rejection. (#188)
 - **`reset_agents` and `reset_skills` do not run `npm run build` in your project.** The tools spawn no process, so they work in a project without a `build` script and write nothing to the JSON-RPC stream. The delete and the re-seed run in one transaction; when a step fails, the old rows stay. (#187)
 
+### Changed
+- **Typed rows and request bodies in the MCP server, the scrum tools and the dashboard write routes.** `src/scrum/rows.ts` has one row type per scrum table, and the queries in `src/server` and `src/scrum` use them; `@typescript-eslint/no-explicit-any` is an error there. Each dashboard POST, PUT and PATCH route parses its body with zod and answers 400 with the field name when a type is wrong; earlier a wrong type gave a 500 or a bad row. (#190)
+
 ## [2.13.0] - 2026-10-12
 
 - 2.12.0 was not published to npm; 2.13.0 contains its changes too.

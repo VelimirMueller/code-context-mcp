@@ -85,4 +85,11 @@ export default tseslint.config(
       'preserve-caught-error': 'off',
     },
   },
+  {
+    // #190: the MCP server and the scrum tools have typed rows and bodies; no new any.
+    files: ['src/server/**/*.ts', 'src/scrum/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'error',
+    },
+  },
 );

@@ -255,8 +255,10 @@ export function checkCommitFormat(
     // Merges are NOT filtered out here; we include them so parent-count can mark
     // them exempt below (and so a merge can't hide a referencing commit).
     raw = git(["log", range, "--grep", ref, "--format=%h%x1f%P%x1f%s%x1e"]);
-  } catch (e: any) {
-    return pass({ skipped: true, note: `commit-format check skipped — git log failed (${e?.code ?? e?.message ?? "unknown"}); failing open` });
+  } catch (e) {
+    const err = e instanceof Error ? (e as NodeJS.ErrnoException) : undefined;
+    const why = err ? (err.code ?? err.message) : String(e);
+    return pass({ skipped: true, note: `commit-format check skipped — git log failed (${why || "unknown"}); failing open` });
   }
 
   const records = raw.split("\x1e").map((r) => r.trim()).filter(Boolean);
