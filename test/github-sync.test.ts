@@ -25,6 +25,11 @@ vi.mock("node:child_process", async (importOriginal) => {
 afterAll(() => {
   expect(ghSpawns.n).toBe(0);
 });
+// Many cases here build file DBs with the full schema and run three entry
+// points; locally they take up to ~2 s, on a loaded CI runner more than the
+// 5 s default. A larger limit keeps CI green without hiding a hang.
+vi.setConfig({ testTimeout: 20_000 });
+
 import Database from "better-sqlite3";
 import crypto from "node:crypto";
 import fs from "node:fs";
