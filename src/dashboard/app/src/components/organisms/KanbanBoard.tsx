@@ -36,7 +36,9 @@ export function KanbanBoard({ tickets }: KanbanBoardProps) {
   const fetchTickets = useSprintStore((s) => s.fetchTickets);
   const fetchGrouped = useSprintStore((s) => s.fetchGroupedSprints);
 
-  useEffect(() => { setLocalTickets(tickets); }, [tickets]);
+  useEffect(() => {
+    setLocalTickets(tickets);
+  }, [tickets]);
 
   useEffect(() => {
     if (milestones.length === 0) fetchMilestones();
@@ -44,9 +46,11 @@ export function KanbanBoard({ tickets }: KanbanBoardProps) {
 
   useEffect(() => {
     if (groupByEpic && epics.length === 0) {
-      get<Epic[]>('/api/epics').then((data) => {
-        if (Array.isArray(data)) setEpics(data);
-      }).catch(() => {});
+      get<Epic[]>('/api/epics')
+        .then((data) => {
+          if (Array.isArray(data)) setEpics(data);
+        })
+        .catch(() => {});
     }
   }, [groupByEpic, epics.length]);
 
@@ -75,7 +79,7 @@ export function KanbanBoard({ tickets }: KanbanBoardProps) {
 
   const handleMilestoneChange = async (ticketId: number, milestoneId: number | null) => {
     await patch(`/api/ticket/${ticketId}/milestone`, { milestone_id: milestoneId });
-    const milestone = milestones.find(m => m.id === milestoneId);
+    const milestone = milestones.find((m) => m.id === milestoneId);
     if (selectedTicket && selectedTicket.id === ticketId) {
       setSelectedTicket({
         ...selectedTicket,
@@ -105,9 +109,9 @@ export function KanbanBoard({ tickets }: KanbanBoardProps) {
     const ticketId = Number(e.dataTransfer.getData('ticketId'));
     if (!ticketId) return;
     let snapshot: Ticket[] = [];
-    setLocalTickets(ts => {
+    setLocalTickets((ts) => {
       snapshot = ts;
-      return ts.map(t => t.id === ticketId ? { ...t, status: targetStatus } : t);
+      return ts.map((t) => (t.id === ticketId ? { ...t, status: targetStatus } : t));
     });
     setDraggingId(null);
     setDragOverCol(null);
@@ -135,16 +139,20 @@ export function KanbanBoard({ tickets }: KanbanBoardProps) {
         return (
           <div
             key={status}
-            onDragOver={e => { e.preventDefault(); setDragOverCol(status); }}
-            onDragLeave={e => {
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOverCol(status);
+            }}
+            onDragLeave={(e) => {
               if (!e.currentTarget.contains(e.relatedTarget as Node)) {
                 setDragOverCol(null);
               }
             }}
-            onDrop={e => handleDrop(e, status)}
+            onDrop={(e) => handleDrop(e, status)}
             style={{
               background: dragOverCol === status ? 'rgba(99,102,241,0.04)' : 'var(--bg)',
-              border: dragOverCol === status ? '1px solid var(--accent)' : '1px solid var(--border)',
+              border:
+                dragOverCol === status ? '1px solid var(--accent)' : '1px solid var(--border)',
               borderRadius: 'var(--radius)',
               display: 'flex',
               flexDirection: 'column',
@@ -193,12 +201,15 @@ export function KanbanBoard({ tickets }: KanbanBoardProps) {
                 <div
                   key={ticket.id}
                   draggable
-                  onDragStart={e => {
+                  onDragStart={(e) => {
                     setDraggingId(ticket.id);
                     e.dataTransfer.setData('ticketId', String(ticket.id));
                     e.dataTransfer.effectAllowed = 'move';
                   }}
-                  onDragEnd={() => { setDraggingId(null); setDragOverCol(null); }}
+                  onDragEnd={() => {
+                    setDraggingId(null);
+                    setDragOverCol(null);
+                  }}
                   style={{ cursor: 'grab', opacity: draggingId === ticket.id ? 0.4 : 1 }}
                 >
                   <TicketCard
@@ -291,8 +302,11 @@ export function KanbanBoard({ tickets }: KanbanBoardProps) {
         onMilestoneChange={handleMilestoneChange}
         onEpicChange={handleEpicChange}
         onTicketUpdate={(ticketId, updates) => {
-          setLocalTickets((prev) => prev.map((t) => t.id === ticketId ? { ...t, ...updates } : t));
-          if (selectedTicket?.id === ticketId) setSelectedTicket((t) => t ? { ...t, ...updates } : t);
+          setLocalTickets((prev) =>
+            prev.map((t) => (t.id === ticketId ? { ...t, ...updates } : t)),
+          );
+          if (selectedTicket?.id === ticketId)
+            setSelectedTicket((t) => (t ? { ...t, ...updates } : t));
         }}
       />
     </>

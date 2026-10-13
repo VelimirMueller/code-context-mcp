@@ -4,7 +4,10 @@ import { render, screen, fireEvent } from '@testing-library/react';
 
 // Mock framer-motion
 vi.mock('framer-motion', () => ({
-  motion: { div: (p: any) => <div {...filterDom(p)} />, span: (p: any) => <span {...filterDom(p)} /> },
+  motion: {
+    div: (p: any) => <div {...filterDom(p)} />,
+    span: (p: any) => <span {...filterDom(p)} />,
+  },
   AnimatePresence: ({ children }: any) => <>{children}</>,
   useReducedMotion: () => true,
 }));
@@ -12,7 +15,9 @@ vi.mock('framer-motion', () => ({
 function filterDom(props: Record<string, any>) {
   const skip = ['whileHover', 'layout', 'variants', 'initial', 'animate', 'exit', 'transition'];
   const clean: Record<string, any> = {};
-  for (const [k, v] of Object.entries(props)) { if (!skip.includes(k)) clean[k] = v; }
+  for (const [k, v] of Object.entries(props)) {
+    if (!skip.includes(k)) clean[k] = v;
+  }
   return clean;
 }
 
@@ -131,11 +136,12 @@ vi.mock('@/stores/planningStore', () => ({
 }));
 
 vi.mock('@/stores/sprintStore', () => ({
-  useSprintStore: (sel: any) => sel({
-    selectedSprintId: 6,
-    fetchTickets: vi.fn(),
-    fetchGroupedSprints: vi.fn(),
-  }),
+  useSprintStore: (sel: any) =>
+    sel({
+      selectedSprintId: 6,
+      fetchTickets: vi.fn(),
+      fetchGroupedSprints: vi.fn(),
+    }),
 }));
 
 vi.mock('@/stores/bridgeStore', () => ({
@@ -146,14 +152,36 @@ describe('KanbanBoard', () => {
   const mockFetch = vi.fn();
 
   const tickets: Ticket[] = [
-    { id: 1, title: 'T-1', status: 'TODO', story_points: 2, assigned_to: null,
-      priority: 'medium', qa_verified: 0, description: null,
-      ticket_ref: null, milestone: null, verified_by: null,
-      acceptance_criteria: null, notes: null },
-    { id: 2, title: 'T-2', status: 'IN_PROGRESS', story_points: 3, assigned_to: null,
-      priority: 'medium', qa_verified: 0, description: null,
-      ticket_ref: null, milestone: null, verified_by: null,
-      acceptance_criteria: null, notes: null },
+    {
+      id: 1,
+      title: 'T-1',
+      status: 'TODO',
+      story_points: 2,
+      assigned_to: null,
+      priority: 'medium',
+      qa_verified: 0,
+      description: null,
+      ticket_ref: null,
+      milestone: null,
+      verified_by: null,
+      acceptance_criteria: null,
+      notes: null,
+    },
+    {
+      id: 2,
+      title: 'T-2',
+      status: 'IN_PROGRESS',
+      story_points: 3,
+      assigned_to: null,
+      priority: 'medium',
+      qa_verified: 0,
+      description: null,
+      ticket_ref: null,
+      milestone: null,
+      verified_by: null,
+      acceptance_criteria: null,
+      notes: null,
+    },
   ];
 
   beforeEach(() => {
