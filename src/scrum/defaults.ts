@@ -191,23 +191,7 @@ When you start a task, pull the matching skill's full guidance with
 
 // ─── Seed Function ──────────────────────────────────────────────────────────
 
-import { execSync } from "node:child_process";
 import type Database from "better-sqlite3";
-
-/**
- * Pre-build check shared by the reset_* tools: ensure dist/ matches src/ before
- * a destructive re-seed. Skipped under vitest — a full build inside a unit test
- * blows the 5s timeout on CI runners. Must use the top-level ESM import:
- * a lazy CJS `require()` here crashes with "require is not defined" (discovery #33).
- */
-function ensureFreshBuild(action: string): void {
-  if (process.env.VITEST) return;
-  try {
-    execSync("npm run build", { stdio: "inherit" });
-  } catch {
-    throw new Error(`Build failed. Cannot ${action} with build errors.`);
-  }
-}
 
 /** Idempotently insert any missing frontend skills + primer. Returns count inserted. */
 export function seedFrontendSkills(db: Database.Database): number {
@@ -317,50 +301,55 @@ export function seedDefaults(db: Database.Database): { agents: number; skills: n
 }
 
 /**
- * Reset agents table to factory defaults. Truncates and re-seeds.
+ * Reset agents table to factory defaults. Truncates and re-seeds in one
+ * transaction: a failed insert or a failed count check rolls back the DELETE,
+ * so the table is never left empty. Spawns no process (#187): the MCP server's
+ * cwd is the user's project, and its stdout is the JSON-RPC channel.
  */
 export function resetAgents(db: Database.Database): number {
-  ensureFreshBuild("reset agents");
+  const run = db.transaction((): number => {
+    db.prepare("DELETE FROM agents").run();
+    const stmt = db.prepare(`INSERT INTO agents (role, name, description, model, tools, system_prompt, department) VALUES (?, ?, ?, ?, ?, ?, ?)`);
+    for (const a of AGENT_DEFAULTS) {
+      stmt.run(a.role, a.name, a.description, a.model, a.tools, a.system_prompt, a.department);
+    }
 
-  db.prepare("DELETE FROM agents").run();
-  const stmt = db.prepare(`INSERT INTO agents (role, name, description, model, tools, system_prompt, department) VALUES (?, ?, ?, ?, ?, ?, ?)`);
-  for (const a of AGENT_DEFAULTS) {
-    stmt.run(a.role, a.name, a.description, a.model, a.tools, a.system_prompt, a.department);
-  }
-
-  // Validation: ensure agent count is exactly 9
-  const count = (db.prepare("SELECT COUNT(*) as c FROM agents").get() as { c: number }).c;
-  if (count !== 9) {
-    throw new Error(`Agent validation failed: expected 9 agents, got ${count}`);
-  }
-
-  return AGENT_DEFAULTS.length;
+    // Validation: ensure agent count is exactly 9
+    const count = (db.prepare("SELECT COUNT(*) as c FROM agents").get() as { c: number }).c;
+    if (count !== 9) {
+      throw new Error(`Agent validation failed: expected 9 agents, got ${count}`);
+    }
+    return AGENT_DEFAULTS.length;
+  });
+  return run();
 }
 
 /**
- * Reset skills table to factory defaults. Truncates and re-seeds.
+ * Reset skills table to factory defaults. Truncates and re-seeds in one
+ * transaction (see resetAgents). Spawns no process (#187).
  * Returns the total number of skills restored (structural + frontend).
  */
 export function resetSkills(db: Database.Database): number {
-  ensureFreshBuild("reset skills");
+  const run = db.transaction((): number => {
+    db.prepare("DELETE FROM skills").run();
+    const stmt = db.prepare(`INSERT INTO skills (name, content, owner_role) VALUES (?, ?, ?)`);
+    for (const s of SKILL_DEFAULTS) {
+      stmt.run(s.name, s.content, s.owner_role);
+    }
 
-  db.prepare("DELETE FROM skills").run();
-  const stmt = db.prepare(`INSERT INTO skills (name, content, owner_role) VALUES (?, ?, ?)`);
-  for (const s of SKILL_DEFAULTS) {
-    stmt.run(s.name, s.content, s.owner_role);
-  }
+    // Validation: exactly 5 structural skills (frontend skills are seeded separately)
+    const structural = (db.prepare("SELECT COUNT(*) as c FROM skills WHERE name NOT LIKE 'fe:%' AND name NOT LIKE 'la:%' AND name NOT LIKE 'wf:%'").get() as { c: number }).c;
+    if (structural !== 5) {
+      throw new Error(`Skill validation failed: expected 5 structural skills, got ${structural}`);
+    }
 
-  // Validation: exactly 5 structural skills (frontend skills are seeded separately)
-  const structural = (db.prepare("SELECT COUNT(*) as c FROM skills WHERE name NOT LIKE 'fe:%' AND name NOT LIKE 'la:%' AND name NOT LIKE 'wf:%'").get() as { c: number }).c;
-  if (structural !== 5) {
-    throw new Error(`Skill validation failed: expected 5 structural skills, got ${structural}`);
-  }
+    // Factory reset restores every vendored skill set too (the DELETE above cleared
+    // them) — including the enablement row, so the project returns to fe-only defaults.
+    const setsRestored = seedSkillSets(db);
 
-  // Factory reset restores every vendored skill set too (the DELETE above cleared
-  // them) — including the enablement row, so the project returns to fe-only defaults.
-  const setsRestored = seedSkillSets(db);
-
-  return SKILL_DEFAULTS.length + setsRestored;
+    return SKILL_DEFAULTS.length + setsRestored;
+  });
+  return run();
 }
 
 /**
