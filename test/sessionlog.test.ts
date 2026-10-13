@@ -10,7 +10,15 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { z } from 'zod';
-import { log, sessionLogPath, sanitizeMessage, localTimestamp, logToolExceptions, logThrottled, resetThrottle } from '../src/sessionlog.js';
+import {
+  log,
+  sessionLogPath,
+  sanitizeMessage,
+  localTimestamp,
+  logToolExceptions,
+  logThrottled,
+  resetThrottle,
+} from '../src/sessionlog.js';
 
 type Handler = (
   args: Record<string, unknown>,
@@ -23,7 +31,11 @@ class FakeServer {
   }
 }
 
-const ENV_KEYS = ['OVERDRIVE_SESSION_LOG', 'OVERDRIVE_SESSION_LOG_DIR', 'CLAUDE_CODE_SESSION_ID'] as const;
+const ENV_KEYS = [
+  'OVERDRIVE_SESSION_LOG',
+  'OVERDRIVE_SESSION_LOG_DIR',
+  'CLAUDE_CODE_SESSION_ID',
+] as const;
 let saved: Record<string, string | undefined>;
 let dir: string;
 
@@ -173,18 +185,27 @@ describe('sessionlog integration — update_ticket', () => {
     initScrumSchema(db);
     runMigrations(db);
     const sprintId = Number(
-      db.prepare(`INSERT INTO sprints (name, goal, status) VALUES ('SPRINT-SENTINEL-9f3a', 'g', 'implementation')`).run()
-        .lastInsertRowid,
+      db
+        .prepare(
+          `INSERT INTO sprints (name, goal, status) VALUES ('SPRINT-SENTINEL-9f3a', 'g', 'implementation')`,
+        )
+        .run().lastInsertRowid,
     );
     const sentinel = 'TICKET-SENTINEL-7c1e secret title';
     const ticketId = Number(
-      db.prepare(`INSERT INTO tickets (title, description, status, sprint_id) VALUES (?, 'DESC-SENTINEL-55b2', 'TODO', ?)`)
+      db
+        .prepare(
+          `INSERT INTO tickets (title, description, status, sprint_id) VALUES (?, 'DESC-SENTINEL-55b2', 'TODO', ?)`,
+        )
         .run(sentinel, sprintId).lastInsertRowid,
     );
     const server = new FakeServer();
     registerScrumTools(server as never, db);
 
-    const res = await server.tools.get('update_ticket')!({ ticket_id: ticketId, status: 'IN_PROGRESS' });
+    const res = await server.tools.get('update_ticket')!({
+      ticket_id: ticketId,
+      status: 'IN_PROGRESS',
+    });
     expect(res.isError).toBeFalsy();
 
     const lines = readLines();
@@ -209,11 +230,17 @@ describe('logToolExceptions — real McpServer through the SDK', () => {
     server.tool('sync_boom', 'throws synchronously', {}, () => {
       throw new RangeError('SECRET-sync');
     });
-    server.tool('echo', 'echoes', { id: z.number() }, async function (this: unknown, { id }, extra) {
-      seenThis = this;
-      seenExtra = extra;
-      return { content: [{ type: 'text' as const, text: `id=${id}` }] };
-    });
+    server.tool(
+      'echo',
+      'echoes',
+      { id: z.number() },
+      async function (this: unknown, { id }, extra) {
+        // eslint-disable-next-line @typescript-eslint/no-this-alias -- the test checks the wrapper keeps `this`
+        seenThis = this;
+        seenExtra = extra;
+        return { content: [{ type: 'text' as const, text: `id=${id}` }] };
+      },
+    );
     const [ct, st] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: 'c', version: '0' });
     await Promise.all([server.connect(st), client.connect(ct)]);
@@ -224,16 +251,22 @@ describe('logToolExceptions — real McpServer through the SDK', () => {
     const { client, seen } = await connect(1);
 
     // (a) schema still enforced: invalid args never reach the handler
-    const bad = (await client.callTool({ name: 'echo', arguments: { id: 'not-a-number' } })) as { isError?: boolean };
+    const bad = (await client.callTool({ name: 'echo', arguments: { id: 'not-a-number' } })) as {
+      isError?: boolean;
+    };
     expect(bad.isError).toBe(true);
     // valid call goes through with the SDK's extra argument intact
-    const ok = (await client.callTool({ name: 'echo', arguments: { id: 7 } })) as { content: Array<{ text: string }> };
+    const ok = (await client.callTool({ name: 'echo', arguments: { id: 7 } })) as {
+      content: Array<{ text: string }>;
+    };
     expect(ok.content[0].text).toBe('id=7');
     expect(seen().seenExtra).toBeTypeOf('object');
     expect(readLines()).toHaveLength(0);
 
     // (b) a throwing handler yields exactly one CRITICAL line, class only
-    const res = (await client.callTool({ name: 'boom', arguments: { id: 1 } })) as { isError?: boolean };
+    const res = (await client.callTool({ name: 'boom', arguments: { id: 1 } })) as {
+      isError?: boolean;
+    };
     expect(res.isError).toBe(true);
     let lines = readLines();
     expect(lines).toHaveLength(1);
@@ -263,7 +296,9 @@ describe('logToolExceptions — real McpServer through the SDK', () => {
       },
     };
     logToolExceptions(fake);
-    const handler = function (this: unknown, _a: unknown, _b: unknown) { return this; };
+    const handler = function (this: unknown, _a: unknown, _b: unknown) {
+      return this;
+    };
     fake.tool('t', {}, handler);
     const { self, args } = calls[0] as { self: unknown; args: unknown[] };
     expect(self).toBe(fake);

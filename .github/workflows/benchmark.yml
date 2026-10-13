@@ -33,6 +33,9 @@ on:
         options: [glm, deepseek]
         default: glm
 
+# Nothing by default; each job declares its own permissions below.
+permissions: {}
+
 concurrency:
   group: benchmark
   cancel-in-progress: false
