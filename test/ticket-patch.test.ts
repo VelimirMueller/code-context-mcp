@@ -389,6 +389,20 @@ describe('PATCH /api/ticket/:id — status rules', () => {
     expect(JSON.parse(revisionRows(id)[0].changed_fields)).toEqual(['status']);
   });
 
+  it('saves a Kanban drop (#198) and returns the updated row', async () => {
+    const id = insertTicket({ status: 'IN_PROGRESS' });
+    for (const status of ['BLOCKED', 'TODO']) {
+      const res = await patchTicket(id, { status });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.ok).toBe(true);
+      expect(body.ticket.id).toBe(id);
+      expect(body.ticket.status).toBe(status);
+      expect(getTicketRow(id).status).toBe(status);
+    }
+    expect(revisionRows(id)).toHaveLength(2);
+  });
+
   it.each(['DONE', 'PARTIAL', 'NOT_DONE'])(
     'rejects process-controlled status %s with 400',
     async (status) => {

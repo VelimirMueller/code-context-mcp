@@ -34,9 +34,12 @@ export function KanbanBoard({ tickets }: KanbanBoardProps) {
   const fetchMilestones = usePlanningStore((s) => s.fetchMilestones);
   const selectedSprintId = useSprintStore((s) => s.selectedSprintId);
   const fetchTickets = useSprintStore((s) => s.fetchTickets);
+  const updateTicket = useSprintStore((s) => s.updateTicket);
   const fetchGrouped = useSprintStore((s) => s.fetchGroupedSprints);
 
-  useEffect(() => { setLocalTickets(tickets); }, [tickets]);
+  useEffect(() => {
+    setLocalTickets(tickets);
+  }, [tickets]);
 
   useEffect(() => {
     if (milestones.length === 0) fetchMilestones();
@@ -44,9 +47,11 @@ export function KanbanBoard({ tickets }: KanbanBoardProps) {
 
   useEffect(() => {
     if (groupByEpic && epics.length === 0) {
-      get<Epic[]>('/api/epics').then((data) => {
-        if (Array.isArray(data)) setEpics(data);
-      }).catch(() => {});
+      get<Epic[]>('/api/epics')
+        .then((data) => {
+          if (Array.isArray(data)) setEpics(data);
+        })
+        .catch(() => {});
     }
   }, [groupByEpic, epics.length]);
 
@@ -75,7 +80,7 @@ export function KanbanBoard({ tickets }: KanbanBoardProps) {
 
   const handleMilestoneChange = async (ticketId: number, milestoneId: number | null) => {
     await patch(`/api/ticket/${ticketId}/milestone`, { milestone_id: milestoneId });
-    const milestone = milestones.find(m => m.id === milestoneId);
+    const milestone = milestones.find((m) => m.id === milestoneId);
     if (selectedTicket && selectedTicket.id === ticketId) {
       setSelectedTicket({
         ...selectedTicket,
@@ -100,23 +105,29 @@ export function KanbanBoard({ tickets }: KanbanBoardProps) {
     if (selectedSprintId) fetchTickets(selectedSprintId);
   };
 
+  // A drop changes the status through PATCH /api/ticket/:id (#198), the same
+  // route the ticket editor uses. The server allows TODO, IN_PROGRESS and
+  // BLOCKED only; DONE and NOT_DONE stay with the QA gate, so such a drop
+  // reverts and updateTicket shows the server error.
   const handleDrop = async (e: React.DragEvent, targetStatus: string) => {
     e.preventDefault();
-    const ticketId = Number(e.dataTransfer.getData('ticketId'));
-    if (!ticketId) return;
-    let snapshot: Ticket[] = [];
-    setLocalTickets(ts => {
-      snapshot = ts;
-      return ts.map(t => t.id === ticketId ? { ...t, status: targetStatus } : t);
-    });
     setDraggingId(null);
     setDragOverCol(null);
-    try {
-      await patch(`/api/ticket/${ticketId}/status`, { status: targetStatus });
-      if (selectedSprintId) fetchTickets(selectedSprintId);
-    } catch {
-      setLocalTickets(snapshot);
+    const ticketId = Number(e.dataTransfer.getData('ticketId'));
+    const previous = localTickets.find((t) => t.id === ticketId);
+    if (!previous || previous.status === targetStatus) return;
+    // `from` guards the swap: a later drop or refetch is never overwritten.
+    const swapStatus = (from: string, to: string) =>
+      setLocalTickets((ts) =>
+        ts.map((t) => (t.id === ticketId && t.status === from ? { ...t, status: to } : t)),
+      );
+    swapStatus(previous.status, targetStatus);
+    const updated = await updateTicket(ticketId, { status: targetStatus }).catch(() => null);
+    if (!updated) {
+      swapStatus(targetStatus, previous.status);
+      return;
     }
+    if (selectedSprintId) fetchTickets(selectedSprintId);
   };
 
   const renderColumns = (columnTickets: Ticket[]) => (
@@ -135,16 +146,20 @@ export function KanbanBoard({ tickets }: KanbanBoardProps) {
         return (
           <div
             key={status}
-            onDragOver={e => { e.preventDefault(); setDragOverCol(status); }}
-            onDragLeave={e => {
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOverCol(status);
+            }}
+            onDragLeave={(e) => {
               if (!e.currentTarget.contains(e.relatedTarget as Node)) {
                 setDragOverCol(null);
               }
             }}
-            onDrop={e => handleDrop(e, status)}
+            onDrop={(e) => handleDrop(e, status)}
             style={{
               background: dragOverCol === status ? 'rgba(99,102,241,0.04)' : 'var(--bg)',
-              border: dragOverCol === status ? '1px solid var(--accent)' : '1px solid var(--border)',
+              border:
+                dragOverCol === status ? '1px solid var(--accent)' : '1px solid var(--border)',
               borderRadius: 'var(--radius)',
               display: 'flex',
               flexDirection: 'column',
@@ -193,12 +208,15 @@ export function KanbanBoard({ tickets }: KanbanBoardProps) {
                 <div
                   key={ticket.id}
                   draggable
-                  onDragStart={e => {
+                  onDragStart={(e) => {
                     setDraggingId(ticket.id);
                     e.dataTransfer.setData('ticketId', String(ticket.id));
                     e.dataTransfer.effectAllowed = 'move';
                   }}
-                  onDragEnd={() => { setDraggingId(null); setDragOverCol(null); }}
+                  onDragEnd={() => {
+                    setDraggingId(null);
+                    setDragOverCol(null);
+                  }}
                   style={{ cursor: 'grab', opacity: draggingId === ticket.id ? 0.4 : 1 }}
                 >
                   <TicketCard
@@ -291,8 +309,11 @@ export function KanbanBoard({ tickets }: KanbanBoardProps) {
         onMilestoneChange={handleMilestoneChange}
         onEpicChange={handleEpicChange}
         onTicketUpdate={(ticketId, updates) => {
-          setLocalTickets((prev) => prev.map((t) => t.id === ticketId ? { ...t, ...updates } : t));
-          if (selectedTicket?.id === ticketId) setSelectedTicket((t) => t ? { ...t, ...updates } : t);
+          setLocalTickets((prev) =>
+            prev.map((t) => (t.id === ticketId ? { ...t, ...updates } : t)),
+          );
+          if (selectedTicket?.id === ticketId)
+            setSelectedTicket((t) => (t ? { ...t, ...updates } : t));
         }}
       />
     </>
