@@ -4,7 +4,10 @@ import type { Ticket, TicketAssignment } from '@/types';
 
 // Mock framer-motion (same approach as molecules.test.tsx)
 vi.mock('framer-motion', () => ({
-  motion: { div: (p: any) => <div {...filterDom(p)} />, span: (p: any) => <span {...filterDom(p)} /> },
+  motion: {
+    div: (p: any) => <div {...filterDom(p)} />,
+    span: (p: any) => <span {...filterDom(p)} />,
+  },
   AnimatePresence: ({ children }: any) => <>{children}</>,
   useReducedMotion: () => true,
 }));
@@ -12,7 +15,9 @@ vi.mock('framer-motion', () => ({
 function filterDom(props: Record<string, any>) {
   const skip = ['whileHover', 'layout', 'variants', 'initial', 'animate', 'exit', 'transition'];
   const clean: Record<string, any> = {};
-  for (const [k, v] of Object.entries(props)) { if (!skip.includes(k)) clean[k] = v; }
+  for (const [k, v] of Object.entries(props)) {
+    if (!skip.includes(k)) clean[k] = v;
+  }
   return clean;
 }
 
@@ -31,7 +36,12 @@ const routeFetch = (routes: Record<string, unknown>) => {
 const failPatchWith = (status: number, error: string) => {
   mockFetch.mockImplementation((path: string, init?: RequestInit) => {
     if (init?.method === 'PATCH') {
-      return Promise.resolve({ ok: false, status, statusText: 'Bad Request', json: async () => ({ error }) });
+      return Promise.resolve({
+        ok: false,
+        status,
+        statusText: 'Bad Request',
+        json: async () => ({ error }),
+      });
     }
     return Promise.resolve({ ok: true, json: async () => (path === '/api/epics' ? [] : {}) });
   });
@@ -92,12 +102,20 @@ describe('sprintStore.updateTicket', () => {
 
   it('applies the optimistic update immediately', async () => {
     let resolveFetch: (v: unknown) => void;
-    mockFetch.mockImplementation(() => new Promise((r) => { resolveFetch = r; }));
+    mockFetch.mockImplementation(
+      () =>
+        new Promise((r) => {
+          resolveFetch = r;
+        }),
+    );
 
     const promise = useSprintStore.getState().updateTicket(1, { status: 'IN_PROGRESS' });
     expect(useSprintStore.getState().tickets[0].status).toBe('IN_PROGRESS');
 
-    resolveFetch!({ ok: true, json: async () => ({ ok: true, ticket: { ...baseTicket, status: 'IN_PROGRESS' } }) });
+    resolveFetch!({
+      ok: true,
+      json: async () => ({ ok: true, ticket: { ...baseTicket, status: 'IN_PROGRESS' } }),
+    });
     await promise;
     expect(useSprintStore.getState().tickets[0].status).toBe('IN_PROGRESS');
   });
@@ -117,7 +135,12 @@ describe('sprintStore.updateTicket', () => {
 
   it('optimistically maps assignments to display shape and mirrors the lead', async () => {
     let resolveFetch: (v: unknown) => void;
-    mockFetch.mockImplementation(() => new Promise((r) => { resolveFetch = r; }));
+    mockFetch.mockImplementation(
+      () =>
+        new Promise((r) => {
+          resolveFetch = r;
+        }),
+    );
 
     const promise = useSprintStore.getState().updateTicket(1, {
       assignments: [
@@ -190,14 +213,19 @@ describe('TicketDetailModal', () => {
   it('round-trips a title edit through PATCH and shows the reconciled value', async () => {
     routeFetch({
       'GET /api/epics': [],
-      'PATCH /api/ticket/1': { ok: true, ticket: { ...baseTicket, title: 'Server-reconciled title', change_seq: 2 } },
+      'PATCH /api/ticket/1': {
+        ok: true,
+        ticket: { ...baseTicket, title: 'Server-reconciled title', change_seq: 2 },
+      },
     });
     await renderModal();
 
     fireEvent.click(screen.getByText('Original title'));
     const input = screen.getByLabelText('Ticket title');
     fireEvent.change(input, { target: { value: 'Renamed title' } });
-    await act(async () => { fireEvent.blur(input); });
+    await act(async () => {
+      fireEvent.blur(input);
+    });
 
     const [path, init] = patchCalls()[0];
     expect(path).toBe('/api/ticket/1');
@@ -215,7 +243,9 @@ describe('TicketDetailModal', () => {
 
     const points = screen.getByLabelText('Story points');
     fireEvent.change(points, { target: { value: '8' } });
-    await act(async () => { fireEvent.blur(points); });
+    await act(async () => {
+      fireEvent.blur(points);
+    });
 
     expect(JSON.parse(patchCalls()[0][1].body)).toEqual({ story_points: 8 });
   });
@@ -308,7 +338,9 @@ describe('AssignmentEditor', () => {
 
   it('model dropdown sets a per-assignment override', async () => {
     const onChange = await renderEditor(twoAssigned);
-    fireEvent.change(screen.getByLabelText('Model for security'), { target: { value: 'claude-haiku-4-5' } });
+    fireEvent.change(screen.getByLabelText('Model for security'), {
+      target: { value: 'claude-haiku-4-5' },
+    });
     expect(onChange).toHaveBeenCalledWith([
       { role: 'fe-engineer', model: null, is_lead: 1 },
       { role: 'security', model: 'claude-haiku-4-5', is_lead: 0 },
@@ -356,7 +388,7 @@ describe('AssignmentChips', () => {
     expect(container.textContent).toContain('haiku-4-5');
     expect(container.textContent).not.toContain('claude-haiku-4-5');
     // Only one chip carries a model suffix
-    expect((container.textContent?.match(/·/g) ?? [])).toHaveLength(1);
+    expect(container.textContent?.match(/·/g) ?? []).toHaveLength(1);
   });
 });
 
