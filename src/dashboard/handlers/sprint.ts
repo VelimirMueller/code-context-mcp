@@ -791,6 +791,7 @@ export function apiUpdateTicket(db: Database.Database, id: number, raw: unknown)
 const UI_TICKET_PATCH_FIELDS = [
   'title',
   'description',
+  'notes',
   'story_points',
   'priority',
   'status',
@@ -917,6 +918,11 @@ export function apiPatchTicket(
     if (body.description !== existing.description)
       recordScalar('description', existing.description, body.description);
   }
+  if (body.notes !== undefined) {
+    if (body.notes !== null && typeof body.notes !== 'string')
+      throw badRequest('notes must be a string or null');
+    if (body.notes !== existing.notes) recordScalar('notes', existing.notes, body.notes);
+  }
   if (body.story_points !== undefined) {
     if (
       typeof body.story_points !== 'number' ||
@@ -1014,7 +1020,7 @@ export function apiPatchTicket(
         id,
         field,
         oldValues[field] == null ? null : String(oldValues[field]),
-        String(newValues[field]),
+        newValues[field] == null ? null : String(newValues[field]),
       );
     }
   });

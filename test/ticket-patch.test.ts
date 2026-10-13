@@ -341,6 +341,45 @@ describe('PATCH /api/ticket/:id — multi-field edit', () => {
 
 // ── Status guardrails ────────────────────────────────────────────────────────
 
+describe('PATCH /api/ticket/:id — notes (#197)', () => {
+  it('saves notes, returns the updated row and records the change', async () => {
+    const id = insertTicket();
+
+    const res = await patchTicket(id, { notes: 'Check the retry path' });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.ticket.id).toBe(id);
+    expect(body.ticket.notes).toBe('Check the retry path');
+
+    expect(getTicketRow(id).notes).toBe('Check the retry path');
+    const revisions = revisionRows(id);
+    expect(revisions).toHaveLength(1);
+    expect(JSON.parse(revisions[0].changed_fields)).toEqual(['notes']);
+    expect(eventRows(id).map((e) => e.field_name)).toEqual(['notes']);
+  });
+
+  it('clears notes with null and logs a null new value', async () => {
+    const id = insertTicket();
+    await patchTicket(id, { notes: 'temporary' });
+
+    const res = await patchTicket(id, { notes: null });
+    expect(res.status).toBe(200);
+    expect((await res.json()).ticket.notes).toBeNull();
+    expect(getTicketRow(id).notes).toBeNull();
+    const events = eventRows(id);
+    expect(events[events.length - 1].new_value).toBeNull();
+  });
+
+  it('rejects notes that are not a string or null with 400', async () => {
+    const id = insertTicket();
+    const res = await patchTicket(id, { notes: 42 });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/notes must be a string or null/);
+    expect(getTicketRow(id).notes).toBeNull();
+  });
+});
+
 describe('PATCH /api/ticket/:id — status rules', () => {
   it('allows TODO → IN_PROGRESS', async () => {
     const id = insertTicket({ status: 'TODO' });

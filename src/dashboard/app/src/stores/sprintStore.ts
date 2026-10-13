@@ -24,6 +24,7 @@ export interface AssignmentInput {
 export interface TicketUpdatePayload {
   title?: string;
   description?: string | null;
+  notes?: string | null;
   story_points?: number | null;
   priority?: string;
   status?: string;
@@ -227,6 +228,7 @@ export const useSprintStore = create<SprintStore>((set, getState) => ({
         const next: Ticket = { ...t };
         if (payload.title !== undefined) next.title = payload.title;
         if (payload.description !== undefined) next.description = payload.description;
+        if (payload.notes !== undefined) next.notes = payload.notes;
         if (payload.story_points !== undefined) next.story_points = payload.story_points;
         if (payload.priority !== undefined) next.priority = payload.priority;
         if (payload.status !== undefined) next.status = payload.status;

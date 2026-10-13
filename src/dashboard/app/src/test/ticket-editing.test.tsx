@@ -234,6 +234,36 @@ describe('TicketDetailModal', () => {
     expect(useSprintStore.getState().tickets[0].title).toBe('Server-reconciled title');
   });
 
+  it('saves notes via PATCH /api/ticket/:id on blur (#197)', async () => {
+    routeFetch({
+      'GET /api/epics': [],
+      'PATCH /api/ticket/1': { ok: true, ticket: { ...baseTicket, notes: 'Check the retry path' } },
+    });
+    await renderModal();
+
+    const notes = screen.getByLabelText('Ticket notes');
+    fireEvent.change(notes, { target: { value: 'Check the retry path' } });
+    await act(async () => {
+      fireEvent.blur(notes);
+    });
+
+    const calls = mockFetch.mock.calls.filter(([, i]) => i?.method && i.method !== 'GET');
+    expect(calls).toHaveLength(1);
+    const [path, init] = calls[0];
+    expect(path).toBe('/api/ticket/1');
+    expect(init.method).toBe('PATCH');
+    expect(JSON.parse(init.body)).toEqual({ notes: 'Check the retry path' });
+    expect(useSprintStore.getState().tickets[0].notes).toBe('Check the retry path');
+  });
+
+  it('does not send a request when the notes are unchanged', async () => {
+    await renderModal();
+    await act(async () => {
+      fireEvent.blur(screen.getByLabelText('Ticket notes'));
+    });
+    expect(patchCalls()).toHaveLength(0);
+  });
+
   it('saves story points via PATCH on blur', async () => {
     routeFetch({
       'GET /api/epics': [],

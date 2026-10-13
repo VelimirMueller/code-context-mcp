@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { Ticket, TicketAssignment, Milestone, Epic } from '@/types';
 import { hideArchived } from '@/lib/utils';
-import { get, put } from '@/lib/api';
+import { get } from '@/lib/api';
 import { useSprintStore } from '@/stores/sprintStore';
 import { useAgentStore } from '@/stores/agentStore';
 import { AssignmentEditor } from '@/components/molecules/AssignmentEditor';
@@ -165,20 +165,12 @@ export function TicketDetailModal({
     });
   };
 
-  // Notes are not part of the PATCH contract — keep the existing PUT path.
-  const saveNotes = async () => {
+  // Notes go through the same PATCH contract as the other fields (#197).
+  const saveNotes = () => {
     if (!ticket) return;
-    setFieldSaving('notes');
-    try {
-      await put(`/api/ticket/${ticket.id}`, { notes: editNotes || null });
-      setFieldSaved('notes');
-      setTimeout(() => setFieldSaved(null), 1500);
-      onTicketUpdate?.(ticket.id, { notes: editNotes || null });
-    } catch {
-      // silent
-    } finally {
-      setFieldSaving(null);
-    }
+    const next = editNotes || null;
+    if (next === (ticket.notes ?? null)) return;
+    commit('notes', { notes: next });
   };
 
   const selectableEpics = hideArchived(epics, ticket?.epic_id);
@@ -710,6 +702,7 @@ export function TicketDetailModal({
                 value={editNotes}
                 onChange={(e) => setEditNotes(e.target.value)}
                 onBlur={saveNotes}
+                aria-label="Ticket notes"
                 disabled={fieldSaving === 'notes'}
                 placeholder="Add notes for Claude's context…"
                 rows={3}
