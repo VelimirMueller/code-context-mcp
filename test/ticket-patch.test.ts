@@ -479,6 +479,74 @@ describe('POST /api/tickets — default priority (#204)', () => {
   });
 });
 
+describe('POST /api/tickets — ticket ref of a deleted ticket (#210)', () => {
+  async function createTicket(body: unknown) {
+    return fetch(`${BASE}/api/tickets`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(body),
+    });
+  }
+
+  /** A sprint of its own, because UNIQUE(sprint_id, ticket_ref) treats NULL sprints as distinct. */
+  function insertSprint(name: string): number {
+    const db = seedDb();
+    try {
+      return Number(db.prepare('INSERT INTO sprints (name) VALUES (?)').run(name).lastInsertRowid);
+    } finally {
+      db.close();
+    }
+  }
+
+  function softDelete(id: number) {
+    const db = seedDb();
+    try {
+      db.prepare("UPDATE tickets SET deleted_at = datetime('now') WHERE id = ?").run(id);
+    } finally {
+      db.close();
+    }
+  }
+
+  it('gives a new ref when the newest ticket is soft-deleted', async () => {
+    const sprint_id = insertSprint('ref-210-deleted');
+    const first = await createTicket({ title: 'Newest, then deleted', sprint_id });
+    expect(first.status).toBe(200);
+    const deleted = await first.json();
+    softDelete(deleted.id);
+
+    const res = await createTicket({ title: 'After the delete', sprint_id });
+    expect(res.status).toBe(200);
+    const created = await res.json();
+    expect(created.ticket_ref).toMatch(/^T-\d+$/);
+    expect(created.ticket_ref).not.toBe(deleted.ticket_ref);
+    expect(getTicketRow(created.id).sprint_id).toBe(sprint_id);
+  });
+
+  it('skips a ref that another row already has', async () => {
+    const sprint_id = insertSprint('ref-210-taken');
+    const db = seedDb();
+    let taken: string;
+    try {
+      const maxId = (db.prepare('SELECT MAX(id) AS m FROM tickets').get() as { m: number }).m;
+      // The ref the old rule would pick next, set by hand (as the MCP create_ticket tool can).
+      taken = `T-${maxId + 2}`;
+      db.prepare('INSERT INTO tickets (sprint_id, ticket_ref, title) VALUES (?, ?, ?)').run(
+        sprint_id,
+        taken,
+        'Hand-set ref',
+      );
+    } finally {
+      db.close();
+    }
+
+    const res = await createTicket({ title: 'Must not reuse the hand-set ref', sprint_id });
+    expect(res.status).toBe(200);
+    const created = await res.json();
+    expect(created.ticket_ref).not.toBe(taken);
+    expect(created.ticket_ref).toMatch(/^T-\d+$/);
+  });
+});
+
 describe('PATCH /api/ticket/:id — status rules', () => {
   it('allows TODO → IN_PROGRESS', async () => {
     const id = insertTicket({ status: 'TODO' });

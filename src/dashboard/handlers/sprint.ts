@@ -652,6 +652,20 @@ export function apiSprintUpdate(
 /** Same as the `tickets.priority` column default and the MCP create_ticket default. */
 export const DEFAULT_TICKET_PRIORITY = 'P2';
 
+/**
+ * Next free `T-<n>` ref (#210). `n` starts after the highest id of all rows,
+ * soft-deleted ones included (ids are AUTOINCREMENT, so they are never reused),
+ * and skips any ref that a row already has, for example one the MCP
+ * `create_ticket` tool set by hand. Call it in the transaction that inserts.
+ */
+export function nextTicketRef(db: Database.Database): string {
+  const maxId = db.prepare(`SELECT MAX(id) AS m FROM tickets`).get() as { m: number | null };
+  const taken = db.prepare(`SELECT 1 FROM tickets WHERE ticket_ref = ? LIMIT 1`);
+  let n = (maxId.m ?? 0) + 1;
+  while (taken.get(`T-${n}`)) n++;
+  return `T-${n}`;
+}
+
 export function apiCreateTicket(db: Database.Database, raw: unknown) {
   const {
     title,
@@ -668,13 +682,6 @@ export function apiCreateTicket(db: Database.Database, raw: unknown) {
   const ticketPriority = priority ?? DEFAULT_TICKET_PRIORITY;
   validateEnum(ticketPriority, ['P0', 'P1', 'P2', 'P3'], 'priority');
 
-  // Generate ticket_ref: T-<next_id>
-  const maxRef = db.prepare(`SELECT MAX(id) as m FROM tickets WHERE deleted_at IS NULL`).get() as
-    | { m: number | null }
-    | undefined;
-  const nextNum = (maxRef?.m ?? 0) + 1;
-  const ticket_ref = `T-${nextNum}`;
-
   // Resolve milestone name if milestone_id provided
   let milestone: string | null = null;
   if (milestone_id) {
@@ -684,25 +691,30 @@ export function apiCreateTicket(db: Database.Database, raw: unknown) {
     if (ms) milestone = ms.name;
   }
 
-  const result = db
-    .prepare(
-      `
+  // Ref and insert in one transaction, so no other write can take the ref between them.
+  const insert = db.transaction(() => {
+    const ticket_ref = nextTicketRef(db);
+    return db
+      .prepare(
+        `
     INSERT INTO tickets (ticket_ref, title, description, priority, sprint_id, epic_id, milestone_id, milestone, assigned_to, story_points)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `,
-    )
-    .run(
-      ticket_ref,
-      title,
-      description || null,
-      ticketPriority,
-      sprint_id || null,
-      epic_id || null,
-      milestone_id || null,
-      milestone,
-      assigned_to || null,
-      story_points ?? 0,
-    );
+      )
+      .run(
+        ticket_ref,
+        title,
+        description || null,
+        ticketPriority,
+        sprint_id || null,
+        epic_id || null,
+        milestone_id || null,
+        milestone,
+        assigned_to || null,
+        story_points ?? 0,
+      );
+  });
+  const result = insert();
 
   // The saved row, so the caller sees the stored defaults (priority, status).
   return db.prepare(`SELECT * FROM tickets WHERE id = ?`).get(result.lastInsertRowid) as TicketRow;
