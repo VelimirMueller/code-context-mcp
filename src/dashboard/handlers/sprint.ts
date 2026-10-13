@@ -691,7 +691,9 @@ export function apiCreateTicket(db: Database.Database, raw: unknown) {
     if (ms) milestone = ms.name;
   }
 
-  // Ref and insert in one transaction, so no other write can take the ref between them.
+  // Ref and insert in one IMMEDIATE transaction: the write lock is taken before the
+  // reads, so no other connection (e.g. the MCP server on the same file) can take the
+  // ref between them.
   const insert = db.transaction(() => {
     const ticket_ref = nextTicketRef(db);
     return db
@@ -714,7 +716,7 @@ export function apiCreateTicket(db: Database.Database, raw: unknown) {
         story_points ?? 0,
       );
   });
-  const result = insert();
+  const result = insert.immediate();
 
   // The saved row, so the caller sees the stored defaults (priority, status).
   return db.prepare(`SELECT * FROM tickets WHERE id = ?`).get(result.lastInsertRowid) as TicketRow;
