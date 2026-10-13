@@ -254,7 +254,7 @@ const MILESTONE_STATUSES: { value: MilestoneStatus; label: string }[] = [
  */
 function EditMilestoneForm({ milestone, onDone }: { milestone: Milestone; onDone: () => void }) {
   const updateMilestone = usePlanningStore((s) => s.updateMilestone);
-  const [status, setStatus] = useState(milestone.status);
+  const [status, setStatus] = useState<MilestoneStatus>(milestone.status as MilestoneStatus);
   const [targetDate, setTargetDate] = useState(milestone.target_date ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -262,7 +262,7 @@ function EditMilestoneForm({ milestone, onDone }: { milestone: Milestone; onDone
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const changes: { status?: MilestoneStatus; target_date?: string | null } = {};
-    if (status !== milestone.status) changes.status = status as MilestoneStatus;
+    if (status !== milestone.status) changes.status = status;
     if (targetDate !== (milestone.target_date ?? '')) changes.target_date = targetDate || null;
     if (Object.keys(changes).length === 0) {
       onDone();
@@ -288,7 +288,7 @@ function EditMilestoneForm({ milestone, onDone }: { milestone: Milestone; onDone
       <select
         aria-label={`Status of ${milestone.name}`}
         value={status}
-        onChange={(e) => setStatus(e.target.value)}
+        onChange={(e) => setStatus(e.target.value as MilestoneStatus)}
         style={fieldStyle}
       >
         {MILESTONE_STATUSES.map((s) => (
