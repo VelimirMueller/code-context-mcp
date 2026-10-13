@@ -381,6 +381,43 @@ describe('PATCH /api/ticket/:id — notes (#197)', () => {
   });
 });
 
+describe('PATCH /api/ticket/:id — description (#206)', () => {
+  it('clears the description with null, returns the row and records the change', async () => {
+    const id = insertTicket();
+
+    const res = await patchTicket(id, { description: null });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.ticket.id).toBe(id);
+    expect(body.ticket.description).toBeNull();
+
+    expect(getTicketRow(id).description).toBeNull();
+    const revisions = revisionRows(id);
+    expect(revisions).toHaveLength(1);
+    expect(JSON.parse(revisions[0].changed_fields)).toEqual(['description']);
+    const events = eventRows(id);
+    expect(events.map((e) => e.field_name)).toEqual(['description']);
+    expect(events[0].old_value).toBe('Original description');
+    expect(events[0].new_value).toBeNull();
+  });
+
+  it('is a 200 no-op when the description is already null', async () => {
+    const id = insertTicket({ description: null });
+    const res = await patchTicket(id, { description: null });
+    expect(res.status).toBe(200);
+    expect(revisionRows(id)).toHaveLength(0);
+  });
+
+  it('rejects a description that is not a string or null with 400', async () => {
+    const id = insertTicket();
+    const res = await patchTicket(id, { description: 42 });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/description must be a string or null/);
+    expect(getTicketRow(id).description).toBe('Original description');
+  });
+});
+
 describe('POST /api/tickets — default priority (#204)', () => {
   async function createTicket(body: unknown) {
     return fetch(`${BASE}/api/tickets`, {

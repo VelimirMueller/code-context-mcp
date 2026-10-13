@@ -264,6 +264,28 @@ describe('TicketDetailModal', () => {
     expect(patchCalls()).toHaveLength(0);
   });
 
+  it('clears the description with null via PATCH on blur (#206)', async () => {
+    routeFetch({
+      'GET /api/epics': [],
+      'PATCH /api/ticket/1': { ok: true, ticket: { ...baseTicket, description: null } },
+    });
+    await renderModal();
+
+    fireEvent.click(screen.getByText('Original description'));
+    const textarea = screen.getByLabelText('Ticket description');
+    fireEvent.change(textarea, { target: { value: '   ' } });
+    await act(async () => {
+      fireEvent.blur(textarea);
+    });
+
+    const calls = patchCalls();
+    expect(calls).toHaveLength(1);
+    expect(calls[0][0]).toBe('/api/ticket/1');
+    expect(JSON.parse(calls[0][1].body)).toEqual({ description: null });
+    expect(useSprintStore.getState().tickets[0].description).toBeNull();
+    expect(await screen.findByText('Add description…')).toBeDefined();
+  });
+
   it('saves story points via PATCH on blur', async () => {
     routeFetch({
       'GET /api/epics': [],
