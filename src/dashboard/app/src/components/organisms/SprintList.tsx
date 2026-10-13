@@ -8,6 +8,17 @@ const ARCHIVABLE_STATUSES = ['closed', 'rest', 'done'];
 const isArchiveEligible = (s: Sprint) =>
   ARCHIVABLE_STATUSES.includes(s.status) && s.archived_at === null;
 
+/**
+ * Colour of a milestone header and progress bar, by the status the database
+ * stores (`planned`, `active`, `completed`; #211). Any other value, and no
+ * milestone, gets the planned colour.
+ */
+export function milestoneStatusColor(status: string | undefined): string {
+  if (status === 'active') return 'var(--accent)';
+  if (status === 'completed') return 'var(--text3)';
+  return 'var(--purple)';
+}
+
 export function SprintList() {
   const milestoneGroups = useSprintStore((s) => s.milestoneGroups);
   const sprints = useSprintStore((s) => s.sprints);
@@ -126,7 +137,7 @@ export function SprintList() {
         const isCollapsed = collapsed.has(key);
         const ms = group.milestone;
         const pct = ms && ms.ticket_count > 0 ? Math.round((ms.done_count / ms.ticket_count) * 100) : 0;
-        const statusColor = ms?.status === 'in_progress' ? 'var(--accent)' : ms?.status === 'completed' ? 'var(--text3)' : 'var(--purple)';
+        const statusColor = milestoneStatusColor(ms?.status);
         const isCompleted = ms?.status === 'completed';
 
         return (
@@ -167,7 +178,7 @@ export function SprintList() {
                   <span style={{ fontSize: 11, fontWeight: 700, color: isCompleted ? 'var(--text3)' : 'var(--text)', flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {ms.name}
                   </span>
-                  <span style={{ fontSize: 9, fontFamily: 'var(--mono)', fontWeight: 600, color: statusColor, textTransform: 'uppercase', flexShrink: 0 }}>
+                  <span data-testid={`milestone-pct-${ms.id}`} style={{ fontSize: 9, fontFamily: 'var(--mono)', fontWeight: 600, color: statusColor, textTransform: 'uppercase', flexShrink: 0 }}>
                     {pct}%
                   </span>
                   <span style={{ fontSize: 9, fontFamily: 'var(--mono)', color: 'var(--text3)', flexShrink: 0 }}>
@@ -189,7 +200,7 @@ export function SprintList() {
             {/* Progress bar for milestone */}
             {ms && !isCollapsed && (
               <div style={{ margin: '2px 8px 6px', height: 2, background: 'var(--surface3)', borderRadius: 1, overflow: 'hidden' }}>
-                <div style={{ width: `${pct}%`, height: '100%', background: statusColor, borderRadius: 1, transition: 'width 0.4s ease' }} />
+                <div data-testid={`milestone-bar-${ms.id}`} style={{ width: `${pct}%`, height: '100%', background: statusColor, borderRadius: 1, transition: 'width 0.4s ease' }} />
               </div>
             )}
 
