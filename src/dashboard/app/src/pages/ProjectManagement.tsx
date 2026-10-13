@@ -44,9 +44,10 @@ function MilestoneCard({ milestone, onClose, onArchive, onUnarchive }: Milestone
   const [archiving, setArchiving] = useState(false);
   const isActive = milestone.status !== 'completed';
   const isArchived = !!milestone.archived_at;
-  const pct = milestone.ticket_count > 0
-    ? Math.round((milestone.done_count / milestone.ticket_count) * 100)
-    : milestone.progress ?? 0;
+  const pct =
+    milestone.ticket_count > 0
+      ? Math.round((milestone.done_count / milestone.ticket_count) * 100)
+      : (milestone.progress ?? 0);
 
   const statusColor: Record<string, string> = {
     active: '#10b981',
@@ -78,17 +79,26 @@ function MilestoneCard({ milestone, onClose, onArchive, onUnarchive }: Milestone
   };
 
   return (
-    <div style={{
-      background: 'var(--surface)',
-      border: '1px solid var(--border)',
-      borderLeft: `3px solid ${color}`,
-      borderRadius: 12,
-      padding: '16px 20px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 10,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+    <div
+      style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        borderLeft: `3px solid ${color}`,
+        borderRadius: 12,
+        padding: '16px 20px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: 12,
+        }}
+      >
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 2 }}>
             {milestone.name}
@@ -100,11 +110,18 @@ function MilestoneCard({ milestone, onClose, onArchive, onUnarchive }: Milestone
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <span style={{
-            fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
-            padding: '2px 8px', borderRadius: 4,
-            background: `${color}18`, color,
-          }}>
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              padding: '2px 8px',
+              borderRadius: 4,
+              background: `${color}18`,
+              color,
+            }}
+          >
             {milestone.status}
           </span>
           {isActive && !isArchived && (
@@ -115,7 +132,11 @@ function MilestoneCard({ milestone, onClose, onArchive, onUnarchive }: Milestone
           {/* Archive is offered once completed (server enforces the same rule);
               Unarchive is always available on an archived milestone. */}
           {((!isActive && !isArchived && onArchive) || (isArchived && onUnarchive)) && (
-            <button onClick={handleArchiveToggle} disabled={archiving} style={smallButton(archiving)}>
+            <button
+              onClick={handleArchiveToggle}
+              disabled={archiving}
+              style={smallButton(archiving)}
+            >
               {archiving ? '…' : isArchived ? 'Unarchive' : 'Archive'}
             </button>
           )}
@@ -125,7 +146,9 @@ function MilestoneCard({ milestone, onClose, onArchive, onUnarchive }: Milestone
       <ProgressBar value={pct} color={color} />
 
       <div style={{ display: 'flex', gap: 20, fontSize: 11, color: 'var(--text3)' }}>
-        <span>{milestone.done_count ?? 0}/{milestone.ticket_count ?? 0} tickets</span>
+        <span>
+          {milestone.done_count ?? 0}/{milestone.ticket_count ?? 0} tickets
+        </span>
         <span>{pct}% done</span>
         {milestone.target_date && (
           <span>Target: {new Date(milestone.target_date).toLocaleDateString()}</span>
@@ -142,7 +165,9 @@ export function ProjectManagement() {
   const unarchiveMilestone = usePlanningStore((s) => s.unarchiveMilestone);
   const [showArchived, setShowArchived] = useState(false);
 
-  useEffect(() => { fetchMilestones(); }, []);
+  useEffect(() => {
+    fetchMilestones();
+  }, []);
 
   // Archive state is orthogonal to status (same model as sprints): completed milestones
   // stay visible until archived; archived ones live behind the toggle.
@@ -160,12 +185,33 @@ export function ProjectManagement() {
     <div style={{ padding: '24px 28px', overflowY: 'auto', height: '100%' }}>
       {/* Active milestones */}
       <div style={{ marginBottom: 32 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text3)', marginBottom: 14 }}>
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+            color: 'var(--text3)',
+            marginBottom: 14,
+          }}
+        >
           Active Milestones
         </div>
         {active.length === 0 ? (
           <div style={{ fontSize: 13, color: 'var(--text3)', padding: '20px 0' }}>
-            No active milestones. Run <code style={{ fontFamily: 'var(--mono)', fontSize: 12, background: 'var(--surface2)', padding: '1px 6px', borderRadius: 4 }}>/kickoff</code> to create one.
+            No active milestones. Run{' '}
+            <code
+              style={{
+                fontFamily: 'var(--mono)',
+                fontSize: 12,
+                background: 'var(--surface2)',
+                padding: '1px 6px',
+                borderRadius: 4,
+              }}
+            >
+              /kickoff
+            </code>{' '}
+            to create one.
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -179,12 +225,26 @@ export function ProjectManagement() {
       {/* Completed, not yet archived */}
       {completed.length > 0 && (
         <div style={{ marginBottom: 32 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text3)', marginBottom: 14 }}>
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              color: 'var(--text3)',
+              marginBottom: 14,
+            }}
+          >
             Completed ({completed.length})
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {completed.map((m) => (
-              <MilestoneCard key={m.id} milestone={m} onClose={handleClose} onArchive={archiveMilestone} />
+              <MilestoneCard
+                key={m.id}
+                milestone={m}
+                onClose={handleClose}
+                onArchive={archiveMilestone}
+              />
             ))}
           </div>
         </div>
@@ -196,10 +256,17 @@ export function ProjectManagement() {
           <button
             onClick={() => setShowArchived((v) => !v)}
             style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
-              letterSpacing: '0.08em', color: 'var(--text3)',
-              display: 'flex', alignItems: 'center', gap: 6,
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 11,
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              color: 'var(--text3)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
               padding: '0 0 14px',
               fontFamily: 'var(--font)',
             }}
@@ -224,7 +291,12 @@ export function ProjectManagement() {
               >
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {archived.map((m) => (
-                    <MilestoneCard key={m.id} milestone={m} onClose={handleClose} onUnarchive={unarchiveMilestone} />
+                    <MilestoneCard
+                      key={m.id}
+                      milestone={m}
+                      onClose={handleClose}
+                      onUnarchive={unarchiveMilestone}
+                    />
                   ))}
                 </div>
               </motion.div>

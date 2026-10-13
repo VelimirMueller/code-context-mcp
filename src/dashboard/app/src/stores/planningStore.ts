@@ -2,7 +2,14 @@ import { create } from 'zustand';
 import { get, post, put } from '@/lib/api';
 import { useToastStore } from '@/stores/toastStore';
 import { parseMilestoneMarkdown } from '@/lib/utils';
-import type { Sprint, Ticket, Milestone, Discovery, DiscoveryCoverage, DiscoverySprint } from '@/types';
+import type {
+  Sprint,
+  Ticket,
+  Milestone,
+  Discovery,
+  DiscoveryCoverage,
+  DiscoverySprint,
+} from '@/types';
 
 export interface CreateMilestoneInput {
   title: string;
@@ -89,7 +96,7 @@ export const usePlanningStore = create<PlanningStore>((set, getState) => ({
 
       set({ milestones: Array.isArray(milestones) ? milestones : [] });
     } catch (e) {
-      console.warn("[planningStore] fetchMilestones failed:", e);
+      console.warn('[planningStore] fetchMilestones failed:', e);
       set({ milestones: [], error: (e as Error).message });
     } finally {
       set((s) => ({ loading: { ...s.loading, milestones: false } }));
