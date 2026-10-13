@@ -997,7 +997,8 @@ async function readJsonObject(req: http.IncomingMessage): Promise<Record<string,
 /**
  * Answer a failed request without stopping the process. A BodyError gets its
  * 400/413; anything else is a 500. After a 413 the unread rest of the upload
- * is not drained, so the connection is closed once the answer is sent.
+ * is not drained, so the connection is closed once the answer is sent (or
+ * after 5 s when the peer never takes the answer).
  */
 function sendRequestError(req: http.IncomingMessage, res: http.ServerResponse, e: unknown, pathname: string): void {
   const status = e instanceof BodyError ? e.status : 500;
@@ -1008,7 +1009,12 @@ function sendRequestError(req: http.IncomingMessage, res: http.ServerResponse, e
   if (status === 413) headers.Connection = "close";
   res.writeHead(status, headers);
   res.end(JSON.stringify({ ok: false, error: e instanceof BodyError ? e.message : "internal error" }));
-  if (status === 413) res.on("finish", () => req.socket.destroy());
+  if (status === 413) {
+    // Close once the answer is sent; a peer that never reads it is cut off after 5 s.
+    const timer = setTimeout(() => req.socket.destroy(), 5000);
+    timer.unref();
+    res.on("finish", () => { clearTimeout(timer); req.socket.destroy(); });
+  }
 }
 
 // ─── Server ──────────────────────────────────────────────────────────────────
