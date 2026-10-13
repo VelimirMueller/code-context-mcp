@@ -10,37 +10,13 @@
  * original sites did (better-sqlite3 caches the prepared statement internally,
  * so semantics are unchanged).
  *
- * Rows are returned as minimal typed interfaces for the columns call sites
- * actually read; SELECT * helpers carry an index signature so the full row
- * remains accessible (the original code casts every row to `any`).
+ * Rows are returned as the full row types from ./rows.ts.
  */
 import type Database from "better-sqlite3";
 
-/** A sprint row from `SELECT *` — typed for common columns, open for the rest. */
-export interface SprintRow {
-  id: number;
-  name: string;
-  status: string;
-  goal: string | null;
-  velocity_committed: number | null;
-  velocity_completed: number | null;
-  start_date: string | null;
-  created_at: string;
-  deleted_at: string | null;
-  [key: string]: unknown;
-}
-
-/** A ticket row from `SELECT *` — typed for common columns, open for the rest. */
-export interface TicketRow {
-  id: number;
-  ticket_ref: string | null;
-  title: string;
-  status: string;
-  story_points: number | null;
-  qa_verified: number | null;
-  sprint_id: number | null;
-  [key: string]: unknown;
-}
+// Full row types live in ./rows.ts (#190); re-exported for existing importers.
+import type { SprintRow, TicketRow } from "./rows.js";
+export type { SprintRow, TicketRow };
 
 /** One `{ status, c }` bucket from a per-sprint ticket status-count query. */
 export interface StatusCountRow {
