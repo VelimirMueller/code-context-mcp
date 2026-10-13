@@ -112,13 +112,9 @@ export function ClaudeOutputStream({
     setUserScrolled(!isAtBottom);
   }, []);
 
-  const stepProgress = currentStep
-    ? `${currentStep.current}/${currentStep.total}`
-    : null;
+  const stepProgress = currentStep ? `${currentStep.current}/${currentStep.total}` : null;
 
-  const progressPercent = currentStep
-    ? (currentStep.current / currentStep.total) * 100
-    : 0;
+  const progressPercent = currentStep ? (currentStep.current / currentStep.total) * 100 : 0;
 
   return (
     <div
@@ -133,7 +129,7 @@ export function ClaudeOutputStream({
     >
       {/* Header bar with step info and collapse toggle */}
       <div
-        onClick={() => setExpanded(e => !e)}
+        onClick={() => setExpanded((e) => !e)}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -151,18 +147,10 @@ export function ClaudeOutputStream({
             width: 8,
             height: 8,
             borderRadius: '50%',
-            background: isActive
-              ? '#10b981'
-              : lines.length > 0
-                ? 'var(--text3)'
-                : 'var(--border2)',
+            background: isActive ? '#10b981' : lines.length > 0 ? 'var(--text3)' : 'var(--border2)',
             flexShrink: 0,
           }}
-          animate={
-            isActive && !reduceMotion
-              ? { scale: [1, 1.3, 1], opacity: [1, 0.7, 1] }
-              : {}
-          }
+          animate={isActive && !reduceMotion ? { scale: [1, 1.3, 1], opacity: [1, 0.7, 1] } : {}}
           transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut' }}
         />
 
@@ -299,7 +287,10 @@ export function ClaudeOutputStream({
                     key={line.id}
                     initial={reduceMotion ? { opacity: 1 } : { opacity: 0, x: -4 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.15, delay: reduceMotion ? 0 : Math.min(i * 0.02, 0.1) }}
+                    transition={{
+                      duration: 0.15,
+                      delay: reduceMotion ? 0 : Math.min(i * 0.02, 0.1),
+                    }}
                     style={{
                       color: LINE_COLORS[line.type],
                       wordBreak: 'break-word',
@@ -320,7 +311,9 @@ export function ClaudeOutputStream({
                       <span style={{ color: '#fbbf24', flexShrink: 0 }}>&#9656;</span>
                     )}
                     {line.type === 'thinking' && (
-                      <span style={{ color: '#a5b4fc', flexShrink: 0, fontStyle: 'italic' }}>&#8230;</span>
+                      <span style={{ color: '#a5b4fc', flexShrink: 0, fontStyle: 'italic' }}>
+                        &#8230;
+                      </span>
                     )}
                     <span>{line.text}</span>
                   </motion.div>
