@@ -37,14 +37,11 @@ molecules/   → AgentCard, AlertDialog, BentoCard, Breadcrumb, DiscoveryRow,
                QuickFilters, SearchBar, SprintCard, StatGroup, SubTabBar,
                TabBar, TeamMemberForm, TicketCard, TopNav, WizardModal
 organisms/   → BentoGrid, BurndownChart, BurndownMetrics, CapacityPlanningView,
-               DashboardTour, DependencyGraph, DiscoveryList, EnhancedCapacityView,
-               EnhancedGanttChart, EnterpriseDataTable, EpicList, FileTree,
-               GanttChart, InsightsDashboard, KanbanBoard, LandingAnimation,
-               MilestoneList, PlanningDashboard, PlanningInsights, PlanningWizard,
-               ProcessFlow, SprintBurndownView, SprintCompletionPanel, SprintDetail,
-               SprintList, SprintPlanner, SprintPlanningView, SprintTableView,
-               TeamGrid, TeamManagementModal, TicketDetailModal, Topbar,
-               VisionEditor, VisionPlayer
+               DashboardTour, DependencyGraph, DiscoveryList, EnterpriseDataTable,
+               EpicList, FileTree, GanttChart, InsightsDashboard, KanbanBoard,
+               LandingAnimation, ProcessFlow, SprintCompletionPanel, SprintDetail,
+               SprintList, SprintPlanner, TeamGrid, TeamManagementModal,
+               TicketDetailModal, Topbar, VisionEditor, VisionPlayer
 pages/       → Benchmark, CodeExplorer, Dashboard, ProjectManagement, Retro, Team
 ```
 
