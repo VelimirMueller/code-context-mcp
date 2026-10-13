@@ -523,12 +523,14 @@ describe('dashboard archive routes', () => {
     expect(milestoneRow(id)).toMatchObject({ target_date: null, description: null });
   });
 
-  it('PUT /api/milestone/:id answers 400 for in_progress and changes nothing (#205)', async () => {
+  it('PUT /api/milestone/:id answers 400 for in_progress or an empty status and changes nothing (#205)', async () => {
     const id = withDb((db) => addMilestone(db, 'api-bad-status', 'planned'));
-    const res = await putMilestone(id, { status: 'in_progress' });
-    expect(res.status).toBe(400);
-    expect(String(((await res.json()) as any).error)).toMatch(/Invalid milestone status/);
-    expect(milestoneRow(id)).toMatchObject({ status: 'planned' });
+    for (const status of ['in_progress', '']) {
+      const res = await putMilestone(id, { status, target_date: '2026-12-15' });
+      expect(res.status).toBe(400);
+      expect(String(((await res.json()) as any).error)).toMatch(/Invalid milestone status/);
+    }
+    expect(milestoneRow(id)).toMatchObject({ status: 'planned', target_date: null });
   });
 
   it('PUT /api/milestone/:id answers 400 for an empty body and 404 for a missing milestone (#205)', async () => {

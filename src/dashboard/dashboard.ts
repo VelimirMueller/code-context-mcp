@@ -1122,7 +1122,7 @@ function apiMilestoneUpdate(id: number, raw: unknown) {
   if (!existing) throw Object.assign(new Error('milestone not found'), { status: 404 });
   const sets: string[] = [];
   const vals: (string | number | null)[] = [];
-  if (body.status) {
+  if (body.status != null) {
     validateEnum(body.status, ['planned', 'active', 'completed'], 'milestone status');
     sets.push('status=?');
     vals.push(body.status);
