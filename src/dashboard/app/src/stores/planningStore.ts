@@ -2,12 +2,20 @@ import { create } from 'zustand';
 import { get, post, put } from '@/lib/api';
 import { useToastStore } from '@/stores/toastStore';
 import { parseMilestoneMarkdown } from '@/lib/utils';
-import type { Sprint, Ticket, Milestone, Discovery, DiscoveryCoverage, DiscoverySprint } from '@/types';
+import type {
+  Sprint,
+  Ticket,
+  Milestone,
+  Discovery,
+  DiscoveryCoverage,
+  DiscoverySprint,
+} from '@/types';
 
+/** Body of POST /api/milestones: the field names the route parses (#199). */
 export interface CreateMilestoneInput {
-  title: string;
+  name: string;
   description?: string;
-  targetDate?: string;
+  target_date?: string;
 }
 
 export interface UpdateMilestoneInput {
@@ -36,7 +44,7 @@ export interface PlanningStore {
   error: string | null;
 
   fetchMilestones: () => Promise<void>;
-  createMilestone: (data: CreateMilestoneInput) => Promise<void>;
+  createMilestone: (data: CreateMilestoneInput) => Promise<{ id: number; name: string }>;
   updateMilestone: (id: number, data: UpdateMilestoneInput) => Promise<void>;
   archiveMilestone: (id: number) => Promise<void>;
   unarchiveMilestone: (id: number) => Promise<void>;
@@ -89,7 +97,7 @@ export const usePlanningStore = create<PlanningStore>((set, getState) => ({
 
       set({ milestones: Array.isArray(milestones) ? milestones : [] });
     } catch (e) {
-      console.warn("[planningStore] fetchMilestones failed:", e);
+      console.warn('[planningStore] fetchMilestones failed:', e);
       set({ milestones: [], error: (e as Error).message });
     } finally {
       set((s) => ({ loading: { ...s.loading, milestones: false } }));
@@ -97,8 +105,10 @@ export const usePlanningStore = create<PlanningStore>((set, getState) => ({
   },
 
   createMilestone: async (data: CreateMilestoneInput) => {
-    const created = await post<Milestone>('/api/milestones', data);
-    if (created) set((s) => ({ milestones: [...s.milestones, created] }));
+    const created = await post<{ id: number; name: string }>('/api/milestones', data);
+    // Refetch: the list rows carry computed fields (ticket_count, sprints).
+    await getState().fetchMilestones();
+    return created;
   },
 
   updateMilestone: async (id: number, data: UpdateMilestoneInput) => {
