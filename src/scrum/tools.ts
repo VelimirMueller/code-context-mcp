@@ -690,7 +690,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       sets.push("updated_at=datetime('now')");
       db.prepare(`UPDATE agents SET ${sets.join(", ")} WHERE role = ?`).run(...vals, role);
       notifyDashboard(db);
-      const updated = db.prepare(`SELECT role, name, model FROM agents WHERE role = ?`).get(role) as Pick<AgentRow, "role" | "name" | "model">; // exists: checked above
+      const updated = db.prepare(`SELECT role, name, model FROM agents WHERE role = ?`).get(role) as Pick<AgentRow, "role" | "name" | "model">; // the UPDATE above matched this role
       return { content: [{ type: "text" as const, text: `Agent ${updated.name} (${updated.role}) updated — model ${updated.model ?? "default"} → tier ${modelToTier(updated.model)}.` }] };
     }
   );

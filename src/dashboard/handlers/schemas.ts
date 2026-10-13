@@ -20,7 +20,7 @@ export function parseBody<S extends z.ZodType>(schema: S, body: unknown): z.infe
   const msg = r.error.issues
     .map((i) => (i.path.length ? `${i.path.join('.')}: ${i.message}` : i.message))
     .join('; ');
-  throw badRequest(msg);
+  throw badRequest(msg || 'invalid request body');
 }
 
 const id = z.number().int();
@@ -29,7 +29,7 @@ const optText = z.string().nullable().optional();
 /** A required non-empty string; `message` is the error for missing or empty. */
 const required = (message: string) => z.string({ error: message }).min(1, message);
 /** Booleans, or 0/1 from older clients. */
-const flag = z.union([z.boolean(), z.number()]);
+const flag = z.union([z.boolean(), z.literal(0), z.literal(1)]);
 
 const object = <T extends z.ZodRawShape>(shape: T) =>
   z.object(shape, { error: 'request body must be a JSON object' });

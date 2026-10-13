@@ -131,13 +131,13 @@ const fresh = new FreshnessGuard(db);
 // The env fallback (CODE_CONTEXT_ABSOLUTE_PATHS=1) is documented in REFERENCE.md.
 const ABSOLUTE_PATHS_DESC = "Print absolute paths";
 
-/** `SELECT * FROM files`. size_bytes is NOT NULL in practice: the indexer always writes it. */
+/** `SELECT * FROM files`. */
 interface FileRow {
   id: number;
   path: string;
   language: string | null;
   extension: string | null;
-  size_bytes: number;
+  size_bytes: number | null;
   line_count: number | null;
   summary: string | null;
   description: string | null;
@@ -355,7 +355,7 @@ server.tool(
 
     const sections = [
       `# ${show(file.path)}`,
-      `${file.language} | ${formatSize(file.size_bytes)} | ${file.line_count} lines${showTimestamps() ? ` | modified ${file.modified_at} | indexed ${file.indexed_at}` : ""}`,
+      `${file.language} | ${formatSize(file.size_bytes ?? 0)} | ${file.line_count} lines${showTimestamps() ? ` | modified ${file.modified_at} | indexed ${file.indexed_at}` : ""}`,
       file.summary,
       file.description && file.description !== file.summary ? file.description : "",
       exports.length > 0 ? `## Exports (${exports.length})\n${capped(exports, MAX_LISTED_EXPORTS, renderExport)}` : "",

@@ -257,7 +257,8 @@ export function checkCommitFormat(
     raw = git(["log", range, "--grep", ref, "--format=%h%x1f%P%x1f%s%x1e"]);
   } catch (e) {
     const err = e instanceof Error ? (e as NodeJS.ErrnoException) : undefined;
-    return pass({ skipped: true, note: `commit-format check skipped — git log failed (${err?.code ?? err?.message ?? "unknown"}); failing open` });
+    const why = err ? (err.code ?? err.message) : String(e);
+    return pass({ skipped: true, note: `commit-format check skipped — git log failed (${why || "unknown"}); failing open` });
   }
 
   const records = raw.split("\x1e").map((r) => r.trim()).filter(Boolean);

@@ -192,7 +192,7 @@ export function apiAllRetroFindings(db: Database.Database) {
 
 export function apiReportSprintStuck(db: Database.Database, sprintId: number, raw: unknown) {
   const body = parseBody(SprintStuckBody, raw);
-  const sprint = db.prepare(`SELECT name, status FROM sprints WHERE id = ? AND deleted_at IS NULL`).get(sprintId) as any;
+  const sprint = db.prepare(`SELECT name, status FROM sprints WHERE id = ? AND deleted_at IS NULL`).get(sprintId) as Pick<SprintRow, "name" | "status"> | undefined;
   if (!sprint) throw Object.assign(new Error("sprint not found"), { status: 404 });
   db.prepare(`INSERT INTO blockers (sprint_id, description, reported_by, status) VALUES (?, ?, ?, 'open')`).run(
     sprintId, `Sprint stuck in ${body.phase || sprint.status} phase for 10+ minutes. Requires intervention.`, 'dashboard-ui'

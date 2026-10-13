@@ -5,6 +5,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import Database from "better-sqlite3";
+import type { z } from "zod";
 import chokidar from "chokidar";
 import { indexDirectory } from "../server/indexer.js";
 import { initSchema } from "../server/schema.js";
@@ -556,8 +557,7 @@ function apiBridgeActions(status: string) {
 // them out — ceremonies are UI-only and never forwarded to the CLI.
 const ALLOWED_BRIDGE_ACTIONS = ['advance_sprint', 'assign_ticket', 'update_ticket', 'create_ticket', 'run_retro', 'run_review', 'run_kickoff', 'plan_sprint', 'custom', 'request_input'];
 
-function apiCreateBridgeAction(raw: unknown) {
-  const body = parseBody(BridgeActionBody, raw);
+function apiCreateBridgeAction(body: z.infer<typeof BridgeActionBody>) {
   if (!ALLOWED_BRIDGE_ACTIONS.includes(body.action)) {
     throw Object.assign(new Error(`unknown action. Allowed: ${ALLOWED_BRIDGE_ACTIONS.join(', ')}`), { status: 400 });
   }
