@@ -1,7 +1,16 @@
 import { create } from 'zustand';
 import { get, post, patch } from '@/lib/api';
 import { useToastStore } from '@/stores/toastStore';
-import type { Sprint, Ticket, TicketAssignment, RetroFinding, MilestoneSprintGroup, BurndownData, Blocker, Bug } from '@/types';
+import type {
+  Sprint,
+  Ticket,
+  TicketAssignment,
+  RetroFinding,
+  MilestoneSprintGroup,
+  BurndownData,
+  Blocker,
+  Bug,
+} from '@/types';
 
 export type TicketFilter = 'all' | 'mine' | 'blocked' | 'qaPending' | 'unassigned';
 
@@ -15,6 +24,7 @@ export interface AssignmentInput {
 export interface TicketUpdatePayload {
   title?: string;
   description?: string | null;
+  notes?: string | null;
   story_points?: number | null;
   priority?: string;
   status?: string;
@@ -105,7 +115,7 @@ export const useSprintStore = create<SprintStore>((set, getState) => ({
       const groups = await get<MilestoneSprintGroup[]>('/api/sprints/grouped');
       set({ milestoneGroups: groups ?? [] });
     } catch (e) {
-      console.warn("[sprintStore] fetchGroupedSprints failed:", e);
+      console.warn('[sprintStore] fetchGroupedSprints failed:', e);
       set({ milestoneGroups: [] });
     } finally {
       set((s) => ({ loading: { ...s.loading, grouped: false } }));
@@ -113,7 +123,10 @@ export const useSprintStore = create<SprintStore>((set, getState) => ({
   },
 
   fetchSprints: async () => {
-    set((s) => ({ loading: { ...s.loading, sprints: true }, error: { ...s.error, sprints: null } }));
+    set((s) => ({
+      loading: { ...s.loading, sprints: true },
+      error: { ...s.error, sprints: null },
+    }));
     try {
       const sprints = await get<Sprint[]>('/api/sprints');
       set({ sprints: sprints ?? [] });
@@ -165,7 +178,11 @@ export const useSprintStore = create<SprintStore>((set, getState) => ({
   },
 
   selectSprint: async (id: number) => {
-    set((s) => ({ selectedSprintId: id, loading: { ...s.loading, detail: true }, error: { ...s.error, detail: null } }));
+    set((s) => ({
+      selectedSprintId: id,
+      loading: { ...s.loading, detail: true },
+      error: { ...s.error, detail: null },
+    }));
     try {
       // Fetch sprint detail, tickets, and retro in parallel
       const [detail, tickets, retro] = await Promise.all([
@@ -190,7 +207,7 @@ export const useSprintStore = create<SprintStore>((set, getState) => ({
       const tickets = await get<Ticket[]>(`/api/sprint/${sprintId}/tickets`);
       set({ tickets: Array.isArray(tickets) ? tickets : [] });
     } catch (e) {
-      console.warn("[sprintStore] fetchTickets failed:", e);
+      console.warn('[sprintStore] fetchTickets failed:', e);
     }
   },
 
@@ -211,6 +228,7 @@ export const useSprintStore = create<SprintStore>((set, getState) => ({
         const next: Ticket = { ...t };
         if (payload.title !== undefined) next.title = payload.title;
         if (payload.description !== undefined) next.description = payload.description;
+        if (payload.notes !== undefined) next.notes = payload.notes;
         if (payload.story_points !== undefined) next.story_points = payload.story_points;
         if (payload.priority !== undefined) next.priority = payload.priority;
         if (payload.status !== undefined) next.status = payload.status;
@@ -226,7 +244,9 @@ export const useSprintStore = create<SprintStore>((set, getState) => ({
       if (res?.ticket) {
         // Merge so list-only computed fields (epic_name, milestone_name, …)
         // survive if the response row omits them.
-        set((s) => ({ tickets: s.tickets.map((t) => (t.id === ticketId ? { ...t, ...res.ticket } : t)) }));
+        set((s) => ({
+          tickets: s.tickets.map((t) => (t.id === ticketId ? { ...t, ...res.ticket } : t)),
+        }));
       }
       return getState().tickets.find((t) => t.id === ticketId) ?? null;
     } catch (e) {
@@ -305,13 +325,13 @@ export const useSprintStore = create<SprintStore>((set, getState) => ({
 
     switch (ticketFilter) {
       case 'mine':
-        return tickets.filter(t => t.assigned_to === currentUserName);
+        return tickets.filter((t) => t.assigned_to === currentUserName);
       case 'blocked':
-        return tickets.filter(t => t.status === 'BLOCKED');
+        return tickets.filter((t) => t.status === 'BLOCKED');
       case 'qaPending':
-        return tickets.filter(t => t.qa_verified === 0 && t.status !== 'TODO');
+        return tickets.filter((t) => t.qa_verified === 0 && t.status !== 'TODO');
       case 'unassigned':
-        return tickets.filter(t => !t.assigned_to);
+        return tickets.filter((t) => !t.assigned_to);
       default:
         return tickets;
     }
@@ -322,9 +342,9 @@ export const useSprintStore = create<SprintStore>((set, getState) => ({
 
     return {
       all: tickets.length,
-      mine: tickets.filter(t => t.assigned_to === currentUserName).length,
-      blocked: tickets.filter(t => t.status === 'BLOCKED').length,
-      qaPending: tickets.filter(t => t.qa_verified === 0 && t.status !== 'TODO').length,
+      mine: tickets.filter((t) => t.assigned_to === currentUserName).length,
+      blocked: tickets.filter((t) => t.status === 'BLOCKED').length,
+      qaPending: tickets.filter((t) => t.qa_verified === 0 && t.status !== 'TODO').length,
     };
   },
 }));
