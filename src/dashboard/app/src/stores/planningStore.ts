@@ -18,11 +18,18 @@ export interface CreateMilestoneInput {
   target_date?: string;
 }
 
+/** Milestone status values the database and PUT /api/milestone/:id accept. */
+export type MilestoneStatus = 'planned' | 'active' | 'completed';
+
+/**
+ * Body of PUT /api/milestone/:id: the field names the route parses (#205).
+ * `null` clears `description` or `target_date`.
+ */
 export interface UpdateMilestoneInput {
-  title?: string;
-  description?: string;
-  targetDate?: string;
-  status?: 'planned' | 'in_progress' | 'completed';
+  description?: string | null;
+  target_date?: string | null;
+  status?: MilestoneStatus;
+  progress?: number;
 }
 
 export interface PlanSprintInput {
@@ -112,20 +119,15 @@ export const usePlanningStore = create<PlanningStore>((set, getState) => ({
   },
 
   updateMilestone: async (id: number, data: UpdateMilestoneInput) => {
-    // Optimistic update
-    set((s) => ({
-      milestones: s.milestones.map((m) => (m.id === id ? { ...m, ...data } : m)),
-    }));
-    try {
-      // Server uses PUT on /api/milestone/{id} (singular)
-      const updated = await put<Milestone>(`/api/milestone/${id}`, data);
-      if (updated) {
-        set((s) => ({ milestones: s.milestones.map((m) => (m.id === id ? updated : m)) }));
-      }
-    } catch (e) {
-      // Rollback on error -- re-fetch authoritative state
-      getState().fetchMilestones();
-      throw e;
+    // No optimistic update: a status change moves the card to another section,
+    // which would close an open edit form before a server error can show.
+    const updated = await put<Partial<Milestone>>(`/api/milestone/${id}`, data);
+    // The route returns the saved milestone row. Keep the computed list fields
+    // (ticket_count, done_count, sprints) that the row does not have.
+    if (updated) {
+      set((s) => ({
+        milestones: s.milestones.map((m) => (m.id === id ? { ...m, ...updated } : m)),
+      }));
     }
   },
 

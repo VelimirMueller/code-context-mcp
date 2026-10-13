@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { usePlanningStore } from '@/stores/planningStore';
+import { usePlanningStore, type MilestoneStatus } from '@/stores/planningStore';
 import { put } from '@/lib/api';
 import type { Milestone } from '@/types';
 import { EpicList } from '@/components/organisms/EpicList';
@@ -42,6 +42,7 @@ interface MilestoneCardProps {
 function MilestoneCard({ milestone, onClose, onArchive, onUnarchive }: MilestoneCardProps) {
   const [closing, setClosing] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const [editing, setEditing] = useState(false);
   const isActive = milestone.status !== 'completed';
   const isArchived = !!milestone.archived_at;
   const pct =
@@ -124,6 +125,15 @@ function MilestoneCard({ milestone, onClose, onArchive, onUnarchive }: Milestone
           >
             {milestone.status}
           </span>
+          {!isArchived && !editing && (
+            <button
+              onClick={() => setEditing(true)}
+              aria-label={`Edit ${milestone.name}`}
+              style={smallButton(false)}
+            >
+              Edit
+            </button>
+          )}
           {isActive && !isArchived && (
             <button onClick={handleClose} disabled={closing} style={smallButton(closing)}>
               {closing ? '…' : 'Close'}
@@ -142,6 +152,8 @@ function MilestoneCard({ milestone, onClose, onArchive, onUnarchive }: Milestone
           )}
         </div>
       </div>
+
+      {editing && <EditMilestoneForm milestone={milestone} onDone={() => setEditing(false)} />}
 
       <ProgressBar value={pct} color={color} />
 
@@ -217,6 +229,83 @@ function NewMilestoneForm({ onDone }: { onDone: () => void }) {
         style={smallButton(busy || !name.trim())}
       >
         {busy ? 'Creating…' : 'Create'}
+      </button>
+      <button type="button" onClick={onDone} disabled={busy} style={smallButton(busy)}>
+        Cancel
+      </button>
+      {error && (
+        <div role="alert" style={{ width: '100%', fontSize: 12, color: 'var(--red)' }}>
+          {error}
+        </div>
+      )}
+    </form>
+  );
+}
+
+const MILESTONE_STATUSES: { value: MilestoneStatus; label: string }[] = [
+  { value: 'planned', label: 'Planned' },
+  { value: 'active', label: 'Active' },
+  { value: 'completed', label: 'Completed' },
+];
+
+/**
+ * Inline edit of a milestone's status and target date; sends the body
+ * PUT /api/milestone/:id parses (#205). An empty date clears it.
+ */
+function EditMilestoneForm({ milestone, onDone }: { milestone: Milestone; onDone: () => void }) {
+  const updateMilestone = usePlanningStore((s) => s.updateMilestone);
+  const [status, setStatus] = useState(milestone.status);
+  const [targetDate, setTargetDate] = useState(milestone.target_date ?? '');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const changes: { status?: MilestoneStatus; target_date?: string | null } = {};
+    if (status !== milestone.status) changes.status = status as MilestoneStatus;
+    if (targetDate !== (milestone.target_date ?? '')) changes.target_date = targetDate || null;
+    if (Object.keys(changes).length === 0) {
+      onDone();
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await updateMilestone(milestone.id, changes);
+      onDone();
+    } catch (err) {
+      setError((err as Error).message || 'Failed to update milestone.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form
+      onSubmit={submit}
+      style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}
+    >
+      <select
+        aria-label={`Status of ${milestone.name}`}
+        value={status}
+        onChange={(e) => setStatus(e.target.value)}
+        style={fieldStyle}
+      >
+        {MILESTONE_STATUSES.map((s) => (
+          <option key={s.value} value={s.value}>
+            {s.label}
+          </option>
+        ))}
+      </select>
+      <input
+        aria-label={`Target date of ${milestone.name}`}
+        type="date"
+        value={targetDate}
+        onChange={(e) => setTargetDate(e.target.value)}
+        style={fieldStyle}
+      />
+      <button type="submit" disabled={busy} style={smallButton(busy)}>
+        {busy ? 'Saving…' : 'Save'}
       </button>
       <button type="button" onClick={onDone} disabled={busy} style={smallButton(busy)}>
         Cancel
