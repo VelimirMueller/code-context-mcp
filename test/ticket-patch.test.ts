@@ -15,6 +15,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { freePort } from './helpers/free-port.js';
+import { DEFAULT_TICKET_PRIORITY } from '../src/dashboard/handlers/sprint.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..');
@@ -377,6 +378,67 @@ describe('PATCH /api/ticket/:id — notes (#197)', () => {
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/notes must be a string or null/);
     expect(getTicketRow(id).notes).toBeNull();
+  });
+});
+
+describe('POST /api/tickets — default priority (#204)', () => {
+  async function createTicket(body: unknown) {
+    return fetch(`${BASE}/api/tickets`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(body),
+    });
+  }
+
+  it('uses the same default as the tickets.priority column', () => {
+    const db = seedDb();
+    try {
+      const cols = db.prepare('PRAGMA table_info(tickets)').all() as {
+        name: string;
+        dflt_value: string | null;
+      }[];
+      const col = cols.find((c) => c.name === 'priority');
+      expect(col?.dflt_value).toBe(`'${DEFAULT_TICKET_PRIORITY}'`);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('saves a ticket without a priority as P2 and returns the saved row', async () => {
+    const res = await createTicket({ title: 'No priority given' });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.id).toEqual(expect.any(Number));
+    expect(body.ticket_ref).toMatch(/^T-\d+$/);
+    expect(body.title).toBe('No priority given');
+    expect(body.priority).toBe('P2');
+    expect(body.status).toBe('TODO');
+
+    const row = getTicketRow(body.id);
+    expect(row.title).toBe('No priority given');
+    expect(row.priority).toBe('P2');
+  });
+
+  it('uses P2 for a null priority', async () => {
+    const res = await createTicket({ title: 'Null priority', priority: null });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.priority).toBe('P2');
+    expect(getTicketRow(body.id).priority).toBe('P2');
+  });
+
+  it('keeps a given priority', async () => {
+    const res = await createTicket({ title: 'Urgent', priority: 'P0' });
+    expect(res.status).toBe(200);
+    expect(getTicketRow((await res.json()).id).priority).toBe('P0');
+  });
+
+  it('rejects an empty or unknown priority with 400', async () => {
+    for (const priority of ['', 'P9']) {
+      const res = await createTicket({ title: 'Bad priority', priority });
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toMatch(/Invalid priority/);
+    }
   });
 });
 
