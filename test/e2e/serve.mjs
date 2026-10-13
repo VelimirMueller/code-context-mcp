@@ -92,4 +92,8 @@ const child = spawn(
   },
 );
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => child.kill(sig));
-child.on('exit', (code) => process.exit(code ?? 0));
+child.on('error', (e) => {
+  console.error(`e2e serve: cannot start the dashboard: ${e.message}`);
+  process.exit(1);
+});
+child.on('exit', (code, signal) => process.exit(code ?? (signal ? 1 : 0)));

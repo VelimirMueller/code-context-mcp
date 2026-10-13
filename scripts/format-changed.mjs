@@ -10,6 +10,10 @@
 //   unformatted file, 0 when every changed file passes or nothing changed.
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const base = process.argv[2] || process.env.FORMAT_BASE || 'origin/main';
 if (!/^[\w./~^-]+$/.test(base)) {
@@ -21,12 +25,13 @@ let out;
 try {
   out = execFileSync('git', ['diff', '--name-only', '--diff-filter=ACMR', `${base}...HEAD`], {
     encoding: 'utf8',
+    cwd: root,
   });
 } catch {
   console.error(`format-changed: cannot diff against ${base} (fetch it first, or pass a base ref)`);
   process.exit(2);
 }
-const files = out.split('\n').filter((f) => f && existsSync(f));
+const files = out.split('\n').filter((f) => f && existsSync(path.join(root, f)));
 if (files.length === 0) {
   console.log(`format-changed: no changed files against ${base}`);
   process.exit(0);
@@ -35,13 +40,13 @@ console.log(`format-changed: checking ${files.length} file(s) changed against ${
 const r = spawnSync(
   process.execPath,
   [
-    'node_modules/prettier/bin/prettier.cjs',
+    path.join(root, 'node_modules/prettier/bin/prettier.cjs'),
     '--check',
     '--ignore-unknown',
     '--no-error-on-unmatched-pattern',
     ...files,
   ],
-  { stdio: 'inherit' },
+  { stdio: 'inherit', cwd: root },
 );
 if (r.status !== 0) {
   console.error('format-changed: run `npx prettier --write <file>` on the files above.');

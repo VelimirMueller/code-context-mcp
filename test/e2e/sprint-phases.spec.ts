@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { openApp } from './helpers';
 
 /**
  * E2E tests for Sprint 77 — 4-phase sprint display.
@@ -14,12 +15,7 @@ const OLD_PHASE_NAMES = ['Kickoff', 'Preparation', 'Refactoring', 'QA', 'Review'
 
 /** Helper: wait for page to fully load past the landing animation. */
 async function waitForAppReady(page: Page) {
-  await page.addInitScript(() => {
-    sessionStorage.setItem('landing-played', 'true');
-    localStorage.setItem('tour-completed', 'true');
-  });
-  await page.goto('/');
-  await page.waitForSelector('nav[role="tablist"]', { timeout: 8000 });
+  await openApp(page);
   await page.waitForTimeout(400);
 }
 

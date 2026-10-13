@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { openApp } from './helpers';
 
 /**
  * E2E tests for the Code Explorer page.
@@ -9,11 +10,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Code Explorer', () => {
   test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => {
-      sessionStorage.setItem('landing-played', 'true');
-      localStorage.setItem('tour-completed', 'true');
-    });
-    await page.goto('/#code');
+    await openApp(page, '#code');
     // Wait for file list to populate
     await page.waitForSelector('.sidebar-body', { timeout: 5000 });
     await page.waitForTimeout(500);

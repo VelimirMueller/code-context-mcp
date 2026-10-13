@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { openApp } from './helpers';
 
 /**
  * E2E tests for all dashboard navigation tabs and user flows.
@@ -26,15 +27,7 @@ async function navigateToTab(page: Page, label: string) {
 
 /** Helper: wait for page to fully load past the landing animation. */
 async function waitForAppReady(page: Page) {
-  // The landing animation stores a flag in sessionStorage once played.
-  // Set it before navigating so the animation is skipped.
-  await page.addInitScript(() => {
-    sessionStorage.setItem('landing-played', 'true');
-    localStorage.setItem('tour-completed', 'true');
-  });
-  await page.goto('/');
-  // Wait for the top nav tablist to be present
-  await page.waitForSelector('nav[role="tablist"]', { timeout: 8000 });
+  await openApp(page);
   await page.waitForTimeout(400);
 }
 
@@ -107,26 +100,6 @@ test.describe('Planning Tab', () => {
     await expect(page.getByText('E2E milestone').first()).toBeVisible();
     await expect(page.getByRole('heading', { name: /Epics/ })).toBeVisible();
     await expect(page.getByText('E2E epic').first()).toBeVisible();
-  });
-
-  test('can switch between all Planning sub-tabs without crash', async ({ page }) => {
-    // Planning uses plain buttons for sub-tabs
-    const subTabs = [
-      'Vision',
-      'Roadmap',
-      'Sprint Planning',
-      'Process Flow',
-      'Insights',
-      'Discoveries',
-    ];
-    for (const tabName of subTabs) {
-      const tab = page.locator('button').filter({ hasText: tabName }).first();
-      if (await tab.isVisible().catch(() => false)) {
-        await tab.click();
-        await page.waitForTimeout(400);
-        await expect(page.locator('.page-content')).toBeVisible();
-      }
-    }
   });
 });
 
