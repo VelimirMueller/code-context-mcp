@@ -920,8 +920,10 @@ export function apiPatchTicket(
       throw badRequest('title must be a non-empty string');
     if (body.title !== existing.title) recordScalar('title', existing.title, body.title);
   }
+  // Clearable text fields (description, notes): a string or null; null clears (#206).
   if (body.description !== undefined) {
-    if (typeof body.description !== 'string') throw badRequest('description must be a string');
+    if (body.description !== null && typeof body.description !== 'string')
+      throw badRequest('description must be a string or null');
     if (body.description !== existing.description)
       recordScalar('description', existing.description, body.description);
   }
