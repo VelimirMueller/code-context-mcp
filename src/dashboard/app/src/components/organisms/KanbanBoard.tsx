@@ -34,6 +34,7 @@ export function KanbanBoard({ tickets }: KanbanBoardProps) {
   const fetchMilestones = usePlanningStore((s) => s.fetchMilestones);
   const selectedSprintId = useSprintStore((s) => s.selectedSprintId);
   const fetchTickets = useSprintStore((s) => s.fetchTickets);
+  const updateTicket = useSprintStore((s) => s.updateTicket);
   const fetchGrouped = useSprintStore((s) => s.fetchGroupedSprints);
 
   useEffect(() => {
@@ -104,23 +105,26 @@ export function KanbanBoard({ tickets }: KanbanBoardProps) {
     if (selectedSprintId) fetchTickets(selectedSprintId);
   };
 
+  // A drop changes the status through PATCH /api/ticket/:id (#198), the same
+  // route the ticket editor uses. The server allows TODO, IN_PROGRESS and
+  // BLOCKED only; DONE and NOT_DONE stay with the QA gate, so such a drop
+  // reverts and updateTicket shows the server error.
   const handleDrop = async (e: React.DragEvent, targetStatus: string) => {
     e.preventDefault();
-    const ticketId = Number(e.dataTransfer.getData('ticketId'));
-    if (!ticketId) return;
-    let snapshot: Ticket[] = [];
-    setLocalTickets((ts) => {
-      snapshot = ts;
-      return ts.map((t) => (t.id === ticketId ? { ...t, status: targetStatus } : t));
-    });
     setDraggingId(null);
     setDragOverCol(null);
-    try {
-      await patch(`/api/ticket/${ticketId}/status`, { status: targetStatus });
-      if (selectedSprintId) fetchTickets(selectedSprintId);
-    } catch {
-      setLocalTickets(snapshot);
+    const ticketId = Number(e.dataTransfer.getData('ticketId'));
+    const previous = localTickets.find((t) => t.id === ticketId);
+    if (!previous || previous.status === targetStatus) return;
+    const setStatus = (status: string) =>
+      setLocalTickets((ts) => ts.map((t) => (t.id === ticketId ? { ...t, status } : t)));
+    setStatus(targetStatus);
+    const updated = await updateTicket(ticketId, { status: targetStatus });
+    if (!updated) {
+      setStatus(previous.status);
+      return;
     }
+    if (selectedSprintId) fetchTickets(selectedSprintId);
   };
 
   const renderColumns = (columnTickets: Ticket[]) => (

@@ -206,20 +206,5 @@ describe('KanbanBoard', () => {
     expect(screen.getByText('T-1')).toBeDefined();
     expect(screen.getByText('T-2')).toBeDefined();
   });
-
-  it.skip('calls PATCH /api/ticket/{id}/status on drop (jsdom drag simulation incomplete)', async () => {
-    // jsdom does not fully support the HTML5 drag API:
-    // - dataTransfer.getData() always returns '' in jsdom
-    // - dragover/drop events on synthetic targets behave differently
-    // The optimistic update + PATCH path in handleDrop (KanbanBoard.tsx:103-120)
-    // should be covered by an integration test or E2E test.
-    // For now, the logic is verified by code review — the snapshot/rollback pattern
-    // captures state atomically in the setLocalTickets functional updater.
-    const { KanbanBoard } = await import('@/components/organisms/KanbanBoard');
-    render(<KanbanBoard tickets={tickets} />);
-    const draggable = screen.getAllByText('T-1')[0].closest('[draggable]')!;
-    const dt = { setData: vi.fn(), getData: vi.fn().mockReturnValue('1'), effectAllowed: '' };
-    fireEvent.dragStart(draggable, { dataTransfer: dt });
-    // Cannot reliably assert PATCH here — jsdom drag drop is incomplete
-  });
+  // Drag and drop: see KanbanBoard.drag.test.tsx (#198).
 });
