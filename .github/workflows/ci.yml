@@ -6,6 +6,14 @@ on:
   pull_request:
     branches: [main]
 
+# Read-only token for every job; no job writes to the repository.
+permissions:
+  contents: read
+
+# Actions are pinned by commit SHA (same pins as benchmark.yml / pages.yml):
+#   actions/checkout    v6.1.0 = d23441a48e516b6c34aea4fa41551a30e30af803
+#   actions/setup-node  v6.1.0 = 395ad3262231945c25e8478fd5baf05154b1d79f
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -13,8 +21,10 @@ jobs:
       matrix:
         node-version: [22, 24, 'lts/*']
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
@@ -22,14 +32,60 @@ jobs:
       - run: npm run check:commands
       - run: npx tsc --noEmit
       - run: npm test
+      - run: npm run test:frontend
       - run: npm run build
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # format:changed diffs against the base commit
+      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci
+      - name: ESLint (fails on errors, warnings are reported)
+        run: npm run lint
+      - name: Prettier on the files this change touches
+        env:
+          # PR: the base branch commit. Push: the commit before the push.
+          # SHAs reach the shell through env only, never ${{ }} in run.
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          base="${PR_BASE:-$PUSH_BEFORE}"
+          case "$base" in
+            ''|0000000000000000000000000000000000000000) base="HEAD~1" ;;
+          esac
+          npm run format:changed -- "$base"
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - name: Playwright specs (seeded dashboard on a throwaway DB)
+        run: npm run test:e2e
 
   validate-counts:
     runs-on: ubuntu-latest
     needs: test
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
         with:
           node-version: '22'
           cache: 'npm'

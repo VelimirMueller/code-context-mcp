@@ -16,6 +16,7 @@
     ".claude/commands",
     "scripts",
     "!scripts/bench",
+    "!scripts/format-changed.mjs",
     "comparison.json",
     "benchmark-results.json",
     "benchmark-stochastic-results.json",
@@ -46,6 +47,8 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --check .",
     "format:fix": "prettier --write .",
+    "format:changed": "node scripts/format-changed.mjs",
+    "test:e2e": "playwright test",
     "check:commands": "node scripts/check-commands.mjs",
     "compile:skills": "node scripts/compile-skills.mjs",
     "sync:skills": "node scripts/sync-skills.mjs && node scripts/compile-skills.mjs",
@@ -121,9 +124,10 @@
   "homepage": "https://github.com/VelimirMueller/code-context-mcp#readme",
   "license": "MIT",
   "lint-staged": {
-    "src/**/*.{ts,tsx,js,jsx}": [
-      "tsc --noEmit",
-      "npm run build"
-    ]
+    "*.{ts,tsx,js,jsx,mjs,cjs,mts}": [
+      "eslint --no-warn-ignored",
+      "prettier --write --ignore-unknown"
+    ],
+    "*.{json,md,yml,yaml,css,html}": "prettier --write --ignore-unknown"
   }
 }

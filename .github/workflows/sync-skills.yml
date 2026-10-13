@@ -2,34 +2,40 @@ name: Sync skills
 
 on:
   schedule:
-    - cron: "0 6 * * *" # daily, 06:00 UTC
+    - cron: '0 6 * * *' # daily, 06:00 UTC
   workflow_dispatch:
 
-permissions:
-  contents: write
-  pull-requests: write
+# Nothing by default; the one job gets only what create-pull-request needs.
+permissions: {}
 
 jobs:
   sync:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the chore/sync-skills branch
+      pull-requests: write # open or update the sync PR
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      # Pinned by commit SHA:
+      #   actions/checkout                 v6.1.0 = d23441a48e516b6c34aea4fa41551a30e30af803
+      #   actions/setup-node               v6.1.0 = 395ad3262231945c25e8478fd5baf05154b1d79f
+      #   peter-evans/create-pull-request  v8.1.1 = 5f6978faf089d4d20b00c7766989d076bb2fc7f1
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
         with:
-          node-version: "lts/*"
+          node-version: 'lts/*'
       - name: Re-vendor skills from upstream main + recompile defaults
         run: |
           node scripts/sync-skills.mjs
           node scripts/compile-skills.mjs
       - name: Open or update sync PR
-        uses: peter-evans/create-pull-request@v8
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           branch: chore/sync-skills
           add-paths: |
             vendor/skills/
             src/scrum/frontend-skill-defaults.generated.ts
-          commit-message: "chore(skills): sync vendored skills from upstream main"
-          title: "chore(skills): sync from claude_development_skills"
+          commit-message: 'chore(skills): sync vendored skills from upstream main'
+          title: 'chore(skills): sync from claude_development_skills'
           body: |
             Automated sync of the vendored `vendor/skills/` tree from the plugin repo's `main`,
             plus the regenerated `src/scrum/frontend-skill-defaults.generated.ts` that seeds the

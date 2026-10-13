@@ -1,3 +1,15 @@
 dist
 node_modules
 *.db
+# Vendored or generated content keeps the upstream / generator format.
+vendor/
+src/scrum/frontend-skill-defaults.generated.ts
+test/fixtures/
+# Data files written by tools.
+benchmark-results.json
+benchmark-stochastic-results.json
+comparison.json
+data/
+# Browser test output.
+test-results/
+playwright-report/
