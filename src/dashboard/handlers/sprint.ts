@@ -649,6 +649,9 @@ export function apiSprintUpdate(
 }
 
 // ─── Ticket CRUD API ────────────────────────────────────────────────────────
+/** Same as the `tickets.priority` column default and the MCP create_ticket default. */
+export const DEFAULT_TICKET_PRIORITY = 'P2';
+
 export function apiCreateTicket(db: Database.Database, raw: unknown) {
   const {
     title,
@@ -660,7 +663,10 @@ export function apiCreateTicket(db: Database.Database, raw: unknown) {
     assigned_to,
     story_points,
   } = parseBody(TicketCreateBody, raw);
-  if (priority) validateEnum(priority, ['P0', 'P1', 'P2', 'P3'], 'priority');
+  // No priority (absent or null) gets the column default, the same value the MCP
+  // create_ticket tool uses. Any other value must be a valid priority.
+  const ticketPriority = priority ?? DEFAULT_TICKET_PRIORITY;
+  validateEnum(ticketPriority, ['P0', 'P1', 'P2', 'P3'], 'priority');
 
   // Generate ticket_ref: T-<next_id>
   const maxRef = db.prepare(`SELECT MAX(id) as m FROM tickets WHERE deleted_at IS NULL`).get() as
@@ -689,7 +695,7 @@ export function apiCreateTicket(db: Database.Database, raw: unknown) {
       ticket_ref,
       title,
       description || null,
-      priority ?? 0,
+      ticketPriority,
       sprint_id || null,
       epic_id || null,
       milestone_id || null,
@@ -698,7 +704,8 @@ export function apiCreateTicket(db: Database.Database, raw: unknown) {
       story_points ?? 0,
     );
 
-  return { id: result.lastInsertRowid, ticket_ref, title };
+  // The saved row, so the caller sees the stored defaults (priority, status).
+  return db.prepare(`SELECT * FROM tickets WHERE id = ?`).get(result.lastInsertRowid) as TicketRow;
 }
 
 export function apiUpdateTicket(db: Database.Database, id: number, raw: unknown) {

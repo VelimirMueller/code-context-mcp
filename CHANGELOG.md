@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A new ticket without a priority is saved.** `POST /api/tickets` uses `P2`, the default of the database column and of the MCP `create_ticket` tool; earlier it used `0`, which the database rule refuses. An empty or unknown priority gets 400. The route returns the saved row. (#204)
 - **A new milestone from the dashboard is saved.** The Planning page has a **New milestone** form (name, optional target date). It sends `name` and `target_date`, the fields `POST /api/milestones` parses; earlier the store sent `title`, so the route answered 400. The route returns the saved row. (#199)
 - **A Kanban drag changes the ticket status.** The board sends `PATCH /api/ticket/:id` with the new status, the same route as the ticket editor. Earlier it called `PATCH /api/ticket/:id/status`, which does not exist. A drop on Done or Not Done goes back to its column with the server error, because the QA gate sets these statuses. (#198)
 - **Ticket notes from the dashboard edit form are saved.** `PATCH /api/ticket/:id` accepts `notes` (a string or null) and records the change like the other fields. The edit form sends the notes through this route; earlier it sent them to a route without a `notes` field, so the edit was lost. (#197)
