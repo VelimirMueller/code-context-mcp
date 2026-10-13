@@ -489,6 +489,59 @@ describe('dashboard archive routes', () => {
     expect(String(((await res.json()) as any).error)).toContain('name is required');
   });
 
+  const putMilestone = (id: number, body: unknown) =>
+    fetch(`${BASE}/api/milestone/${id}`, {
+      method: 'PUT',
+      headers: { ...auth(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  const milestoneRow = (id: number) =>
+    withDb((db) =>
+      db.prepare('SELECT status, target_date, description FROM milestones WHERE id = ?').get(id),
+    );
+
+  it('PUT /api/milestone/:id saves status and target_date and returns the saved row (#205)', async () => {
+    const id = withDb((db) => addMilestone(db, 'api-edit', 'planned'));
+    const res = await putMilestone(id, { status: 'active', target_date: '2026-12-15' });
+    expect(res.status).toBe(200);
+    const row = (await res.json()) as any;
+    expect(row).toMatchObject({
+      id,
+      name: 'api-edit',
+      status: 'active',
+      target_date: '2026-12-15',
+    });
+    expect(milestoneRow(id)).toMatchObject({ status: 'active', target_date: '2026-12-15' });
+  });
+
+  it('PUT /api/milestone/:id clears target_date and description with null (#205)', async () => {
+    const id = withDb((db) => addMilestone(db, 'api-clear', 'planned'));
+    await putMilestone(id, { target_date: '2026-12-15', description: 'temporary' });
+    const res = await putMilestone(id, { target_date: null, description: null });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ target_date: null, description: null });
+    expect(milestoneRow(id)).toMatchObject({ target_date: null, description: null });
+  });
+
+  it('PUT /api/milestone/:id answers 400 for in_progress or an empty status and changes nothing (#205)', async () => {
+    const id = withDb((db) => addMilestone(db, 'api-bad-status', 'planned'));
+    for (const status of ['in_progress', '']) {
+      const res = await putMilestone(id, { status, target_date: '2026-12-15' });
+      expect(res.status).toBe(400);
+      expect(String(((await res.json()) as any).error)).toMatch(/Invalid milestone status/);
+    }
+    expect(milestoneRow(id)).toMatchObject({ status: 'planned', target_date: null });
+  });
+
+  it('PUT /api/milestone/:id answers 400 for an empty body and 404 for a missing milestone (#205)', async () => {
+    const id = withDb((db) => addMilestone(db, 'api-empty', 'planned'));
+    const empty = await putMilestone(id, {});
+    expect(empty.status).toBe(400);
+    expect(String(((await empty.json()) as any).error)).toContain('nothing to update');
+    const missing = await putMilestone(9999999, { status: 'active' });
+    expect(missing.status).toBe(404);
+  });
+
   it('keeps the existing gates: no token → 401, foreign Host → 421, cross-origin write → 403', async () => {
     const id = withDb((db) => addMilestone(db, 'api-gated'));
     const noAuth = await fetch(`${BASE}/api/milestone/${id}/archive`, { method: 'POST' });
