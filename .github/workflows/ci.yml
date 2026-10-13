@@ -31,6 +31,8 @@ jobs:
       - run: npm ci
       - run: npm run check:commands
       - run: npx tsc --noEmit
+      # The root tsconfig does not include the dashboard app (#213).
+      - run: npm run typecheck:dashboard
       - run: npm test
       - run: npm run test:frontend
       - run: npm run build
