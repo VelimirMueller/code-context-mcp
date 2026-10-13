@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`reset_agents` and `reset_skills` do not run `npm run build` in your project.** The tools spawn no process, so they work in a project without a `build` script and write nothing to the JSON-RPC stream. The delete and the re-seed run in one transaction; when a step fails, the old rows stay. (#187)
 
 ### Changed
+- **One transactional function moves a sprint to its next phase.** `update_sprint`, `advance_sprint` and the dashboard advance and sprint update routes call `transitionSprint` (`src/scrum/sprint-transition.ts`). It writes the status, the frozen commitment, `velocity_completed`, one auto-analysis finding (role `system`), the discovery archive, completed epics and milestone progress in one transaction. When a step fails, nothing changes and the error names the step; the dashboard answers 500. The MCP tools now also complete epics and update milestone progress on `rest`. `get_discovery_coverage` writes nothing. (#189)
 - **Typed rows and request bodies in the MCP server, the scrum tools and the dashboard write routes.** `src/scrum/rows.ts` has one row type per scrum table, and the queries in `src/server` and `src/scrum` use them; `@typescript-eslint/no-explicit-any` is an error there. Each dashboard POST, PUT and PATCH route parses its body with zod and answers 400 with the field name when a type is wrong; earlier a wrong type gave a 500 or a bad row. (#190)
 
 ## [2.13.0] - 2026-10-12

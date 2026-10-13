@@ -24,6 +24,7 @@ import { registerSkillsTools } from "./tools/skills.js";
 import { registerGithubTools } from "./tools/github.js";
 import { EFFECTIVE_PROJECT_SQL, TICKET_PROJECT_JOINS, TYPE_LABELS, unknownProject } from "./github-sync.js";
 import { log as slog } from "../sessionlog.js";
+import { transitionSprint, promoteTicketDiscoveries, type TransitionResult } from "./sprint-transition.js";
 import { archiveEntity, assertArchivable, unarchiveEntity } from "./archive.js";
 import {
   errorMessage,
@@ -944,81 +945,36 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       }
 
       // ─── Apply updates ──────────────────────────────────────────
+      // Field updates + phase transition + its automation in one transaction (#189).
       const sets: string[] = []; const vals: unknown[] = [];
       const oldStatus = sprint.status;
-      if (status) { sets.push("status=?"); vals.push(status); }
+      const changesStatus = status !== undefined && status !== oldStatus;
+      if (status && !changesStatus) { sets.push("status=?"); vals.push(status); }
       if (goal) { sets.push("goal=?"); vals.push(goal); }
       if (milestone_id !== undefined) { sets.push("milestone_id=?"); vals.push(milestone_id); }
       if (project !== undefined) { sets.push("project=?"); vals.push(project); }
       if (velocity_committed !== undefined) { sets.push("velocity_committed=?"); vals.push(velocity_committed); }
-      if (velocity_completed !== undefined) { sets.push("velocity_completed=?"); vals.push(velocity_completed); }
-      if (sets.length === 0) return { content: [{ type: "text" as const, text: "Nothing to update." }] };
-      sets.push("updated_at=datetime('now')");
-      vals.push(sprint_id);
-      db.prepare(`UPDATE sprints SET ${sets.join(",")} WHERE id=?`).run(...vals);
+      if (velocity_completed !== undefined && !changesStatus) { sets.push("velocity_completed=?"); vals.push(velocity_completed); }
+      if (sets.length === 0 && !changesStatus) return { content: [{ type: "text" as const, text: "Nothing to update." }] };
 
-      // ─── Event trail ────────────────────────────────────────────
-      if (status && status !== oldStatus) {
-        try {
-          db.prepare(`INSERT INTO event_log (entity_type, entity_id, action, field_name, old_value, new_value, actor) VALUES ('sprint', ?, 'status_changed', 'status', ?, ?, 'mcp')`).run(sprint_id, oldStatus, status);
-        } catch (e) {
-          console.error(`[audit] update_sprint sprint #${sprint_id} status ${oldStatus}→${status}: ` + errorMessage(e));
-        }
-        slog("INFO", `update_sprint: sprint=${sprint_id} phase ${oldStatus}→${status}`);
+      let transition: TransitionResult | null = null;
+      try {
+        db.transaction(() => {
+          if (sets.length > 0) {
+            db.prepare(`UPDATE sprints SET ${[...sets, "updated_at=datetime('now')"].join(",")} WHERE id=?`).run(...vals, sprint_id);
+          }
+          if (changesStatus) {
+            transition = transitionSprint(db, sprint_id, status!, { actor: "mcp", source: "update_sprint", velocityCompleted: velocity_completed });
+          }
+        })();
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Sprint ${sprint_id} not updated (rolled back): ${errorMessage(e)}` }], isError: true };
       }
       if (gateWarnings.length > 0) {
         slog("WARN", `update_sprint: gate warnings sprint=${sprint_id} to=${status} count=${gateWarnings.length}`);
       }
-
-      // M12-015: Auto-generate retro analysis when sprint is done or closed
-      let retroNote = "";
-      if (status === "closed" || status === "done") {
-        try {
-          const sprint = getSprintById(db, sprint_id)!; // missing row throws into the catch below, as before
-          const tickets = db.prepare(`SELECT id, status, story_points FROM tickets WHERE sprint_id=?`).all(sprint_id) as Pick<TicketRow, "id" | "status" | "story_points">[];
-          const totalTickets = tickets.length;
-          const doneTickets = tickets.filter((t) => t.status === "DONE").length;
-          const completionRate = totalTickets > 0 ? Math.round((doneTickets / totalTickets) * 100) : 0;
-          const committedPts = sprint.velocity_committed || 0;
-          const completedPts = sprint.velocity_completed || tickets.filter((t) => t.status === "DONE").reduce((s: number, t) => s + (t.story_points || 0), 0);
-          const velocityDelta = completedPts - committedPts;
-          const blockerCount = (db.prepare(`SELECT COUNT(*) as c FROM blockers WHERE sprint_id=?`).get(sprint_id) as CountRow).c;
-
-          // Velocity trend from last 5 closed sprints
-          const recentSprints = db.prepare(`SELECT name, velocity_committed, velocity_completed FROM sprints WHERE status='closed' AND id != ? ORDER BY id DESC LIMIT 5`).all(sprint_id) as Pick<SprintRow, "name" | "velocity_committed" | "velocity_completed">[];
-          const trendText = recentSprints.length > 0
-            ? recentSprints.map((s) => `${s.name}: ${s.velocity_completed}/${s.velocity_committed}`).join(", ")
-            : "No prior sprints";
-
-          const summary = [
-            `Auto-analysis for ${sprint.name}:`,
-            `Velocity: ${completedPts}/${committedPts} (delta: ${velocityDelta >= 0 ? "+" : ""}${velocityDelta})`,
-            `Ticket completion: ${doneTickets}/${totalTickets} (${completionRate}%)`,
-            `Blockers: ${blockerCount}`,
-            `Trend (last 5): ${trendText}`,
-          ].join(" | ");
-
-          db.prepare(`INSERT INTO retro_findings (sprint_id, category, finding, role) VALUES (?, 'auto_analysis', ?, 'system')`).run(sprint_id, summary);
-          retroNote = "\nAuto retro analysis generated.";
-        } catch {
-          // Non-fatal — don't block the update
-        }
-
-        // Auto-archive discoveries linked to this sprint
-        try {
-          const implemented = db.prepare(`
-            UPDATE discoveries SET status = 'implemented', updated_at = datetime('now')
-            WHERE discovery_sprint_id = ? AND status = 'planned'
-              AND implementation_ticket_id IN (SELECT id FROM tickets WHERE sprint_id = ? AND status = 'DONE')
-          `).run(sprint_id, sprint_id).changes;
-          const dropped = db.prepare(`
-            UPDATE discoveries SET status = 'dropped', drop_reason = 'Sprint closed without completion', updated_at = datetime('now')
-            WHERE discovery_sprint_id = ? AND status = 'planned'
-              AND implementation_ticket_id IN (SELECT id FROM tickets WHERE sprint_id = ? AND status NOT IN ('DONE'))
-          `).run(sprint_id, sprint_id).changes;
-          if (implemented + dropped > 0) slog("INFO", `update_sprint: archived discoveries sprint=${sprint_id} implemented=${implemented} dropped=${dropped}`);
-        } catch {}
-      }
+      const done = transition as TransitionResult | null;
+      const retroNote = done?.analysis ? "\nAuto retro analysis generated." : "";
 
       notifyDashboard(db);
       const warningText = gateWarnings.length > 0 ? `\nWarnings:\n${gateWarnings.map(w => `- ${w}`).join("\n")}` : "";
@@ -1036,8 +992,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
       format: z.enum(["text", "card"]).optional().describe("card = diff-fence transition card (launch/pulse/complete) + summary"),
       acknowledge_open_items: z.boolean().optional().describe("Override the planning gate on planning → implementation (untriaged try_next / escalated discoveries)"),
     },
-    async ({ sprint_id, velocity_completed: _velocity_completed, format, acknowledge_open_items }) => {
-      let velocity_completed = _velocity_completed;
+    async ({ sprint_id, velocity_completed, format, acknowledge_open_items }) => {
       const sprint = getSprintById(db, sprint_id);
       if (!sprint) return { content: [{ type: "text" as const, text: `Sprint #${sprint_id} not found.` }], isError: true };
 
@@ -1064,70 +1019,29 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
 
       const tickets = getTicketsBySprint(db, sprint_id);
 
-      // A3: freeze commitment at implementation start if not explicitly set — never recalculated after
-      if (nextPhase === "implementation" && (!sprint.velocity_committed || sprint.velocity_committed <= 0)) {
-        const frozen = tickets.reduce((s: number, t) => s + (t.story_points || 0), 0);
-        db.prepare(`UPDATE sprints SET velocity_committed = ? WHERE id = ?`).run(frozen, sprint_id);
-        sprint.velocity_committed = frozen;
-      }
-
-      // Use shared gate checks (advisory — never blocks)
-      const gates = checkSprintGates(db, sprint, nextPhase);
-
-      // Auto-calculate velocity_completed from DONE tickets if not provided
-      if ((nextPhase === "done" || nextPhase === "closed") && !velocity_completed && !sprint.velocity_completed) {
-        const autoVelocity = tickets.filter((t) => t.status === "DONE").reduce((s: number, t) => s + (t.story_points || 0), 0);
-        velocity_completed = autoVelocity;
-      }
+      // Use shared gate checks (advisory — never blocks). The commitment that
+      // transitionSprint freezes on implementation start counts as set.
+      const freezes = nextPhase === "implementation" && !(sprint.velocity_committed && sprint.velocity_committed > 0);
+      const gates = checkSprintGates(
+        db,
+        { id: sprint.id, velocity_committed: freezes ? tickets.reduce((s: number, t) => s + (t.story_points || 0), 0) : sprint.velocity_committed },
+        nextPhase,
+      );
 
       // Gates are advisory — always proceed, but include warnings in response
       const warningText = gates.warnings.length > 0 ? `\nWarnings:\n${gates.warnings.map(w => `- ${w}`).join("\n")}` : "";
 
-      // Advance sprint + archive discoveries atomically — partial failure rolls back cleanly
-      let retroNote = "";
-      let archivedImplemented = 0;
-      let archivedDropped = 0;
-      db.transaction(() => {
-        const sets = ["status=?", "updated_at=datetime('now')"];
-        const vals: unknown[] = [nextPhase];
-        if (velocity_completed !== undefined) { sets.push("velocity_completed=?"); vals.push(velocity_completed); }
-        vals.push(sprint_id);
-        db.prepare(`UPDATE sprints SET ${sets.join(",")} WHERE id=?`).run(...vals);
-
-        db.prepare(`INSERT INTO event_log (entity_type, entity_id, action, field_name, old_value, new_value, actor) VALUES ('sprint', ?, 'status_changed', 'status', ?, ?, 'mcp')`).run(sprint_id, sprint.status, nextPhase);
-
-        // Auto retro analysis when reaching done or closed
-        if (nextPhase === "done" || nextPhase === "closed") {
-          const totalTickets = tickets.length;
-          const doneTickets = tickets.filter((t) => t.status === "DONE").length;
-          const completionRate = totalTickets > 0 ? Math.round((doneTickets / totalTickets) * 100) : 0;
-          const pts = velocity_completed || sprint.velocity_completed || tickets.filter((t) => t.status === "DONE").reduce((s: number, t) => s + (t.story_points || 0), 0);
-          const summary = `Auto-analysis: ${doneTickets}/${totalTickets} tickets done (${completionRate}% completion rate). Velocity: ${pts}pt completed of ${sprint.velocity_committed || 0}pt committed.`;
-          db.prepare(`INSERT INTO retro_findings (sprint_id, category, finding, role) VALUES (?, 'auto_analysis', ?, 'system')`).run(sprint_id, summary);
-          retroNote = "\nAuto retro analysis generated.";
-
-          // Auto-archive discoveries: mark "planned" discoveries with completed tickets as "implemented"
-          archivedImplemented = db.prepare(`
-            UPDATE discoveries SET status = 'implemented', updated_at = datetime('now')
-            WHERE discovery_sprint_id = ? AND status = 'planned'
-              AND implementation_ticket_id IN (SELECT id FROM tickets WHERE sprint_id = ? AND status = 'DONE')
-          `).run(sprint_id, sprint_id).changes;
-
-          // Auto-drop discoveries that were planned but ticket was not completed
-          archivedDropped = db.prepare(`
-            UPDATE discoveries SET status = 'dropped', drop_reason = 'Sprint closed without completion', updated_at = datetime('now')
-            WHERE discovery_sprint_id = ? AND status = 'planned'
-              AND implementation_ticket_id IN (SELECT id FROM tickets WHERE sprint_id = ? AND status NOT IN ('DONE'))
-          `).run(sprint_id, sprint_id).changes;
-        }
-      })();
-
-      slog("INFO", `advance_sprint: sprint=${sprint_id} phase ${sprint.status}→${nextPhase}`);
+      // Status + phase automation (commitment freeze, auto-analysis, discovery
+      // archive, epics, milestone) in one transaction — #189.
+      let transition: TransitionResult;
+      try {
+        transition = transitionSprint(db, sprint_id, nextPhase, { actor: "mcp", source: "advance_sprint", velocityCompleted: velocity_completed });
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `Sprint "${sprint.name}" not advanced (rolled back): ${errorMessage(e)}` }], isError: true };
+      }
+      const retroNote = transition.analysis ? "\nAuto retro analysis generated." : "";
       if (gates.warnings.length > 0) {
         slog("WARN", `advance_sprint: gate warnings sprint=${sprint_id} to=${nextPhase} count=${gates.warnings.length}`);
-      }
-      if (archivedImplemented + archivedDropped > 0) {
-        slog("INFO", `advance_sprint: archived discoveries sprint=${sprint_id} implemented=${archivedImplemented} dropped=${archivedDropped}`);
       }
 
       // Build next-action guidance
@@ -1184,8 +1098,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
           const doneTickets = tickets.filter((t) => t.status === "DONE");
           card = sprintCompleteCard({
             sprintName: sprint.name,
-            completed: velocity_completed ?? sprint.velocity_completed ?? doneTickets.reduce((s: number, t) => s + (t.story_points || 0), 0),
-            committed: sprint.velocity_committed || 0,
+            completed: transition.velocityCompleted ?? doneTickets.reduce((s: number, t) => s + (t.story_points || 0), 0),
+            committed: transition.velocityCommitted || 0,
             ticketsDone: doneTickets.length,
             ticketsTotal: tickets.length,
             qaAllVerified: doneTickets.length > 0 && doneTickets.every((t) => t.qa_verified),
@@ -1383,12 +1297,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
           } catch { /* pre-v23 DB */ }
         }
 
-        if (status === 'DONE') {
-          db.prepare(`
-            UPDATE discoveries SET status = 'implemented', updated_at = datetime('now')
-            WHERE status = 'planned' AND implementation_ticket_id = ?
-          `).run(ticket_id);
-        }
+        if (status === 'DONE') promoteTicketDiscoveries(db, ticket_id);
       })();
 
       // ─── Event trail ────────────────────────────────────────────
@@ -3568,23 +3477,19 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
 
   server.tool(
     "get_discovery_coverage",
-    "Get coverage report for a discovery sprint — auto-promotes planned discoveries whose linked ticket is DONE",
+    "Get coverage report for a discovery sprint (read-only). A planned discovery whose linked ticket is DONE counts as implemented.",
     {
       sprint_id: z.number().optional().describe("Discovery sprint ID (omit for all sprints)"),
     },
     async ({ sprint_id }) => {
       try {
-        // Auto-promote: planned discoveries whose ticket is now DONE
-        db.prepare(`
-          UPDATE discoveries SET status = 'implemented', updated_at = datetime('now')
-          WHERE status = 'planned' AND implementation_ticket_id IS NOT NULL
-            AND implementation_ticket_id IN (SELECT id FROM tickets WHERE status = 'DONE')
-        `).run();
-
-        let sql = `SELECT d.status, COUNT(*) as count FROM discoveries d WHERE 1=1`;
+        // Read-only (#189): a planned discovery whose ticket is DONE counts as
+        // implemented; the status column is written by update_ticket / sprint close-out.
+        const EFFECTIVE_STATUS = `CASE WHEN d.status = 'planned' AND d.implementation_ticket_id IN (SELECT id FROM tickets WHERE status = 'DONE') THEN 'implemented' ELSE d.status END`;
+        let sql = `SELECT ${EFFECTIVE_STATUS} AS status, COUNT(*) as count FROM discoveries d WHERE 1=1`;
         const params: unknown[] = [];
         if (sprint_id) { sql += " AND d.discovery_sprint_id = ?"; params.push(sprint_id); }
-        sql += " GROUP BY d.status";
+        sql += ` GROUP BY ${EFFECTIVE_STATUS}`;
         const rows = db.prepare(sql).all(...params) as { status: string; count: number }[];
         const total = rows.reduce((sum: number, r) => sum + r.count, 0);
         if (total === 0) return { content: [{ type: "text" as const, text: sprint_id ? `No discoveries in sprint ${sprint_id}.` : "No discoveries found." }] };
@@ -3597,9 +3502,9 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         let breakdown = "";
         if (!sprint_id) {
           const sprintRows = db.prepare(`
-            SELECT s.id, s.name, d.status, COUNT(*) as count
+            SELECT s.id, s.name, ${EFFECTIVE_STATUS} AS status, COUNT(*) as count
             FROM discoveries d JOIN sprints s ON d.discovery_sprint_id = s.id
-            GROUP BY s.id, d.status ORDER BY s.created_at DESC
+            GROUP BY s.id, ${EFFECTIVE_STATUS} ORDER BY s.created_at DESC
           `).all() as { id: number; name: string; status: string; count: number }[];
           const sprintMap = new Map<number, { name: string; counts: Record<string, number>; total: number }>();
           sprintRows.forEach((r) => {
