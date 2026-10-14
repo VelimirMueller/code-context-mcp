@@ -45,6 +45,7 @@
     "test:coverage": "vitest run --coverage",
     "lint": "eslint .",
     "typecheck:dashboard": "tsc --noEmit -p src/dashboard/app",
+    "check:dashboard-reachable": "node scripts/check-dashboard-reachable.mjs",
     "lint:fix": "eslint . --fix",
     "format": "prettier --check .",
     "format:fix": "prettier --write .",
