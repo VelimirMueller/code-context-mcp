@@ -1,5 +1,8 @@
 import type { Milestone, Sprint } from '@/types';
 
+/** The milestone statuses the `milestones` table stores. */
+type MilestoneStatus = 'planned' | 'active' | 'completed';
+
 /**
  * Drop archived milestones/epics from a picker list, keeping the one that is currently
  * selected (so an archived link still renders its name instead of a blank option).
@@ -36,15 +39,15 @@ export function parseMilestoneMarkdown(content: string): Milestone[] {
     const goalMatch = section.match(/\*\*Goal:\*\*\s*(.+)/i);
     const description = goalMatch ? goalMatch[1].trim() : null;
 
-    // Map status
-    let status: string = 'planned';
+    // Map the heading to a stored status: planned, active or completed.
+    let status: MilestoneStatus = 'planned';
     if (/COMPLETE|DONE/.test(statusHint)) {
       status = 'completed';
     } else if (/IN\s*PROGRESS|ACTIVE/.test(statusHint)) {
-      status = 'in_progress';
+      status = 'active';
     }
 
-    const progress = status === 'completed' ? 100 : status === 'in_progress' ? 50 : 0;
+    const progress = status === 'completed' ? 100 : status === 'active' ? 50 : 0;
 
     milestones.push({
       id,
