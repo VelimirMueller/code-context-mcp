@@ -1,5 +1,5 @@
-import BetterSqlite3 from "better-sqlite3";
-import type Database from "better-sqlite3";
+import BetterSqlite3 from 'better-sqlite3';
+import type Database from 'better-sqlite3';
 
 /**
  * Initialize the SQLite schema for the Scrum system.
@@ -410,36 +410,36 @@ export function initScrumSchema(db: Database.Database): void {
   `);
 
   // Migrate existing databases: add milestone_id column if missing
-  const cols = db.pragma("table_info(tickets)") as Array<{ name: string }>;
-  if (!cols.some((c) => c.name === "milestone_id")) {
+  const cols = db.pragma('table_info(tickets)') as Array<{ name: string }>;
+  if (!cols.some((c) => c.name === 'milestone_id')) {
     db.exec(
-      "ALTER TABLE tickets ADD COLUMN milestone_id INTEGER REFERENCES milestones(id) ON DELETE SET NULL",
+      'ALTER TABLE tickets ADD COLUMN milestone_id INTEGER REFERENCES milestones(id) ON DELETE SET NULL',
     );
   }
 
-  db.exec(
-    "CREATE INDEX IF NOT EXISTS idx_tickets_milestone_id ON tickets(milestone_id);",
-  );
+  db.exec('CREATE INDEX IF NOT EXISTS idx_tickets_milestone_id ON tickets(milestone_id);');
 
   // Migrate: add epic_id to tickets if missing
-  if (!cols.some((c) => c.name === "epic_id")) {
-    db.exec("ALTER TABLE tickets ADD COLUMN epic_id INTEGER REFERENCES epics(id) ON DELETE SET NULL");
+  if (!cols.some((c) => c.name === 'epic_id')) {
+    db.exec(
+      'ALTER TABLE tickets ADD COLUMN epic_id INTEGER REFERENCES epics(id) ON DELETE SET NULL',
+    );
   }
-  db.exec("CREATE INDEX IF NOT EXISTS idx_tickets_epic_id ON tickets(epic_id);");
+  db.exec('CREATE INDEX IF NOT EXISTS idx_tickets_epic_id ON tickets(epic_id);');
 
   // add milestone_id column and idx_sprints_archived index to sprints if missing (legacy DBs)
-  const sprintCols = db.pragma("table_info(sprints)") as Array<{ name: string }>;
-  if (!sprintCols.some((c) => c.name === "milestone_id")) {
-    db.exec("ALTER TABLE sprints ADD COLUMN milestone_id INTEGER REFERENCES milestones(id)");
+  const sprintCols = db.pragma('table_info(sprints)') as Array<{ name: string }>;
+  if (!sprintCols.some((c) => c.name === 'milestone_id')) {
+    db.exec('ALTER TABLE sprints ADD COLUMN milestone_id INTEGER REFERENCES milestones(id)');
   }
-  if (sprintCols.some((c) => c.name === "archived_at")) {
-    db.exec("CREATE INDEX IF NOT EXISTS idx_sprints_archived ON sprints(archived_at);");
+  if (sprintCols.some((c) => c.name === 'archived_at')) {
+    db.exec('CREATE INDEX IF NOT EXISTS idx_sprints_archived ON sprints(archived_at);');
   }
   // archived_at indexes on milestones/epics (v24) — legacy tables gain the column in
   // runMigrations' idempotent section, so only index it here when it already exists.
-  for (const table of ["milestones", "epics"]) {
+  for (const table of ['milestones', 'epics']) {
     const tCols = db.pragma(`table_info(${table})`) as Array<{ name: string }>;
-    if (tCols.some((c) => c.name === "archived_at")) {
+    if (tCols.some((c) => c.name === 'archived_at')) {
       db.exec(`CREATE INDEX IF NOT EXISTS idx_${table}_archived ON ${table}(archived_at);`);
     }
   }
@@ -452,13 +452,17 @@ export function initScrumSchema(db: Database.Database): void {
   // that may not exist on legacy DBs — create them only when the columns are present.
   // For fresh DBs the columns exist in the canonical CREATE TABLE above; for legacy DBs
   // runMigrations' idempotent section ALTERs them in before creating these indexes.
-  const ticketColsNow = db.pragma("table_info(tickets)") as Array<{ name: string }>;
-  if (ticketColsNow.some((c) => c.name === "deleted_at")) {
-    db.exec("CREATE INDEX IF NOT EXISTS idx_tickets_sprint_deleted ON tickets(sprint_id, deleted_at);");
+  const ticketColsNow = db.pragma('table_info(tickets)') as Array<{ name: string }>;
+  if (ticketColsNow.some((c) => c.name === 'deleted_at')) {
+    db.exec(
+      'CREATE INDEX IF NOT EXISTS idx_tickets_sprint_deleted ON tickets(sprint_id, deleted_at);',
+    );
   }
-  const sprintColsNow = db.pragma("table_info(sprints)") as Array<{ name: string }>;
-  if (sprintColsNow.some((c) => c.name === "deleted_at")) {
-    db.exec("CREATE INDEX IF NOT EXISTS idx_sprints_status_deleted ON sprints(status, deleted_at);");
+  const sprintColsNow = db.pragma('table_info(sprints)') as Array<{ name: string }>;
+  if (sprintColsNow.some((c) => c.name === 'deleted_at')) {
+    db.exec(
+      'CREATE INDEX IF NOT EXISTS idx_sprints_status_deleted ON sprints(status, deleted_at);',
+    );
   }
 
   // Schema version tracking table
@@ -470,13 +474,13 @@ export function initScrumSchema(db: Database.Database): void {
 }
 
 /** Tables that carry the v26 `project` key (CCA-13). */
-const PROJECT_TABLES = ["milestones", "sprints", "epics", "tickets"] as const;
+const PROJECT_TABLES = ['milestones', 'sprints', 'epics', 'tickets'] as const;
 
 /** Index `project` on every table that has the column (idempotent). */
 function createProjectIndexes(db: Database.Database): void {
   for (const table of PROJECT_TABLES) {
     const cols = db.pragma(`table_info(${table})`) as Array<{ name: string }>;
-    if (cols.some((c) => c.name === "project")) {
+    if (cols.some((c) => c.name === 'project')) {
       db.exec(`CREATE INDEX IF NOT EXISTS idx_${table}_project ON ${table}(project);`);
     }
   }
@@ -495,7 +499,9 @@ export function backfillGithubIssues(db: Database.Database): number {
   const rows = db
     .prepare("SELECT id, notes FROM tickets WHERE github_issue IS NULL AND notes LIKE '%GitHub:%'")
     .all() as Array<{ id: number; notes: string }>;
-  const upd = db.prepare("UPDATE tickets SET github_issue = ?, github_repo = ? WHERE id = ? AND github_issue IS NULL");
+  const upd = db.prepare(
+    'UPDATE tickets SET github_issue = ?, github_repo = ? WHERE id = ? AND github_issue IS NULL',
+  );
   let n = 0;
   for (const r of rows) {
     const m = GITHUB_NOTE_RE.exec(r.notes);
@@ -519,29 +525,40 @@ export function peekSchemaVersion(dbPath: string): number {
   let peekDb: Database.Database | null = null;
   try {
     peekDb = new BetterSqlite3(dbPath, { readonly: true });
-    const row = peekDb.prepare("SELECT MAX(version) v FROM schema_versions").get() as { v: number | null };
+    const row = peekDb.prepare('SELECT MAX(version) v FROM schema_versions').get() as {
+      v: number | null;
+    };
     return row?.v ?? 0;
   } catch {
     return 0;
   } finally {
     if (peekDb) {
-      try { peekDb.close(); } catch { /* ignore */ }
+      try {
+        peekDb.close();
+      } catch {
+        /* ignore */
+      }
     }
   }
 }
 
-export function runMigrations(
-  db: Database.Database,
-  opts: { freshDb?: boolean } = {},
-): void {
-  const current = (db.prepare("SELECT MAX(version) as v FROM schema_versions").get() as { v: number | null } | undefined)?.v ?? 0;
+export function runMigrations(db: Database.Database, opts: { freshDb?: boolean } = {}): void {
+  const current =
+    (
+      db.prepare('SELECT MAX(version) as v FROM schema_versions').get() as
+        | { v: number | null }
+        | undefined
+    )?.v ?? 0;
   // IMPORTANT: new columns/tables must ALSO be added to initScrumSchema above — enforced by migrations.test.ts "canonical schema parity".
   const migrations = [
-    { version: 1, name: 'add_epic_id_to_tickets', sql: "SELECT 1" }, // already done
-    { version: 2, name: 'add_milestone_id_to_sprints', sql: "SELECT 1" }, // already done
-    { version: 3, name: 'add_decisions_table', sql: "SELECT 1" }, // already done
-    { version: 4, name: 'sprint_phases_v2', sql: "SELECT 1" }, // already done
-    { version: 5, name: 'sprint_10_phases', sql: `
+    { version: 1, name: 'add_epic_id_to_tickets', sql: 'SELECT 1' }, // already done
+    { version: 2, name: 'add_milestone_id_to_sprints', sql: 'SELECT 1' }, // already done
+    { version: 3, name: 'add_decisions_table', sql: 'SELECT 1' }, // already done
+    { version: 4, name: 'sprint_phases_v2', sql: 'SELECT 1' }, // already done
+    {
+      version: 5,
+      name: 'sprint_10_phases',
+      sql: `
       CREATE TABLE IF NOT EXISTS sprints_new (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL UNIQUE,
@@ -560,21 +577,33 @@ export function runMigrations(
       DROP TABLE sprints;
       ALTER TABLE sprints_new RENAME TO sprints;
       CREATE INDEX IF NOT EXISTS idx_sprints_status ON sprints(status);
-    ` },
+    `,
+    },
     // estimated/actual_hours now canonical in initScrumSchema + idempotent patch below
     { version: 6, name: 'add_time_tracking_to_tickets', sql: `SELECT 1` },
-    { version: 7, name: 'add_review_status_to_tickets', sql: `
+    {
+      version: 7,
+      name: 'add_review_status_to_tickets',
+      sql: `
       SELECT 1
-    ` }, // review_status applied in the idempotent section below (was dashboard-only before 2026-06-11)
-    { version: 8, name: 'seed_default_tags', sql: `
+    `,
+    }, // review_status applied in the idempotent section below (was dashboard-only before 2026-06-11)
+    {
+      version: 8,
+      name: 'seed_default_tags',
+      sql: `
       INSERT OR IGNORE INTO tags (name, color) VALUES ('tech-debt', '#ef4444');
       INSERT OR IGNORE INTO tags (name, color) VALUES ('security', '#f59e0b');
       INSERT OR IGNORE INTO tags (name, color) VALUES ('ux', '#8b5cf6');
       INSERT OR IGNORE INTO tags (name, color) VALUES ('bug', '#dc2626');
       INSERT OR IGNORE INTO tags (name, color) VALUES ('performance', '#10b981');
       INSERT OR IGNORE INTO tags (name, color) VALUES ('documentation', '#6366f1');
-    ` },
-    { version: 9, name: 'create_velocity_trends_view', sql: `
+    `,
+    },
+    {
+      version: 9,
+      name: 'create_velocity_trends_view',
+      sql: `
       CREATE VIEW IF NOT EXISTS velocity_trends AS
       SELECT
         s.id as sprint_id,
@@ -593,9 +622,13 @@ export function runMigrations(
       FROM sprints s
       WHERE s.deleted_at IS NULL
       ORDER BY s.created_at DESC;
-    ` },
+    `,
+    },
     { version: 10, name: 'create_linear_normalized_tables', sql: `SELECT 1` }, // tables created in initScrumSchema
-    { version: 11, name: 'create_discoveries_table', sql: `
+    {
+      version: 11,
+      name: 'create_discoveries_table',
+      sql: `
       CREATE TABLE IF NOT EXISTS discoveries (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         discovery_sprint_id INTEGER NOT NULL REFERENCES sprints(id),
@@ -611,8 +644,12 @@ export function runMigrations(
       );
       CREATE INDEX IF NOT EXISTS idx_discoveries_sprint ON discoveries(discovery_sprint_id);
       CREATE INDEX IF NOT EXISTS idx_discoveries_status ON discoveries(status);
-    ` },
-    { version: 12, name: 'create_pending_actions_table', sql: `
+    `,
+    },
+    {
+      version: 12,
+      name: 'create_pending_actions_table',
+      sql: `
       CREATE TABLE IF NOT EXISTS pending_actions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         action TEXT NOT NULL,
@@ -628,8 +665,12 @@ export function runMigrations(
         error TEXT
       );
       CREATE INDEX IF NOT EXISTS idx_pending_actions_status ON pending_actions(status, created_at);
-    ` },
-    { version: 13, name: 'create_workflow_orchestration_tables', sql: `
+    `,
+    },
+    {
+      version: 13,
+      name: 'create_workflow_orchestration_tables',
+      sql: `
       CREATE TABLE IF NOT EXISTS workflow_runs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
@@ -657,20 +698,29 @@ export function runMigrations(
         completed_at TEXT
       );
       CREATE INDEX IF NOT EXISTS idx_workflow_step_log_workflow ON workflow_step_log(workflow_id);
-    ` },
+    `,
+    },
     { version: 14, name: 'add_retro_linked_ticket_id', sql: `SELECT 1` },
     { version: 15, name: 'add_resolution_plan_to_discoveries', sql: `SELECT 1` },
-    { version: 16, name: 'drop_linear_tables', sql: `
+    {
+      version: 16,
+      name: 'drop_linear_tables',
+      sql: `
       DROP TABLE IF EXISTS linear_cache;
       DROP TABLE IF EXISTS linear_issues;
       DROP TABLE IF EXISTS linear_states;
       DROP TABLE IF EXISTS linear_labels;
-    ` },
+    `,
+    },
     { version: 17, name: 'simplify_sprint_phases_add_done', sql: `SELECT 1` },
-    { version: 18, name: 'add_department_to_agents', sql: `
+    {
+      version: 18,
+      name: 'add_department_to_agents',
+      sql: `
       UPDATE agents SET department = 'quality' WHERE role IN ('qa', 'security-specialist', 'scrum-master');
       UPDATE agents SET department = 'business' WHERE role IN ('product-owner', 'team-lead', 'manager', 'marketing-lead', 'growth-strategist', 'ux-designer');
-    ` },
+    `,
+    },
     // Index creation is deferred to the idempotent section below (after deleted_at is guaranteed)
     { version: 19, name: 'add_ticket_composite_index', sql: `SELECT 1` },
     // archived_at column + index are applied in the idempotent post-rebuild section below
@@ -716,70 +766,79 @@ export function runMigrations(
 
   // Wrap all migrations in a single transaction — partial failure rolls back cleanly
   const migrate = db.transaction(() => {
-  if (opts.freshDb && current === 0) {
-    // Brand-new DB: initScrumSchema already created the canonical schema.
-    // Stamp all versions instead of replaying (avoids the v5/v17 rebuild dance).
-    const stamp = db.prepare("INSERT INTO schema_versions (version, name) VALUES (?, ?)");
-    for (const m of migrations) stamp.run(m.version, m.name);
-  } else {
-    // Safe column additions that migrations depend on (must run before versioned migrations)
-    const agentCols = db.pragma("table_info(agents)") as Array<{ name: string }>;
-    if (!agentCols.some((c) => c.name === "department")) {
-      db.exec("ALTER TABLE agents ADD COLUMN department TEXT DEFAULT 'development'");
-    }
+    if (opts.freshDb && current === 0) {
+      // Brand-new DB: initScrumSchema already created the canonical schema.
+      // Stamp all versions instead of replaying (avoids the v5/v17 rebuild dance).
+      const stamp = db.prepare('INSERT INTO schema_versions (version, name) VALUES (?, ?)');
+      for (const m of migrations) stamp.run(m.version, m.name);
+    } else {
+      // Safe column additions that migrations depend on (must run before versioned migrations)
+      const agentCols = db.pragma('table_info(agents)') as Array<{ name: string }>;
+      if (!agentCols.some((c) => c.name === 'department')) {
+        db.exec("ALTER TABLE agents ADD COLUMN department TEXT DEFAULT 'development'");
+      }
 
-    for (const m of migrations) {
-      if (m.version > current) {
-        db.exec(m.sql);
-        db.prepare("INSERT INTO schema_versions (version, name) VALUES (?, ?)").run(m.version, m.name);
+      for (const m of migrations) {
+        if (m.version > current) {
+          db.exec(m.sql);
+          db.prepare('INSERT INTO schema_versions (version, name) VALUES (?, ?)').run(
+            m.version,
+            m.name,
+          );
+        }
       }
     }
-  }
 
-  // Safe column additions (idempotent — no-op if column already exists)
-  const retroCols = db.pragma("table_info(retro_findings)") as Array<{ name: string }>;
-  if (!retroCols.some((c) => c.name === "linked_ticket_id")) {
-    db.exec("ALTER TABLE retro_findings ADD COLUMN linked_ticket_id INTEGER REFERENCES tickets(id)");
-  }
-  // v21: try_next lifecycle — existing rows default to 'open' (the un-triaged state)
-  if (!retroCols.some((c) => c.name === "status")) {
-    db.exec("ALTER TABLE retro_findings ADD COLUMN status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'adopted', 'dropped'))");
-  }
-
-  // v23 (D1): ticket change flags — UI edits set pending_change, sessions acknowledge
-  // Absorbed from dashboard.ts ad-hoc patches + v6 (legacy DBs created before these
-  // columns were canonical). Fresh DBs get them via initScrumSchema's CREATE TABLE.
-  const ticketCols = db.pragma("table_info(tickets)") as Array<{ name: string }>;
-  if (!ticketCols.some((c) => c.name === "estimated_hours")) {
-    db.exec("ALTER TABLE tickets ADD COLUMN estimated_hours REAL");
-  }
-  if (!ticketCols.some((c) => c.name === "actual_hours")) {
-    db.exec("ALTER TABLE tickets ADD COLUMN actual_hours REAL");
-  }
-  if (!ticketCols.some((c) => c.name === "review_status")) {
-    db.exec(
-      "ALTER TABLE tickets ADD COLUMN review_status TEXT DEFAULT NULL CHECK(review_status IS NULL OR review_status IN ('pending','approved','rejected'))",
-    );
-  }
-  if (!ticketCols.some((c) => c.name === "change_seq")) {
-    db.exec("ALTER TABLE tickets ADD COLUMN change_seq INTEGER NOT NULL DEFAULT 0");
-  }
-  if (!ticketCols.some((c) => c.name === "pending_change")) {
-    db.exec("ALTER TABLE tickets ADD COLUMN pending_change INTEGER NOT NULL DEFAULT 0");
-  }
-  // deleted_at safety net for all four soft-delete tables (was dashboard-only)
-  for (const table of ["milestones", "sprints", "epics", "tickets"]) {
-    const cols = db.pragma(`table_info(${table})`) as Array<{ name: string }>;
-    if (!cols.some((c) => c.name === "deleted_at")) {
-      db.exec(`ALTER TABLE ${table} ADD COLUMN deleted_at TEXT DEFAULT NULL`);
+    // Safe column additions (idempotent — no-op if column already exists)
+    const retroCols = db.pragma('table_info(retro_findings)') as Array<{ name: string }>;
+    if (!retroCols.some((c) => c.name === 'linked_ticket_id')) {
+      db.exec(
+        'ALTER TABLE retro_findings ADD COLUMN linked_ticket_id INTEGER REFERENCES tickets(id)',
+      );
     }
-  }
-  // Composite soft-delete indexes — created here (not in migrations) so deleted_at is
-  // guaranteed to exist on both legacy and fresh paths before the index is built.
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_tickets_sprint_deleted ON tickets(sprint_id, deleted_at);`);
+    // v21: try_next lifecycle — existing rows default to 'open' (the un-triaged state)
+    if (!retroCols.some((c) => c.name === 'status')) {
+      db.exec(
+        "ALTER TABLE retro_findings ADD COLUMN status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'adopted', 'dropped'))",
+      );
+    }
 
-  // v23 (D1): field-level revision trail for UI/MCP ticket edits
-  db.exec(`
+    // v23 (D1): ticket change flags — UI edits set pending_change, sessions acknowledge
+    // Absorbed from dashboard.ts ad-hoc patches + v6 (legacy DBs created before these
+    // columns were canonical). Fresh DBs get them via initScrumSchema's CREATE TABLE.
+    const ticketCols = db.pragma('table_info(tickets)') as Array<{ name: string }>;
+    if (!ticketCols.some((c) => c.name === 'estimated_hours')) {
+      db.exec('ALTER TABLE tickets ADD COLUMN estimated_hours REAL');
+    }
+    if (!ticketCols.some((c) => c.name === 'actual_hours')) {
+      db.exec('ALTER TABLE tickets ADD COLUMN actual_hours REAL');
+    }
+    if (!ticketCols.some((c) => c.name === 'review_status')) {
+      db.exec(
+        "ALTER TABLE tickets ADD COLUMN review_status TEXT DEFAULT NULL CHECK(review_status IS NULL OR review_status IN ('pending','approved','rejected'))",
+      );
+    }
+    if (!ticketCols.some((c) => c.name === 'change_seq')) {
+      db.exec('ALTER TABLE tickets ADD COLUMN change_seq INTEGER NOT NULL DEFAULT 0');
+    }
+    if (!ticketCols.some((c) => c.name === 'pending_change')) {
+      db.exec('ALTER TABLE tickets ADD COLUMN pending_change INTEGER NOT NULL DEFAULT 0');
+    }
+    // deleted_at safety net for all four soft-delete tables (was dashboard-only)
+    for (const table of ['milestones', 'sprints', 'epics', 'tickets']) {
+      const cols = db.pragma(`table_info(${table})`) as Array<{ name: string }>;
+      if (!cols.some((c) => c.name === 'deleted_at')) {
+        db.exec(`ALTER TABLE ${table} ADD COLUMN deleted_at TEXT DEFAULT NULL`);
+      }
+    }
+    // Composite soft-delete indexes — created here (not in migrations) so deleted_at is
+    // guaranteed to exist on both legacy and fresh paths before the index is built.
+    db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_tickets_sprint_deleted ON tickets(sprint_id, deleted_at);`,
+    );
+
+    // v23 (D1): field-level revision trail for UI/MCP ticket edits
+    db.exec(`
     CREATE TABLE IF NOT EXISTS ticket_revisions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       ticket_id INTEGER NOT NULL,
@@ -793,8 +852,8 @@ export function runMigrations(
     CREATE INDEX IF NOT EXISTS idx_ticket_revisions_ticket ON ticket_revisions(ticket_id);
   `);
 
-  // v23 (D2): multi-agent assignments — lead implements, supporters verify (decision #4)
-  db.exec(`
+    // v23 (D2): multi-agent assignments — lead implements, supporters verify (decision #4)
+    db.exec(`
     CREATE TABLE IF NOT EXISTS ticket_assignments (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       ticket_id INTEGER NOT NULL,
@@ -807,19 +866,24 @@ export function runMigrations(
     );
     CREATE INDEX IF NOT EXISTS idx_ticket_assignments_ticket ON ticket_assignments(ticket_id);
   `);
-  // Backfill: every assigned ticket gets its agent as the lead assignment (idempotent)
-  db.exec(`
+    // Backfill: every assigned ticket gets its agent as the lead assignment (idempotent)
+    db.exec(`
     INSERT OR IGNORE INTO ticket_assignments (ticket_id, role, is_lead)
     SELECT id, assigned_to, 1 FROM tickets
     WHERE assigned_to IS NOT NULL AND assigned_to != ''
       AND id NOT IN (SELECT ticket_id FROM ticket_assignments WHERE is_lead = 1)
   `);
 
-  // v22: rebuild event_log with extended CHECKs (retro_finding entity, triaged action) —
-  // idempotent: skip when the current constraint already allows retro_finding.
-  const eventLogSql = (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='event_log'").get() as { sql: string } | undefined)?.sql ?? "";
-  if (eventLogSql && !eventLogSql.includes("'retro_finding'")) {
-    db.exec(`
+    // v22: rebuild event_log with extended CHECKs (retro_finding entity, triaged action) —
+    // idempotent: skip when the current constraint already allows retro_finding.
+    const eventLogSql =
+      (
+        db
+          .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='event_log'")
+          .get() as { sql: string } | undefined
+      )?.sql ?? '';
+    if (eventLogSql && !eventLogSql.includes("'retro_finding'")) {
+      db.exec(`
       CREATE TABLE event_log_v2 (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         entity_type TEXT NOT NULL CHECK (entity_type IN ('ticket', 'sprint', 'epic', 'milestone', 'agent', 'blocker', 'bug', 'discovery', 'retro_finding')),
@@ -838,31 +902,36 @@ export function runMigrations(
       CREATE INDEX IF NOT EXISTS idx_event_log_entity ON event_log(entity_type, entity_id);
       CREATE INDEX IF NOT EXISTS idx_event_log_created ON event_log(created_at);
     `);
-  }
-  if (!retroCols.some((c) => c.name === "dropped_reason")) {
-    db.exec("ALTER TABLE retro_findings ADD COLUMN dropped_reason TEXT");
-  }
-  if (!retroCols.some((c) => c.name === "deferred_at")) {
-    db.exec("ALTER TABLE retro_findings ADD COLUMN deferred_at TEXT");
-  }
+    }
+    if (!retroCols.some((c) => c.name === 'dropped_reason')) {
+      db.exec('ALTER TABLE retro_findings ADD COLUMN dropped_reason TEXT');
+    }
+    if (!retroCols.some((c) => c.name === 'deferred_at')) {
+      db.exec('ALTER TABLE retro_findings ADD COLUMN deferred_at TEXT');
+    }
 
-  const discoveryCols = db.pragma("table_info(discoveries)") as Array<{ name: string }>;
-  if (!discoveryCols.some((c) => c.name === "resolution_plan")) {
-    db.exec("ALTER TABLE discoveries ADD COLUMN resolution_plan TEXT");
-  }
+    const discoveryCols = db.pragma('table_info(discoveries)') as Array<{ name: string }>;
+    if (!discoveryCols.some((c) => c.name === 'resolution_plan')) {
+      db.exec('ALTER TABLE discoveries ADD COLUMN resolution_plan TEXT');
+    }
 
-  // Migration 17: Rebuild sprints table with 'done' in CHECK constraint (idempotent)
-  // Check if the current sprints CHECK constraint already includes 'done'
-  const sprintTableSql = (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='sprints'").get() as { sql: string } | undefined)?.sql ?? "";
-  if (!sprintTableSql.includes("'done'")) {
-    const sprintCols = db.pragma("table_info(sprints)") as Array<{ name: string }>;
-    const hasDeletedAt = sprintCols.some((c) => c.name === "deleted_at");
-    const colList = hasDeletedAt
-      ? "id, name, goal, start_date, end_date, status, velocity_committed, velocity_completed, created_at, updated_at, milestone_id, deleted_at"
-      : "id, name, goal, start_date, end_date, status, velocity_committed, velocity_completed, created_at, updated_at, milestone_id";
-    // Always include deleted_at in rebuilt table — migration 5 may have dropped it
-    const deletedAtCol = ",\n        deleted_at TEXT DEFAULT NULL";
-    db.exec(`
+    // Migration 17: Rebuild sprints table with 'done' in CHECK constraint (idempotent)
+    // Check if the current sprints CHECK constraint already includes 'done'
+    const sprintTableSql =
+      (
+        db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='sprints'").get() as
+          | { sql: string }
+          | undefined
+      )?.sql ?? '';
+    if (!sprintTableSql.includes("'done'")) {
+      const sprintCols = db.pragma('table_info(sprints)') as Array<{ name: string }>;
+      const hasDeletedAt = sprintCols.some((c) => c.name === 'deleted_at');
+      const colList = hasDeletedAt
+        ? 'id, name, goal, start_date, end_date, status, velocity_committed, velocity_completed, created_at, updated_at, milestone_id, deleted_at'
+        : 'id, name, goal, start_date, end_date, status, velocity_committed, velocity_completed, created_at, updated_at, milestone_id';
+      // Always include deleted_at in rebuilt table — migration 5 may have dropped it
+      const deletedAtCol = ',\n        deleted_at TEXT DEFAULT NULL';
+      db.exec(`
       CREATE TABLE IF NOT EXISTS sprints_v3 (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL UNIQUE,
@@ -877,17 +946,19 @@ export function runMigrations(
         milestone_id INTEGER REFERENCES milestones(id)${deletedAtCol}
       );
     `);
-    // If source has deleted_at, copy it; otherwise let it default to NULL
-    if (hasDeletedAt) {
-      db.exec(`INSERT OR IGNORE INTO sprints_v3 (${colList}) SELECT ${colList} FROM sprints;`);
-    } else {
-      db.exec(`INSERT OR IGNORE INTO sprints_v3 (id, name, goal, start_date, end_date, status, velocity_committed, velocity_completed, created_at, updated_at, milestone_id) SELECT id, name, goal, start_date, end_date, status, velocity_committed, velocity_completed, created_at, updated_at, milestone_id FROM sprints;`);
-    }
-    db.exec(`DROP VIEW IF EXISTS velocity_trends;`);
-    db.exec(`DROP TABLE sprints;`);
-    db.exec(`ALTER TABLE sprints_v3 RENAME TO sprints;`);
-    // Recreate velocity_trends view
-    db.exec(`
+      // If source has deleted_at, copy it; otherwise let it default to NULL
+      if (hasDeletedAt) {
+        db.exec(`INSERT OR IGNORE INTO sprints_v3 (${colList}) SELECT ${colList} FROM sprints;`);
+      } else {
+        db.exec(
+          `INSERT OR IGNORE INTO sprints_v3 (id, name, goal, start_date, end_date, status, velocity_committed, velocity_completed, created_at, updated_at, milestone_id) SELECT id, name, goal, start_date, end_date, status, velocity_committed, velocity_completed, created_at, updated_at, milestone_id FROM sprints;`,
+        );
+      }
+      db.exec(`DROP VIEW IF EXISTS velocity_trends;`);
+      db.exec(`DROP TABLE sprints;`);
+      db.exec(`ALTER TABLE sprints_v3 RENAME TO sprints;`);
+      // Recreate velocity_trends view
+      db.exec(`
       CREATE VIEW IF NOT EXISTS velocity_trends AS
       SELECT
         s.id as sprint_id, s.name as sprint_name, s.status,
@@ -900,33 +971,35 @@ export function runMigrations(
         s.start_date, s.end_date, s.created_at
       FROM sprints s WHERE s.deleted_at IS NULL ORDER BY s.created_at DESC;
     `);
-    db.exec(`CREATE INDEX IF NOT EXISTS idx_sprints_status ON sprints(status);`);
-  }
-
-  // Composite index on sprints — must run after sprints_v3 rebuild guarantees deleted_at exists
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_sprints_status_deleted ON sprints(status, deleted_at);`);
-
-  // Migration 20: add archived_at to sprints (idempotent; must run after the v17 rebuild,
-  // which copies a fixed column list and would otherwise drop a column added earlier).
-  const sprintCols20 = db.pragma("table_info(sprints)") as Array<{ name: string }>;
-  if (!sprintCols20.some((c) => c.name === "archived_at")) {
-    db.exec("ALTER TABLE sprints ADD COLUMN archived_at TEXT DEFAULT NULL");
-  }
-  db.exec("CREATE INDEX IF NOT EXISTS idx_sprints_archived ON sprints(archived_at);");
-
-  // Migration 24: add archived_at to milestones + epics (idempotent — no table rebuild
-  // touches these tables, so a plain ALTER is safe on every legacy path).
-  for (const table of ["milestones", "epics"]) {
-    const tCols = db.pragma(`table_info(${table})`) as Array<{ name: string }>;
-    if (!tCols.some((c) => c.name === "archived_at")) {
-      db.exec(`ALTER TABLE ${table} ADD COLUMN archived_at TEXT DEFAULT NULL`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_sprints_status ON sprints(status);`);
     }
-    db.exec(`CREATE INDEX IF NOT EXISTS idx_${table}_archived ON ${table}(archived_at);`);
-  }
 
-  // Migration 26 (CCA-13): project key + GitHub sync columns. Existing rows stay
-  // NULL (unassigned) — the project is never guessed. Runs after the v17 rebuild.
-  db.exec(`
+    // Composite index on sprints — must run after sprints_v3 rebuild guarantees deleted_at exists
+    db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_sprints_status_deleted ON sprints(status, deleted_at);`,
+    );
+
+    // Migration 20: add archived_at to sprints (idempotent; must run after the v17 rebuild,
+    // which copies a fixed column list and would otherwise drop a column added earlier).
+    const sprintCols20 = db.pragma('table_info(sprints)') as Array<{ name: string }>;
+    if (!sprintCols20.some((c) => c.name === 'archived_at')) {
+      db.exec('ALTER TABLE sprints ADD COLUMN archived_at TEXT DEFAULT NULL');
+    }
+    db.exec('CREATE INDEX IF NOT EXISTS idx_sprints_archived ON sprints(archived_at);');
+
+    // Migration 24: add archived_at to milestones + epics (idempotent — no table rebuild
+    // touches these tables, so a plain ALTER is safe on every legacy path).
+    for (const table of ['milestones', 'epics']) {
+      const tCols = db.pragma(`table_info(${table})`) as Array<{ name: string }>;
+      if (!tCols.some((c) => c.name === 'archived_at')) {
+        db.exec(`ALTER TABLE ${table} ADD COLUMN archived_at TEXT DEFAULT NULL`);
+      }
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_${table}_archived ON ${table}(archived_at);`);
+    }
+
+    // Migration 26 (CCA-13): project key + GitHub sync columns. Existing rows stay
+    // NULL (unassigned) — the project is never guessed. Runs after the v17 rebuild.
+    db.exec(`
     CREATE TABLE IF NOT EXISTS projects (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,
@@ -941,24 +1014,33 @@ export function runMigrations(
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
-  const addCol = (table: string, col: string, ddl: string) => {
-    const tCols = db.pragma(`table_info(${table})`) as Array<{ name: string }>;
-    if (!tCols.some((c) => c.name === col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${ddl}`);
-  };
-  for (const table of PROJECT_TABLES) addCol(table, "project", "TEXT DEFAULT NULL");
-  addCol("tickets", "type", "TEXT DEFAULT NULL CHECK (type IS NULL OR type IN ('feat', 'fix', 'chore', 'infra', 'improvement'))");
-  addCol("tickets", "origin", "TEXT DEFAULT NULL CHECK (origin IS NULL OR origin IN ('ai', 'human'))");
-  addCol("tickets", "github_issue", "INTEGER DEFAULT NULL");
-  addCol("tickets", "github_repo", "TEXT DEFAULT NULL");
-  addCol("milestones", "github_milestone", "INTEGER DEFAULT NULL");
-  // CCA-14: GitHub node id of the issue / milestone the sync created or adopted.
-  // A stored number is written only while the remote node id still matches.
-  addCol("tickets", "github_node_id", "TEXT DEFAULT NULL");
-  addCol("milestones", "github_node_id", "TEXT DEFAULT NULL");
-  createProjectIndexes(db);
-  // One-off: parse `GitHub: owner/repo#N` notes into github_issue (only on the
-  // upgrade to v26, so a number cleared later is not re-filled on every boot).
-  if (current < 26) backfillGithubIssues(db);
+    const addCol = (table: string, col: string, ddl: string) => {
+      const tCols = db.pragma(`table_info(${table})`) as Array<{ name: string }>;
+      if (!tCols.some((c) => c.name === col))
+        db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${ddl}`);
+    };
+    for (const table of PROJECT_TABLES) addCol(table, 'project', 'TEXT DEFAULT NULL');
+    addCol(
+      'tickets',
+      'type',
+      "TEXT DEFAULT NULL CHECK (type IS NULL OR type IN ('feat', 'fix', 'chore', 'infra', 'improvement'))",
+    );
+    addCol(
+      'tickets',
+      'origin',
+      "TEXT DEFAULT NULL CHECK (origin IS NULL OR origin IN ('ai', 'human'))",
+    );
+    addCol('tickets', 'github_issue', 'INTEGER DEFAULT NULL');
+    addCol('tickets', 'github_repo', 'TEXT DEFAULT NULL');
+    addCol('milestones', 'github_milestone', 'INTEGER DEFAULT NULL');
+    // CCA-14: GitHub node id of the issue / milestone the sync created or adopted.
+    // A stored number is written only while the remote node id still matches.
+    addCol('tickets', 'github_node_id', 'TEXT DEFAULT NULL');
+    addCol('milestones', 'github_node_id', 'TEXT DEFAULT NULL');
+    createProjectIndexes(db);
+    // One-off: parse `GitHub: owner/repo#N` notes into github_issue (only on the
+    // upgrade to v26, so a number cleared later is not re-filled on every boot).
+    if (current < 26) backfillGithubIssues(db);
   });
 
   // SQLite table rebuilds (DROP + RENAME) under FK enforcement fire ON DELETE CASCADE
@@ -966,11 +1048,11 @@ export function runMigrations(
   // tickets and retro_findings on pre-versioning DBs. FK must be OFF during migration
   // (PRAGMA foreign_keys is a no-op inside an open transaction, so toggle outside)
   // and restored afterwards. Canonical pattern from the SQLite docs.
-  const fkWasOn = (db.pragma("foreign_keys", { simple: true }) as number) === 1;
-  if (fkWasOn) db.pragma("foreign_keys = OFF");
+  const fkWasOn = (db.pragma('foreign_keys', { simple: true }) as number) === 1;
+  if (fkWasOn) db.pragma('foreign_keys = OFF');
   try {
     migrate();
   } finally {
-    if (fkWasOn) db.pragma("foreign_keys = ON");
+    if (fkWasOn) db.pragma('foreign_keys = ON');
   }
 }
