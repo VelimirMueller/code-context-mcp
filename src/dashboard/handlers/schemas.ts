@@ -186,6 +186,9 @@ export const BridgeRespondBody = object({
 export const RestoreBody = object({
   version: z.union([z.string(), z.number()]),
   tables: z.record(z.string(), z.unknown()),
+  // #230: a clash with an existing row aborts the restore unless "skip".
+  on_conflict: z.enum(['abort', 'skip']).optional(),
+  dry_run: z.boolean().optional(),
 });
 export const SprintProcessBody = object({
   phases: z
