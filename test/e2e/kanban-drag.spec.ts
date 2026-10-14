@@ -1,6 +1,5 @@
-import { randomUUID } from 'node:crypto';
 import { test, expect, type Page } from '@playwright/test';
-import { openApp } from './helpers';
+import { createOwnSprint, openApp } from './helpers';
 
 /**
  * #198: dragging a card to another Kanban column changes the ticket status,
@@ -31,20 +30,7 @@ const openBoard = async (page: Page) => {
 };
 
 test('dragging a Kanban card changes the ticket status', async ({ page, request }) => {
-  const run = randomUUID();
-  const plan = await request.post('/api/sprints/plan', {
-    data: { name: `E2E drag sprint ${run}`, ticket_ids: [] },
-  });
-  expect(plan.ok(), await plan.text()).toBe(true);
-  const { id: sprintId } = (await plan.json()) as { id: number };
-  // planning -> implementation -> done: the dashboard auto-selects the newest
-  // planning, implementation or active sprint, and the specs that use the
-  // seeded sprint rely on that. A done sprint never takes their place.
-  for (const phase of ['implementation', 'done']) {
-    const advanced = await request.post(`/api/sprint/${sprintId}/advance`);
-    expect(advanced.ok(), await advanced.text()).toBe(true);
-    expect(((await advanced.json()) as { to: string }).to).toBe(phase);
-  }
+  const { sprintId, run } = await createOwnSprint(request, 'drag');
   const title = `E2E drag ticket ${run}`;
   const created = await request.post('/api/tickets', {
     data: { title, priority: 'P2', sprint_id: sprintId },

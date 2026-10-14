@@ -1,36 +1,28 @@
-import { test, expect, type Page } from '@playwright/test';
-import { openApp } from './helpers';
+import { test, expect } from '@playwright/test';
+import { createOwnSprint, openApp } from './helpers';
 
 /**
  * #206: a ticket description emptied in the editor is cleared, and it stays
- * cleared after a reload. The spec creates its own ticket in the seeded
- * implementation sprint.
+ * cleared after a reload.
+ *
+ * #229: the spec owns its data, so it is stable without retries, next to the
+ * other specs and with --repeat-each. Each run creates its own done sprint
+ * and one ticket, and opens the board on that sprint (#dashboard/board/<id>).
+ * Earlier all runs added tickets to the seeded sprint, and two workers could
+ * read one Date.now() (strict-mode violation on two cards with one title).
  */
-const openTicket = async (page: Page, title: string) => {
-  await page
-    .locator('nav[role="tablist"] button[role="tab"]')
-    .filter({ hasText: 'Dashboard' })
-    .click();
-  await page.getByText(title).click();
-};
-
 test('a ticket description can be cleared from the editor', async ({ page, request }) => {
-  const sprints = (await (await request.get('/api/sprints')).json()) as {
-    id: number;
-    name: string;
-  }[];
-  const sprint = sprints.find((s) => s.name === 'E2E Sprint 1');
-  expect(sprint).toBeDefined();
-  const title = `E2E description ticket ${Date.now()}`;
-  const description = 'Text that the spec clears';
+  const { sprintId, run } = await createOwnSprint(request, 'description');
+  const title = `E2E description ticket ${run}`;
+  const description = `Text that the spec clears ${run}`;
   const created = await request.post('/api/tickets', {
-    data: { title, description, sprint_id: sprint!.id },
+    data: { title, description, sprint_id: sprintId },
   });
   expect(created.ok(), await created.text()).toBe(true);
   const { id } = (await created.json()) as { id: number };
 
-  await openApp(page);
-  await openTicket(page, title);
+  await openApp(page, `#dashboard/board/${sprintId}`);
+  await page.getByText(title).click();
   await page.getByText(description).click();
   const textarea = page.getByLabel('Ticket description');
   await textarea.fill('');
@@ -44,14 +36,15 @@ test('a ticket description can be cleared from the editor', async ({ page, reque
   await expect(page.getByText('Add description…')).toBeVisible();
 
   // Persistence: the API row and a fresh page both show no description.
-  const rows = (await (await request.get(`/api/sprint/${sprint!.id}/tickets`)).json()) as {
+  const rows = (await (await request.get(`/api/sprint/${sprintId}/tickets`)).json()) as {
     id: number;
     description: string | null;
   }[];
   expect(rows.find((t) => t.id === id)?.description).toBeNull();
 
+  // A full reload keeps the #dashboard/board/<id> hash.
   await page.reload();
-  await openTicket(page, title);
+  await page.getByText(title).click();
   await expect(page.getByText('Add description…')).toBeVisible();
   await expect(page.getByText(description)).toHaveCount(0);
 });
