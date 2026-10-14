@@ -19,18 +19,20 @@ Key tool reference for `vlm-code-context-mcp`. The server exposes **97 MCP tools
 Scan a directory, parse all files, extract metadata/exports and build a dependency graph.
 
 **Parameters:**
+
 ```typescript
 {
-  path: string  // Absolute path to the directory to index
+  path: string; // Absolute path to the directory to index
 }
 ```
 
 **Returns:** Structured markdown with directories, files, exports, and summaries.
 
 **Example:**
+
 ```javascript
 // Index your project
-await index_directory({ path: "/home/user/my-project" });
+await index_directory({ path: '/home/user/my-project' });
 
 // Returns summary like:
 // "Indexed 174 files, 328 exports, 59 dependencies"
@@ -47,23 +49,25 @@ await index_directory({ path: "/home/user/my-project" });
 Find which file(s) export a given function, component, type, or constant.
 
 **Parameters:**
+
 ```typescript
 {
-  name: string  // Symbol name to search for (supports % wildcards)
+  name: string; // Symbol name to search for (supports % wildcards)
 }
 ```
 
 **Returns:** List of files with matching exports, including file path and summary.
 
 **Example:**
+
 ```javascript
 // Find where useEffect is exported
-await find_symbol({ name: "useEffect" });
+await find_symbol({ name: 'useEffect' });
 // Returns: "useEffect (hook) — src/hooks/index.ts
 //          Custom React useEffect hook with cleanup handling"
 
 // Wildcard search
-await find_symbol({ name: "%Service" });
+await find_symbol({ name: '%Service' });
 // Returns all symbols ending in "Service"
 ```
 
@@ -76,6 +80,7 @@ await find_symbol({ name: "%Service" });
 What a file exports (one-line signatures with line numbers), its raw import lines, what it imports (dependencies), and what imports it (dependents). Full reference: [tools/get-file-context.md](tools/get-file-context.md).
 
 **Parameters:**
+
 ```typescript
 {
   path: string,               // Repo-relative or absolute file path
@@ -87,8 +92,9 @@ What a file exports (one-line signatures with line numbers), its raw import line
 ```
 
 **Example:**
+
 ```javascript
-await get_file_context({ path: "src/services/api.ts" });
+await get_file_context({ path: 'src/services/api.ts' });
 // Returns:
 // "# src/services/api.ts
 // typescript | 1.0 KB | 39 lines | modified … | indexed …
@@ -112,20 +118,22 @@ await get_file_context({ path: "src/services/api.ts" });
 Search indexed files by path or summary (supports `%` wildcards).
 
 **Parameters:**
+
 ```typescript
 {
-  query: string  // Search term (matched against path and summary)
+  query: string; // Search term (matched against path and summary)
 }
 ```
 
 **Returns:** List of matching files with metadata.
 
 **Example:**
+
 ```javascript
-await search_files({ query: "test" });
+await search_files({ query: 'test' });
 // Returns all files with "test" in path or summary
 
-await search_files({ query: "%.test.ts" });
+await search_files({ query: '%.test.ts' });
 // Returns files ending in ".test.ts"
 ```
 
@@ -136,6 +144,7 @@ await search_files({ query: "%.test.ts" });
 Set a manual description for a file (persists across re-indexes).
 
 **Parameters:**
+
 ```typescript
 {
   path: string,        // Absolute file path
@@ -144,10 +153,11 @@ Set a manual description for a file (persists across re-indexes).
 ```
 
 **Example:**
+
 ```javascript
 await set_description({
-  path: "/home/user/project/src/core.ts",
-  description: "Core business logic for order processing"
+  path: '/home/user/project/src/core.ts',
+  description: 'Core business logic for order processing',
 });
 ```
 
@@ -158,6 +168,7 @@ await set_description({
 Set a manual description for a directory (persists across re-indexes).
 
 **Parameters:**
+
 ```typescript
 {
   path: string,        // Absolute directory path
@@ -172,6 +183,7 @@ Set a manual description for a directory (persists across re-indexes).
 Get recent file changes grouped by file path, showing what changed (size, lines, exports, summary diffs).
 
 **Parameters:**
+
 ```typescript
 {
   file_path?: string,  // Filter to specific file (supports % wildcards)
@@ -194,6 +206,7 @@ Check project setup status and return what is configured vs missing.
 **Returns:** Project health including file count, agent count, sprint count, and setup status.
 
 **Example:**
+
 ```javascript
 await get_project_status();
 // Returns:
@@ -212,6 +225,7 @@ await get_project_status();
 List all sprints with status and ticket counts.
 
 **Parameters:**
+
 ```typescript
 {
   status?: string  // Filter by status: preparation|kickoff|planning|implementation|qa|refactoring|retro|review|closed|rest|done
@@ -227,6 +241,7 @@ List all sprints with status and ticket counts.
 Get a one-line summary per sprint — name, status, velocity, and ticket progress. Ultra-compact for quick overviews.
 
 **Parameters:**
+
 ```typescript
 {
   last_n?: number  // Number of recent sprints to return (default 5)
@@ -236,6 +251,7 @@ Get a one-line summary per sprint — name, status, velocity, and ticket progres
 **Returns:** One line per sprint: name, status, velocity completed/committed with %, and ticket counts.
 
 **Example:**
+
 ```javascript
 await get_sprint_summary({ last_n: 3 });
 // Returns:
@@ -251,9 +267,10 @@ await get_sprint_summary({ last_n: 3 });
 Get full sprint details with tickets, bugs, blockers, and retro findings.
 
 **Parameters:**
+
 ```typescript
 {
-  sprint_id: number  // Sprint ID
+  sprint_id: number; // Sprint ID
 }
 ```
 
@@ -266,6 +283,7 @@ Get full sprint details with tickets, bugs, blockers, and retro findings.
 Create a new sprint.
 
 **Parameters:**
+
 ```typescript
 {
   name: string,           // Sprint name (e.g. 'sprint-2026-04-07')
@@ -283,6 +301,7 @@ Create a new sprint.
 Create a sprint with tickets in one call. Creates the sprint, creates tickets, assigns agents, links to milestone/epic.
 
 **Parameters:**
+
 ```typescript
 {
   name: string,
@@ -303,15 +322,16 @@ Create a sprint with tickets in one call. Creates the sprint, creates tickets, a
 ```
 
 **Example:**
+
 ```javascript
 await start_sprint({
-  name: "Sprint 4 — Feature X",
-  goal: "Complete user authentication flow",
+  name: 'Sprint 4 — Feature X',
+  goal: 'Complete user authentication flow',
   velocity: 19,
   tickets: [
-    { title: "Add login form", story_points: 5, assigned_to: "fe-engineer" },
-    { title: "Implement auth API", story_points: 5, assigned_to: "be-engineer" }
-  ]
+    { title: 'Add login form', story_points: 5, assigned_to: 'fe-engineer' },
+    { title: 'Implement auth API', story_points: 5, assigned_to: 'be-engineer' },
+  ],
 });
 ```
 
@@ -322,6 +342,7 @@ await start_sprint({
 Advance sprint to the next phase. Checks all gates, advances if they pass, returns summary + next actions.
 
 **Parameters:**
+
 ```typescript
 {
   sprint_id: number,
@@ -338,6 +359,7 @@ Advance sprint to the next phase. Checks all gates, advances if they pass, retur
 Update a ticket's status, assignment, milestone, epic, or QA verification.
 
 **Parameters:**
+
 ```typescript
 {
   ticket_id: number,
@@ -352,13 +374,14 @@ Update a ticket's status, assignment, milestone, epic, or QA verification.
 ```
 
 **Example:**
+
 ```javascript
 // Mark ticket as done and QA verified
 await update_ticket({
   ticket_id: 42,
-  status: "DONE",
+  status: 'DONE',
   qa_verified: true,
-  verified_by: "qa"
+  verified_by: 'qa',
 });
 ```
 
@@ -369,6 +392,7 @@ await update_ticket({
 Create a new ticket in a sprint.
 
 **Parameters:**
+
 ```typescript
 {
   sprint_id: number,
@@ -391,6 +415,7 @@ Create a new ticket in a sprint.
 List tickets with optional filters.
 
 **Parameters:**
+
 ```typescript
 {
   sprint_id?: number,
@@ -406,9 +431,10 @@ List tickets with optional filters.
 Get full ticket details with subtasks and linked bugs.
 
 **Parameters:**
+
 ```typescript
 {
-  ticket_id: number
+  ticket_id: number;
 }
 ```
 
@@ -418,8 +444,8 @@ Get full ticket details with subtasks and linked bugs.
 
 Fetch the full content of a single skill by name.
 
-| Param | Type | Description |
-|-------|------|-------------|
+| Param  | Type   | Description                                                                                                                                          |
+| ------ | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `name` | string | Skill name — e.g. `fe:set-up-auth`, the primer `fe:_house-style`, a companion `fe:set-up-auth/auth-patterns.md`, or a shared ref `fe:_shared/<file>` |
 
 Frontend skills are surfaced as an index by `load_phase_context` during `/kickoff` (when a sprint has `fe-engineer` work); call `get_skill` to pull the full guidance for a specific one on demand.
@@ -431,6 +457,7 @@ Frontend skills are surfaced as an index by `load_phase_context` during `/kickof
 Single-call phase context loader. Bundles all data needed for a specific workflow phase into one response, replacing 2–5 separate tool calls. Used internally by `/kickoff`, `/sprint`, and other slash commands.
 
 **Parameters:**
+
 ```typescript
 {
   phase: "discovery" | "epics" | "tickets" | "implementation" | "retro",
@@ -440,6 +467,7 @@ Single-call phase context loader. Bundles all data needed for a specific workflo
 ```
 
 **Returns:** A combined markdown bundle:
+
 - `discovery` — active discoveries, recent decisions, discovery coverage counts
 - `epics` — active epics with ticket progress, agent roster
 - `tickets` — velocity trend (last 5 sprints), backlog, active epics
@@ -447,8 +475,9 @@ Single-call phase context loader. Bundles all data needed for a specific workflo
 - `retro` — sprint summary, burndown snapshots, mood averages, retro patterns, recent velocity
 
 **Example:**
+
 ```javascript
-await load_phase_context({ phase: "implementation", sprint_id: 5, ticket_id: 42 });
+await load_phase_context({ phase: 'implementation', sprint_id: 5, ticket_id: 42 });
 // Returns combined sprint progress + ticket detail + model routing directive
 ```
 
@@ -461,6 +490,7 @@ await load_phase_context({ phase: "implementation", sprint_id: 5, ticket_id: 42 
 Create a new epic to group related tickets.
 
 **Parameters:**
+
 ```typescript
 {
   name: string,
@@ -478,6 +508,7 @@ Create a new epic to group related tickets.
 Update an existing epic's fields, or archive / unarchive it.
 
 **Parameters:**
+
 ```typescript
 {
   epic_id: number,
@@ -500,6 +531,7 @@ Only `completed` epics archive without `force`. Archived epics are hidden from `
 Link a ticket to an epic, or unlink by passing null epic_id.
 
 **Parameters:**
+
 ```typescript
 {
   ticket_id: number,
@@ -514,6 +546,7 @@ Link a ticket to an epic, or unlink by passing null epic_id.
 List epics with optional status and milestone filters, including ticket progress counts. Archived epics are hidden by default.
 
 **Parameters:**
+
 ```typescript
 {
   status?: string,
@@ -530,6 +563,7 @@ List epics with optional status and milestone filters, including ticket progress
 Create a new milestone for the product roadmap.
 
 **Parameters:**
+
 ```typescript
 {
   name: string,             // Must be unique
@@ -546,6 +580,7 @@ Create a new milestone for the product roadmap.
 Update a milestone's status, progress, or details, or archive / unarchive it.
 
 **Parameters:**
+
 ```typescript
 {
   milestone_id: number,
@@ -567,6 +602,7 @@ Same archive rules as `update_epic`. Dashboard equivalent: `POST /api/milestone/
 List milestones with ticket progress. Archived milestones are hidden by default.
 
 **Parameters:**
+
 ```typescript
 {
   status?: "planned" | "active" | "completed",
@@ -584,15 +620,17 @@ List milestones with ticket progress. Archived milestones are hidden by default.
 Run a read-only SELECT query against the context database.
 
 **Parameters:**
+
 ```typescript
 {
-  sql: string  // A SELECT SQL statement
+  sql: string; // A SELECT SQL statement
 }
 ```
 
 **Returns:** JSON array of query results.
 
 **Example:**
+
 ```javascript
 await query({ sql: "SELECT * FROM tickets WHERE status = 'DONE'" });
 // Returns: [{ id: 1, title: "...", status: "DONE" }, ...]
@@ -605,6 +643,7 @@ await query({ sql: "SELECT * FROM tickets WHERE status = 'DONE'" });
 Run an INSERT, UPDATE, or DELETE against the context database.
 
 **Parameters:**
+
 ```typescript
 {
   sql: string,                // A write SQL statement
@@ -615,10 +654,11 @@ Run an INSERT, UPDATE, or DELETE against the context database.
 **Returns:** Rows affected and last insert ID.
 
 **Example:**
+
 ```javascript
 await execute({
-  sql: "UPDATE tickets SET status = ? WHERE id = ?",
-  params: ["DONE", 42]
+  sql: 'UPDATE tickets SET status = ? WHERE id = ?',
+  params: ['DONE', 42],
 });
 // Returns: "Rows affected: 1, last id: 127"
 ```
@@ -642,9 +682,10 @@ List all scrum team agents with their roles and capabilities.
 Get full details of a scrum agent by role.
 
 **Parameters:**
+
 ```typescript
 {
-  role: string  // e.g. 'backend-developer'
+  role: string; // e.g. 'backend-developer'
 }
 ```
 
@@ -655,6 +696,7 @@ Get full details of a scrum agent by role.
 Update a roster agent's model, tools, system prompt, name, description or department. Omitted fields stay unchanged. The model drives the **Model routing** directive that `load_phase_context` appends to a ticket (`claude-fable*` → fable, `claude-opus*` → opus, `claude-haiku*` → haiku, anything else → sonnet), so only known Claude ids are accepted — non-Claude runtimes belong on the ticket as a tag (e.g. `impl:glm`), not in the roster.
 
 **Parameters:**
+
 ```typescript
 {
   role: string,             // see list_agents
@@ -678,6 +720,7 @@ Update a roster agent's model, tools, system prompt, name, description or depart
 Record an agent's mood for a sprint (1-5 scale) for burnout detection.
 
 **Parameters:**
+
 ```typescript
 {
   agent_id: number,
@@ -695,6 +738,7 @@ Record an agent's mood for a sprint (1-5 scale) for burnout detection.
 Get mood history for an agent or all agents — detects burnout patterns.
 
 **Parameters:**
+
 ```typescript
 {
   agent_id?: number,
@@ -711,6 +755,7 @@ Get mood history for an agent or all agents — detects burnout patterns.
 Report a blocker on a sprint.
 
 **Parameters:**
+
 ```typescript
 {
   sprint_id: number,
@@ -728,9 +773,10 @@ Report a blocker on a sprint.
 Mark a blocker as resolved.
 
 **Parameters:**
+
 ```typescript
 {
-  blocker_id: number
+  blocker_id: number;
 }
 ```
 
@@ -741,6 +787,7 @@ Mark a blocker as resolved.
 Log a bug against a sprint.
 
 **Parameters:**
+
 ```typescript
 {
   sprint_id: number,
@@ -762,6 +809,7 @@ Log a bug against a sprint.
 Add a retrospective finding to a sprint.
 
 **Parameters:**
+
 ```typescript
 {
   sprint_id: number,
@@ -779,6 +827,7 @@ Add a retrospective finding to a sprint.
 List retrospective findings with optional filters.
 
 **Parameters:**
+
 ```typescript
 {
   sprint_id?: number,
@@ -803,6 +852,7 @@ Analyze retrospective findings across all sprints — category breakdown, recurr
 Log an architectural or process decision with rationale and alternatives considered.
 
 **Parameters:**
+
 ```typescript
 {
   title: string,          // Decision title
@@ -814,12 +864,13 @@ Log an architectural or process decision with rationale and alternatives conside
 ```
 
 **Example:**
+
 ```javascript
 await log_decision({
-  title: "Use SQLite for local persistence",
-  rationale: "Zero-dependency, file-based, works offline",
-  alternatives: "PostgreSQL (too heavy for local tooling), JSON files (no query support)",
-  category: "technical"
+  title: 'Use SQLite for local persistence',
+  rationale: 'Zero-dependency, file-based, works offline',
+  alternatives: 'PostgreSQL (too heavy for local tooling), JSON files (no query support)',
+  category: 'technical',
 });
 // Returns: "Decision logged: #7 — Use SQLite for local persistence"
 ```
@@ -831,6 +882,7 @@ await log_decision({
 List logged decisions with optional category filter.
 
 **Parameters:**
+
 ```typescript
 {
   category?: string,  // Filter by category
@@ -847,6 +899,7 @@ List logged decisions with optional category filter.
 Add a dependency between two tickets.
 
 **Parameters:**
+
 ```typescript
 {
   source_ticket_id: number,
@@ -862,6 +915,7 @@ Add a dependency between two tickets.
 Remove a dependency between two tickets.
 
 **Parameters:**
+
 ```typescript
 {
   source_ticket_id: number,
@@ -876,6 +930,7 @@ Remove a dependency between two tickets.
 Get all dependencies for a ticket or sprint.
 
 **Parameters:**
+
 ```typescript
 {
   ticket_id?: number,
@@ -892,6 +947,7 @@ Get all dependencies for a ticket or sprint.
 Log a finding from a discovery sprint.
 
 **Parameters:**
+
 ```typescript
 {
   sprint_id: number,
@@ -910,6 +966,7 @@ Log a finding from a discovery sprint.
 Update a discovery's status, priority, or drop reason.
 
 **Parameters:**
+
 ```typescript
 {
   discovery_id: number,
@@ -927,6 +984,7 @@ Update a discovery's status, priority, or drop reason.
 List discovery findings with optional filters.
 
 **Parameters:**
+
 ```typescript
 {
   sprint_id?: number,
@@ -944,6 +1002,7 @@ List discovery findings with optional filters.
 Log estimated or actual hours on a ticket.
 
 **Parameters:**
+
 ```typescript
 {
   ticket_id: number,
@@ -959,9 +1018,10 @@ Log estimated or actual hours on a ticket.
 Get time tracking report for a sprint — estimated vs actual hours per agent.
 
 **Parameters:**
+
 ```typescript
 {
-  sprint_id: number
+  sprint_id: number;
 }
 ```
 
@@ -974,9 +1034,10 @@ Get time tracking report for a sprint — estimated vs actual hours per agent.
 Get burndown data for a sprint — daily snapshots of remaining vs completed points.
 
 **Parameters:**
+
 ```typescript
 {
-  sprint_id: number
+  sprint_id: number;
 }
 ```
 
@@ -987,6 +1048,7 @@ Get burndown data for a sprint — daily snapshots of remaining vs completed poi
 Get velocity trend data across sprints — committed vs completed, completion rate, bugs.
 
 **Parameters:**
+
 ```typescript
 {
   last_n_sprints?: number,
@@ -1003,9 +1065,10 @@ Get velocity trend data across sprints — committed vs completed, completion ra
 Create or update the PRODUCT_VISION skill content.
 
 **Parameters:**
+
 ```typescript
 {
-  content: string  // Markdown product vision content
+  content: string; // Markdown product vision content
 }
 ```
 
@@ -1018,6 +1081,7 @@ Create or update the PRODUCT_VISION skill content.
 Export the entire database to JSON for backup/restore.
 
 **Parameters:**
+
 ```typescript
 {
   tables?: Array<string>  // Specific tables to export (default: all)
@@ -1028,12 +1092,21 @@ Export the entire database to JSON for backup/restore.
 
 ### `restore_database`
 
-Restore database from a JSON dump.
+Restore database from a JSON dump in one transaction. A restore never replaces an existing row (#230):
+
+- A row with a new id and new unique values is inserted.
+- A row equal to the existing row with the same primary key is counted as unchanged.
+- Any other clash (same id with other values, or a `ticket_ref` that another ticket has) is reported, and the existing row stays unchanged.
+- `on_conflict: "abort"` (default) writes nothing when there is a clash and returns an error with the clash list. `"skip"` keeps the existing rows and inserts the rest.
+- `dry_run: true` returns the same summary and writes nothing.
 
 **Parameters:**
+
 ```typescript
 {
-  dump_json: string  // The full JSON dump string
+  dump_json: string                  // The full JSON dump string
+  on_conflict?: 'abort' | 'skip'     // default 'abort'
+  dry_run?: boolean                  // report only, write nothing
 }
 ```
 
@@ -1044,6 +1117,7 @@ Restore database from a JSON dump.
 Export database to a JSON file on disk.
 
 **Parameters:**
+
 ```typescript
 {
   output_path?: string  // File path (default: ./code-context-dump.json)
@@ -1054,12 +1128,15 @@ Export database to a JSON file on disk.
 
 ### `import_from_file`
 
-Restore database from a JSON dump file on disk.
+Restore database from a JSON dump file on disk. Same rules as `restore_database`.
 
 **Parameters:**
+
 ```typescript
 {
-  input_path: string  // Path to the JSON dump file
+  input_path: string                 // Path to the JSON dump file
+  on_conflict?: 'abort' | 'skip'     // default 'abort'
+  dry_run?: boolean                  // report only, write nothing
 }
 ```
 

@@ -62,6 +62,12 @@ import {
   SprintProcessBody,
 } from './handlers/schemas.js';
 import type { DiscoveryRow, MilestoneRow } from '../scrum/rows.js';
+import {
+  formatRestoreSummary,
+  RestoreInputError,
+  restoreTables,
+  type RestoreSummary,
+} from '../scrum/restore.js';
 
 // Read version from package.json
 const PKG_VERSION = (() => {
@@ -1307,68 +1313,32 @@ async function apiRestore(raw: unknown) {
   if (!parsed.success || !parsed.data.version) return { error: 'Invalid dump format' };
   const body = parsed.data;
 
-  const order = [
-    'milestones',
-    'epics',
-    'agents',
-    'skills',
-    'processes',
-    'sprints',
-    'tickets',
-    'subtasks',
-    'retro_findings',
-    'blockers',
-    'bugs',
-    'files',
-    'exports',
-    'dependencies',
-    'directories',
-    'changes',
-  ];
-
-  // Build column whitelist per table from schema
-  const schemaColumns = new Map<string, Set<string>>();
-  for (const table of order) {
-    const info = writeDb.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
-    schemaColumns.set(table, new Set(info.map((c) => c.name)));
-  }
-
-  const results: Record<string, number> = {};
-  const transaction = writeDb.transaction(() => {
-    for (const table of order) {
-      const rows = body.tables[table];
-      if (!rows || !Array.isArray(rows) || rows.length === 0) continue;
-      if (
-        !rows.every(
-          (r): r is Record<string, unknown> =>
-            r !== null && typeof r === 'object' && !Array.isArray(r),
-        )
-      ) {
-        throw Object.assign(new Error(`restore: every row of ${table} must be an object`), {
-          status: 400,
-        });
-      }
-      const validCols = schemaColumns.get(table);
-      if (!validCols) continue;
-      // Only accept columns that exist in the schema
-      const cols = Object.keys(rows[0]).filter((c) => validCols.has(c));
-      if (cols.length === 0) continue;
-      const stmt = writeDb.prepare(
-        `INSERT OR REPLACE INTO ${table} (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`,
-      );
-      let count = 0;
-      for (const row of rows) {
-        stmt.run(
-          ...cols.map((c: string) => (row[c] ?? null) as string | number | bigint | Buffer | null),
-        );
-        count++;
-      }
-      results[table] = count;
+  // #230: never replace an existing row. A clash refuses the whole restore
+  // (409) unless on_conflict is "skip"; dry_run only reports.
+  let summary: RestoreSummary;
+  try {
+    summary = restoreTables(writeDb, body.tables, {
+      onConflict: body.on_conflict,
+      dryRun: body.dry_run,
+    });
+  } catch (e) {
+    if (e instanceof RestoreInputError) {
+      throw Object.assign(new Error(`restore: ${e.message}`), { status: 400 });
     }
-  });
-  transaction();
-
-  return { ok: true, restored: results };
+    throw e;
+  }
+  if (!summary.written && !summary.dryRun) {
+    throw Object.assign(new Error(formatRestoreSummary(summary)), { status: 409 });
+  }
+  const restored: Record<string, number> = {};
+  for (const [table, c] of Object.entries(summary.tables)) restored[table] = c.inserted;
+  return {
+    ok: true,
+    dry_run: summary.dryRun,
+    restored,
+    tables: summary.tables,
+    clashes: summary.clashes,
+  };
 }
 
 function apiProjectStatus() {

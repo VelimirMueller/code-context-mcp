@@ -44,6 +44,7 @@ import {
 } from './sprint-transition.js';
 import { archiveEntity, assertArchivable, unarchiveEntity } from './archive.js';
 import { nextTicketRef, ticketRefOwner } from './ticket-ref.js';
+import { formatRestoreSummary, restoreTables, type RestoreOptions } from './restore.js';
 import {
   errorMessage,
   type AgentRow,
@@ -972,6 +973,46 @@ interface DatabaseDump {
   version: string;
   exported_at: string;
   tables: Record<string, Record<string, unknown>[] | undefined>;
+}
+
+/** Shared parameters of restore_database and import_from_file (#230). */
+const restoreOptionsShape = {
+  on_conflict: z
+    .enum(['abort', 'skip'])
+    .optional()
+    .describe(
+      'What to do when a dump row clashes with an existing row (same id with other values, or a used ticket_ref). abort (default): write nothing. skip: keep the existing row, insert the rest. Existing rows are never replaced.',
+    ),
+  dry_run: z
+    .boolean()
+    .optional()
+    .describe('Report what the restore would insert, leave unchanged and refuse; write nothing.'),
+};
+
+/** Run a restore and turn its summary into an MCP tool result. */
+function restoreResult(
+  db: Database.Database,
+  dump: DatabaseDump,
+  heading: string,
+  options: RestoreOptions,
+) {
+  const summary = restoreTables(db, dump.tables, options);
+  if (summary.written) notifyDashboard(db);
+  const refused = !summary.written && !summary.dryRun;
+  const title = summary.dryRun
+    ? `${heading} (dry run)`
+    : refused
+      ? `${heading} refused`
+      : `${heading} complete`;
+  return {
+    content: [
+      {
+        type: 'text' as const,
+        text: `${title}\n\nVersion: ${dump.version}\nExported: ${dump.exported_at}\n\n${formatRestoreSummary(summary)}`,
+      },
+    ],
+    ...(refused ? { isError: true } : {}),
+  };
 }
 
 /**
@@ -3559,11 +3600,12 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
 
   server.tool(
     'restore_database',
-    'Restore database from a JSON dump. Wraps in transaction for safety.',
+    'Restore database from a JSON dump in one transaction. Never replaces an existing row: a row whose id or unique value (e.g. ticket_ref) clashes with an existing row is reported. on_conflict "abort" (default) writes nothing when there is a clash; "skip" keeps the existing rows and inserts the rest. dry_run reports the same summary without writing.',
     {
       dump_json: z.string().describe('The full JSON dump string from dump_database'),
+      ...restoreOptionsShape,
     },
-    async ({ dump_json }) => {
+    async ({ dump_json, on_conflict, dry_run }) => {
       try {
         const dump = JSON.parse(dump_json) as DatabaseDump;
         if (!dump.version || !dump.tables) {
@@ -3577,68 +3619,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
             isError: true,
           };
         }
-
-        // Foreign key ordering: parents before children
-        const order = [
-          'milestones',
-          'agents',
-          'skills',
-          'processes',
-          'sprints',
-          'tickets',
-          'subtasks',
-          'retro_findings',
-          'blockers',
-          'bugs',
-          'files',
-          'exports',
-          'dependencies',
-          'directories',
-          'changes',
-        ];
-
-        // Build column whitelist per table from schema
-        const schemaColumns = new Map<string, Set<string>>();
-        for (const table of order) {
-          const info = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
-          schemaColumns.set(table, new Set(info.map((c) => c.name)));
-        }
-
-        const results: string[] = [];
-        const transaction = db.transaction(() => {
-          for (const table of order) {
-            const rows = dump.tables[table];
-            if (!rows || !Array.isArray(rows) || rows.length === 0) continue;
-            const validCols = schemaColumns.get(table);
-            if (!validCols) continue;
-            const cols = Object.keys(rows[0]).filter((c) => validCols.has(c));
-            if (cols.length === 0) continue;
-
-            const placeholders = cols.map(() => '?').join(',');
-            const stmt = db.prepare(
-              `INSERT OR REPLACE INTO ${table} (${cols.join(',')}) VALUES (${placeholders})`,
-            );
-
-            let count = 0;
-            for (const row of rows) {
-              stmt.run(...cols.map((c) => row[c] ?? null));
-              count++;
-            }
-            results.push(`${table}: ${count} rows`);
-          }
-        });
-
-        transaction();
-
-        notifyDashboard(db);
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: `# Restore Complete\n\nVersion: ${dump.version}\nExported: ${dump.exported_at}\n\n${results.join('\n')}`,
-            },
-          ],
-        };
+        return restoreResult(db, dump, '# Restore', { onConflict: on_conflict, dryRun: dry_run });
       } catch (e) {
         return {
           content: [{ type: 'text' as const, text: `Error: ${errorMessage(e)}` }],
@@ -3716,11 +3697,12 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
 
   server.tool(
     'import_from_file',
-    'Restore database from a JSON dump file on disk',
+    'Restore database from a JSON dump file on disk. Same rules as restore_database: never replaces an existing row, on_conflict "abort" (default) or "skip", optional dry_run.',
     {
       input_path: z.string().describe('Path to the JSON dump file'),
+      ...restoreOptionsShape,
     },
-    async ({ input_path }) => {
+    async ({ input_path, on_conflict, dry_run }) => {
       try {
         const fs = await import('fs');
         if (!fs.existsSync(input_path)) {
@@ -3739,65 +3721,10 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
             isError: true,
           };
         }
-
-        // Same restore logic as restore_database
-        const order = [
-          'milestones',
-          'agents',
-          'skills',
-          'processes',
-          'sprints',
-          'tickets',
-          'subtasks',
-          'retro_findings',
-          'blockers',
-          'bugs',
-          'files',
-          'exports',
-          'dependencies',
-          'directories',
-          'changes',
-        ];
-
-        // Build column whitelist per table from schema
-        const schemaColumns2 = new Map<string, Set<string>>();
-        for (const table of order) {
-          const info = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
-          schemaColumns2.set(table, new Set(info.map((c) => c.name)));
-        }
-
-        const results: string[] = [];
-        const transaction = db.transaction(() => {
-          for (const table of order) {
-            const rows = dump.tables[table];
-            if (!rows || !Array.isArray(rows) || rows.length === 0) continue;
-            const validCols = schemaColumns2.get(table);
-            if (!validCols) continue;
-            const cols = Object.keys(rows[0]).filter((c) => validCols.has(c));
-            if (cols.length === 0) continue;
-            const placeholders = cols.map(() => '?').join(',');
-            const stmt = db.prepare(
-              `INSERT OR REPLACE INTO ${table} (${cols.join(',')}) VALUES (${placeholders})`,
-            );
-            let count = 0;
-            for (const row of rows) {
-              stmt.run(...cols.map((c) => row[c] ?? null));
-              count++;
-            }
-            results.push(`${table}: ${count} rows`);
-          }
+        return restoreResult(db, dump, `# Restore from ${input_path}`, {
+          onConflict: on_conflict,
+          dryRun: dry_run,
         });
-        transaction();
-
-        notifyDashboard(db);
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: `# Restored from ${input_path}\n\nVersion: ${dump.version}\nExported: ${dump.exported_at}\n\n${results.join('\n')}`,
-            },
-          ],
-        };
       } catch (e) {
         return {
           content: [{ type: 'text' as const, text: `Error: ${errorMessage(e)}` }],
