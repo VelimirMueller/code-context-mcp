@@ -291,6 +291,6 @@ When updating UX documentation:
 ---
 
 **Maintainer:** UX Designer Agent
-**Review Cycle: Each Sprint
+**Review Cycle:** Each Sprint
 **Last Review:** Sprint 15 (2026-03-27)
-**Next Review:\*\* Sprint 16 (2026-04-03)
+**Next Review:** Sprint 16 (2026-04-03)

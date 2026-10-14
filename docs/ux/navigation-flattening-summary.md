@@ -18,7 +18,7 @@
 
 ### 1. Comprehensive Design Specification
 
-**File:** `/home/velimir/WebstormProjects/mcp-server/docs/ux/navigation-flattening.md`
+**File:** [`navigation-flattening.md`](./navigation-flattening.md)
 
 **Contents:**
 
@@ -36,7 +36,7 @@
 
 ### 2. Visual Wireframes
 
-**File:** `/home/velimir/WebstormProjects/mcp-server/docs/ux/navigation-wireframes.md`
+**File:** [`navigation-wireframes.md`](./navigation-wireframes.md)
 
 **Contents:**
 
