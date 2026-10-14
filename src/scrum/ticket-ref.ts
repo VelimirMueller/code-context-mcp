@@ -72,7 +72,9 @@ export function renameDuplicateTicketRefs(db: Database.Database): RenamedTicketR
     .all() as Array<{ id: number; ref: string }>;
   if (losers.length === 0) return [];
 
-  const setRef = db.prepare(`UPDATE tickets SET ticket_ref = ? WHERE id = ?`);
+  const setRef = db.prepare(
+    `UPDATE tickets SET ticket_ref = ?, updated_at = datetime('now') WHERE id = ?`,
+  );
   const history = db.prepare(
     `INSERT INTO event_log (entity_type, entity_id, action, field_name, old_value, new_value, actor)
      VALUES ('ticket', ?, 'updated', 'ticket_ref', ?, ?, 'migration')`,

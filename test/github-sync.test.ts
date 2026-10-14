@@ -1328,7 +1328,7 @@ describe('GhGateway over a fake gh runner', () => {
 describe('schema v26 + notes backfill', () => {
   it('adds project columns (NULL by default) and the projects table', () => {
     const db = memDb();
-    expect(LATEST_SCHEMA_VERSION).toBeGreaterThanOrEqual(26);
+    expect(LATEST_SCHEMA_VERSION).toBeGreaterThanOrEqual(26); // v26 columns stay in later versions
     for (const t of ['milestones', 'sprints', 'epics', 'tickets']) {
       expect((db.pragma(`table_info(${t})`) as any[]).map((c) => c.name)).toContain('project');
     }
@@ -1344,6 +1344,7 @@ describe('schema v26 + notes backfill', () => {
       notes: 'GitHub: VelimirMueller/code-context-mcp#116 — merged in PR #131',
     });
     const b = ticket(db, { title: 'b', notes: 'no link' });
+    // v26 and every later version: the DB looks like one from before v26.
     db.prepare('DELETE FROM schema_versions WHERE version >= 26').run();
     runMigrations(db);
     expect(row(db, a)).toMatchObject({
