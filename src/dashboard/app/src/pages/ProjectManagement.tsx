@@ -32,6 +32,16 @@ function ProgressBar({ value, color = 'var(--accent)' }: { value: number; color?
   );
 }
 
+/** Card colour for a stored milestone status; unknown values get the planned colour. */
+export function milestoneCardColor(status: string): string {
+  const statusColor: Record<string, string> = {
+    active: '#10b981',
+    planned: '#6366f1',
+    completed: '#6b6b84',
+  };
+  return statusColor[status] ?? statusColor.planned;
+}
+
 interface MilestoneCardProps {
   milestone: Milestone;
   onClose: (id: number) => Promise<void>;
@@ -50,13 +60,7 @@ function MilestoneCard({ milestone, onClose, onArchive, onUnarchive }: Milestone
       ? Math.round((milestone.done_count / milestone.ticket_count) * 100)
       : (milestone.progress ?? 0);
 
-  const statusColor: Record<string, string> = {
-    active: '#10b981',
-    planned: '#6366f1',
-    completed: '#6b6b84',
-    in_progress: '#60a5fa',
-  };
-  const color = statusColor[milestone.status] ?? '#6366f1';
+  const color = milestoneCardColor(milestone.status);
 
   const handleClose = async () => {
     if (closing) return;

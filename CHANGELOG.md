@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Every dashboard view shows the stored milestone status.** The MILESTONES skill fallback maps an `ACTIVE` or `IN PROGRESS` heading to `active`, and the Planning page milestone card has no `in_progress` colour; the dashboard now uses only `planned`, `active` and `completed`. (#221)
 - **A milestone update never reports success for a deleted milestone.** `PUT /api/milestone/:id` checks the row and writes it in one statement (`UPDATE … WHERE deleted_at IS NULL RETURNING *`) and answers 404 when no row changed; earlier a delete between the check and the update gave 200 for a write that changed nothing. The handler moves to `src/dashboard/handlers/planning.ts`. (#214)
 - **An active milestone on the Dashboard sprint list shows the active colour.** `SprintList` colours each milestone header and progress bar by the status the database stores (`planned`, `active`, `completed`); earlier it checked `in_progress`, which the database never stores, so active milestones showed the planned colour. (#211)
 - **A new ticket never gets the ref of a deleted ticket.** `POST /api/tickets` counts all ticket rows, deleted rows too, to make the next `T-<n>` ref, and skips a ref that a row already has; earlier a soft-deleted newest ticket gave its ref again and the insert failed with 500. (#210)
