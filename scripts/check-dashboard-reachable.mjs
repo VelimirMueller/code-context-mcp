@@ -7,10 +7,11 @@
 // imports, `export … from`, dynamic `import()` and `require()` count.
 // Every .ts/.tsx file under src/dashboard/app/src must be reached, except
 // test code (src/test/, *.test.*) and type declarations (*.d.ts).
+// `import.meta.glob` is not followed: a module that uses it fails the check.
 //
 // Usage: node scripts/check-dashboard-reachable.mjs [--json]
 // Exit 0 when every module is reached, 1 when some are not, 2 on a setup error.
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
@@ -47,13 +48,22 @@ export function unreachableModules(appDir = APP_DIR) {
     return !rel.startsWith('test/') && !/\.test\.tsx?$/.test(rel);
   };
 
+  const entry = path.join(srcDir, 'main.tsx');
+  if (!existsSync(entry)) throw new Error(`entry ${entry} not found`);
   const reached = new Set();
-  const queue = [path.join(srcDir, 'main.tsx')];
+  const queue = [entry];
   while (queue.length > 0) {
     const file = queue.pop();
     if (reached.has(file)) continue;
     reached.add(file);
-    const { importedFiles } = ts.preProcessFile(readFileSync(file, 'utf8'), true, true);
+    const text = readFileSync(file, 'utf8');
+    // Glob imports are not followed; fail instead of reporting their modules as unreachable.
+    if (text.includes('import.meta.glob')) {
+      throw new Error(
+        `${path.relative(appDir, file)} uses import.meta.glob, which this check does not follow`,
+      );
+    }
+    const { importedFiles } = ts.preProcessFile(text, true, true);
     for (const { fileName } of importedFiles) {
       const resolved = ts.resolveModuleName(fileName, file, options, host).resolvedModule;
       if (!resolved || resolved.isExternalLibraryImport) continue;

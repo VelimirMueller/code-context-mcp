@@ -63,6 +63,14 @@ describe('unreachable dashboard modules (#223)', () => {
     expect(unreachableModules(app)).toEqual(['src/components/index.ts', 'src/orphan.tsx']);
   });
 
+  it('fails on import.meta.glob instead of guessing', () => {
+    const app = fixtureApp({
+      'src/main.tsx': "export const pages = import.meta.glob('./pages/*.tsx');\n",
+      'src/pages/A.tsx': 'export default 1;\n',
+    });
+    expect(() => unreachableModules(app)).toThrow(/import\.meta\.glob/);
+  });
+
   it('runs in the CI lint job and fails it', () => {
     const pkg = JSON.parse(read('package.json')) as { scripts: Record<string, string> };
     expect(pkg.scripts['check:dashboard-reachable']).toBe(
