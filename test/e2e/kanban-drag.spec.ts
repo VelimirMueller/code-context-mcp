@@ -12,7 +12,8 @@ import { openApp } from './helpers';
  * so the board grew, the card moved below the fold, and each write elsewhere
  * re-rendered the board over SSE during the drag.
  * - Each run creates its own sprint and one ticket, and opens the board on
- *   that sprint (#dashboard/board/<id>).
+ *   that sprint (#dashboard/board/<id>). The sprint is done, so it never
+ *   becomes the default sprint of the other specs.
  * - The drop point is on the card's own row in the In Progress column, so
  *   both points are in the viewport and nothing scrolls during the drag.
  * - The drag uses the mouse directly: `locator.dragTo` re-checks the target
@@ -36,6 +37,14 @@ test('dragging a Kanban card changes the ticket status', async ({ page, request 
   });
   expect(plan.ok(), await plan.text()).toBe(true);
   const { id: sprintId } = (await plan.json()) as { id: number };
+  // planning -> implementation -> done: the dashboard auto-selects the newest
+  // planning, implementation or active sprint, and the specs that use the
+  // seeded sprint rely on that. A done sprint never takes their place.
+  for (const phase of ['implementation', 'done']) {
+    const advanced = await request.post(`/api/sprint/${sprintId}/advance`);
+    expect(advanced.ok(), await advanced.text()).toBe(true);
+    expect(((await advanced.json()) as { to: string }).to).toBe(phase);
+  }
   const title = `E2E drag ticket ${run}`;
   const created = await request.post('/api/tickets', {
     data: { title, priority: 'P2', sprint_id: sprintId },
