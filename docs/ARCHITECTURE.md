@@ -29,19 +29,15 @@ vlm-code-context-mcp is an MCP server that pre-indexes TypeScript/JavaScript cod
 
 ```
 atoms/       → AnimatedNumber, Badge, BridgeStatusBadge, Button, ClaudeOutputStream,
-               DiscoveryCoverageBar, Dot, ErrorBoundary, Skeleton, Stat,
-               StatusBadge, SyncButton, Toast, ToastContainer
-molecules/   → AgentCard, AlertDialog, BentoCard, Breadcrumb, DiscoveryRow,
-               EnterpriseTable, FileItem, FolderItem, HeroText, InlineEditForm,
-               MarkdownRenderer, MeSection, PhaseGateStepper, QuickActionsBar,
-               QuickFilters, SearchBar, SprintCard, StatGroup, SubTabBar,
-               TabBar, TeamMemberForm, TicketCard, TopNav, WizardModal
-organisms/   → BentoGrid, BurndownChart, BurndownMetrics, CapacityPlanningView,
-               DashboardTour, DependencyGraph, DiscoveryList, EnterpriseDataTable,
-               EpicList, FileTree, GanttChart, InsightsDashboard, KanbanBoard,
-               LandingAnimation, ProcessFlow, SprintCompletionPanel, SprintDetail,
-               SprintList, SprintPlanner, TeamGrid, TeamManagementModal,
-               TicketDetailModal, Topbar, VisionEditor, VisionPlayer
+               Dot, ErrorBoundary, Skeleton, Stat, StatusBadge, Toast, ToastContainer
+molecules/   → AgentCard, AlertDialog, AssignmentChips, AssignmentEditor, BentoCard,
+               Breadcrumb, FileItem, FolderItem, HeroText, PhaseGateStepper,
+               QuickActionsBar, SearchBar, SprintCard, StatGroup, SubTabBar, TabBar,
+               TicketCard, TopNav, WizardModal
+organisms/   → BentoGrid, BurndownChart, DashboardTour, DependencyGraph, EpicList,
+               FileTree, KanbanBoard, LandingAnimation, SprintCompletionPanel,
+               SprintDetail, SprintList, TeamGrid, TeamManagementModal,
+               TicketDetailModal
 pages/       → Benchmark, CodeExplorer, Dashboard, ProjectManagement, Retro, Team
 ```
 

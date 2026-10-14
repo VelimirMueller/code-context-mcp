@@ -51,6 +51,9 @@ jobs:
       - run: npm ci
       - name: ESLint (fails on errors, warnings are reported)
         run: npm run lint
+      # Every dashboard module must be reached from src/main.tsx (#223).
+      - name: No unreachable dashboard modules
+        run: npm run check:dashboard-reachable
       - name: Prettier on the files this change touches
         env:
           # PR: the base branch commit. Push: the commit before the push.
