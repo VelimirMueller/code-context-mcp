@@ -67,7 +67,10 @@ test('dragging a Kanban card changes the ticket status', async ({ page, request 
   const y = from.y + from.height / 2;
   await page.mouse.move(from.x + from.width / 2, y);
   await page.mouse.down();
-  await page.mouse.move(to.x + to.width / 2, y, { steps: 5 });
+  // The grid gives all columns one height; the clamp keeps the drop inside
+  // the In Progress column even if that ever changes.
+  const dropY = Math.min(Math.max(y, to.y + 10), to.y + to.height - 10);
+  await page.mouse.move(to.x + to.width / 2, dropY, { steps: 5 });
   await page.mouse.up();
   expect((await saved).status()).toBe(200);
   await expect(column(page, 'In Progress').getByText(title)).toBeVisible();
