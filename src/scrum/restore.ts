@@ -54,12 +54,14 @@ export interface RestoreClash {
 
 export interface RestoreTableCount {
   inserted: number;
+  /** The existing row with the same primary key agrees on every column the dump row carries. */
   unchanged: number;
   clashes: number;
 }
 
 export interface RestoreSummary {
-  /** True when rows were written (not a dry run, and no abort). */
+  /** True when the transaction committed: not a dry run, and no abort on a clash. A restore
+   * where every row is unchanged still commits. Check `dryRun` before reading `written`. */
   written: boolean;
   dryRun: boolean;
   onConflict: RestoreConflictMode;
