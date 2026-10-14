@@ -25,9 +25,7 @@ export function parseMilestoneMarkdown(content: string): Milestone[] {
   const sections = content.split(/(?=^## Milestone \d)/m);
 
   for (const section of sections) {
-    const headerMatch = section.match(
-      /^## Milestone (\d+):\s*(.+?)(?:\s*[—–-]\s*(.+?))?\s*$/m,
-    );
+    const headerMatch = section.match(/^## Milestone (\d+):\s*(.+?)(?:\s*[—–-]\s*(.+?))?\s*$/m);
     if (!headerMatch) continue;
 
     const id = parseInt(headerMatch[1], 10);
@@ -70,18 +68,24 @@ export function parseMilestoneMarkdown(content: string): Milestone[] {
  * - Milestone 2 (Dashboard & Process Platform): everything else
  */
 export function getMilestoneSprintIds(milestoneName: string, sprints: Sprint[]): number[] {
-  const sorted = [...sprints].sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
+  const sorted = [...sprints].sort((a, b) =>
+    (a.created_at || '').localeCompare(b.created_at || ''),
+  );
 
   if (milestoneName.includes('Production Foundation') || milestoneName.includes('Milestone 1')) {
-    return sorted.slice(0, 4).map(s => s.id);
+    return sorted.slice(0, 4).map((s) => s.id);
   }
   if (milestoneName.includes('Ecosystem') || milestoneName.includes('Milestone 3')) {
-    return sorted.filter(s => s.name.includes('mcp-bootstrap') || s.name.includes('sprint-11')).map(s => s.id);
+    return sorted
+      .filter((s) => s.name.includes('mcp-bootstrap') || s.name.includes('sprint-11'))
+      .map((s) => s.id);
   }
   // Milestone 2: everything not in M1 or M3
-  const m1Ids = new Set(sorted.slice(0, 4).map(s => s.id));
+  const m1Ids = new Set(sorted.slice(0, 4).map((s) => s.id));
   const m3Names = ['mcp-bootstrap', 'sprint-11'];
-  return sorted.filter(s => !m1Ids.has(s.id) && !m3Names.some(n => s.name.includes(n))).map(s => s.id);
+  return sorted
+    .filter((s) => !m1Ids.has(s.id) && !m3Names.some((n) => s.name.includes(n)))
+    .map((s) => s.id);
 }
 
 export function fmtSize(bytes: number): string {
@@ -91,8 +95,14 @@ export function fmtSize(bytes: number): string {
 }
 
 export const langColors: Record<string, string> = {
-  typescript: '#3178c6', javascript: '#f7df1e', css: '#264de4', json: '#292929',
-  html: '#e34c26', markdown: '#083fa1', python: '#3572A5', unknown: '#666',
+  typescript: '#3178c6',
+  javascript: '#f7df1e',
+  css: '#264de4',
+  json: '#292929',
+  html: '#e34c26',
+  markdown: '#083fa1',
+  python: '#3572A5',
+  unknown: '#666',
 };
 
 export function getMoodColor(score: number): string {
