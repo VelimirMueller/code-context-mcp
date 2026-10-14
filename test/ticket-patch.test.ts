@@ -488,7 +488,7 @@ describe('POST /api/tickets — ticket ref of a deleted ticket (#210)', () => {
     });
   }
 
-  /** A sprint of its own, because UNIQUE(sprint_id, ticket_ref) treats NULL sprints as distinct. */
+  /** A sprint of its own per case, so each case starts from its own tickets. */
   function insertSprint(name: string): number {
     const db = seedDb();
     try {

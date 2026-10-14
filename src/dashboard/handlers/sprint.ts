@@ -20,6 +20,7 @@ import {
   ALLOWED_AGENT_MODELS,
 } from './validation.js';
 import { log as slog } from '../../sessionlog.js';
+import { nextTicketRef } from '../../scrum/ticket-ref.js';
 import { transitionSprint, promoteTicketDiscoveries } from '../../scrum/sprint-transition.js';
 import {
   parseBody,
@@ -651,20 +652,6 @@ export function apiSprintUpdate(
 // ─── Ticket CRUD API ────────────────────────────────────────────────────────
 /** Same as the `tickets.priority` column default and the MCP create_ticket default. */
 export const DEFAULT_TICKET_PRIORITY = 'P2';
-
-/**
- * Next free `T-<n>` ref (#210). `n` starts after the highest id of all rows,
- * soft-deleted ones included (ids are AUTOINCREMENT, so they are never reused),
- * and skips any ref that a row already has, for example one the MCP
- * `create_ticket` tool set by hand. Call it in the transaction that inserts.
- */
-export function nextTicketRef(db: Database.Database): string {
-  const maxId = db.prepare(`SELECT MAX(id) AS m FROM tickets`).get() as { m: number | null };
-  const taken = db.prepare(`SELECT 1 FROM tickets WHERE ticket_ref = ? LIMIT 1`);
-  let n = (maxId.m ?? 0) + 1;
-  while (taken.get(`T-${n}`)) n++;
-  return `T-${n}`;
-}
 
 export function apiCreateTicket(db: Database.Database, raw: unknown) {
   const {
