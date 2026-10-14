@@ -233,3 +233,39 @@ describe('restore_database / import_from_file tools', () => {
     expect(ticket(db, ticketId).title).toBe('Existing ticket');
   });
 });
+
+describe('restoreTables column set', () => {
+  it('keeps a column that only a later row carries', () => {
+    const { db, sprintId } = setup();
+    const summary = restoreTables(db, {
+      tickets: [
+        { id: 500, sprint_id: sprintId, ticket_ref: 'T-500', title: 'No notes' },
+        { id: 501, sprint_id: sprintId, ticket_ref: 'T-501', title: 'Notes', notes: 'kept' },
+      ],
+    });
+    expect(summary.written).toBe(true);
+    expect(ticket(db, 501).notes).toBe('kept');
+    expect(ticket(db, 500).notes).toBeNull();
+  });
+});
+
+describe('restoreTables per-row columns', () => {
+  it('a row without created_at keeps the schema default next to a row that has it', () => {
+    const { db, sprintId } = setup();
+    const summary = restoreTables(db, {
+      tickets: [
+        { id: 600, sprint_id: sprintId, ticket_ref: 'T-600', title: 'Default' },
+        {
+          id: 601,
+          sprint_id: sprintId,
+          ticket_ref: 'T-601',
+          title: 'Dated',
+          created_at: '2026-01-01 00:00:00',
+        },
+      ],
+    });
+    expect(summary.written).toBe(true);
+    expect(ticket(db, 600).created_at).toEqual(expect.any(String));
+    expect(ticket(db, 601).created_at).toBe('2026-01-01 00:00:00');
+  });
+});

@@ -71,6 +71,7 @@ export interface RestoreSummary {
 export class RestoreInputError extends Error {}
 
 type SqlValue = string | number | bigint | Buffer | null;
+type Row = Record<string, unknown>;
 
 /** Thrown inside the transaction to roll it back (dry run or abort). */
 class Rollback extends Error {}
@@ -129,37 +130,38 @@ export function restoreTables(
         .filter((c) => c.pk > 0)
         .sort((a, b) => a.pk - b.pk)
         .map((c) => c.name);
-      const first = rows[0] as Record<string, unknown>;
-      // Only columns that exist in the schema reach the SQL (names are not bound).
-      const cols = Object.keys(first).filter((c) => validCols.has(c));
-      if (cols.length === 0) continue;
-
-      const insert = db.prepare(
-        `INSERT INTO ${table} (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')}) ON CONFLICT DO NOTHING`,
-      );
-      const pkInCols = pk.length > 0 && pk.every((c) => cols.includes(c));
-      const byPk = pkInCols
-        ? db.prepare(
-            `SELECT ${cols.join(',')} FROM ${table} WHERE ${pk.map((c) => `${c} = ?`).join(' AND ')}`,
-          )
-        : null;
-      const byRef =
-        table === 'tickets' && cols.includes('ticket_ref')
-          ? db.prepare(`SELECT id FROM tickets WHERE ticket_ref = ?`)
+      const byPk =
+        pk.length > 0
+          ? db.prepare(`SELECT * FROM ${table} WHERE ${pk.map((c) => `${c} = ?`).join(' AND ')}`)
           : null;
+      const byRef =
+        table === 'tickets' ? db.prepare(`SELECT id FROM tickets WHERE ticket_ref = ?`) : null;
+      // One INSERT per column set: each row writes only the columns it
+      // carries, so a missing column keeps its schema default. Only columns
+      // that exist in the schema reach the SQL (names are not bound).
+      const inserts = new Map<string, Database.Statement>();
 
       const count: RestoreTableCount = { inserted: 0, unchanged: 0, clashes: 0 };
       for (const raw of rows as Record<string, unknown>[]) {
+        const cols = Object.keys(raw).filter((c) => validCols.has(c));
+        if (cols.length === 0) continue;
+        const signature = cols.join(',');
+        let insert = inserts.get(signature);
+        if (!insert) {
+          insert = db.prepare(
+            `INSERT INTO ${table} (${signature}) VALUES (${cols.map(() => '?').join(',')}) ON CONFLICT DO NOTHING`,
+          );
+          inserts.set(signature, insert);
+        }
         const values = cols.map((c) => (raw[c] ?? null) as SqlValue);
         if (insert.run(...values).changes === 1) {
           count.inserted++;
           continue;
         }
-        const existing = byPk
-          ? (byPk.get(...pk.map((c) => (raw[c] ?? null) as SqlValue)) as
-              | Record<string, unknown>
-              | undefined)
-          : undefined;
+        const existing =
+          byPk && pk.every((c) => raw[c] != null)
+            ? (byPk.get(...pk.map((c) => raw[c] as SqlValue)) as Row | undefined)
+            : undefined;
         if (existing && cols.every((c, i) => sameValue(existing[c], values[i]))) {
           count.unchanged++;
           continue;
@@ -167,7 +169,7 @@ export function restoreTables(
         count.clashes++;
         let reason: string;
         if (existing) {
-          reason = `a row with ${pk.join(', ')} ${pk.map((c) => String(raw[c])).join(', ')} exists with other values`;
+          reason = `a row with ${pk.map((c) => `${c}=${String(raw[c])}`).join(' ')} exists with other values`;
         } else {
           const owner =
             byRef && raw.ticket_ref != null
@@ -175,7 +177,8 @@ export function restoreTables(
               : undefined;
           reason = owner
             ? `ticket_ref ${String(raw.ticket_ref)} belongs to existing ticket id=${owner.id}`
-            : 'a unique value is already used by an existing row';
+            : // Other unique indexes are not named; the row key above identifies the row.
+              'a unique value is already used by an existing row';
         }
         summary.clashes.push({ table, row: rowKey(table, raw, pk), reason });
       }
