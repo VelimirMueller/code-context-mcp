@@ -99,25 +99,25 @@ scripts/           Build/post-install scripts
 
 The dashboard follows Atomic Design principles:
 
-| Layer | Location | Examples |
-|-------|----------|---------|
-| **Atoms** | `components/atoms/` | Button, Badge, Skeleton, Toast, AnimatedNumber |
-| **Molecules** | `components/molecules/` | AgentCard, SprintCard, TicketCard, SearchBar, TabBar |
-| **Organisms** | `components/organisms/` | KanbanBoard, GanttChart, FileTree, SprintDetail, TeamGrid |
-| **Templates** | via `index.ts` | ExplorerLayout, SprintLayout, PlanningLayout |
-| **Pages** | `App.tsx` routes | CodeExplorer, Sprint, ProjectManagement |
+| Layer         | Location                | Examples                                                     |
+| ------------- | ----------------------- | ------------------------------------------------------------ |
+| **Atoms**     | `components/atoms/`     | Button, Badge, Skeleton, Toast, AnimatedNumber               |
+| **Molecules** | `components/molecules/` | AgentCard, SprintCard, TicketCard, SearchBar, TabBar         |
+| **Organisms** | `components/organisms/` | KanbanBoard, BurndownChart, FileTree, SprintDetail, TeamGrid |
+| **Templates** | via `index.ts`          | ExplorerLayout, SprintLayout, PlanningLayout                 |
+| **Pages**     | `App.tsx` routes        | CodeExplorer, Sprint, ProjectManagement                      |
 
 ### State Management
 
 Five Zustand stores manage dashboard state:
 
-| Store | Responsibility |
-|-------|---------------|
-| `fileStore` | Files, directories, selected file detail, dependency graph, stats |
-| `sprintStore` | Sprints, tickets, retro findings |
-| `agentStore` | Agent health and mood tracking |
-| `planningStore` | Milestones, vision, Gantt data, backlog (read + write) |
-| `uiStore` | Page navigation, tabs, sidebar, search, folder expand state |
+| Store           | Responsibility                                                    |
+| --------------- | ----------------------------------------------------------------- |
+| `fileStore`     | Files, directories, selected file detail, dependency graph, stats |
+| `sprintStore`   | Sprints, tickets, retro findings                                  |
+| `agentStore`    | Agent health and mood tracking                                    |
+| `planningStore` | Milestones, vision, Gantt data, backlog (read + write)            |
+| `uiStore`       | Page navigation, tabs, sidebar, search, folder expand state       |
 
 ### Database
 
@@ -128,29 +128,29 @@ All state lives in SQLite (`context.db`). The database is the single source of t
 
 ### Key Dependencies
 
-| Package | Purpose |
-|---------|---------|
-| `@modelcontextprotocol/sdk` | MCP protocol implementation |
-| `better-sqlite3` | SQLite database driver |
-| `zod` | Runtime schema validation for MCP tool inputs |
-| `chokidar` | File watching for live-reload |
-| `react` / `react-dom` | Dashboard UI |
-| `zustand` | State management |
-| `framer-motion` | Animations and transitions |
-| `tailwindcss` | Utility-first CSS |
-| `vite` | Frontend build tool and dev server |
+| Package                     | Purpose                                       |
+| --------------------------- | --------------------------------------------- |
+| `@modelcontextprotocol/sdk` | MCP protocol implementation                   |
+| `better-sqlite3`            | SQLite database driver                        |
+| `zod`                       | Runtime schema validation for MCP tool inputs |
+| `chokidar`                  | File watching for live-reload                 |
+| `react` / `react-dom`       | Dashboard UI                                  |
+| `zustand`                   | State management                              |
+| `framer-motion`             | Animations and transitions                    |
+| `tailwindcss`               | Utility-first CSS                             |
+| `vite`                      | Frontend build tool and dev server            |
 
 ## Development Workflow
 
 ### Build Commands
 
-| Command | Description |
-|---------|-------------|
-| `npm run build` | Full build: `tsc` (server) + `vite build` (dashboard) |
-| `npm run dashboard` | Run dashboard server on `:3333` (uses `tsx` for live TS execution) |
-| `npm run dashboard:dev` | Vite dev server on `:5173` with HMR |
-| `npm run dashboard:build` | Build only the dashboard frontend |
-| `npm start` | Run the compiled MCP server (`dist/server/index.js`) |
+| Command                   | Description                                                        |
+| ------------------------- | ------------------------------------------------------------------ |
+| `npm run build`           | Full build: `tsc` (server) + `vite build` (dashboard)              |
+| `npm run dashboard`       | Run dashboard server on `:3333` (uses `tsx` for live TS execution) |
+| `npm run dashboard:dev`   | Vite dev server on `:5173` with HMR                                |
+| `npm run dashboard:build` | Build only the dashboard frontend                                  |
+| `npm start`               | Run the compiled MCP server (`dist/server/index.js`)               |
 
 ### Typical Development Loop
 
@@ -240,11 +240,11 @@ If a commit fails the hook, fix the issues before re-committing.
 
 ### Test Structure
 
-| Type | Location | Runner | Command |
-|------|----------|--------|---------|
-| Unit / Integration | `test/*.test.ts` | Vitest | `npm test` |
+| Type                | Location                      | Runner                   | Command                 |
+| ------------------- | ----------------------------- | ------------------------ | ----------------------- |
+| Unit / Integration  | `test/*.test.ts`              | Vitest                   | `npm test`              |
 | Frontend components | `src/dashboard/app/src/test/` | Vitest + Testing Library | `npm run test:frontend` |
-| End-to-end | `test/e2e/*.spec.ts` | Playwright | `npx playwright test` |
+| End-to-end          | `test/e2e/*.spec.ts`          | Playwright               | `npx playwright test`   |
 
 ### Writing Backend Tests
 
@@ -387,18 +387,18 @@ The publish workflow (`.github/workflows/publish.yml`) runs:
 
 ## Key Conventions
 
-| Convention | Detail |
-|-----------|--------|
-| Module system | ESM (`"type": "module"` in package.json) — use `.js` extensions in imports |
-| Database | SQLite via `better-sqlite3` — all state in `context.db` |
-| Schema validation | Zod for all MCP tool inputs |
-| Frontend architecture | Atomic Design (atoms → molecules → organisms → templates → pages) |
-| State management | Zustand stores — no Redux, no Context API for shared state |
-| Styling | Tailwind CSS v4 — utility classes, no CSS modules |
-| Animations | Framer Motion — for transitions and micro-interactions |
-| Test isolation | In-memory SQLite databases via `createTestDb()` |
-| Unused variables | Prefix with `_` (e.g., `_unusedParam`) |
-| Barrel exports | Each component layer has an `index.ts` re-exporting all public components |
+| Convention            | Detail                                                                     |
+| --------------------- | -------------------------------------------------------------------------- |
+| Module system         | ESM (`"type": "module"` in package.json) — use `.js` extensions in imports |
+| Database              | SQLite via `better-sqlite3` — all state in `context.db`                    |
+| Schema validation     | Zod for all MCP tool inputs                                                |
+| Frontend architecture | Atomic Design (atoms → molecules → organisms → templates → pages)          |
+| State management      | Zustand stores — no Redux, no Context API for shared state                 |
+| Styling               | Tailwind CSS v4 — utility classes, no CSS modules                          |
+| Animations            | Framer Motion — for transitions and micro-interactions                     |
+| Test isolation        | In-memory SQLite databases via `createTestDb()`                            |
+| Unused variables      | Prefix with `_` (e.g., `_unusedParam`)                                     |
+| Barrel exports        | Each component layer has an `index.ts` re-exporting all public components  |
 
 ## License
 

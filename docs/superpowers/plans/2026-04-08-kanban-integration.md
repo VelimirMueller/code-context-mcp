@@ -12,17 +12,18 @@
 
 ## Files
 
-| File | Change |
-|------|--------|
-| `src/dashboard/app/src/components/organisms/KanbanBoard.tsx` | Add drag state, event handlers, optimistic update |
-| `src/dashboard/app/src/components/organisms/PlanningDashboard.tsx` | Add `kanban` ViewMode, tab, ticket fetch, render |
-| `src/dashboard/app/src/test/molecules.test.tsx` | Add KanbanBoard drag + PlanningDashboard kanban tab tests |
+| File                                                               | Change                                                    |
+| ------------------------------------------------------------------ | --------------------------------------------------------- |
+| `src/dashboard/app/src/components/organisms/KanbanBoard.tsx`       | Add drag state, event handlers, optimistic update         |
+| `src/dashboard/app/src/components/organisms/PlanningDashboard.tsx` | Add `kanban` ViewMode, tab, ticket fetch, render          |
+| `src/dashboard/app/src/test/molecules.test.tsx`                    | Add KanbanBoard drag + PlanningDashboard kanban tab tests |
 
 ---
 
 ## Task 1: KanbanBoard — drag state and local tickets
 
 **Files:**
+
 - Modify: `src/dashboard/app/src/components/organisms/KanbanBoard.tsx`
 
 - [ ] **Step 1: Add local tickets state and sync effect**
@@ -43,7 +44,9 @@
   Add a sync effect directly after those declarations (before the existing `useEffect` for milestones):
 
   ```tsx
-  useEffect(() => { setLocalTickets(tickets); }, [tickets]);
+  useEffect(() => {
+    setLocalTickets(tickets);
+  }, [tickets]);
   ```
 
 - [ ] **Step 2: Add drop handler**
@@ -56,8 +59,8 @@
     const ticketId = Number(e.dataTransfer.getData('ticketId'));
     if (!ticketId) return;
     const prev = localTickets;
-    setLocalTickets(ts =>
-      ts.map(t => t.id === ticketId ? { ...t, status: targetStatus } : t)
+    setLocalTickets((ts) =>
+      ts.map((t) => (t.id === ticketId ? { ...t, status: targetStatus } : t)),
     );
     setDraggingId(null);
     setDragOverCol(null);
@@ -128,15 +131,17 @@
   `renderColumns` is called in two places at the bottom of the component. Both calls pass the `tickets` or `groupTickets` argument. Inside `renderColumns` itself, `columnTickets` is derived from its argument — no change needed there.
 
   The flat (non-grouped) call at the bottom:
+
   ```tsx
   // Before:
-  renderColumns(tickets)
+  renderColumns(tickets);
 
   // After:
-  renderColumns(localTickets)
+  renderColumns(localTickets);
   ```
 
   The grouped call passes `groupTickets` which is already derived from `localTickets` via `epicGroups` (which uses `tickets` in its deps). Update `epicGroups` dep array:
+
   ```tsx
   // Before:
   }, [groupByEpic, tickets]);
@@ -158,6 +163,7 @@
 ## Task 2: PlanningDashboard — kanban view mode
 
 **Files:**
+
 - Modify: `src/dashboard/app/src/components/organisms/PlanningDashboard.tsx`
 
 - [ ] **Step 1: Import KanbanBoard and Ticket type**
@@ -175,15 +181,19 @@
 - [ ] **Step 2: Extend ViewMode and add kanban tab entry**
 
   Find:
+
   ```tsx
   type ViewMode = 'overview' | 'gantt' | 'burndown' | 'capacity' | 'table';
   ```
+
   Replace with:
+
   ```tsx
   type ViewMode = 'overview' | 'gantt' | 'burndown' | 'capacity' | 'table' | 'kanban';
   ```
 
   Find the `viewModes` array and add the kanban entry as the second item (after overview, before gantt):
+
   ```tsx
   const viewModes: { id: ViewMode; label: string; icon: string }[] = [
     { id: 'overview', label: 'Overview', icon: '◈' },
@@ -204,7 +214,7 @@
   ```tsx
   const [kanbanTickets, setKanbanTickets] = useState<Ticket[]>([]);
   const [loadingKanban, setLoadingKanban] = useState(false);
-  const selectedSprintId = useSprintStore(s => s.selectedSprintId);
+  const selectedSprintId = useSprintStore((s) => s.selectedSprintId);
   ```
 
   > If `selectedSprintId` is already declared in this component, skip that line.
@@ -218,7 +228,7 @@
     if (viewMode !== 'kanban' || !selectedSprintId) return;
     setLoadingKanban(true);
     get<Ticket[]>(`/api/sprint/${selectedSprintId}/tickets`)
-      .then(data => setKanbanTickets(Array.isArray(data) ? data : []))
+      .then((data) => setKanbanTickets(Array.isArray(data) ? data : []))
       .catch(() => setKanbanTickets([]))
       .finally(() => setLoadingKanban(false));
   }, [viewMode, selectedSprintId]);
@@ -229,16 +239,20 @@
   Find where the other view branches are rendered (look for `{viewMode === 'gantt' && (`). Add the kanban branch immediately before it:
 
   ```tsx
-  {/* Kanban View */}
-  {viewMode === 'kanban' && (
-    <div style={{ padding: '0 8px' }}>
-      {loadingKanban ? (
-        <div style={{ color: 'var(--text3)', padding: 32, fontSize: 13 }}>Loading…</div>
-      ) : (
-        <KanbanBoard tickets={kanbanTickets} />
-      )}
-    </div>
-  )}
+  {
+    /* Kanban View */
+  }
+  {
+    viewMode === 'kanban' && (
+      <div style={{ padding: '0 8px' }}>
+        {loadingKanban ? (
+          <div style={{ color: 'var(--text3)', padding: 32, fontSize: 13 }}>Loading…</div>
+        ) : (
+          <KanbanBoard tickets={kanbanTickets} />
+        )}
+      </div>
+    );
+  }
   ```
 
 - [ ] **Step 6: Commit**
@@ -253,6 +267,7 @@
 ## Task 3: Tests
 
 **Files:**
+
 - Modify: `src/dashboard/app/src/test/molecules.test.tsx`
 
 - [ ] **Step 1: Add KanbanBoard drag test**
@@ -267,10 +282,30 @@
     global.fetch = mockFetch;
 
     const tickets = [
-      { id: 1, title: 'T-1', status: 'TODO', story_points: 2, assigned_to: null,
-        priority: 1, epic_name: null, qa_verified: 0, sprint_id: 6, description: '' },
-      { id: 2, title: 'T-2', status: 'IN_PROGRESS', story_points: 3, assigned_to: null,
-        priority: 1, epic_name: null, qa_verified: 0, sprint_id: 6, description: '' },
+      {
+        id: 1,
+        title: 'T-1',
+        status: 'TODO',
+        story_points: 2,
+        assigned_to: null,
+        priority: 1,
+        epic_name: null,
+        qa_verified: 0,
+        sprint_id: 6,
+        description: '',
+      },
+      {
+        id: 2,
+        title: 'T-2',
+        status: 'IN_PROGRESS',
+        story_points: 3,
+        assigned_to: null,
+        priority: 1,
+        epic_name: null,
+        qa_verified: 0,
+        sprint_id: 6,
+        description: '',
+      },
     ];
 
     beforeEach(() => {
@@ -278,17 +313,19 @@
       mockFetch.mockResolvedValue({ ok: true, json: async () => ({}) });
       // Silence store calls
       vi.mock('@/stores/planningStore', () => ({
-        usePlanningStore: (sel: any) => sel({
-          milestones: [],
-          fetchMilestones: vi.fn(),
-        }),
+        usePlanningStore: (sel: any) =>
+          sel({
+            milestones: [],
+            fetchMilestones: vi.fn(),
+          }),
       }));
       vi.mock('@/stores/sprintStore', () => ({
-        useSprintStore: (sel: any) => sel({
-          selectedSprintId: 6,
-          fetchTickets: vi.fn(),
-          fetchGroupedSprints: vi.fn(),
-        }),
+        useSprintStore: (sel: any) =>
+          sel({
+            selectedSprintId: 6,
+            fetchTickets: vi.fn(),
+            fetchGroupedSprints: vi.fn(),
+          }),
       }));
     });
 
@@ -319,7 +356,8 @@
 
       // Simulate drop onto IN_PROGRESS column header area
       // Columns are rendered as divs — find by text and go to parent drop zone
-      const inProgressCol = screen.getByText('In Progress').closest('[ondragover]') ??
+      const inProgressCol =
+        screen.getByText('In Progress').closest('[ondragover]') ??
         screen.getByText('In Progress').parentElement!.parentElement!;
       fireEvent.drop(inProgressCol, { dataTransfer: dt });
 
@@ -327,7 +365,7 @@
       await vi.waitFor(() => {
         expect(mockFetch).toHaveBeenCalledWith(
           expect.stringContaining('/api/ticket/1/status'),
-          expect.objectContaining({ method: 'PATCH' })
+          expect.objectContaining({ method: 'PATCH' }),
         );
       });
     });
@@ -373,7 +411,7 @@
   mcp__code-context__update_ticket({ ticket_id: 65, status: "DONE", qa_verified: true, verified_by: "qa" })
   ```
 
-  > T-064 = QA for GanttChart, T-065 = QA for landing animation. Both components exist and are wired.
+  > T-064 = QA for GanttChart, T-065 = QA for landing animation. Both components exist and are wired. (GanttChart was removed later as unreachable, #227.)
 
 - [ ] **Step 2: Mark T-059 and T-062 DONE after tasks 1-3 above pass**
 

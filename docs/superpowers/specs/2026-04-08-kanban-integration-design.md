@@ -13,7 +13,7 @@ Two changes to the React dashboard:
 1. **T-059** — Add HTML5 drag-to-move to `KanbanBoard.tsx`
 2. **T-062** — Add a `kanban` view mode to `PlanningDashboard.tsx`
 
-T-060 (GanttChart) and T-061 (LandingAnimation) already exist and are integrated — mark DONE without code changes.
+T-060 (GanttChart) and T-061 (LandingAnimation) already exist and are integrated — mark DONE without code changes. (GanttChart was removed later as unreachable, #227.)
 
 ---
 
@@ -31,30 +31,28 @@ const [localTickets, setLocalTickets] = useState<Ticket[]>(tickets);
 
 ### Drag lifecycle
 
-| Event | Handler |
-|-------|---------|
-| `onDragStart` (card) | `setDraggingId(ticket.id)`, `e.dataTransfer.setData('ticketId', ticket.id)` |
-| `onDragOver` (column) | `e.preventDefault()`, `setDragOverCol(status)` |
-| `onDragLeave` (column) | `setDragOverCol(null)` |
-| `onDrop` (column) | Read `ticketId` from dataTransfer, optimistic update, PATCH API, revert on error |
-| `onDragEnd` (card) | `setDraggingId(null)`, `setDragOverCol(null)` |
+| Event                  | Handler                                                                          |
+| ---------------------- | -------------------------------------------------------------------------------- |
+| `onDragStart` (card)   | `setDraggingId(ticket.id)`, `e.dataTransfer.setData('ticketId', ticket.id)`      |
+| `onDragOver` (column)  | `e.preventDefault()`, `setDragOverCol(status)`                                   |
+| `onDragLeave` (column) | `setDragOverCol(null)`                                                           |
+| `onDrop` (column)      | Read `ticketId` from dataTransfer, optimistic update, PATCH API, revert on error |
+| `onDragEnd` (card)     | `setDraggingId(null)`, `setDragOverCol(null)`                                    |
 
 ### Optimistic update + revert
 
 ```ts
 const handleDrop = async (targetStatus: string) => {
   const ticketId = Number(e.dataTransfer.getData('ticketId'));
-  const prev = localTickets;                            // snapshot for rollback
-  setLocalTickets(ts =>
-    ts.map(t => t.id === ticketId ? { ...t, status: targetStatus } : t)
-  );
+  const prev = localTickets; // snapshot for rollback
+  setLocalTickets((ts) => ts.map((t) => (t.id === ticketId ? { ...t, status: targetStatus } : t)));
   setDraggingId(null);
   setDragOverCol(null);
   try {
     await patch(`/api/ticket/${ticketId}/status`, { status: targetStatus });
     if (selectedSprintId) fetchTickets(selectedSprintId);
   } catch {
-    setLocalTickets(prev);                              // revert
+    setLocalTickets(prev); // revert
   }
 };
 ```
@@ -68,7 +66,9 @@ const handleDrop = async (targetStatus: string) => {
 ### Prop sync
 
 ```ts
-useEffect(() => { setLocalTickets(tickets); }, [tickets]);
+useEffect(() => {
+  setLocalTickets(tickets);
+}, [tickets]);
 ```
 
 ---
@@ -101,7 +101,7 @@ useEffect(() => {
   if (viewMode !== 'kanban' || !selectedSprintId) return;
   setLoadingKanban(true);
   get<Ticket[]>(`/api/sprint/${selectedSprintId}/tickets`)
-    .then(data => setKanbanTickets(Array.isArray(data) ? data : []))
+    .then((data) => setKanbanTickets(Array.isArray(data) ? data : []))
     .catch(() => setKanbanTickets([]))
     .finally(() => setLoadingKanban(false));
 }, [viewMode, selectedSprintId]);
@@ -110,14 +110,17 @@ useEffect(() => {
 ### Render section
 
 ```tsx
-{viewMode === 'kanban' && (
-  <div style={{ padding: '0 8px' }}>
-    {loadingKanban
-      ? <div style={{ color: 'var(--text3)', padding: 32 }}>Loading…</div>
-      : <KanbanBoard tickets={kanbanTickets} />
-    }
-  </div>
-)}
+{
+  viewMode === 'kanban' && (
+    <div style={{ padding: '0 8px' }}>
+      {loadingKanban ? (
+        <div style={{ color: 'var(--text3)', padding: 32 }}>Loading…</div>
+      ) : (
+        <KanbanBoard tickets={kanbanTickets} />
+      )}
+    </div>
+  );
+}
 ```
 
 ### Import
@@ -130,9 +133,9 @@ import { KanbanBoard } from './KanbanBoard';
 
 ## Files Changed
 
-| File | Change |
-|------|--------|
-| `src/components/organisms/KanbanBoard.tsx` | Add drag state, event handlers, optimistic update, visual cues |
+| File                                             | Change                                                                    |
+| ------------------------------------------------ | ------------------------------------------------------------------------- |
+| `src/components/organisms/KanbanBoard.tsx`       | Add drag state, event handlers, optimistic update, visual cues            |
 | `src/components/organisms/PlanningDashboard.tsx` | Add `kanban` to ViewMode, add view tab, fetch tickets, render KanbanBoard |
 
 ---
