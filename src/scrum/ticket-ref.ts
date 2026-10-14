@@ -19,6 +19,9 @@ export const TICKET_REF_INDEX = 'idx_tickets_ticket_ref_unique';
  * the insert.
  */
 export function nextTicketRef(db: Database.Database): string {
+  if (!db.inTransaction) {
+    throw new Error('nextTicketRef must run inside the write transaction that inserts the ticket');
+  }
   const maxId = db.prepare(`SELECT MAX(id) AS m FROM tickets`).get() as { m: number | null };
   let n = (maxId.m ?? 0) + 1;
   while (ticketRefOwner(db, `T-${n}`) !== undefined) n++;

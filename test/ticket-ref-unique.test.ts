@@ -10,7 +10,7 @@ import { createTestDb } from './helpers/db.js';
 import { initScrumSchema, runMigrations } from '../src/scrum/schema.js';
 import { registerScrumTools } from '../src/scrum/tools.js';
 import { apiCreateTicket } from '../src/dashboard/handlers/sprint.js';
-import { TICKET_REF_INDEX } from '../src/scrum/ticket-ref.js';
+import { nextTicketRef, TICKET_REF_INDEX } from '../src/scrum/ticket-ref.js';
 
 type Handler = (
   args: Record<string, unknown>,
@@ -148,5 +148,11 @@ describe('ticket refs are unique across the database (#222)', () => {
     // Tickets without a ref stay allowed.
     db.prepare(`INSERT INTO tickets (title) VALUES ('no ref 1')`).run();
     db.prepare(`INSERT INTO tickets (title) VALUES ('no ref 2')`).run();
+  });
+
+  it('allocates a ref only inside a write transaction', () => {
+    const { db } = setup();
+    expect(() => nextTicketRef(db)).toThrow(/inside the write transaction/);
+    expect(db.transaction(() => nextTicketRef(db)).immediate()).toBe('T-1');
   });
 });

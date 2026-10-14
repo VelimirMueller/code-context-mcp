@@ -450,8 +450,9 @@ export function initScrumSchema(db: Database.Database): void {
   // section, so only index it here when the column already exists.
   createProjectIndexes(db);
 
-  // v27 (#222): ticket_ref is unique across the database. A legacy DB with shared
-  // refs gets the index in runMigrations, after the refs are renamed.
+  // v27 (#222): ticket_ref is unique across the database. ensureTicketRefIndex
+  // creates nothing while refs are shared, so a legacy DB with shared refs passes
+  // here and gets the index in runMigrations, after the refs are renamed.
   ensureTicketRefIndex(db);
 
   // idx_tickets_sprint_deleted and idx_sprints_status_deleted reference deleted_at columns
@@ -1055,6 +1056,8 @@ export function runMigrations(db: Database.Database, opts: { freshDb?: boolean }
     // Migration 27 (#222): one ticket per ref across the database. Per shared ref the
     // lowest id keeps it; the other rows get the next free ref, and the old ref goes
     // to the ticket history (event_log). Idempotent: unique refs change nothing.
+    // Not gated on `current < 27` on purpose: the check is one GROUP BY, and a DB
+    // that still has shared refs must never boot without the index.
     renameDuplicateTicketRefs(db);
     if (!ensureTicketRefIndex(db)) {
       throw new Error('migration 27: ticket refs are still shared after the rename');
