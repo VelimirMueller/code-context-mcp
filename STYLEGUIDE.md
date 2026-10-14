@@ -6,15 +6,15 @@ Conventions and patterns extracted from the living codebase. Follow these when c
 
 ## 1. Language & Tooling
 
-| Tool        | Version / Config                                            |
-| ----------- | ----------------------------------------------------------- |
-| TypeScript  | `strict: true`, `target: esnext`, `module: nodenext`        |
-| Module      | ESM (`"type": "module"` in package.json)                    |
-| Prettier    | single quotes, trailing commas, 100 char width, 2-space tab |
-| ESLint      | `@eslint/js` + `typescript-eslint` recommended              |
+| Tool        | Version / Config                                              |
+| ----------- | ------------------------------------------------------------- |
+| TypeScript  | `strict: true`, `target: esnext`, `module: nodenext`          |
+| Module      | ESM (`"type": "module"` in package.json)                      |
+| Prettier    | single quotes, trailing commas, 100 char width, 2-space tab   |
+| ESLint      | `@eslint/js` + `typescript-eslint` recommended                |
 | Test runner | Vitest (backend `test/`), Vitest + Testing Library (frontend) |
-| E2E         | Playwright                                                  |
-| Git hooks   | Husky + lint-staged (`tsc --noEmit` + `npm run build`)      |
+| E2E         | Playwright                                                    |
+| Git hooks   | Husky + lint-staged (`tsc --noEmit` + `npm run build`)        |
 
 ---
 
@@ -31,7 +31,7 @@ src/
         components/
           atoms/       # Smallest UI primitives (Badge, Button, Skeleton)
           molecules/   # Composed atoms (TicketCard, SearchBar, TabBar)
-          organisms/   # Full sections (KanbanBoard, BurndownChart, GanttChart)
+          organisms/   # Full sections (KanbanBoard, BurndownChart, SprintDetail)
         pages/         # Route-level views (Dashboard, Team, CodeExplorer)
         hooks/         # Custom React hooks (useSprints, useAgents)
         stores/        # Zustand stores (sprintStore, agentStore)
@@ -48,23 +48,23 @@ test/              # Backend tests
 
 ## 3. Naming Conventions
 
-| Thing               | Style              | Example                                |
-| ------------------- | ------------------ | -------------------------------------- |
-| Files (backend)     | camelCase          | `indexer.ts`, `schema.ts`, `tools.ts`  |
-| Files (React)       | PascalCase         | `Badge.tsx`, `KanbanBoard.tsx`         |
-| Files (hooks)       | camelCase          | `useSprints.ts`, `useAgents.ts`        |
-| Files (stores)      | camelCase          | `agentStore.ts`, `sprintStore.ts`      |
-| Files (tests)       | kebab-case         | `smoke.test.ts`, `sprint-lifecycle.test.ts` |
-| Functions           | camelCase          | `registerScrumTools`, `checkSprintGates` |
-| React components    | PascalCase         | `function Badge()`, `function TicketCard()` |
-| Interfaces          | PascalCase, no `I` | `interface BadgeProps`, `interface AgentDefault` |
-| Type aliases        | PascalCase         | `type BadgeVariant = 'fn' \| 'type'`  |
-| Constants           | UPPER_SNAKE_CASE   | `PHASE_TRANSITIONS`, `SKIP_DIRS`       |
-| Zustand stores      | `use[Name]Store`   | `useAgentStore`, `useSprintStore`      |
-| Custom hooks        | `use[Name]`        | `useSprints`, `useSearch`              |
-| SQL tables          | snake_case         | `retro_findings`, `sprint_metrics`     |
-| SQL columns         | snake_case         | `created_at`, `story_points`           |
-| SQL indexes         | `idx_` prefix      | `idx_tickets_sprint_id`                |
+| Thing            | Style              | Example                                          |
+| ---------------- | ------------------ | ------------------------------------------------ |
+| Files (backend)  | camelCase          | `indexer.ts`, `schema.ts`, `tools.ts`            |
+| Files (React)    | PascalCase         | `Badge.tsx`, `KanbanBoard.tsx`                   |
+| Files (hooks)    | camelCase          | `useSprints.ts`, `useAgents.ts`                  |
+| Files (stores)   | camelCase          | `agentStore.ts`, `sprintStore.ts`                |
+| Files (tests)    | kebab-case         | `smoke.test.ts`, `sprint-lifecycle.test.ts`      |
+| Functions        | camelCase          | `registerScrumTools`, `checkSprintGates`         |
+| React components | PascalCase         | `function Badge()`, `function TicketCard()`      |
+| Interfaces       | PascalCase, no `I` | `interface BadgeProps`, `interface AgentDefault` |
+| Type aliases     | PascalCase         | `type BadgeVariant = 'fn' \| 'type'`             |
+| Constants        | UPPER_SNAKE_CASE   | `PHASE_TRANSITIONS`, `SKIP_DIRS`                 |
+| Zustand stores   | `use[Name]Store`   | `useAgentStore`, `useSprintStore`                |
+| Custom hooks     | `use[Name]`        | `useSprints`, `useSearch`                        |
+| SQL tables       | snake_case         | `retro_findings`, `sprint_metrics`               |
+| SQL columns      | snake_case         | `created_at`, `story_points`                     |
+| SQL indexes      | `idx_` prefix      | `idx_tickets_sprint_id`                          |
 
 ---
 
@@ -163,7 +163,9 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
   ```ts
   export function useSprints() {
     const store = useSprintStore();
-    useEffect(() => { store.fetchSprints(); }, []);
+    useEffect(() => {
+      store.fetchSprints();
+    }, []);
     return store;
   }
   ```
@@ -192,10 +194,11 @@ Each tool follows the same shape:
 
 ```ts
 server.tool(
-  'tool_name',                              // snake_case name
-  'Human-readable description.',            // description
-  { param: z.string().describe('...') },    // Zod schema
-  async ({ param }) => {                    // handler
+  'tool_name', // snake_case name
+  'Human-readable description.', // description
+  { param: z.string().describe('...') }, // Zod schema
+  async ({ param }) => {
+    // handler
     try {
       // ... DB operations ...
       return { content: [{ type: 'text', text: result }] };
@@ -297,13 +300,13 @@ beforeEach(() => {
 
 ## 9. ESLint Rules of Note
 
-| Rule                                   | Setting  | Rationale                              |
-| -------------------------------------- | -------- | -------------------------------------- |
-| `@typescript-eslint/no-unused-vars`    | `warn`   | Prefix unused with `_`                 |
-| `@typescript-eslint/no-explicit-any`   | `warn`   | Allowed for SQLite row casts           |
-| `@typescript-eslint/no-require-imports`| `off`    | CJS scripts exist (`_restore.cjs`)     |
-| `prefer-const`                         | `warn`   | Use `const` unless reassigned          |
-| `no-console`                           | `off`    | `console.error` used for MCP logging   |
+| Rule                                    | Setting | Rationale                            |
+| --------------------------------------- | ------- | ------------------------------------ |
+| `@typescript-eslint/no-unused-vars`     | `warn`  | Prefix unused with `_`               |
+| `@typescript-eslint/no-explicit-any`    | `warn`  | Allowed for SQLite row casts         |
+| `@typescript-eslint/no-require-imports` | `off`   | CJS scripts exist (`_restore.cjs`)   |
+| `prefer-const`                          | `warn`  | Use `const` unless reassigned        |
+| `no-console`                            | `off`   | `console.error` used for MCP logging |
 
 ---
 

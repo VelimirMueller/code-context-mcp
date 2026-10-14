@@ -70,7 +70,6 @@
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.59.1",
     "@remotion/cli": "^4.0.532",
-    "@remotion/player": "^4.0.532",
     "@remotion/renderer": "^4.0.532",
     "@tailwindcss/vite": "^4.2.2",
     "@testing-library/jest-dom": "^6.9.1",

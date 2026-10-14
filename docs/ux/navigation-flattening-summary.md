@@ -17,9 +17,11 @@
 ## What Was Delivered
 
 ### 1. Comprehensive Design Specification
+
 **File:** `/home/velimir/WebstormProjects/mcp-server/docs/ux/navigation-flattening.md`
 
 **Contents:**
+
 - Current state analysis with click depth metrics
 - Proposed single-level navigation architecture
 - Component specifications (TopNav, QuickActionsBar, Breadcrumb)
@@ -33,9 +35,11 @@
 - Success criteria
 
 ### 2. Visual Wireframes
+
 **File:** `/home/velimir/WebstormProjects/mcp-server/docs/ux/navigation-wireframes.md`
 
 **Contents:**
+
 - 8 detailed wireframes showing all states
 - Desktop, tablet, and mobile layouts
 - Navigation state transitions
@@ -44,19 +48,9 @@
 - Typography scale
 - Spacing system
 
-### 3. Implementation Migration Guide
-**File:** `/home/velimir/WebstormProjects/mcp-server/docs/ux/navigation-migration-guide.md`
+### 3. Implementation Migration Guide (removed)
 
-**Contents:**
-- 4-phase implementation plan (4 weeks)
-- Step-by-step code changes
-- Component creation with full code examples
-- Store updates with migration scripts
-- URL redirect implementation
-- Testing procedures (unit, integration, E2E)
-- Feature flag strategy
-- Rollback plan
-- Success metrics
+Removed in #231: its code samples imported dashboard modules that no longer exist. See [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md) for the current structure.
 
 ---
 
@@ -65,6 +59,7 @@
 ### Navigation Structure
 
 **Before (Nested):**
+
 ```
 App.tsx
 ├─ Code Explorer
@@ -80,6 +75,7 @@ App.tsx
 ```
 
 **After (Flat):**
+
 ```
 TopNav (Always Visible)
 ├─ Dashboard (Sprint Board + Quick Actions)
@@ -92,6 +88,7 @@ TopNav (Always Visible)
 ### Quick Actions Bar
 
 **Persistent Actions:**
+
 - My Tickets (with count badge)
 - Blockers (with highlight if > 0)
 - QA Pending (with count badge)
@@ -99,6 +96,7 @@ TopNav (Always Visible)
 - Search
 
 **Benefits:**
+
 - Visible on all pages
 - Reduces clicks from 7 to 2-3
 - Count badges show actionable items
@@ -106,26 +104,26 @@ TopNav (Always Visible)
 
 ### URL Migration
 
-| Old URL | New URL | Redirect |
-|---------|---------|----------|
-| `#explorer` | `#code` | 301 |
-| `#planning` | `#planning` | 301 |
-| `#planning/vision` | `#planning?tab=vision` | 301 |
-| `#planning/gantt` | `#planning?tab=timeline` | 301 |
-| `#planning/insights` | `#retro` | 301 |
-| `#sprint` | `#dashboard` | 301 |
-| `#sprint/team` | `#team` | 301 |
-| `#sprint/insights` | `#retro` | 301 |
+| Old URL              | New URL                  | Redirect |
+| -------------------- | ------------------------ | -------- |
+| `#explorer`          | `#code`                  | 301      |
+| `#planning`          | `#planning`              | 301      |
+| `#planning/vision`   | `#planning?tab=vision`   | 301      |
+| `#planning/gantt`    | `#planning?tab=timeline` | 301      |
+| `#planning/insights` | `#retro`                 | 301      |
+| `#sprint`            | `#dashboard`             | 301      |
+| `#sprint/team`       | `#team`                  | 301      |
+| `#sprint/insights`   | `#retro`                 | 301      |
 
 ### Role-Based Defaults
 
-| Role | Default Tab | Rationale |
-|------|-------------|-----------|
-| Developer | Dashboard | Jump to work |
-| Tech Lead | Planning | See roadmap |
-| Product Owner | Planning | Check vision |
-| QA | Dashboard | QA pending items |
-| Designer | Team | View team mood |
+| Role          | Default Tab | Rationale        |
+| ------------- | ----------- | ---------------- |
+| Developer     | Dashboard   | Jump to work     |
+| Tech Lead     | Planning    | See roadmap      |
+| Product Owner | Planning    | Check vision     |
+| QA            | Dashboard   | QA pending items |
+| Designer      | Team        | View team mood   |
 
 ---
 
@@ -133,12 +131,12 @@ TopNav (Always Visible)
 
 ### Quantitative Targets
 
-| Metric | Current | Target | Improvement |
-|--------|---------|--------|-------------|
-| Clicks to find tickets | 7 | 2-3 | 57-71% reduction |
-| Time to first action | 8s | 3s | 62.5% reduction |
-| Tab visibility | 33% | 100% | 3x increase |
-| Navigation depth | 2 levels | 1 level | 50% reduction |
+| Metric                 | Current  | Target  | Improvement      |
+| ---------------------- | -------- | ------- | ---------------- |
+| Clicks to find tickets | 7        | 2-3     | 57-71% reduction |
+| Time to first action   | 8s       | 3s      | 62.5% reduction  |
+| Tab visibility         | 33%      | 100%    | 3x increase      |
+| Navigation depth       | 2 levels | 1 level | 50% reduction    |
 
 ### Qualitative Targets
 
@@ -153,12 +151,14 @@ TopNav (Always Visible)
 ## Implementation Timeline
 
 ### Week 1: Foundation
+
 - [ ] Create new components (TopNav, QuickActionsBar, Breadcrumb)
 - [ ] Update uiStore with new schema
 - [ ] Create URL redirect system
 - [ ] Update router hook
 
 ### Week 2: Pages
+
 - [ ] Create Dashboard page
 - [ ] Rename Code Explorer to Code
 - [ ] Redesign Planning page
@@ -166,6 +166,7 @@ TopNav (Always Visible)
 - [ ] Extract Retro page
 
 ### Week 3: Integration & Testing
+
 - [ ] Update App.tsx
 - [ ] Add CSS styles
 - [ ] Write unit tests
@@ -174,6 +175,7 @@ TopNav (Always Visible)
 - [ ] Accessibility audit
 
 ### Week 4: Launch
+
 - [ ] Feature flags
 - [ ] Analytics integration
 - [ ] Beta rollout
@@ -222,8 +224,7 @@ TopNav (Always Visible)
 ```
 docs/ux/
 ├─ navigation-flattening.md          (Comprehensive spec)
-├─ navigation-wireframes.md          (Visual designs)
-└─ navigation-migration-guide.md     (Implementation guide)
+└─ navigation-wireframes.md          (Visual designs)
 ```
 
 ## Files to Modify
@@ -263,6 +264,7 @@ src/dashboard/app/src/
 ## Dependencies
 
 None required. All changes use existing dependencies:
+
 - React 18+
 - Zustand (state management)
 - Framer Motion (animations)
@@ -272,13 +274,13 @@ None required. All changes use existing dependencies:
 
 ## Risk Assessment
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|------------|
-| User confusion with new layout | Medium | Medium | Beta rollout, feedback widget |
-| URL breakage | Low | High | Comprehensive redirects, testing |
-| Performance regression | Low | Medium | Code splitting, lazy loading |
-| Accessibility issues | Low | High | WCAG audit, keyboard testing |
-| Store migration bugs | Medium | Medium | Thorough testing, rollback plan |
+| Risk                           | Likelihood | Impact | Mitigation                       |
+| ------------------------------ | ---------- | ------ | -------------------------------- |
+| User confusion with new layout | Medium     | Medium | Beta rollout, feedback widget    |
+| URL breakage                   | Low        | High   | Comprehensive redirects, testing |
+| Performance regression         | Low        | Medium | Code splitting, lazy loading     |
+| Accessibility issues           | Low        | High   | WCAG audit, keyboard testing     |
+| Store migration bugs           | Medium     | Medium | Thorough testing, rollback plan  |
 
 **Overall Risk Level:** MEDIUM
 
