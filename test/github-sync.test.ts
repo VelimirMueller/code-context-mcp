@@ -1328,7 +1328,7 @@ describe('GhGateway over a fake gh runner', () => {
 describe('schema v26 + notes backfill', () => {
   it('adds project columns (NULL by default) and the projects table', () => {
     const db = memDb();
-    expect(LATEST_SCHEMA_VERSION).toBe(26);
+    expect(LATEST_SCHEMA_VERSION).toBeGreaterThanOrEqual(26);
     for (const t of ['milestones', 'sprints', 'epics', 'tickets']) {
       expect((db.pragma(`table_info(${t})`) as any[]).map((c) => c.name)).toContain('project');
     }
@@ -1344,7 +1344,7 @@ describe('schema v26 + notes backfill', () => {
       notes: 'GitHub: VelimirMueller/code-context-mcp#116 — merged in PR #131',
     });
     const b = ticket(db, { title: 'b', notes: 'no link' });
-    db.prepare('DELETE FROM schema_versions WHERE version = 26').run();
+    db.prepare('DELETE FROM schema_versions WHERE version >= 26').run();
     runMigrations(db);
     expect(row(db, a)).toMatchObject({
       github_issue: 116,
@@ -1487,7 +1487,7 @@ describe('code-context-sync-github CLI', () => {
     initSchema(db);
     initScrumSchema(db);
     runMigrations(db, { freshDb: true });
-    db.prepare('DELETE FROM schema_versions WHERE version = 26').run(); // pretend an older server owns it
+    db.prepare('DELETE FROM schema_versions WHERE version >= 26').run(); // pretend an older server owns it
     const ms = Number(
       db.prepare("INSERT INTO milestones (name, status) VALUES ('M', 'active')").run()
         .lastInsertRowid,
@@ -2677,10 +2677,11 @@ describe('syncGithub fails closed', () => {
         .prepare("INSERT INTO sprints (name, status, project) VALUES ('S2', 'planning', 'app')")
         .run().lastInsertRowid,
     );
+    // Refs are unique across the database (#222), so the second link has its own ref.
     ticket(db, {
       sprint_id: s2,
-      ticket_ref: 'APP-1',
-      title: 'same ref, other sprint',
+      ticket_ref: 'APP-2',
+      title: 'other ticket, other sprint',
       priority: 'P0',
       github_issue: 8,
     });

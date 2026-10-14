@@ -43,6 +43,7 @@ import {
   type TransitionResult,
 } from './sprint-transition.js';
 import { archiveEntity, assertArchivable, unarchiveEntity } from './archive.js';
+import { nextTicketRef, ticketRefOwner } from './ticket-ref.js';
 import {
   errorMessage,
   type AgentRow,
@@ -2014,26 +2015,51 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
             | undefined;
           if (ms) milestoneName = ms.name;
         }
-        const result = db
-          .prepare(
-            `INSERT INTO tickets (sprint_id, ticket_ref, title, description, priority, assigned_to, story_points, milestone, milestone_id, epic_id, project, type, origin) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-          )
-          .run(
-            sprint_id,
-            ticket_ref || null,
-            title,
-            description || null,
-            priority,
-            assigned_to || null,
-            story_points || null,
-            milestoneName,
-            milestone_id || null,
-            epic_id || null,
-            project ?? null,
-            type ?? null,
-            origin ?? null,
-          );
-        const newTicketId = Number(result.lastInsertRowid);
+        // Ref and insert in one IMMEDIATE transaction (#215), with the allocation
+        // function the dashboard route uses (#222). A ref given by hand must be free
+        // across the database.
+        const insert = db.transaction(() => {
+          let ref = ticket_ref || null;
+          if (ref) {
+            const owner = ticketRefOwner(db, ref);
+            if (owner !== undefined) return { taken: owner, ref };
+          } else {
+            ref = nextTicketRef(db);
+          }
+          const result = db
+            .prepare(
+              `INSERT INTO tickets (sprint_id, ticket_ref, title, description, priority, assigned_to, story_points, milestone, milestone_id, epic_id, project, type, origin) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            )
+            .run(
+              sprint_id,
+              ref,
+              title,
+              description || null,
+              priority,
+              assigned_to || null,
+              story_points || null,
+              milestoneName,
+              milestone_id || null,
+              epic_id || null,
+              project ?? null,
+              type ?? null,
+              origin ?? null,
+            );
+          return { ref, id: Number(result.lastInsertRowid) };
+        });
+        const created = insert.immediate();
+        if ('taken' in created) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `ticket_ref ${created.ref} is already used by ticket #${created.taken}. Omit ticket_ref to get the next free ref.`,
+              },
+            ],
+            isError: true,
+          };
+        }
+        const newTicketId = created.id;
         // D2: explicit assignments win; otherwise assigned_to seeds the lead row (backfill pattern)
         if (agents) {
           try {
@@ -2065,12 +2091,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
           entityId: newTicketId,
         }); // B4
         return {
-          content: [
-            {
-              type: 'text' as const,
-              text: `Ticket created: ${ticket_ref || '#' + newTicketId} — ${title}`,
-            },
-          ],
+          content: [{ type: 'text' as const, text: `Ticket created: ${created.ref} — ${title}` }],
         };
       } catch (e) {
         return {
@@ -3365,7 +3386,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
 
         // Create sprint + tickets atomically — partial failure rolls back cleanly
         const createdTickets: string[] = [];
-        const sprintId = db.transaction(() => {
+        const createSprint = db.transaction(() => {
           const sprintResult = db
             .prepare(
               `INSERT INTO sprints (name, goal, status, velocity_committed, start_date, end_date, milestone_id) VALUES (?, ?, 'planning', ?, ?, ?, ?)`,
@@ -3383,16 +3404,10 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
           const ticketStmt = db.prepare(
             `INSERT INTO tickets (title, description, priority, assigned_to, story_points, sprint_id, epic_id, milestone_id, ticket_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           );
-          const maxRef =
-            (
-              db.prepare(`SELECT MAX(id) as m FROM tickets`).get() as
-                | { m: number | null }
-                | undefined
-            )?.m ?? 0;
 
-          for (let i = 0; i < tickets.length; i++) {
-            const t = tickets[i];
-            const ref = `T-${maxRef + i + 1}`;
+          for (const t of tickets) {
+            // Same allocation as create_ticket and the dashboard (#222); it skips refs set by hand.
+            const ref = nextTicketRef(db);
             ticketStmt.run(
               t.title,
               t.description || null,
@@ -3409,7 +3424,8 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
             );
           }
           return sid;
-        })();
+        });
+        const sprintId = createSprint.immediate();
 
         // Log event
         try {

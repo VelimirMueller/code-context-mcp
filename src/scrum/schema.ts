@@ -1,5 +1,6 @@
 import BetterSqlite3 from 'better-sqlite3';
 import type Database from 'better-sqlite3';
+import { ensureTicketRefIndex, renameDuplicateTicketRefs } from './ticket-ref.js';
 
 /**
  * Initialize the SQLite schema for the Scrum system.
@@ -71,6 +72,7 @@ export function initScrumSchema(db: Database.Database): void {
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (sprint_id) REFERENCES sprints(id) ON DELETE CASCADE,
       FOREIGN KEY (milestone_id) REFERENCES milestones(id) ON DELETE SET NULL,
+      -- Kept for existing DBs; idx_tickets_ticket_ref_unique (#222) makes the ref unique across the database.
       UNIQUE(sprint_id, ticket_ref)
     );
 
@@ -448,6 +450,10 @@ export function initScrumSchema(db: Database.Database): void {
   // section, so only index it here when the column already exists.
   createProjectIndexes(db);
 
+  // v27 (#222): ticket_ref is unique across the database. A legacy DB with shared
+  // refs gets the index in runMigrations, after the refs are renamed.
+  ensureTicketRefIndex(db);
+
   // idx_tickets_sprint_deleted and idx_sprints_status_deleted reference deleted_at columns
   // that may not exist on legacy DBs — create them only when the columns are present.
   // For fresh DBs the columns exist in the canonical CREATE TABLE above; for legacy DBs
@@ -513,7 +519,7 @@ export function backfillGithubIssues(db: Database.Database): number {
 
 /** Single source of truth for the schema version. Must equal the max version in
  *  runMigrations' array — runMigrations asserts this at every call. */
-export const LATEST_SCHEMA_VERSION = 26;
+export const LATEST_SCHEMA_VERSION = 27;
 
 /**
  * Read the stamped schema version of an on-disk DB without opening it
@@ -749,6 +755,10 @@ export function runMigrations(db: Database.Database, opts: { freshDb?: boolean }
     // post-migration section below (after the v17 sprints rebuild); this entry
     // records the version.
     { version: 26, name: 'add_projects_and_github_sync', sql: `SELECT 1` },
+    // #222: ticket_ref unique across the database (was per sprint). Shared refs are
+    // renamed and the unique index is created in the idempotent post-migration
+    // section below; this entry records the version.
+    { version: 27, name: 'unique_ticket_refs', sql: `SELECT 1` },
   ];
 
   const maxDefined = Math.max(...migrations.map((m) => m.version));
@@ -1041,6 +1051,14 @@ export function runMigrations(db: Database.Database, opts: { freshDb?: boolean }
     // One-off: parse `GitHub: owner/repo#N` notes into github_issue (only on the
     // upgrade to v26, so a number cleared later is not re-filled on every boot).
     if (current < 26) backfillGithubIssues(db);
+
+    // Migration 27 (#222): one ticket per ref across the database. Per shared ref the
+    // lowest id keeps it; the other rows get the next free ref, and the old ref goes
+    // to the ticket history (event_log). Idempotent: unique refs change nothing.
+    renameDuplicateTicketRefs(db);
+    if (!ensureTicketRefIndex(db)) {
+      throw new Error('migration 27: ticket refs are still shared after the rename');
+    }
   });
 
   // SQLite table rebuilds (DROP + RENAME) under FK enforcement fire ON DELETE CASCADE

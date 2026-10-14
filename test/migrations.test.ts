@@ -274,3 +274,132 @@ describe('v24 milestone/epic archived_at — upgrade from v2.5.1', () => {
     ).toBe('2026-10-09 10:00:00');
   });
 });
+
+// ---------------------------------------------------------------------------
+// v27 (#222): ticket_ref unique across the database — shared refs are renamed
+// ---------------------------------------------------------------------------
+
+describe('v27 unique ticket refs', () => {
+  /** A DB at v26: no unique ref index yet, so refs can be shared. */
+  function v26Db(): Database.Database {
+    const db = freshDb({ freshDb: true });
+    db.exec('DROP INDEX idx_tickets_ticket_ref_unique');
+    db.prepare('DELETE FROM schema_versions WHERE version >= 27').run();
+    return db;
+  }
+  const sprint = (db: Database.Database, name: string) =>
+    Number(db.prepare('INSERT INTO sprints (name) VALUES (?)').run(name).lastInsertRowid);
+  const refsById = (db: Database.Database) =>
+    db.prepare('SELECT id, ticket_ref FROM tickets ORDER BY id').all();
+  const refHistory = (db: Database.Database) =>
+    db
+      .prepare(
+        "SELECT entity_id, old_value, new_value, actor FROM event_log WHERE entity_type = 'ticket' AND field_name = 'ticket_ref' ORDER BY id",
+      )
+      .all();
+
+  function seedDuplicates(db: Database.Database) {
+    const a = sprint(db, 'A');
+    const b = sprint(db, 'B');
+    const ins = db.prepare(
+      'INSERT INTO tickets (sprint_id, ticket_ref, title, deleted_at) VALUES (?, ?, ?, ?)',
+    );
+    ins.run(null, 'T-1', 'no sprint, first', null); // id 1 keeps T-1
+    ins.run(null, 'T-1', 'no sprint, second', null); // id 2
+    ins.run(a, 'T-2', 'sprint A', null); // id 3 keeps T-2
+    ins.run(b, 'T-2', 'sprint B, deleted', '2026-10-01 10:00:00'); // id 4
+    ins.run(b, 'T-1', 'sprint B', null); // id 5
+    ins.run(null, 'T-9', 'unique ref', null); // id 6
+    ins.run(null, null, 'no ref', null); // id 7
+  }
+
+  it('renames shared refs deterministically: the lowest id keeps the ref', () => {
+    const db = v26Db();
+    seedDuplicates(db);
+    runMigrations(db);
+    // Next free refs start at MAX(id) + 1 = 8, in ref then id order: T-1 (ids 2, 5),
+    // then T-2 (id 4). T-9 is taken by id 6, so it is skipped.
+    expect(refsById(db)).toEqual([
+      { id: 1, ticket_ref: 'T-1' },
+      { id: 2, ticket_ref: 'T-8' },
+      { id: 3, ticket_ref: 'T-2' },
+      { id: 4, ticket_ref: 'T-11' },
+      { id: 5, ticket_ref: 'T-10' },
+      { id: 6, ticket_ref: 'T-9' },
+      { id: 7, ticket_ref: null },
+    ]);
+  });
+
+  it('records each old ref in the ticket history', () => {
+    const db = v26Db();
+    seedDuplicates(db);
+    runMigrations(db);
+    expect(refHistory(db)).toEqual([
+      { entity_id: 2, old_value: 'T-1', new_value: 'T-8', actor: 'migration' },
+      { entity_id: 5, old_value: 'T-1', new_value: 'T-10', actor: 'migration' },
+      { entity_id: 4, old_value: 'T-2', new_value: 'T-11', actor: 'migration' },
+    ]);
+  });
+
+  it('stamps v27, creates the unique index, and then refuses a shared ref', () => {
+    const db = v26Db();
+    seedDuplicates(db);
+    runMigrations(db);
+    expect(db.prepare('SELECT name FROM schema_versions WHERE version = 27').get()).toEqual({
+      name: 'unique_ticket_refs',
+    });
+    expect(
+      db
+        .prepare(
+          "SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = 'idx_tickets_ticket_ref_unique'",
+        )
+        .get(),
+    ).toBeTruthy();
+    expect(() =>
+      db.prepare("INSERT INTO tickets (ticket_ref, title) VALUES ('T-1', 'again')").run(),
+    ).toThrow(/UNIQUE constraint failed/);
+  });
+
+  it('is idempotent: a second run renames nothing and writes no history', () => {
+    const db = v26Db();
+    seedDuplicates(db);
+    runMigrations(db);
+    const refs = refsById(db);
+    const history = refHistory(db);
+    runMigrations(db);
+    expect(refsById(db)).toEqual(refs);
+    expect(refHistory(db)).toEqual(history);
+  });
+
+  it('leaves a DB with unique refs unchanged', () => {
+    const db = v26Db();
+    db.prepare("INSERT INTO tickets (ticket_ref, title) VALUES ('T-1', 'a'), ('T-2', 'b')").run();
+    runMigrations(db);
+    expect(refsById(db)).toEqual([
+      { id: 1, ticket_ref: 'T-1' },
+      { id: 2, ticket_ref: 'T-2' },
+    ]);
+    expect(refHistory(db)).toEqual([]);
+  });
+
+  it('migrates a legacy v2.5.1 DB whose refs are shared (initScrumSchema runs first)', () => {
+    const db = loadFixture('v2.5.1');
+    // The fixture has T-1 and T-2 in sprint 1; a backlog ticket shares T-2.
+    db.prepare(
+      "INSERT INTO tickets (sprint_id, ticket_ref, title) VALUES (NULL, 'T-2', 'Backlog twin')",
+    ).run();
+    db.pragma('foreign_keys = ON');
+    initSchema(db);
+    expect(() => initScrumSchema(db)).not.toThrow();
+    runMigrations(db);
+    expect(db.prepare('SELECT ticket_ref, title FROM tickets ORDER BY id').all()).toEqual([
+      { ticket_ref: 'T-1', title: 'Legacy ticket one' },
+      { ticket_ref: 'T-2', title: 'Legacy ticket two' },
+      { ticket_ref: 'T-4', title: 'Backlog twin' },
+    ]);
+    expect(refHistory(db)).toEqual([
+      { entity_id: 3, old_value: 'T-2', new_value: 'T-4', actor: 'migration' },
+    ]);
+    expect(schemaSnapshot(db)).toEqual(schemaSnapshot(freshDb({ freshDb: true })));
+  });
+});
