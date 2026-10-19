@@ -77,14 +77,19 @@ Run a single `INSERT`, `UPDATE`, or `DELETE` statement against the context datab
 | `tickets`    | `status`                                                           | `update_ticket`                                        |
 | `tickets`    | `qa_verified`, `verified_by`                                       | `update_ticket`                                        |
 | `tickets`    | `github_issue`, `github_repo`, `github_node_id` (every `github_*`) | `update_ticket github_issue=<N>`, `sync_github`        |
+| `tickets`    | `deleted_at`                                                       | `update_ticket status=NOT_DONE`, dashboard delete      |
 | `sprints`    | `status`                                                           | `update_sprint`, `advance_sprint`                      |
+| `sprints`    | `deleted_at`, `archived_at`                                        | dashboard sprint delete and archive                    |
+| `milestones` | `archived_at`                                                      | `update_milestone archived=true`                       |
+| `epics`      | `archived_at`                                                      | `update_epic archived=true`                            |
 | `milestones` | every `github_*` column                                            | `update_milestone github_milestone=<N>`, `sync_github` |
 | `projects`   | every `github_*` column                                            | `set_project`, `sync_github`                           |
 
-- The check covers the `INSERT` column list, the `UPDATE` `SET` list (also `SET (a, b) = …` and `UPDATE … FROM`) and `ON CONFLICT … DO UPDATE SET`. Quoted names, schema prefixes and aliases resolve to the real column.
+- The check covers the `INSERT` column list, the `UPDATE` `SET` list (also `SET (a, b) = …`, `IS [NOT] DISTINCT FROM` and `UPDATE … FROM`) and `ON CONFLICT … DO UPDATE SET`. Quoted names, schema prefixes and aliases resolve to the real column.
+- An `UPDATE` on these tables with a top-level comma or a `name =` after its `FROM` clause is refused; write the join as a subquery in `FROM (…)`.
 - `DELETE` on `tickets` and `sprints` is refused: it would drop the row and let a re-insert skip the gates.
-- `REPLACE`, `INSERT OR REPLACE` and `UPDATE OR REPLACE` on the four tables are refused: the replace deletes the row and resets its gate columns.
-- An `INSERT` into the four tables without a column list is refused: it writes every column.
+- `REPLACE`, `INSERT OR REPLACE` and `UPDATE OR REPLACE` on these tables are refused: the replace deletes the row and resets its gate columns.
+- An `INSERT` into these tables without a column list is refused: it writes every column.
 - Writes to the other columns and every `SELECT` stay free.
 
 **Return value:** `Rows affected: N, last id: M`

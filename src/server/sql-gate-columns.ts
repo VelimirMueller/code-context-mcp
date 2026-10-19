@@ -112,12 +112,21 @@ const GATES: Record<string, TableGate> = {
         return 'update_ticket (qa_verified, verified_by)';
       if (c === 'github_issue') return 'update_ticket (github_issue) or sync_github';
       if (c.startsWith('github_')) return 'sync_github';
+      if (c === 'deleted_at')
+        return 'update_ticket (status NOT_DONE) or the dashboard delete; tickets are not soft-deleted through execute';
       return null;
     },
     remove: 'update_ticket (status NOT_DONE); tickets are not deleted through execute',
   },
   sprints: {
-    column: (c) => (c === 'status' ? 'update_sprint or advance_sprint' : null),
+    column: (c) => {
+      if (c === 'status') return 'update_sprint or advance_sprint';
+      if (c === 'deleted_at')
+        return 'the dashboard sprint delete; sprints are not soft-deleted through execute';
+      if (c === 'archived_at')
+        return 'the dashboard sprint archive (it checks that the sprint is finished)';
+      return null;
+    },
     remove:
       'update_sprint or advance_sprint; sprints (and their tickets) are not deleted through execute',
   },
@@ -125,8 +134,15 @@ const GATES: Record<string, TableGate> = {
     column: (c) => {
       if (c === 'github_milestone') return 'update_milestone (github_milestone) or sync_github';
       if (c.startsWith('github_')) return 'sync_github';
+      if (c === 'archived_at')
+        return 'update_milestone (archived; it checks that the milestone is completed)';
       return null;
     },
+    remove: null,
+  },
+  epics: {
+    column: (c) =>
+      c === 'archived_at' ? 'update_epic (archived; it checks that the epic is completed)' : null,
     remove: null,
   },
   projects: {
@@ -137,7 +153,9 @@ const GATES: Record<string, TableGate> = {
 
 /** Lower-case "table.column" list of every gated column, for docs and tests. */
 export const GATE_COLUMN_SUMMARY =
-  'tickets.status, tickets.qa_verified, tickets.verified_by, tickets.github_*, sprints.status, milestones.github_*, projects.github_*';
+  'tickets.status, tickets.qa_verified, tickets.verified_by, tickets.github_*, tickets.deleted_at, ' +
+  'sprints.status, sprints.deleted_at, sprints.archived_at, milestones.github_*, milestones.archived_at, ' +
+  'epics.archived_at, projects.github_*';
 
 // ─── Parser ─────────────────────────────────────────────────────────────────
 
@@ -224,6 +242,7 @@ function setList(cur: Cursor, stops: Set<string>): string[] {
     let sawExpr = false;
     for (;;) {
       const t = cur.peek();
+      const prev = cur.peek(-1);
       if (!t) {
         if (depth !== 0) throw new ParseError('unbalanced parentheses');
         if (!sawExpr) throw new ParseError('expected an expression');
@@ -237,7 +256,17 @@ function setList(cur: Cursor, stops: Set<string>): string[] {
         if (!sawExpr) throw new ParseError('expected an expression');
         cur.i++;
         break;
-      } else if (depth === 0 && t.kind === 'word' && stops.has(t.value.toLowerCase())) {
+      } else if (
+        depth === 0 &&
+        t.kind === 'word' &&
+        stops.has(t.value.toLowerCase()) &&
+        // `a IS [NOT] DISTINCT FROM b` is an expression, not the UPDATE … FROM clause.
+        !(
+          t.value.toLowerCase() === 'from' &&
+          prev?.kind === 'word' &&
+          prev.value.toLowerCase() === 'distinct'
+        )
+      ) {
         if (!sawExpr) throw new ParseError('expected an expression');
         return cols;
       }
@@ -248,6 +277,32 @@ function setList(cur: Cursor, stops: Set<string>): string[] {
 }
 
 const UPDATE_STOPS = new Set(['from', 'where', 'returning', 'order', 'limit']);
+
+/**
+ * Fail-closed tail check for UPDATE on a gated table. When the SET list ended at
+ * FROM, ORDER or LIMIT, scan on to WHERE / RETURNING / the end: a top-level comma
+ * or a `<name> =` there may be a SET item the parser took for the end of the list
+ * (a parser differential), so the statement is refused.
+ */
+function assertSetListEnded(cur: Cursor): void {
+  if (cur.done() || cur.isWord('where') || cur.isWord('returning')) return;
+  let depth = 0;
+  for (let j = cur.i; j < cur.toks.length; j++) {
+    const t = cur.toks[j];
+    if (t.kind === 'op' && t.value === '(') depth++;
+    else if (t.kind === 'op' && t.value === ')') depth--;
+    else if (depth !== 0) continue;
+    else if (t.kind === 'word' && ['where', 'returning'].includes(t.value.toLowerCase())) return;
+    else if (t.kind === 'op' && t.value === ',') {
+      throw new ParseError('a top-level comma after the SET list');
+    } else if (t.kind !== 'op' && t.kind !== 'number' && t.kind !== 'param') {
+      const next = cur.toks[j + 1];
+      if (next?.kind === 'op' && next.value === '=') {
+        throw new ParseError('an assignment after the SET list');
+      }
+    }
+  }
+}
 const UPSERT_STOPS = new Set(['where', 'on', 'returning']);
 const CONFLICT_ALGOS = new Set(['rollback', 'abort', 'replace', 'fail', 'ignore']);
 
@@ -325,7 +380,9 @@ function parseUpdate(cur: Cursor): WriteShape {
     cur.expectWord('indexed');
   }
   cur.expectWord('set');
-  return { table, columns: setList(cur, UPDATE_STOPS), replace, remove: false };
+  const columns = setList(cur, UPDATE_STOPS);
+  assertSetListEnded(cur);
+  return { table, columns, replace, remove: false };
 }
 
 function parseDelete(cur: Cursor): WriteShape {
@@ -357,8 +414,8 @@ export function checkGateColumns(sql: string): SqlGuardResult {
   } catch (err) {
     // Parse errors come only from the verb/table prefix or from a gated table: refuse.
     return refuse(
-      `${REFUSED} the statement could not be checked for gate columns (${(err as Error).message}). ` +
-        `Gate columns (${GATE_COLUMN_SUMMARY}) are written only by their tools.`,
+      `${REFUSED} the statement could not be read safely (${(err as Error).message}), so it could not be ` +
+        `checked for gate columns (${GATE_COLUMN_SUMMARY}). Rewrite it as one plain INSERT, UPDATE or DELETE.`,
     );
   }
 

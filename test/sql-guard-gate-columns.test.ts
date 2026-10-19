@@ -127,6 +127,71 @@ describe('execute gate columns: UPDATE (#181)', () => {
   });
 });
 
+describe('execute gate columns: parser differentials and lifecycle columns (#181)', () => {
+  it('reads IS [NOT] DISTINCT FROM as an expression, not the end of the SET list', () => {
+    expect(
+      denied("UPDATE tickets SET title = title IS DISTINCT FROM 'x', status = 'DONE' WHERE id = 1"),
+    ).toContain('tickets.status');
+    expect(
+      denied(
+        "UPDATE tickets SET title = title IS NOT DISTINCT FROM 'x', qa_verified = 1 WHERE id = 1",
+      ),
+    ).toContain('tickets.qa_verified');
+    allowed("UPDATE tickets SET notes = title IS DISTINCT FROM 'x' WHERE id = 1");
+  });
+
+  it('refuses a SET item hidden after a FROM clause (fail-closed tail scan)', () => {
+    denied("UPDATE tickets SET title = 1 FROM tags AS o, status = 'DONE'");
+    denied("UPDATE tickets SET title = 1 FROM tags AS o status = 'DONE'");
+    denied('UPDATE tickets SET title = o.name FROM tags AS o, tags AS p WHERE o.id = p.id');
+    denied('UPDATE tickets SET title = o.name FROM tags o JOIN tags p ON o.id = p.id');
+  });
+
+  it('allows UPDATE … FROM on a gated table when the FROM clause holds no comma or assignment', () => {
+    allowed(
+      "UPDATE tickets SET notes = s.v FROM (SELECT 'n' AS v, 1 AS id) AS s WHERE tickets.id = s.id",
+    );
+  });
+
+  it('refuses the soft-delete and archive columns of the gated tables', () => {
+    expect(denied("UPDATE tickets SET deleted_at = datetime('now') WHERE id = 1")).toContain(
+      'tickets.deleted_at',
+    );
+    expect(denied("UPDATE sprints SET deleted_at = datetime('now') WHERE id = 1")).toContain(
+      'sprints.deleted_at',
+    );
+    expect(denied("UPDATE sprints SET archived_at = datetime('now') WHERE id = 1")).toContain(
+      'sprints.archived_at',
+    );
+    expect(denied("UPDATE milestones SET archived_at = datetime('now') WHERE id = 1")).toContain(
+      'update_milestone',
+    );
+    expect(denied("UPDATE epics SET archived_at = datetime('now') WHERE id = 1")).toContain(
+      'update_epic',
+    );
+    denied("INSERT INTO tickets (title, deleted_at) VALUES ('x', datetime('now'))");
+    allowed("UPDATE milestones SET deleted_at = datetime('now') WHERE id = 1");
+    allowed("UPDATE epics SET description = 'e' WHERE id = 1");
+  });
+
+  it('the differential shapes it refuses are statements SQLite prepares', () => {
+    const db = scrumDb();
+    try {
+      for (const sql of [
+        "UPDATE tickets SET title = title IS DISTINCT FROM 'x', status = 'DONE' WHERE id = 1",
+        "UPDATE tickets SET title = title IS NOT DISTINCT FROM 'x', qa_verified = 1 WHERE id = 1",
+      ]) {
+        expect(() => db.prepare(sql), sql).not.toThrow();
+        expect(runWriteStatement(db, sql).ok, sql).toBe(false);
+      }
+      expect(ticket(db).status).toBe('TODO');
+      expect(ticket(db).qa_verified).toBe(0);
+    } finally {
+      db.close();
+    }
+  });
+});
+
 describe('execute gate columns: INSERT, REPLACE and upsert (#181)', () => {
   it('refuses a gate column in the INSERT column list', () => {
     expect(denied("INSERT INTO tickets (title, status) VALUES ('x', 'DONE')")).toContain(
