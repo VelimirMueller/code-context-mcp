@@ -192,6 +192,102 @@ describe('execute gate columns: parser differentials and lifecycle columns (#181
   });
 });
 
+describe('execute gate columns: keywords that SQLite also reads as names (#181)', () => {
+  it('refuses a SET item after a word the parser could take for RETURNING', () => {
+    expect(denied("UPDATE tickets SET title = returning, status = 'DONE' WHERE id = 1")).toMatch(
+      /tickets\.status|shape not understood/,
+    );
+    // Invalid SQL, but the guard must refuse it on its own.
+    denied("UPDATE tickets SET title = x RETURNING id, status = 'DONE'");
+    denied("UPDATE tickets SET title = x AND returning, status = 'DONE'");
+    denied("UPDATE tickets SET title = 1 WHERE id = 1, status = 'DONE'");
+    denied("UPDATE tickets SET title = 1 ORDER BY id, status = 'DONE'");
+  });
+
+  it('refuses a hidden item after an upsert DO UPDATE SET stop word', () => {
+    denied(
+      "INSERT INTO tickets (id, title) VALUES (1, 'x') ON CONFLICT(id) DO UPDATE SET title = x RETURNING id, status = 'DONE'",
+    );
+    allowed(
+      "INSERT INTO tickets (id, title) VALUES (1, 'x') ON CONFLICT(id) DO UPDATE SET title = excluded.title WHERE excluded.id = 1",
+    );
+  });
+
+  it('still allows the common WHERE comparisons on gated tables', () => {
+    allowed("UPDATE tickets SET notes = 'n' WHERE id = 1 AND sprint_id = 2 OR title = 'x'");
+    allowed("UPDATE tickets SET notes = 'n' WHERE id IN (1, 2, 3)");
+  });
+
+  it('refuses 50 generated valid UPDATE shapes that write a gate column (fuzz)', () => {
+    // Small deterministic PRNG (mulberry32) so failures reproduce.
+    let seed = 0x181;
+    const rnd = (): number => {
+      seed = (seed + 0x6d2b79f5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const pick = <T>(xs: readonly T[]): T => xs[Math.floor(rnd() * xs.length)];
+    const quote = (n: string): string =>
+      pick([n, n.toUpperCase(), `"${n}"`, `\`${n}\``, `[${n}]`, `'${n}'`]);
+
+    const gated: Record<string, readonly string[]> = {
+      tickets: [
+        'status',
+        'qa_verified',
+        'verified_by',
+        'github_issue',
+        'github_repo',
+        'deleted_at',
+      ],
+      sprints: ['status', 'deleted_at', 'archived_at'],
+    };
+    const free: Record<string, readonly string[]> = {
+      tickets: ['title', 'notes', 'assigned_to', 'description'],
+      sprints: ['goal', 'name'],
+    };
+    const exprs = [
+      "'x'",
+      '1',
+      '?',
+      "id || 'x'",
+      "CASE WHEN id = 1 THEN 'a' ELSE 'b' END",
+      '(SELECT name FROM tags LIMIT 1)',
+      "id IS DISTINCT FROM 'x'",
+      "id IS NOT DISTINCT FROM 'x'",
+      "coalesce(NULL, 'n')",
+      "lower('A') = 'a'",
+      "'a,b' || 'returning'",
+      'id BETWEEN 1 AND 2',
+      "id IN (1, 2) AND 'from' = 'where'",
+    ];
+    const db = scrumDb();
+    try {
+      for (let k = 0; k < 50; k++) {
+        const table = pick(['tickets', 'sprints'] as const);
+        const tableRef = pick([table, `main.${table}`, `"${table}"`, `[${table}]`]);
+        const alias = pick(['', ' AS t']);
+        const items: string[] = [];
+        for (let f = Math.floor(rnd() * 3); f > 0; f--) {
+          items.push(`${quote(pick(free[table]))} = ${pick(exprs)}`);
+        }
+        const g = quote(pick(gated[table]));
+        const gatedItem =
+          rnd() < 0.25
+            ? `(${quote(pick(free[table]))}, ${g}) = (${pick(exprs)}, ${pick(exprs)})`
+            : `${g} = ${pick(exprs)}`;
+        items.splice(Math.floor(rnd() * (items.length + 1)), 0, gatedItem);
+        const where = pick(['', ' WHERE id = 1', ` WHERE ${pick(exprs)}`]);
+        const sql = `UPDATE ${tableRef}${alias} SET ${items.join(', ')}${where}`;
+        expect(() => db.prepare(sql), sql).not.toThrow();
+        expect(validateWriteStatement(sql).ok, sql).toBe(false);
+      }
+    } finally {
+      db.close();
+    }
+  });
+});
+
 describe('execute gate columns: INSERT, REPLACE and upsert (#181)', () => {
   it('refuses a gate column in the INSERT column list', () => {
     expect(denied("INSERT INTO tickets (title, status) VALUES ('x', 'DONE')")).toContain(

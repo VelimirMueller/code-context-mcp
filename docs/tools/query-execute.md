@@ -86,7 +86,7 @@ Run a single `INSERT`, `UPDATE`, or `DELETE` statement against the context datab
 | `projects`   | every `github_*` column                                            | `set_project`, `sync_github`                           |
 
 - The check covers the `INSERT` column list, the `UPDATE` `SET` list (also `SET (a, b) = …`, `IS [NOT] DISTINCT FROM` and `UPDATE … FROM`) and `ON CONFLICT … DO UPDATE SET`. Quoted names, schema prefixes and aliases resolve to the real column.
-- An `UPDATE` on these tables with a top-level comma or a `name =` after its `FROM` clause is refused; write the join as a subquery in `FROM (…)`.
+- An `UPDATE` or upsert on these tables with a top-level comma anywhere after its `SET` list (a comma join, `ORDER BY a, b`, a `RETURNING` list), or a `name =` before its `WHERE`, is refused: the guard cannot prove the `SET` list ended there. Write a join as a subquery in `FROM (…)`.
 - `DELETE` on `tickets` and `sprints` is refused: it would drop the row and let a re-insert skip the gates.
 - `REPLACE`, `INSERT OR REPLACE` and `UPDATE OR REPLACE` on these tables are refused: the replace deletes the row and resets its gate columns.
 - An `INSERT` into these tables without a column list is refused: it writes every column.

@@ -260,12 +260,11 @@ function setList(cur: Cursor, stops: Set<string>): string[] {
         depth === 0 &&
         t.kind === 'word' &&
         stops.has(t.value.toLowerCase()) &&
-        // `a IS [NOT] DISTINCT FROM b` is an expression, not the UPDATE … FROM clause.
-        !(
-          t.value.toLowerCase() === 'from' &&
-          prev?.kind === 'word' &&
-          prev.value.toLowerCase() === 'distinct'
-        )
+        // A stop word ends the list only when it is clause-shaped: it follows a
+        // complete expression. `a IS [NOT] DISTINCT FROM b`, `= returning`,
+        // `x AND returning` keep it inside the expression. The tail scan in
+        // assertNoHiddenSetItems still checks whatever follows.
+        endsExpression(prev)
       ) {
         if (!sawExpr) throw new ParseError('expected an expression');
         return cols;
@@ -278,24 +277,63 @@ function setList(cur: Cursor, stops: Set<string>): string[] {
 
 const UPDATE_STOPS = new Set(['from', 'where', 'returning', 'order', 'limit']);
 
+/** Keywords that need a right operand: a stop word right after one is part of the expression. */
+const OPERAND_KEYWORDS = new Set([
+  'and',
+  'or',
+  'not',
+  'is',
+  'in',
+  'like',
+  'glob',
+  'regexp',
+  'match',
+  'between',
+  'case',
+  'when',
+  'then',
+  'else',
+  'collate',
+  'escape',
+  'distinct',
+  'exists',
+  'cast',
+  'select',
+  'set',
+]);
+
+/** True when `prev` can be the last token of a complete expression. */
+function endsExpression(prev: Tok | undefined): boolean {
+  if (!prev) return false;
+  if (prev.kind === 'op') return prev.value === ')';
+  if (prev.kind === 'word') return !OPERAND_KEYWORDS.has(prev.value.toLowerCase());
+  return true;
+}
+
 /**
- * Fail-closed tail check for UPDATE on a gated table. When the SET list ended at
- * FROM, ORDER or LIMIT, scan on to WHERE / RETURNING / the end: a top-level comma
- * or a `<name> =` there may be a SET item the parser took for the end of the list
- * (a parser differential), so the statement is refused.
+ * Fail-closed tail check on a gated table, after a SET list ended (CCA-37).
+ * A hand-written tokenizer cannot match SQLite's parser exactly: a word it read
+ * as the end of the SET list may be an identifier to SQLite (RETURNING, for
+ * one, is also a valid column name). Every SET item after the first needs a
+ * top-level comma, so scan every remaining token to `until` (or the end) and
+ * refuse on a top-level comma anywhere. Before a real WHERE (a reserved word,
+ * never an identifier unquoted) a `<name> =` is refused too; after WHERE it is
+ * a comparison. Over-refusal (comma joins, ORDER BY a, b, RETURNING lists) is
+ * accepted on gated tables.
  */
-function assertSetListEnded(cur: Cursor): void {
-  if (cur.done() || cur.isWord('where') || cur.isWord('returning')) return;
+function assertNoHiddenSetItems(cur: Cursor, until?: (j: number) => boolean): void {
   let depth = 0;
+  let afterWhere = false;
   for (let j = cur.i; j < cur.toks.length; j++) {
+    if (until?.(j)) return;
     const t = cur.toks[j];
     if (t.kind === 'op' && t.value === '(') depth++;
     else if (t.kind === 'op' && t.value === ')') depth--;
     else if (depth !== 0) continue;
-    else if (t.kind === 'word' && ['where', 'returning'].includes(t.value.toLowerCase())) return;
+    else if (t.kind === 'word' && t.value.toLowerCase() === 'where') afterWhere = true;
     else if (t.kind === 'op' && t.value === ',') {
       throw new ParseError('a top-level comma after the SET list');
-    } else if (t.kind !== 'op' && t.kind !== 'number' && t.kind !== 'param') {
+    } else if (!afterWhere && t.kind !== 'op' && t.kind !== 'number' && t.kind !== 'param') {
       const next = cur.toks[j + 1];
       if (next?.kind === 'op' && next.value === '=') {
         throw new ParseError('an assignment after the SET list');
@@ -305,6 +343,11 @@ function assertSetListEnded(cur: Cursor): void {
 }
 const UPSERT_STOPS = new Set(['where', 'on', 'returning']);
 const CONFLICT_ALGOS = new Set(['rollback', 'abort', 'replace', 'fail', 'ignore']);
+
+function isWordAt(cur: Cursor, j: number, kw: string): boolean {
+  const t = cur.toks[j];
+  return t !== undefined && t.kind === 'word' && t.value.toLowerCase() === kw;
+}
 
 /** `OR <algorithm>` after INSERT/UPDATE; returns true for OR REPLACE. */
 function conflictAlgo(cur: Cursor): boolean {
@@ -322,6 +365,11 @@ function upsertColumns(cur: Cursor): string[] {
     if (cur.isWord('do') && cur.isWord('update', 1) && cur.isWord('set', 2)) {
       cur.i += 3;
       cols.push(...setList(cur, UPSERT_STOPS));
+      // Up to the next ON CONFLICT clause (which upsertColumns reads itself).
+      assertNoHiddenSetItems(
+        cur,
+        (j) => isWordAt(cur, j, 'on') && isWordAt(cur, j + 1, 'conflict'),
+      );
     } else {
       cur.i++;
     }
@@ -381,7 +429,7 @@ function parseUpdate(cur: Cursor): WriteShape {
   }
   cur.expectWord('set');
   const columns = setList(cur, UPDATE_STOPS);
-  assertSetListEnded(cur);
+  assertNoHiddenSetItems(cur);
   return { table, columns, replace, remove: false };
 }
 
@@ -414,8 +462,9 @@ export function checkGateColumns(sql: string): SqlGuardResult {
   } catch (err) {
     // Parse errors come only from the verb/table prefix or from a gated table: refuse.
     return refuse(
-      `${REFUSED} the statement could not be read safely (${(err as Error).message}), so it could not be ` +
-        `checked for gate columns (${GATE_COLUMN_SUMMARY}). Rewrite it as one plain INSERT, UPDATE or DELETE.`,
+      `${REFUSED} statement shape not understood (${(err as Error).message}), so it could not be checked ` +
+        `for gate columns (${GATE_COLUMN_SUMMARY}). Use update_ticket, update_sprint or the other gate tools ` +
+        `for those columns, or rewrite it as one plain INSERT, UPDATE or DELETE.`,
     );
   }
 
