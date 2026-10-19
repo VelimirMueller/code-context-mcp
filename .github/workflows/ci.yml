@@ -4,7 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    # release/** too: a major lands on its release branch first (#179).
+    branches: [main, 'release/**']
 
 # Read-only token for every job; no job writes to the repository.
 permissions:

@@ -4,16 +4,16 @@ Run the complete scrum lifecycle from product vision through sprint rest. Use na
 
 ## Step 0a — Check the Tool Profile
 
-The sprint tools are opt-in since 3.0.0: the server's default profile is `code` (6 reading tools). Kickoff needs the `full` profile (toolsets `code`, `code-admin`, `scrum`).
+The sprint tools are opt-in since 3.0.0: the `code-context` entry serves the `code` profile (6 reading tools). Kickoff needs the `code-context-sprint` entry, or the `full` profile (toolsets `code`, `code-admin`, `scrum`).
 
 - If `health` is in your tool list, call `health()` and read `profile` and `toolsets`.
 - Stop here when `health` is not listed, or `toolsets` lacks `scrum` or `code-admin`. Tell the user, then wait:
 
 ```yaml
 sprint_tools: off # profile: <from health; code when health is not listed>
-fix: CODE_CONTEXT_PROFILE=full
-where: .mcp.json → mcpServers["code-context"].env
-or: npx code-context-mcp setup . --profile full
+fix: use the code-context-sprint entry (dist/server/sprint.js), or CODE_CONTEXT_PROFILE=full
+where: .mcp.json → mcpServers["code-context"].args / .env
+or: npx code-context-mcp setup . --profile full # installs code-context-sprint
 then: restart the AI client, run /kickoff again
 ```
 

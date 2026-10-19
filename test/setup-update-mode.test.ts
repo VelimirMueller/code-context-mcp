@@ -168,6 +168,10 @@ describe('setup writes the tool profile into .mcp.json (#178)', () => {
     const out = runSetup(dir);
     expect(entry().env).toEqual({ CODE_CONTEXT_PROFILE: 'full' });
     expect(out).toMatch(/Tool profile: full/);
+    // #179: the sprint entry (bin code-context-sprint), on the project database.
+    expect(entry().args[0]).toMatch(/\/server\/sprint\.js$/);
+    expect(entry().args[1]).toBe(path.join(dir, 'context.db'));
+    expect(out).toMatch(/MCP entry: code-context-sprint/);
   }, 120_000);
 
   it('update mode keeps an existing setting and the other keys of the entry', () => {
@@ -182,6 +186,7 @@ describe('setup writes the tool profile into .mcp.json (#178)', () => {
     expect(e.env).toEqual({ CODE_CONTEXT_PROFILE: 'code', FOO: '1' });
     expect(e.type).toBe('stdio');
     expect(e.command).toBe('node');
+    expect(e.args[0]).toMatch(/\/server\/index\.js$/);
     expect(JSON.parse(readFileSync(path.join(dir, '.mcp.json'), 'utf-8')).mcpServers.other).toEqual(
       { command: 'x' },
     );
@@ -215,8 +220,11 @@ describe('setup writes the tool profile into .mcp.json (#178)', () => {
       env: { ...process.env, CODE_CONTEXT_ALLOWED_ROOTS: dir },
     });
     expect(entry().env.CODE_CONTEXT_PROFILE).toBe('code');
+    // #179: the lean profile installs the index entry (bin code-context).
+    expect(entry().args[0]).toMatch(/\/server\/index\.js$/);
     runSetup(dir, '--profile=full');
     expect(entry().env.CODE_CONTEXT_PROFILE).toBe('full');
+    expect(entry().args[0]).toMatch(/\/server\/sprint\.js$/);
   }, 120_000);
 
   it('an unknown --profile is refused before anything is written', () => {

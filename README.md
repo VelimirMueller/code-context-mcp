@@ -54,7 +54,7 @@
 <p>
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="assets/readme/start-v3-light.svg">
-  <img alt="Terminal: $ npm install vlm-code-context-mcp | $ npx code-context-mcp setup . | # restart Claude Code. setup wrote .mcp.json | $ npx code-context-dashboard ./context.db | # http://localhost:3333" src="assets/readme/start-v3-dark.svg" width="100%">
+  <img alt="Terminal: $ npm install vlm-code-context-mcp | # the code index: 6 tools, the default | $ npx code-context-reindex . --db ./context.db | $ claude mcp add code-context -- npx code-context ./context.db | # add-on: the sprint process (code-context-sprint) | $ npx code-context-mcp setup . | $ npx code-context-dashboard ./context.db  # :3333" src="assets/readme/start-v3-dark.svg" width="100%">
 </picture>
 </p>
 
@@ -63,6 +63,12 @@
 
 ```bash
 npm install vlm-code-context-mcp
+
+# The code index (default): 6 tools
+npx code-context-reindex . --db ./context.db
+claude mcp add code-context -- npx code-context ./context.db
+
+# Add-on: the sprint process (code-context-sprint), /kickoff, dashboard
 npx code-context-mcp setup .
 npx code-context-dashboard ./context.db   # optional: live dashboard on :3333
 ```
@@ -81,7 +87,7 @@ npx code-context-dashboard ./context.db 3333 .
 <p>
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="assets/readme/setup-v3-light.svg">
-  <img alt="Install: npm install vlm-code-context-mcp. Two commands, then restart Claude Code. Zero API keys. One context.db file. Initialize: npx code-context-mcp setup . creates context.db and indexes your codebase. It seeds a 9-agent team and the frontend skill library into the project database. Config: Setup writes .mcp.json. It offers to wire the sprint statusline into .claude/settings.json. Pass --defaults to skip the prompts. Run setup again: It switches to update mode: migrate (with automatic backup) and config repair. It never touches your data. --force renames the old database. It does not delete it. Restart your AI client: Claude Code (or any MCP client) loads the server from .mcp.json. Verify with get_project_status. Manual registration instead: see MANUAL SETUP in 04 USAGE. Launch the dashboard: npx code-context-dashboard ./context.db opens at http://localhost:3333 with live SSE updates. Watch and reindex: File watching and auto-reindex on save are on by default (derived from the indexed files). Pass a directory as the 4th argument only to override it, for example on a database with nothing indexed yet: npx code-context-dashboard ./context.db 3333 . Run your first sprint: Type /kickoff in Claude Code. The orchestrator walks you through vision -&gt; discovery -&gt; milestone -&gt; epics -&gt; tickets -&gt; sprint -&gt; implementation -&gt; retro. It asks one question at a time. Smart resume lets you stop and continue later" src="assets/readme/setup-v3-dark.svg" width="100%">
+  <img alt="Install: npm install vlm-code-context-mcp. Zero API keys. One context.db file. Two entry points: code-context is the code index (6 tools, the default). code-context-sprint adds the sprint process and the dashboard on the same database. Initialize: npx code-context-mcp setup . creates context.db, indexes your codebase and installs code-context-sprint. It seeds a 9-agent team and the frontend skill library into the project database. --profile code installs code-context instead. Config: Setup writes .mcp.json. It offers to wire the sprint statusline into .claude/settings.json. Pass --defaults to skip the prompts. Run setup again: It switches to update mode: migrate (with automatic backup) and config repair. It never touches your data. --force renames the old database. It does not delete it. Restart your AI client: Claude Code (or any MCP client) loads the server from .mcp.json. Verify with get_project_status. Manual registration instead: see MANUAL SETUP in 04 USAGE. Launch the dashboard: npx code-context-dashboard ./context.db opens at http://localhost:3333 with live SSE updates. Watch and reindex: File watching and auto-reindex on save are on by default (derived from the indexed files). Pass a directory as the 4th argument only to override it, for example on a database with nothing indexed yet: npx code-context-dashboard ./context.db 3333 . Run your first sprint: Type /kickoff in Claude Code. The orchestrator walks you through vision -&gt; discovery -&gt; milestone -&gt; epics -&gt; tickets -&gt; sprint -&gt; implementation -&gt; retro. It asks one question at a time. Smart resume lets you stop and continue later" src="assets/readme/setup-v3-dark.svg" width="100%">
 </picture>
 </p>
 
@@ -259,7 +265,7 @@ npm run bench:publish
 <p>
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="assets/readme/stack-v3-light.svg">
-  <img alt="Runtime: Node.js 24 LTS. Build: TypeScript strict mode. Languages: Exports and import edges for TypeScript/JavaScript, Python and PHP (classes, interfaces, traits, enums, functions, constants; use statements resolved through composer.json PSR-4 maps). Other files are indexed with a summary only. Database: SQLite via better-sqlite3, WAL mode. 33 tables (27 scrum + 6 code). MCP protocol: @modelcontextprotocol/sdk. The server sends short MCP instructions (about 90 tokens) on when to use the graph tools. Dashboard: React 19 + Vite + Zustand + Framer Motion. CSS variables + Tailwind, dark theme. 75 React components. Live updates: SSE via WAL file watcher. Testing: Vitest. 1841 backend tests and 104 dashboard tests. Process: 9 agent roles (configurable). 4 sprint phases with gate checks + planning gate. 6 slash commands. CLI bins: 4: code-context-mcp, code-context-dashboard, code-context-statusline, code-context-reindex" src="assets/readme/stack-v3-dark.svg" width="100%">
+  <img alt="Runtime: Node.js 24 LTS. Build: TypeScript strict mode. Languages: Exports and import edges for TypeScript/JavaScript, Python and PHP (classes, interfaces, traits, enums, functions, constants; use statements resolved through composer.json PSR-4 maps). Other files are indexed with a summary only. Database: SQLite via better-sqlite3, WAL mode. 33 tables (27 scrum + 6 code). MCP protocol: @modelcontextprotocol/sdk. The server sends short MCP instructions (about 90 tokens) on when to use the graph tools. Dashboard: React 19 + Vite + Zustand + Framer Motion. CSS variables + Tailwind, dark theme. 75 React components. Live updates: SSE via WAL file watcher. Testing: Vitest. 1841 backend tests and 104 dashboard tests. Process: 9 agent roles (configurable). 4 sprint phases with gate checks + planning gate. 6 slash commands. CLI bins: 8: code-context (index), code-context-sprint (sprint process), vlm-code-context-mcp (= code-context), code-context-mcp (setup), code-context-dashboard, code-context-statusline, code-context-reindex, code-context-sync-github" src="assets/readme/stack-v3-dark.svg" width="100%">
 </picture>
 </p>
 
@@ -273,7 +279,7 @@ npm run bench:publish
 <p>
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="assets/readme/manual-v3-light.svg">
-  <img alt="Terminal: # add to the current project | $ claude mcp add code-context npx -y vlm-code-context-mcp ./context.db | # or register the local install | $ claude mcp add code-context -- node node_modules/vlm-code-context-mcp/dist/server/index.js ./context.db | # add globally | $ claude mcp add --scope user code-context node \ |     /path/to/node_modules/vlm-code-context-mcp/dist/server/index.js ./context.db | # remove | $ claude mcp remove code-context" src="assets/readme/manual-v3-dark.svg" width="100%">
+  <img alt="Terminal: # the code index (default), after npm install | $ claude mcp add code-context -- npx code-context ./context.db | # or the sprint process on top | $ claude mcp add code-context -- npx code-context-sprint ./context.db | # without a local install (the index) | $ claude mcp add code-context -- npx -y vlm-code-context-mcp ./context.db | # remove | $ claude mcp remove code-context" src="assets/readme/manual-v3-dark.svg" width="100%">
 </picture>
 </p>
 
@@ -288,11 +294,14 @@ npm run bench:publish
 <summary><picture><source media="(prefers-color-scheme: light)" srcset="assets/readme/links-13-v3-light.svg"><img alt="Plain text" src="assets/readme/links-13-v3-dark.svg" width="32%"></picture></summary>
 
 ```bash
-# Add to current project
-claude mcp add code-context npx -y vlm-code-context-mcp ./context.db
+# The code index (default), after npm install
+claude mcp add code-context -- npx code-context ./context.db
 
-# Manual registration of the local install
-claude mcp add code-context -- node node_modules/vlm-code-context-mcp/dist/server/index.js ./context.db
+# The sprint process on top (same context.db)
+claude mcp add code-context -- npx code-context-sprint ./context.db
+
+# Without a local install (the index)
+claude mcp add code-context -- npx -y vlm-code-context-mcp ./context.db
 
 # Add globally
 claude mcp add --scope user code-context node /path/to/node_modules/vlm-code-context-mcp/dist/server/index.js ./context.db

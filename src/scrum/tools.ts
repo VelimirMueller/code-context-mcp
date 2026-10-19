@@ -1,7 +1,5 @@
 import type Database from 'better-sqlite3';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { existsSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
 import { z } from 'zod';
 import { resolveDashboardToken } from '../dashboard/auth.js';
 import { formatModelRouting, KNOWN_AGENT_MODELS, modelToTier } from './agent-model.js';
@@ -37,6 +35,7 @@ import {
   unknownProject,
 } from './github-sync.js';
 import { log as slog } from '../sessionlog.js';
+import { checkDistFreshness } from '../server/dist-freshness.js';
 import {
   transitionSprint,
   promoteTicketDiscoveries,
@@ -67,6 +66,9 @@ import {
   type TicketRevisionRow,
   type TicketRow,
 } from './rows.js';
+
+// Moved to the index side (#179); re-exported for existing callers.
+export { checkDistFreshness };
 
 const DASHBOARD_PORT = process.env.DASHBOARD_PORT || '3333';
 
@@ -398,41 +400,6 @@ export function buildChangedTicketsBlock(db: Database.Database, sprintId?: numbe
     `**Directive:** re-read each ticket, state the plan adjustment (or that none is needed), then acknowledge_ticket_changes({ ticket_ids: [...] }).`,
   );
   return lines.join('\n');
-}
-
-/** Newest mtime of files with the given extensions under dir (shallow recursion, skips dot-dirs/node_modules). */
-function newestMtime(dir: string, exts: string[], depth = 0): number {
-  if (depth > 4) return 0;
-  let newest = 0;
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
-    const p = join(dir, entry.name);
-    if (entry.isDirectory()) newest = Math.max(newest, newestMtime(p, exts, depth + 1));
-    else if (exts.some((e) => entry.name.endsWith(e)))
-      newest = Math.max(newest, statSync(p).mtimeMs);
-  }
-  return newest;
-}
-
-/**
- * S1 (Sprint 1 try_next, adopted Sprint 23): warn when src is newer than the compiled
- * dist the running server was loaded from — new/changed tools are silently missing
- * until `npm run build` + MCP reconnect. Returns null when fresh or not a dev checkout.
- */
-export function checkDistFreshness(rootDir: string = process.cwd()): string | null {
-  try {
-    const srcDir = join(rootDir, 'src');
-    const distDir = join(rootDir, 'dist');
-    if (!existsSync(srcDir) || !existsSync(distDir)) return null; // packaged install — nothing to compare
-    const srcNewest = newestMtime(srcDir, ['.ts', '.tsx']);
-    const distNewest = newestMtime(distDir, ['.js']);
-    if (srcNewest > distNewest + 5000) {
-      return '⚠ STALE DIST: src/ is newer than the compiled server — run `npm run build` and reconnect MCP, or new/changed tools stay silently missing.';
-    }
-    return null;
-  } catch {
-    return null; // freshness is advisory — never break a tool over it
-  }
 }
 
 /** A4: stopwords — English function words + domain noise that says nothing about the issue. */

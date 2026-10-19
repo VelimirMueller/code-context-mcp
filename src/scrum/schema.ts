@@ -1,6 +1,10 @@
-import BetterSqlite3 from 'better-sqlite3';
 import type Database from 'better-sqlite3';
 import { ensureTicketRefIndex, renameDuplicateTicketRefs } from './ticket-ref.js';
+import { LATEST_SCHEMA_VERSION, peekSchemaVersion } from '../server/schema-version.js';
+
+// Moved to the index side (#179): the index entry runs the downgrade guard
+// without loading the scrum schema. Re-exported for existing callers.
+export { LATEST_SCHEMA_VERSION, peekSchemaVersion };
 
 /**
  * Initialize the SQLite schema for the Scrum system.
@@ -516,37 +520,6 @@ export function backfillGithubIssues(db: Database.Database): number {
     n += upd.run(Number(m[2]), m[1], r.id).changes;
   }
   return n;
-}
-
-/** Single source of truth for the schema version. Must equal the max version in
- *  runMigrations' array — runMigrations asserts this at every call. */
-export const LATEST_SCHEMA_VERSION = 27;
-
-/**
- * Read the stamped schema version of an on-disk DB without opening it
- * read-write — a WAL-mode open litters empty -wal/-shm siblings next to a DB
- * the caller may be about to refuse (discovery #28). Returns 0 for missing,
- * unreadable, or pre-versioning DBs; the normal boot path decides those.
- */
-export function peekSchemaVersion(dbPath: string): number {
-  let peekDb: Database.Database | null = null;
-  try {
-    peekDb = new BetterSqlite3(dbPath, { readonly: true });
-    const row = peekDb.prepare('SELECT MAX(version) v FROM schema_versions').get() as {
-      v: number | null;
-    };
-    return row?.v ?? 0;
-  } catch {
-    return 0;
-  } finally {
-    if (peekDb) {
-      try {
-        peekDb.close();
-      } catch {
-        /* ignore */
-      }
-    }
-  }
 }
 
 export function runMigrations(db: Database.Database, opts: { freshDb?: boolean } = {}): void {
