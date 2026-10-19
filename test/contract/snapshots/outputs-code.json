@@ -1,0 +1,126 @@
+[
+  {
+    "tool": "find_symbol",
+    "args": {
+      "name": "ApiClient"
+    },
+    "isError": false,
+    "text": "ApiClient (class) — src/services/api.ts\n  API service for making HTTP requests"
+  },
+  {
+    "tool": "find_symbol",
+    "args": {
+      "name": "format%"
+    },
+    "isError": false,
+    "text": "formatDate (function) — src/utils/helpers.ts\n  Utility helper functions\n\nformatDate (re-export) — src/utils/index.ts\n  Barrel file re-exporting all utilities"
+  },
+  {
+    "tool": "find_symbol",
+    "args": {
+      "name": "NoSuchSymbol"
+    },
+    "isError": false,
+    "text": "No exports matching \"NoSuchSymbol\" found."
+  },
+  {
+    "tool": "find_symbol",
+    "args": {
+      "name": "ApiClient",
+      "absolute_paths": true
+    },
+    "isError": false,
+    "text": "ApiClient (class) — <ROOT>/src/services/api.ts\n  API service for making HTTP requests"
+  },
+  {
+    "tool": "get_file_context",
+    "args": {
+      "path": "src/services/api.ts"
+    },
+    "isError": false,
+    "text": "# src/services/api.ts\ntypescript | 1.0 KB | 39 lines\nAPI service for making HTTP requests\nExports createApiClient. defines ApiClient. imports HttpMethod from types; ApiResponse, User from types.\n## Exports (2)\n- L5 class ApiClient\n- L36 function createApiClient(baseUrl: string): ApiClient\n## Import lines (2)\nL2 import { HttpMethod } from \"../types.js\";\nL3 import type { ApiResponse, User } from \"../types.js\";\n## Imports from (1)\n- src/types.ts [HttpMethod, ApiResponse, User]\n## Imported by (1)\n- src/index.ts [ApiClient, createApiClient]"
+  },
+  {
+    "tool": "get_file_context",
+    "args": {
+      "path": "src/utils/helpers.ts",
+      "snippet": true
+    },
+    "isError": false,
+    "text": "# src/utils/helpers.ts\ntypescript | 706 B | 33 lines\nUtility helper functions\nHelper functions. exports formatDate, capitalize, clamp, generateId. constants: DEFAULT_PAGE_SIZE.\n## Exports (5)\n- L6 function formatDate(date: Date): string\n    export function formatDate(date: Date): string {\n      return date.toISOString().split(\"T\")[0];\n    }\n- L13 function capitalize(str: string): string\n    export function capitalize(str: string): string {\n      if (!str) return str;\n      return str.charAt(0).toUpperCase() + str.slice(1);\n    }\n- L21 function clamp(value: number, min: number, max: number): number\n    export function clamp(value: number, min: number, max: number): number {\n      return Math.min(Math.max(value, min), max);\n    }\n- L28 function generateId(): string\n    export function generateId(): string {\n      return Math.random().toString(36).substring(2, 10);\n    }\n- L32 const DEFAULT_PAGE_SIZE = 20\n    export const DEFAULT_PAGE_SIZE = 20;\n## Imported by (1)\n- src/utils/index.ts [export formatDate, export capitalize, export clamp, export generateId, export DEFAULT_PAGE_SIZE]"
+  },
+  {
+    "tool": "get_file_context",
+    "args": {
+      "path": "src/missing.ts"
+    },
+    "isError": false,
+    "text": "File \"src/missing.ts\" not in index. Index it with index_directory or code-context-reindex."
+  },
+  {
+    "tool": "who_imports",
+    "args": {
+      "target": "src/utils/helpers.ts"
+    },
+    "isError": false,
+    "text": "# src/utils/helpers.ts: imported by 1 file (+1 through re-exports) — complete list from the import graph\n- src/utils/index.ts L2 [export formatDate, export capitalize, export clamp, export generateId, export DEFAULT_PAGE_SIZE] (re-export)\n## Via re-export (1): import it through a barrel above\n- src/index.ts L2 [formatDate, capitalize, DEFAULT_PAGE_SIZE] via src/utils/index.ts"
+  },
+  {
+    "tool": "who_imports",
+    "args": {
+      "target": "ApiClient"
+    },
+    "isError": false,
+    "text": "# ApiClient (src/services/api.ts): imported by 1 file — complete list from the import graph\n- src/index.ts L3 [ApiClient, createApiClient]"
+  },
+  {
+    "tool": "exports_in",
+    "args": {
+      "dir": "src/utils"
+    },
+    "isError": false,
+    "text": "# Exports in src/utils: 10 in 2 files\n## src/utils/helpers.ts\n- L6 function formatDate(date: Date): string\n- L13 function capitalize(str: string): string\n- L21 function clamp(value: number, min: number, max: number): number\n- L28 function generateId(): string\n- L32 const DEFAULT_PAGE_SIZE = 20\n## src/utils/index.ts\n- L2 formatDate (re-export)\n- L2 capitalize (re-export)\n- L2 clamp (re-export)\n- L2 generateId (re-export)\n- L2 DEFAULT_PAGE_SIZE (re-export)"
+  },
+  {
+    "tool": "exports_in",
+    "args": {
+      "dir": "src/utils",
+      "unused": true
+    },
+    "isError": false,
+    "text": "# Unused exports in src/utils: 4 of 10 — no indexed file imports them (complete from the import graph)\nUsed = imported by name, via a re-export that is itself imported, or by a whole-module import (import * as, export * as, import()/require() without names). Uses inside the file itself do not count.\n## src/utils/helpers.ts\n- L21 function clamp(value: number, min: number, max: number): number\n- L28 function generateId(): string\n## src/utils/index.ts\n- L2 clamp (re-export)\n- L2 generateId (re-export)"
+  },
+  {
+    "tool": "search_files",
+    "args": {
+      "query": "api"
+    },
+    "isError": false,
+    "text": "src/services/api.ts (typescript, 39 lines, 2 exports, 1 deps)\n  API service for making HTTP requests"
+  },
+  {
+    "tool": "search_files",
+    "args": {
+      "query": "utils",
+      "absolute_paths": true
+    },
+    "isError": false,
+    "text": "<ROOT>/src/utils/helpers.ts (typescript, 33 lines, 5 exports, 0 deps)\n  Utility helper functions\n\n<ROOT>/src/utils/index.ts (typescript, 3 lines, 5 exports, 1 deps)\n  Barrel file re-exporting all utilities"
+  },
+  {
+    "tool": "query",
+    "args": {
+      "sql": "SELECT e.name, e.kind, e.line FROM exports e JOIN files f ON f.id = e.file_id WHERE f.path LIKE '%/src/utils/helpers.ts' ORDER BY e.name"
+    },
+    "isError": false,
+    "text": "[\n{\"name\":\"DEFAULT_PAGE_SIZE\",\"kind\":\"const\",\"line\":32},\n{\"name\":\"capitalize\",\"kind\":\"function\",\"line\":13},\n{\"name\":\"clamp\",\"kind\":\"function\",\"line\":21},\n{\"name\":\"formatDate\",\"kind\":\"function\",\"line\":6},\n{\"name\":\"generateId\",\"kind\":\"function\",\"line\":28}\n]"
+  },
+  {
+    "tool": "query",
+    "args": {
+      "sql": "DELETE FROM files"
+    },
+    "isError": true,
+    "text": "query is read-only: use one SELECT (or WITH … SELECT), PRAGMA table_info(<table>) or PRAGMA table_list."
+  }
+]
