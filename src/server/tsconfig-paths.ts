@@ -33,20 +33,20 @@
  * linear-time scanner (no regex on the file), files above MAX_CONFIG_BYTES are
  * ignored, and include globs are matched segment-wise without regexes.
  */
-import fs from "node:fs";
-import path from "node:path";
+import fs from 'node:fs';
+import path from 'node:path';
 
 export const MAX_CONFIG_BYTES = 1024 * 1024;
 const MAX_EXTENDS_DEPTH = 16;
 const MAX_GLOB_LENGTH = 4096;
-const CONFIG_NAMES = ["tsconfig.json", "jsconfig.json"];
+const CONFIG_NAMES = ['tsconfig.json', 'jsconfig.json'];
 
 /** Extensions tried after a specifier, in TypeScript's order (then plain JS). */
-export const RESOLVE_EXTENSIONS = [".ts", ".tsx", ".d.ts", ".js", ".jsx", ".mjs", ".cjs"];
+export const RESOLVE_EXTENSIONS = ['.ts', '.tsx', '.d.ts', '.js', '.jsx', '.mjs', '.cjs'];
 
 function insideOrSame(child: string, parent: string): boolean {
   const rel = path.relative(parent, child);
-  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
 }
 
 /**
@@ -56,18 +56,22 @@ function insideOrSame(child: string, parent: string): boolean {
  * then `base/index.*`.
  */
 export function fileCandidates(base: string): string[] {
-  const stripped = base.replace(/\.(?:[mc]?js|jsx)$/, "");
+  const stripped = base.replace(/\.(?:[mc]?js|jsx)$/, '');
   return [
     base,
     stripped,
     ...RESOLVE_EXTENSIONS.map((ext) => base + ext),
     ...RESOLVE_EXTENSIONS.map((ext) => stripped + ext),
-    ...RESOLVE_EXTENSIONS.map((ext) => path.join(base, "index" + ext)),
+    ...RESOLVE_EXTENSIONS.map((ext) => path.join(base, 'index' + ext)),
   ];
 }
 
 /** First candidate of `base` that is a file inside `rootDir`, else null. */
-export function probeFile(base: string, rootDir: string, isFile: (p: string) => boolean): string | null {
+export function probeFile(
+  base: string,
+  rootDir: string,
+  isFile: (p: string) => boolean,
+): string | null {
   for (const c of fileCandidates(base)) {
     // Containment check: never resolve to a file outside rootDir, even if a
     // ../ sequence or an alias target points at a real file elsewhere (#14).
@@ -92,28 +96,28 @@ export function stripJsonc(text: string): string {
     const c = text[i];
     if (c === '"') {
       const start = i++;
-      while (i < n && text[i] !== '"') i += text[i] === "\\" ? 2 : 1;
+      while (i < n && text[i] !== '"') i += text[i] === '\\' ? 2 : 1;
       i++;
       out.push(text.slice(start, Math.min(i, n)));
       lastSig = out.length - 1;
       continue;
     }
-    if (c === "/" && text[i + 1] === "/") {
-      while (i < n && text[i] !== "\n") i++;
+    if (c === '/' && text[i + 1] === '/') {
+      while (i < n && text[i] !== '\n') i++;
       continue;
     }
-    if (c === "/" && text[i + 1] === "*") {
-      const end = text.indexOf("*/", i + 2);
+    if (c === '/' && text[i + 1] === '*') {
+      const end = text.indexOf('*/', i + 2);
       i = end === -1 ? n : end + 2;
-      out.push(" ");
+      out.push(' ');
       continue;
     }
-    if ((c === "}" || c === "]") && lastSig >= 0 && out[lastSig] === ",") out[lastSig] = " ";
+    if ((c === '}' || c === ']') && lastSig >= 0 && out[lastSig] === ',') out[lastSig] = ' ';
     out.push(c);
-    if (c !== " " && c !== "\t" && c !== "\n" && c !== "\r") lastSig = out.length - 1;
+    if (c !== ' ' && c !== '\t' && c !== '\n' && c !== '\r') lastSig = out.length - 1;
     i++;
   }
-  return out.join("");
+  return out.join('');
 }
 
 /** Parse a tsconfig-style file; null when missing, too big or not an object. */
@@ -121,10 +125,10 @@ export function readJsonc(file: string): Record<string, unknown> | null {
   try {
     const st = fs.statSync(file);
     if (!st.isFile() || st.size > MAX_CONFIG_BYTES) return null;
-    let text = fs.readFileSync(file, "utf-8");
+    let text = fs.readFileSync(file, 'utf-8');
     if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
     const v = JSON.parse(stripJsonc(text));
-    return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+    return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
   } catch {
     return null;
   }
@@ -139,10 +143,10 @@ function segmentMatch(pat: string, seg: string): boolean {
   let star = -1;
   let mark = 0;
   while (s < seg.length) {
-    if (p < pat.length && (pat[p] === "?" || pat[p] === seg[s])) {
+    if (p < pat.length && (pat[p] === '?' || pat[p] === seg[s])) {
       p++;
       s++;
-    } else if (p < pat.length && pat[p] === "*") {
+    } else if (p < pat.length && pat[p] === '*') {
       star = p++;
       mark = s;
     } else if (star !== -1) {
@@ -150,7 +154,7 @@ function segmentMatch(pat: string, seg: string): boolean {
       s = ++mark;
     } else return false;
   }
-  while (p < pat.length && pat[p] === "*") p++;
+  while (p < pat.length && pat[p] === '*') p++;
   return p === pat.length;
 }
 
@@ -168,11 +172,14 @@ export function globMatch(pattern: string, file: string): boolean {
   const memo = new Map<number, boolean>();
   const go = (i: number, j: number): boolean => {
     if (i === ps.length) return true; // pattern exhausted: file is at or under it
-    if (j === fs_.length) return ps.slice(i).every((x) => x === "**");
+    if (j === fs_.length) return ps.slice(i).every((x) => x === '**');
     const key = i * (fs_.length + 1) + j;
     const hit = memo.get(key);
     if (hit !== undefined) return hit;
-    const r = ps[i] === "**" ? go(i + 1, j) || go(i, j + 1) : segmentMatch(ps[i], fs_[j]) && go(i + 1, j + 1);
+    const r =
+      ps[i] === '**'
+        ? go(i + 1, j) || go(i, j + 1)
+        : segmentMatch(ps[i], fs_[j]) && go(i + 1, j + 1);
     memo.set(key, r);
     return r;
   };
@@ -201,15 +208,15 @@ export interface ResolvedConfig {
 }
 
 function expandConfigDir(s: string, dir: string): string {
-  return s.includes("${configDir}") ? s.split("${configDir}").join(dir) : s;
+  return s.includes('${configDir}') ? s.split('${configDir}').join(dir) : s;
 }
 
 function stringList(v: unknown): string[] | undefined {
-  return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : undefined;
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : undefined;
 }
 
 function pathsMap(v: unknown): Record<string, string[]> | undefined {
-  if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
   const out: Record<string, string[]> = {};
   for (const [k, targets] of Object.entries(v as Record<string, unknown>)) {
     const list = stringList(targets);
@@ -244,16 +251,27 @@ export class AliasResolver {
    * config's `paths` and `baseUrl`; null = external package or unknown.
    */
   resolve(specifier: string, fromFile: string): string | null {
-    if (!specifier || specifier.startsWith(".") || specifier.startsWith("/") || specifier.includes("\0")) return null;
+    if (
+      !specifier ||
+      specifier.startsWith('.') ||
+      specifier.startsWith('/') ||
+      specifier.includes('\0')
+    )
+      return null;
     const cfg = this.configFor(fromFile);
     if (!cfg) return null;
     if (cfg.paths && cfg.pathsBase) {
       for (const target of matchPaths(cfg.paths, specifier)) {
-        const hit = probeFile(path.resolve(cfg.pathsBase, expandConfigDir(target, cfg.dir)), this.rootDir, this.isFile);
+        const hit = probeFile(
+          path.resolve(cfg.pathsBase, expandConfigDir(target, cfg.dir)),
+          this.rootDir,
+          this.isFile,
+        );
         if (hit) return hit;
       }
     }
-    if (cfg.baseUrl) return probeFile(path.resolve(cfg.baseUrl, specifier), this.rootDir, this.isFile);
+    if (cfg.baseUrl)
+      return probeFile(path.resolve(cfg.baseUrl, specifier), this.rootDir, this.isFile);
     return null;
   }
 
@@ -308,17 +326,19 @@ export class AliasResolver {
   /** True when `cfg`'s files / include (minus exclude) take `file`. */
   private covers(cfg: ResolvedConfig, file: string): boolean {
     const abs = (pats: Patterns, p: string) => path.resolve(pats.base, expandConfigDir(p, cfg.dir));
-    const matches = (pats: Patterns | undefined): boolean => !!pats && pats.list.some((p) => globMatch(abs(pats, p), file));
+    const matches = (pats: Patterns | undefined): boolean =>
+      !!pats && pats.list.some((p) => globMatch(abs(pats, p), file));
     if (cfg.files && cfg.files.list.some((f) => abs(cfg.files!, f) === file)) return true;
     // No files and no include: TypeScript includes everything under the config.
-    const include = cfg.include ?? (cfg.files ? undefined : { base: cfg.dir, list: ["**/*"] });
+    const include = cfg.include ?? (cfg.files ? undefined : { base: cfg.dir, list: ['**/*'] });
     return matches(include) && !matches(cfg.exclude);
   }
 
   /** Parse `file` with its extends chain applied (cached). */
   load(file: string, seen: Set<string> = new Set()): ResolvedConfig | null {
     if (this.configs.has(file)) return this.configs.get(file)!;
-    if (seen.has(file) || seen.size >= MAX_EXTENDS_DEPTH || !insideOrSame(file, this.rootDir)) return null;
+    if (seen.has(file) || seen.size >= MAX_EXTENDS_DEPTH || !insideOrSame(file, this.rootDir))
+      return null;
     seen.add(file);
     const raw = readJsonc(file);
     if (!raw) {
@@ -328,18 +348,22 @@ export class AliasResolver {
     const dir = path.dirname(file);
     const cfg: ResolvedConfig = { file, dir, references: [] };
     const ext = raw.extends;
-    for (const spec of typeof ext === "string" ? [ext] : (stringList(ext) ?? [])) {
+    for (const spec of typeof ext === 'string' ? [ext] : (stringList(ext) ?? [])) {
       const parentFile = this.extendsTarget(spec, dir);
       const parent = parentFile ? this.load(parentFile, new Set(seen)) : null;
       if (!parent) continue;
-      for (const k of ["baseUrl", "paths", "pathsBase", "files", "include", "exclude"] as const) {
+      for (const k of ['baseUrl', 'paths', 'pathsBase', 'files', 'include', 'exclude'] as const) {
         if (parent[k] !== undefined) (cfg as unknown as Record<string, unknown>)[k] = parent[k];
       }
     }
-    const opts = raw.compilerOptions && typeof raw.compilerOptions === "object" ? (raw.compilerOptions as Record<string, unknown>) : {};
+    const opts =
+      raw.compilerOptions && typeof raw.compilerOptions === 'object'
+        ? (raw.compilerOptions as Record<string, unknown>)
+        : {};
     // ${configDir} in baseUrl expands here; in paths targets and include /
     // exclude / files it expands to the governing config's dir at use time.
-    if (typeof opts.baseUrl === "string") cfg.baseUrl = path.resolve(dir, expandConfigDir(opts.baseUrl, dir));
+    if (typeof opts.baseUrl === 'string')
+      cfg.baseUrl = path.resolve(dir, expandConfigDir(opts.baseUrl, dir));
     const paths = pathsMap(opts.paths);
     if (paths) {
       cfg.paths = paths;
@@ -355,10 +379,10 @@ export class AliasResolver {
     if (exclude) cfg.exclude = { base: dir, list: exclude };
     if (Array.isArray(raw.references)) {
       for (const r of raw.references) {
-        const p = r && typeof r === "object" ? (r as { path?: unknown }).path : undefined;
-        if (typeof p !== "string") continue;
+        const p = r && typeof r === 'object' ? (r as { path?: unknown }).path : undefined;
+        if (typeof p !== 'string') continue;
         const abs = path.resolve(dir, p);
-        cfg.references.push(abs.endsWith(".json") ? abs : path.join(abs, "tsconfig.json"));
+        cfg.references.push(abs.endsWith('.json') ? abs : path.join(abs, 'tsconfig.json'));
       }
     }
     this.configs.set(file, cfg);
@@ -369,16 +393,16 @@ export class AliasResolver {
   private extendsTarget(spec: string, fromDir: string): string | null {
     const withJson = (p: string): string | null => {
       if (this.isFile(p)) return p;
-      if (!p.endsWith(".json") && this.isFile(p + ".json")) return p + ".json";
+      if (!p.endsWith('.json') && this.isFile(p + '.json')) return p + '.json';
       return null;
     };
-    if (spec.startsWith(".") || path.isAbsolute(spec)) return withJson(path.resolve(fromDir, spec));
+    if (spec.startsWith('.') || path.isAbsolute(spec)) return withJson(path.resolve(fromDir, spec));
     // Package spec: node_modules/<spec>[.json] or node_modules/<pkg>/tsconfig.json,
     // looked up from the config's directory to the root.
     let dir = fromDir;
     for (;;) {
-      const base = path.join(dir, "node_modules", spec);
-      const hit = withJson(base) ?? withJson(path.join(base, "tsconfig.json"));
+      const base = path.join(dir, 'node_modules', spec);
+      const hit = withJson(base) ?? withJson(path.join(base, 'tsconfig.json'));
       if (hit) return hit;
       if (dir === this.rootDir || !insideOrSame(dir, this.rootDir)) return null;
       const parent = path.dirname(dir);
@@ -394,17 +418,22 @@ export class AliasResolver {
  * more than one `*` are invalid and ignored.
  */
 export function matchPaths(paths: Record<string, string[]>, specifier: string): string[] {
-  if (Object.prototype.hasOwnProperty.call(paths, specifier) && !specifier.includes("*")) return paths[specifier];
+  if (Object.prototype.hasOwnProperty.call(paths, specifier) && !specifier.includes('*'))
+    return paths[specifier];
   let best: { prefix: string; star: string; key: string } | null = null;
   for (const key of Object.keys(paths)) {
-    const star = key.indexOf("*");
-    if (star === -1 || key.indexOf("*", star + 1) !== -1) continue;
+    const star = key.indexOf('*');
+    if (star === -1 || key.indexOf('*', star + 1) !== -1) continue;
     const prefix = key.slice(0, star);
     const suffix = key.slice(star + 1);
     if (specifier.length < prefix.length + suffix.length) continue;
     if (!specifier.startsWith(prefix) || !specifier.endsWith(suffix)) continue;
     if (!best || prefix.length > best.prefix.length) {
-      best = { prefix, key, star: specifier.slice(prefix.length, specifier.length - suffix.length) };
+      best = {
+        prefix,
+        key,
+        star: specifier.slice(prefix.length, specifier.length - suffix.length),
+      };
     }
   }
   if (!best) return [];
@@ -413,9 +442,9 @@ export function matchPaths(paths: Record<string, string[]>, specifier: string): 
   // text as patterns. TypeScript allows at most one `*` per target; skip others.
   const out: string[] = [];
   for (const t of paths[best.key]) {
-    const i = t.indexOf("*");
+    const i = t.indexOf('*');
     if (i === -1) out.push(t);
-    else if (t.indexOf("*", i + 1) === -1) out.push(t.slice(0, i) + captured + t.slice(i + 1));
+    else if (t.indexOf('*', i + 1) === -1) out.push(t.slice(0, i) + captured + t.slice(i + 1));
   }
   return out;
 }
