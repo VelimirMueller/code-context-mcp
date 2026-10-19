@@ -3,6 +3,8 @@ node_modules
 *.db
 # Vendored or generated content keeps the upstream / generator format.
 vendor/
+# README kit spec: the vm-brand scripts read it in their own one-line-per-panel layout.
+brand/
 src/scrum/frontend-skill-defaults.generated.ts
 test/fixtures/
 # Data files written by tools.
