@@ -6,21 +6,21 @@ The server exposes **103 tools** via the Model Context Protocol (97 by default; 
 
 The codebase indexing and search half of the server. These 13 tools scan a directory, build a searchable index, and answer structured queries about files, symbols, and changes.
 
-| Tool | Description |
-|------|-------------|
-| [`index_directory`](./index-directory) | Scan a directory and build the index |
-| [`find_symbol`](./find-symbol) | Find which files export a given symbol |
-| [`get_file_context`](./get-file-context) | Get full file context: exports, imports, dependents, changes |
-| [`who_imports`](./who-imports) | Which files import a file or symbol: complete list from the import graph |
-| [`exports_in`](./exports-in) | What a directory exports, and which exports nothing imports |
-| [`get_changes`](./get-changes) | View recent file changes with diffs |
-| [`search_files`](./search-files) | Search indexed files by path or summary |
-| [`query`](./query-execute) | Run read-only SQL against the database |
-| [`execute`](./query-execute) | Run write SQL against the database |
-| `set_description` | Set a human-readable description for any indexed file |
-| `set_directory_description` | Set a description for an indexed directory |
-| `set_change_reason` | Record the reason behind a recorded file change |
-| `health` | Report server and index health |
+| Tool                                     | Description                                                              |
+| ---------------------------------------- | ------------------------------------------------------------------------ |
+| [`index_directory`](./index-directory)   | Scan a directory and build the index                                     |
+| [`find_symbol`](./find-symbol)           | Find which files export a given symbol                                   |
+| [`get_file_context`](./get-file-context) | Get full file context: exports, imports, dependents, changes             |
+| [`who_imports`](./who-imports)           | Which files import a file or symbol: complete list from the import graph |
+| [`exports_in`](./exports-in)             | What a directory exports, and which exports nothing imports              |
+| [`get_changes`](./get-changes)           | View recent file changes with diffs                                      |
+| [`search_files`](./search-files)         | Search indexed files by path or summary                                  |
+| [`query`](./query-execute)               | Run read-only SQL against the database                                   |
+| [`execute`](./query-execute)             | Run write SQL against the database                                       |
+| `set_description`                        | Set a human-readable description for any indexed file                    |
+| `set_directory_description`              | Set a description for an indexed directory                               |
+| `set_change_reason`                      | Record the reason behind a recorded file change                          |
+| `health`                                 | Report server and index health                                           |
 
 ::: tip Read-only by default
 `query` and `execute` are guarded: `query` accepts a single read-only `SELECT`/`WITH`, and `execute` accepts a single `INSERT`/`UPDATE`/`DELETE`. Stacked statements, comments, DDL, `PRAGMA`, and `ATTACH` are rejected.
