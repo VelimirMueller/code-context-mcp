@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **New bins `code-context`, `code-context-sprint` and `vlm-code-context-mcp`.** `vlm-code-context-mcp` is an alias of `code-context`, so `npx -y vlm-code-context-mcp ./context.db` starts the index. `code-context-mcp` stays the setup command. (#179)
 - **`setup` installs the entry that matches the profile.** `full` and `all` write `dist/server/sprint.js` into `.mcp.json`, `code` writes `dist/server/index.js`. Setup still writes `CODE_CONTEXT_PROFILE`: the setting is explicit, `health` shows it, and the entry still works when pointed at `index.js`. (#179)
 - **CI runs on pull requests to release branches** (`release/**`), not only on `main`. (#179)
+- **The public contract is written down and CI enforces it.** [`docs/CONTRACT.md`](docs/CONTRACT.md) freezes the 3.x surface: the bins and their flags, the profiles and env settings, the names, input schemas and default output of the 6 `code` tools, the names and input schemas of the sprint tools (their output is best effort), the server instructions and the `context.db` rules (who owns which table; a minor release may add tables and columns, never drop or rename). Snapshots in `test/contract/snapshots/` pin it; `npm run contract:update` rewrites them. The new CI job `contract` fails when a PR changes a snapshot without a major version bump in `package.json` or the label `contract-change-approved` (`scripts/check-contract-change.mjs`). A change to a tool description only is not a contract change. (#180)
 
 ### Migration
 
@@ -90,6 +91,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`bench:live` retries a failed session once.** A provider error, 0 model calls or a machine sleep during the session gets one retry with a fresh workspace and HOME; the run notes list every retry. The run is void only when the retry fails too. A timeout with model calls stays a model FAIL. (#146)
 
 ## [2.12.0] - 2026-10-11
+
+### Breaking (recorded 2026-10-19)
+
+2.12.0 shipped as a minor release, but it broke clients that parsed tool output or relied on the `code` toolset. It should have been a major. Recorded after the fact under the public contract (#180, [docs/CONTRACT.md](docs/CONTRACT.md)); the entries below are unchanged.
+
+- **Project-relative paths in tool output.** `find_symbol`, `get_file_context`, `search_files`, `get_changes` and `set_description` print `src/…` instead of absolute paths. Restore: `absolute_paths: true` or `CODE_CONTEXT_ABSOLUTE_PATHS=1`. (#131)
+- **No timestamps in tool output.** `find_symbol`, `get_file_context` and `search_files` drop `modified …` / `indexed …` in every profile. Restore: `CODE_CONTEXT_TIMESTAMPS=1`. (#137)
+- **The `code` toolset went from 11 to 6 tools.** `CODE_CONTEXT_TOOLSETS=code` no longer lists `index_directory`, `get_changes`, `execute`, `health`, `set_description`, `set_directory_description` and `set_change_reason`. Restore: `CODE_CONTEXT_TOOLSETS=code,code-admin`. (#132, #136)
 
 ### Highlights
 
