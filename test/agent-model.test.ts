@@ -5,6 +5,10 @@ import { KNOWN_AGENT_MODELS } from '../src/scrum/agent-model.js';
 
 describe('modelToTier', () => {
   it('maps fable/opus/sonnet/haiku ids to Task-tool tiers', () => {
+    expect(modelToTier('claude-fable-5-1')).toBe('fable');
+    expect(modelToTier('claude-opus-5-5')).toBe('opus');
+    expect(modelToTier('claude-sonnet-5-5')).toBe('sonnet');
+    expect(modelToTier('claude-haiku-5-5')).toBe('haiku');
     expect(modelToTier('claude-fable-5')).toBe('fable');
     expect(modelToTier('claude-opus-4-8')).toBe('opus');
     expect(modelToTier('claude-opus-5')).toBe('opus');
@@ -16,6 +20,9 @@ describe('modelToTier', () => {
     expect(modelToTier(null)).toBe('sonnet');
     expect(modelToTier(undefined)).toBe('sonnet');
     expect(modelToTier('gpt-9')).toBe('sonnet');
+    // Any non-Claude id falls back to sonnet (current behaviour, kept on purpose).
+    expect(modelToTier('glm-5.3')).toBe('sonnet');
+    expect(modelToTier('deepseek-v4-pro')).toBe('sonnet');
   });
   it('every known model id routes to a real tier and every seed model is a known id', () => {
     for (const id of KNOWN_AGENT_MODELS)
@@ -38,9 +45,30 @@ describe('modelToTier', () => {
   });
 });
 
+describe('KNOWN_AGENT_MODELS', () => {
+  it('offers the current generation first and keeps superseded ids accepted', () => {
+    expect(KNOWN_AGENT_MODELS.slice(0, 4)).toEqual([
+      'claude-fable-5-1',
+      'claude-opus-5-5',
+      'claude-sonnet-5-5',
+      'claude-haiku-5-5',
+    ]);
+    for (const old of [
+      'claude-fable-5',
+      'claude-opus-5',
+      'claude-sonnet-5',
+      'claude-haiku-4-5',
+      'claude-opus-4-8',
+      'claude-sonnet-4-6',
+    ]) {
+      expect(KNOWN_AGENT_MODELS).toContain(old);
+    }
+  });
+});
+
 describe('formatModelRouting', () => {
   it('includes the role, the tier, and the Task-tool instruction', () => {
-    const md = formatModelRouting('fe-engineer', 'claude-fable-5');
+    const md = formatModelRouting('fe-engineer', 'claude-fable-5-1');
     expect(md).toContain('## Model routing');
     expect(md).toContain('fe-engineer');
     expect(md).toContain('model: "fable"');
@@ -50,9 +78,9 @@ describe('formatModelRouting', () => {
     expect(formatModelRouting('qa', null)).toContain('model: "sonnet"');
   });
   it('routes each current-generation model to its tier directive', () => {
-    expect(formatModelRouting('developer', 'claude-fable-5')).toContain('model: "fable"');
-    expect(formatModelRouting('qa', 'claude-opus-4-8')).toContain('model: "opus"');
-    expect(formatModelRouting('architect', 'claude-sonnet-5')).toContain('model: "sonnet"');
-    expect(formatModelRouting('devops', 'claude-haiku-4-5')).toContain('model: "haiku"');
+    expect(formatModelRouting('developer', 'claude-fable-5-1')).toContain('model: "fable"');
+    expect(formatModelRouting('qa', 'claude-opus-5-5')).toContain('model: "opus"');
+    expect(formatModelRouting('architect', 'claude-sonnet-5-5')).toContain('model: "sonnet"');
+    expect(formatModelRouting('devops', 'claude-haiku-5-5')).toContain('model: "haiku"');
   });
 });

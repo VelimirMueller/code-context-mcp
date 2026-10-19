@@ -52,7 +52,7 @@ export function badRequest(message: string): Error {
 // Single allowed-model list shared by the /api/agent routes, per-assignment
 // model overrides on PATCH /api/ticket/:id (D2) and the MCP `update_agent`
 // tool — owned by src/scrum/agent-model.ts so the server and the dashboard
-// can never drift. Superseded ids (claude-opus-4-8, claude-sonnet-4-6) stay
+// can never drift. Superseded ids (claude-fable-5, claude-opus-5, …) stay
 // accepted so agents created on them remain editable.
 export const ALLOWED_AGENT_MODELS: string[] = [...KNOWN_AGENT_MODELS];
 

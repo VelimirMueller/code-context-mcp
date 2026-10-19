@@ -38,7 +38,7 @@ Unlike a plugin, these are **served by the MCP server into your live session**, 
 
 ## The agent team
 
-9 configurable agents, each with a role, model, and mood score. Dev roles default to the strongest model (`claude-fable-5`), QA to `claude-opus-5`; the rest use `claude-sonnet-5`. Change a model, tools or system prompt with the `update_agent` MCP tool or in the dashboard.
+9 configurable agents, each with a role, model, and mood score. Dev roles default to the strongest model (`claude-fable-5-1`), QA to `claude-opus-5-5`; the rest use `claude-sonnet-5-5`. Change a model, tools or system prompt with the `update_agent` MCP tool or in the dashboard.
 
 | Role               | Focus                                                          |
 | ------------------ | -------------------------------------------------------------- |

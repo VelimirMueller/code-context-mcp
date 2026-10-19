@@ -232,7 +232,7 @@ npm run bench:publish
 <p>
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="assets/readme/team-v3-light.svg">
-  <img alt="9 configurable agents: Product Owner, Team Lead, Architect, Backend Developer, Frontend Developer, Developer, QA Engineer, Security Engineer, DevOps. Default models: Dev roles default to claude-fable-5, QA to claude-opus-5, the rest to claude-sonnet-5. Change an agent: Change a model, tools or system prompt with the update_agent MCP tool or in the dashboard. The model routes execution: During /kickoff and /sprint, a subagent at the assigned model tier (fable/opus/sonnet/haiku) implements each ticket. Several agents per ticket: Since 2.0. The lead implements, supporters verify, QA needs every verdict. Roles and focus: In docs/REFERENCE.md (the agent team)" src="assets/readme/team-v3-dark.svg" width="100%">
+  <img alt="9 configurable agents: Product Owner, Team Lead, Architect, Backend Developer, Frontend Developer, Developer, QA Engineer, Security Engineer, DevOps. Default models: Dev roles default to claude-fable-5-1, QA to claude-opus-5-5, the rest to claude-sonnet-5-5. Change an agent: Change a model, tools or system prompt with the update_agent MCP tool or in the dashboard. The model routes execution: During /kickoff and /sprint, a subagent at the assigned model tier (fable/opus/sonnet/haiku) implements each ticket. Several agents per ticket: Since 2.0. The lead implements, supporters verify, QA needs every verdict. Roles and focus: In docs/REFERENCE.md (the agent team)" src="assets/readme/team-v3-dark.svg" width="100%">
 </picture>
 </p>
 

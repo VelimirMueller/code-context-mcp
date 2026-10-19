@@ -78,7 +78,7 @@ describe('seedDefaults', () => {
     const dev = db.prepare("SELECT * FROM agents WHERE role = 'developer'").get() as any;
     expect(dev).toBeDefined();
     expect(dev.name).toBe('Developer');
-    expect(dev.model).toBe('claude-fable-5');
+    expect(dev.model).toBe('claude-fable-5-1');
     expect(dev.description).toContain('Full-stack');
   });
 });

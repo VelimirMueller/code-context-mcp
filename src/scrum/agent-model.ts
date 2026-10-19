@@ -7,17 +7,21 @@ export type Tier = 'opus' | 'sonnet' | 'haiku' | 'fable';
  * rendering and editing.
  */
 export const KNOWN_AGENT_MODELS = [
+  'claude-fable-5-1',
+  'claude-opus-5-5',
+  'claude-sonnet-5-5',
+  'claude-haiku-5-5',
+  // superseded — accepted, not offered for new picks
   'claude-fable-5',
   'claude-opus-5',
   'claude-sonnet-5',
   'claude-haiku-4-5',
-  // superseded — accepted, not offered for new picks
   'claude-opus-4-8',
   'claude-sonnet-4-6',
 ] as const;
 
 /** Model applied when an agent is created without one (seed tier for non-dev roles in defaults.ts). */
-export const DEFAULT_AGENT_MODEL = 'claude-sonnet-5';
+export const DEFAULT_AGENT_MODEL = 'claude-sonnet-5-5';
 
 /** Map a stored agent model id to the Task-tool subagent tier. Unknown/null → "sonnet". */
 export function modelToTier(modelId: string | null | undefined): Tier {

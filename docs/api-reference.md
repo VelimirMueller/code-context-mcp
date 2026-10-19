@@ -700,7 +700,7 @@ Update a roster agent's model, tools, system prompt, name, description or depart
 ```typescript
 {
   role: string,             // see list_agents
-  model?: string,           // claude-fable-5 | claude-opus-5 | claude-sonnet-5 | claude-haiku-4-5 (+ superseded claude-opus-4-8, claude-sonnet-4-6)
+  model?: string,           // claude-fable-5-1 | claude-opus-5-5 | claude-sonnet-5-5 | claude-haiku-5-5 (+ superseded claude-fable-5, claude-opus-5, claude-sonnet-5, claude-haiku-4-5, claude-opus-4-8, claude-sonnet-4-6)
   tools?: string | null,    // free-text tool inventory (null clears)
   system_prompt?: string | null,
   name?: string,

@@ -60,20 +60,20 @@ describe('Agent & Skill Seeding (T-45)', () => {
       }
     });
 
-    it('assigns the strongest model (claude-fable-5) to dev roles', () => {
+    it('assigns the strongest model (claude-fable-5-1) to dev roles', () => {
       seedDefaults(db);
       const strong = db
-        .prepare("SELECT role FROM agents WHERE model = 'claude-fable-5' ORDER BY role")
+        .prepare("SELECT role FROM agents WHERE model = 'claude-fable-5-1' ORDER BY role")
         .all() as { role: string }[];
       expect(strong.map((r) => r.role)).toEqual(['be-engineer', 'developer', 'fe-engineer']);
     });
 
-    it('keeps qa on claude-opus-5', () => {
+    it('keeps qa on claude-opus-5-5', () => {
       seedDefaults(db);
       const qa = db.prepare("SELECT model FROM agents WHERE role = 'qa'").get() as {
         model: string;
       };
-      expect(qa.model).toBe('claude-opus-5');
+      expect(qa.model).toBe('claude-opus-5-5');
     });
 
     it('be-engineer has correct description', () => {

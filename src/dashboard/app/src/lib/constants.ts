@@ -9,39 +9,67 @@ export interface ModelOption {
 /** Current-generation models offered for new assignments. Single source of truth for the dashboard UI. */
 export const MODEL_OPTIONS: readonly ModelOption[] = [
   {
+    value: 'claude-fable-5-1',
+    label: 'Fable 5.1',
+    short: 'fable 5.1',
+    description: 'Most capable',
+    color: '#f472b6',
+  },
+  {
+    value: 'claude-opus-5-5',
+    label: 'Opus 5.5',
+    short: 'opus 5.5',
+    description: 'Powerful',
+    color: '#a5b4fc',
+  },
+  {
+    value: 'claude-sonnet-5-5',
+    label: 'Sonnet 5.5',
+    short: 'sonnet 5.5',
+    description: 'Balanced',
+    color: '#60a5fa',
+  },
+  {
+    value: 'claude-haiku-5-5',
+    label: 'Haiku 5.5',
+    short: 'haiku 5.5',
+    description: 'Fast',
+    color: '#10b981',
+  },
+];
+
+export const DEFAULT_AGENT_MODEL = 'claude-sonnet-5-5';
+
+/** Superseded models that may still be set on existing agents — rendered, but not offered for new picks. */
+const LEGACY_MODELS: readonly ModelOption[] = [
+  {
     value: 'claude-fable-5',
     label: 'Fable 5',
     short: 'fable 5',
-    description: 'Most capable',
+    description: 'Most capable (previous gen)',
     color: '#f472b6',
   },
   {
     value: 'claude-opus-5',
     label: 'Opus 5',
     short: 'opus 5',
-    description: 'Powerful',
+    description: 'Powerful (previous gen)',
     color: '#a5b4fc',
   },
   {
     value: 'claude-sonnet-5',
     label: 'Sonnet 5',
     short: 'sonnet 5',
-    description: 'Balanced',
+    description: 'Balanced (previous gen)',
     color: '#60a5fa',
   },
   {
     value: 'claude-haiku-4-5',
     label: 'Haiku 4.5',
     short: 'haiku 4.5',
-    description: 'Fast',
+    description: 'Fast (previous gen)',
     color: '#10b981',
   },
-];
-
-export const DEFAULT_AGENT_MODEL = 'claude-sonnet-5';
-
-/** Superseded models that may still be set on existing agents — rendered, but not offered for new picks. */
-const LEGACY_MODELS: readonly ModelOption[] = [
   {
     value: 'claude-opus-4-8',
     label: 'Opus 4.8',

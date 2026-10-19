@@ -391,11 +391,11 @@ describe('AssignmentEditor', () => {
   it('model dropdown sets a per-assignment override', async () => {
     const onChange = await renderEditor(twoAssigned);
     fireEvent.change(screen.getByLabelText('Model for security'), {
-      target: { value: 'claude-haiku-4-5' },
+      target: { value: 'claude-haiku-5-5' },
     });
     expect(onChange).toHaveBeenCalledWith([
       { role: 'fe-engineer', model: null, is_lead: 1 },
-      { role: 'security', model: 'claude-haiku-4-5', is_lead: 0 },
+      { role: 'security', model: 'claude-haiku-5-5', is_lead: 0 },
     ]);
   });
 
