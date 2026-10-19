@@ -10,7 +10,7 @@ The sprint tools are opt-in since 3.0.0: the server's default profile is `code` 
 - Stop here when `health` is not listed, or `toolsets` lacks `scrum` or `code-admin`. Tell the user, then wait:
 
 ```yaml
-sprint_tools: off # profile: <profile from health, or code>
+sprint_tools: off # profile: <from health; code when health is not listed>
 fix: CODE_CONTEXT_PROFILE=full
 where: .mcp.json → mcpServers["code-context"].env
 or: npx code-context-mcp setup . --profile full

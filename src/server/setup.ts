@@ -338,13 +338,20 @@ function profileEnv(existing: Record<string, string>): {
     env.CODE_CONTEXT_PROFILE = PROFILE_ARG;
     return { env, profile: PROFILE_ARG, source: '--profile' };
   }
-  if (env.CODE_CONTEXT_PROFILE) {
-    return { env, profile: env.CODE_CONTEXT_PROFILE, source: 'kept from .mcp.json' };
+  const kept = env.CODE_CONTEXT_PROFILE?.trim().toLowerCase();
+  if (kept && kept in PROFILES) {
+    return { env, profile: kept, source: 'kept from .mcp.json' };
+  }
+  if (kept) {
+    // The server would ignore it and fall back to `code`: repair it like a missing setting.
+    console.warn(
+      `  Warning: unknown CODE_CONTEXT_PROFILE=${JSON.stringify(kept)} in .mcp.json, replaced.`,
+    );
   }
   const toolsets = (env.CODE_CONTEXT_TOOLSETS ?? '')
     .split(',')
     .map((s) => s.trim().toLowerCase().replace(/^\+/, ''));
-  if (toolsets.includes('code') && !toolsets.includes('all')) {
+  if (!kept && toolsets.includes('code') && !toolsets.includes('all')) {
     return { env, profile: 'code', source: 'kept: CODE_CONTEXT_TOOLSETS lists code' };
   }
   const profile: Profile = 'full';

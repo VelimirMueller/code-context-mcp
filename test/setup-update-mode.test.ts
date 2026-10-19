@@ -194,6 +194,13 @@ describe('setup writes the tool profile into .mcp.json (#178)', () => {
     expect(entry().env).toEqual({ CODE_CONTEXT_PROFILE: 'full' });
   }, 120_000);
 
+  it('an unknown kept profile is replaced with full', () => {
+    writeEntry({ command: 'node', args: [], env: { CODE_CONTEXT_PROFILE: 'sprint' } });
+    const out = runSetup(dir);
+    expect(entry().env).toEqual({ CODE_CONTEXT_PROFILE: 'full' });
+    expect(out).toMatch(/Tool profile: full/);
+  }, 120_000);
+
   it('a 2.x lean install (CODE_CONTEXT_TOOLSETS=code) stays lean', () => {
     writeEntry({ command: 'node', args: [], env: { CODE_CONTEXT_TOOLSETS: 'code' } });
     runSetup(dir);

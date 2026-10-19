@@ -125,7 +125,8 @@ describe('code toolset over MCP stdio', () => {
   }, 30_000);
 
   it('code-admin alone (on the default profile) reports profile code in health', async () => {
-    const { health } = await startServer({ toolsets: 'code-admin' });
+    const { tools, health } = await startServer({ toolsets: 'code-admin' });
+    expect(tools.map((t) => t.name)).toContain('health');
     expect(health?.profile).toBe('code');
     expect(health?.toolsets).toEqual(['code', 'code-admin']);
   }, 30_000);
