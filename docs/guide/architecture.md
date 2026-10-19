@@ -50,7 +50,7 @@ HTTP server, API endpoints, bearer-token auth, and the dashboard UI. The live UI
 
 #### `src/remotion/` — Vision animation rendering
 
-Remotion compositions used to render the project vision animation (driven by the `generate_vision_animation` scrum tool).
+Remotion compositions used to render the project vision animation (driven by the `generate_vision_animation` scrum tool). The `remotion`, `@remotion/cli` and `@remotion/renderer` devDependencies exist for this module: the `npx remotion preview` and `npx remotion render` commands that `generate_vision_animation` prints need them.
 
 | File              | Lines | Size | Description                                       |
 | ----------------- | ----: | ---: | ------------------------------------------------- |
