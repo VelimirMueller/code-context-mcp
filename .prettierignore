@@ -13,3 +13,5 @@ data/
 # Browser test output.
 test-results/
 playwright-report/
+# Benchmark run copies written by scripts/bench/snapshot.mjs.
+benchmarks/latest/

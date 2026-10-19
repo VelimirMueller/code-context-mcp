@@ -11,9 +11,8 @@ on:
     branches: [bench-results]
   workflow_dispatch:
 
-permissions:
-  contents: write
-  pull-requests: write
+# Nothing by default; the job declares its own permissions below.
+permissions: {}
 
 concurrency:
   group: bench-snapshot
@@ -22,6 +21,9 @@ concurrency:
 jobs:
   snapshot:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the chore/bench-snapshot branch
+      pull-requests: write # open or update the snapshot PR
     steps:
       - name: Check out main
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -35,7 +37,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/bench"
           git archive FETCH_HEAD data | tar -x -C "$RUNNER_TEMP/bench"
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
         with:
           node-version: '24'
 
@@ -43,7 +45,7 @@ jobs:
         run: node scripts/bench/snapshot.mjs "$RUNNER_TEMP/bench/data" benchmarks/latest
 
       - name: Open or update the snapshot PR
-        uses: peter-evans/create-pull-request@v8
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           branch: chore/bench-snapshot
           add-paths: |
