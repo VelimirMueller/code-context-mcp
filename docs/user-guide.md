@@ -600,12 +600,12 @@ await query({
 
 ### Bulk Updates
 
-Update multiple tickets efficiently:
+Update multiple tickets efficiently. `execute` refuses the gate columns (`tickets.status`, `qa_verified`, `verified_by`, `github_*`, `sprints.status`); change those with `update_ticket` or `update_sprint`, which run the gates (#181).
 
 ```javascript
 await execute({
-  sql: 'UPDATE tickets SET status = ? WHERE sprint_id = ? AND assigned_to = ?',
-  params: ['TODO', 5, 'developer'],
+  sql: 'UPDATE tickets SET assigned_to = ? WHERE sprint_id = ? AND assigned_to = ?',
+  params: ['backend-dev', 5, 'developer'],
 });
 ```
 

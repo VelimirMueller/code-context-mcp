@@ -77,7 +77,7 @@ Each entry pins exact targets. Both env vars are read from the server or CLI pro
 
 ## Ownership and adopt
 
-A stored number does not prove that the sync created the object. `update_ticket github_issue=<N>`, `update_milestone github_milestone=<N>` or the `execute` tool can point a row at any issue or milestone of the repo. So the sync writes only to objects that carry its marker.
+A stored number does not prove that the sync created the object. `update_ticket github_issue=<N>` or `update_milestone github_milestone=<N>` can point a row at any issue or milestone of the repo. (The `execute` tool could do this before #181; it now refuses every `github_*` column.) So the sync writes only to objects that carry its marker.
 
 - **Marker.** Every issue the sync creates ends its body with a hidden HTML comment:
   `<!-- code-context-sync: project=<project> ticket=<ticket_ref> -->`.

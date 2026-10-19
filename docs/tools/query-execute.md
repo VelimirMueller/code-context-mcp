@@ -70,6 +70,23 @@ Run a single `INSERT`, `UPDATE`, or `DELETE` statement against the context datab
 - DDL, PRAGMA, ATTACH, and SELECT/WITH are not permitted.
 - The statement is additionally verified as a writer by the database driver before execution.
 
+**Gate columns (#181):** `execute` refuses a write to a column that a gated tool owns. The error names the column and the tool to use.
+
+| Table        | Refused through `execute`                                          | Use instead                                            |
+| ------------ | ------------------------------------------------------------------ | ------------------------------------------------------ |
+| `tickets`    | `status`                                                           | `update_ticket`                                        |
+| `tickets`    | `qa_verified`, `verified_by`                                       | `update_ticket`                                        |
+| `tickets`    | `github_issue`, `github_repo`, `github_node_id` (every `github_*`) | `update_ticket github_issue=<N>`, `sync_github`        |
+| `sprints`    | `status`                                                           | `update_sprint`, `advance_sprint`                      |
+| `milestones` | every `github_*` column                                            | `update_milestone github_milestone=<N>`, `sync_github` |
+| `projects`   | every `github_*` column                                            | `set_project`, `sync_github`                           |
+
+- The check covers the `INSERT` column list, the `UPDATE` `SET` list (also `SET (a, b) = …` and `UPDATE … FROM`) and `ON CONFLICT … DO UPDATE SET`. Quoted names, schema prefixes and aliases resolve to the real column.
+- `DELETE` on `tickets` and `sprints` is refused: it would drop the row and let a re-insert skip the gates.
+- `REPLACE`, `INSERT OR REPLACE` and `UPDATE OR REPLACE` on the four tables are refused: the replace deletes the row and resets its gate columns.
+- An `INSERT` into the four tables without a column list is refused: it writes every column.
+- Writes to the other columns and every `SELECT` stay free.
+
 **Return value:** `Rows affected: N, last id: M`
 
 ```

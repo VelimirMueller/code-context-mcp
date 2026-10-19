@@ -642,6 +642,8 @@ await query({ sql: "SELECT * FROM tickets WHERE status = 'DONE'" });
 
 Run an INSERT, UPDATE, or DELETE against the context database.
 
+`execute` refuses writes to the gate columns: `tickets.status`, `tickets.qa_verified`, `tickets.verified_by`, `tickets.github_*`, `sprints.status`, `milestones.github_*` and `projects.github_*`. It also refuses `DELETE` on `tickets` and `sprints`, `REPLACE` on these tables and an `INSERT` into them without a column list. The error names the column and the tool to use (`update_ticket`, `update_sprint`, `advance_sprint`, `update_milestone`, `set_project`, `sync_github`). See [query / execute](./tools/query-execute.md). (#181)
+
 **Parameters:**
 
 ```typescript
@@ -657,8 +659,8 @@ Run an INSERT, UPDATE, or DELETE against the context database.
 
 ```javascript
 await execute({
-  sql: 'UPDATE tickets SET status = ? WHERE id = ?',
-  params: ['DONE', 42],
+  sql: 'UPDATE tickets SET notes = ? WHERE id = ?',
+  params: ['Waiting on design review', 42],
 });
 // Returns: "Rows affected: 1, last id: 127"
 ```

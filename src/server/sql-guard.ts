@@ -6,6 +6,7 @@
 // ATTACH/PRAGMA/DDL, and CTE-prefixed writes) flagged in discovery #15a.
 
 import type Database from 'better-sqlite3';
+import { checkGateColumns } from './sql-gate-columns.js';
 
 export type SqlGuardResult = { ok: true; sql: string } | { ok: false; error: string };
 
@@ -57,7 +58,8 @@ export function validateWriteStatement(rawSql: string): SqlGuardResult {
       error: 'Only INSERT, UPDATE, or DELETE are allowed. Use query() for SELECT.',
     };
   }
-  return { ok: true, sql };
+  // CCA-37 (#181): gate columns (tickets.status, qa_verified, github_*, …) only through their tools.
+  return checkGateColumns(sql);
 }
 
 export type QueryResult = { ok: true; rows: unknown[] } | { ok: false; error: string };
