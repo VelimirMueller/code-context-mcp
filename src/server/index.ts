@@ -70,7 +70,7 @@ if (!isFreshDb) {
 // Profile + toolsets (CODE_CONTEXT_PROFILE, CODE_CONTEXT_TOOLSETS; #178): `code` by default.
 const toolSelection = resolveToolsets();
 // #179: the sprint process loads only when one of its toolsets is on.
-const sprint = toolSelection.toolsets.some((t) => t !== 'code' && t !== 'code-admin')
+const sprint = toolSelection.toolsets.some((t) => t === 'scrum' || t === 'fun' || t === 'stream')
   ? await import('./sprint-toolsets.js')
   : null;
 
