@@ -8,16 +8,20 @@
  * here carries the same `{ status: 400 }` shape the router already serialises.
  */
 
-import { KNOWN_AGENT_MODELS, DEFAULT_AGENT_MODEL } from "../../scrum/agent-model.js";
+import { KNOWN_AGENT_MODELS, DEFAULT_AGENT_MODEL } from '../../scrum/agent-model.js';
 
 /** Throw a 400 unless `value` is in `allowed`. */
 export function validateEnum(value: string, allowed: string[], name: string) {
-  if (!allowed.includes(value)) throw Object.assign(new Error(`Invalid ${name}: ${value}. Allowed: ${allowed.join(', ')}`), { status: 400 });
+  if (!allowed.includes(value))
+    throw Object.assign(new Error(`Invalid ${name}: ${value}. Allowed: ${allowed.join(', ')}`), {
+      status: 400,
+    });
 }
 
 /** Throw a 400 unless `hex` is a 6-digit `#rrggbb` colour. */
 export function validateColor(hex: string) {
-  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) throw Object.assign(new Error('Invalid hex color'), { status: 400 });
+  if (!/^#[0-9a-fA-F]{6}$/.test(hex))
+    throw Object.assign(new Error('Invalid hex color'), { status: 400 });
 }
 
 /** Throw a 400 unless `current → next` is a permitted sprint phase transition. */
@@ -36,7 +40,8 @@ export function validateSprintTransition(current: string, next: string) {
     review: ['closed', 'rest', 'done'],
     closed: ['rest'],
   };
-  if (!allowed[current]?.includes(next)) throw Object.assign(new Error(`Cannot transition ${current} → ${next}`), { status: 400 });
+  if (!allowed[current]?.includes(next))
+    throw Object.assign(new Error(`Cannot transition ${current} → ${next}`), { status: 400 });
 }
 
 /** A 400 error with the given message (used by the ticket-PATCH field validators). */
