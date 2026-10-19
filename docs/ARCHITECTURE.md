@@ -8,6 +8,8 @@ Indexed languages (exports and import edges): TypeScript/JavaScript, Python (sin
 
 Tool and table counts live in the [README](../README.md) (stack and environment panels) and nowhere else, so this file cannot drift from them.
 
+Security: see the [threat model](security/threat-model.md) for the dashboard, the bridge and the index.
+
 ## System Components
 
 ### MCP Server (src/server/)
