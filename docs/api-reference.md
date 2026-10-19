@@ -642,7 +642,7 @@ await query({ sql: "SELECT * FROM tickets WHERE status = 'DONE'" });
 
 Run an INSERT, UPDATE, or DELETE against the context database.
 
-`execute` refuses writes to the gate columns: `tickets.status`, `tickets.qa_verified`, `tickets.verified_by`, `tickets.github_*`, `sprints.status`, `milestones.github_*` and `projects.github_*`. It also refuses `DELETE` on `tickets` and `sprints`, `REPLACE` on these tables and an `INSERT` into them without a column list. The error names the column and the tool to use (`update_ticket`, `update_sprint`, `advance_sprint`, `update_milestone`, `set_project`, `sync_github`). See [query / execute](./tools/query-execute.md). (#181)
+`execute` refuses writes to the gate columns: `tickets.status`, `tickets.qa_verified`, `tickets.verified_by`, `tickets.github_*`, `sprints.status`, `milestones.github_*` and `projects.github_*`. It also refuses `DELETE` on `tickets` and `sprints`, and `REPLACE` or an `INSERT` without a column list on `tickets`, `sprints`, `milestones` and `projects`. The error names the column and the tool to use (`update_ticket`, `update_sprint`, `advance_sprint`, `update_milestone`, `set_project`, `sync_github`). See [query / execute](./tools/query-execute.md). (#181)
 
 **Parameters:**
 
