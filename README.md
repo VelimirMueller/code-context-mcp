@@ -61,6 +61,8 @@
 <details>
 <summary><picture><source media="(prefers-color-scheme: light)" srcset="assets/readme/links-13-v3-light.svg"><img alt="Plain text" src="assets/readme/links-13-v3-dark.svg" width="32%"></picture></summary>
 
+Requires Node.js 22 or newer. Node.js 24 LTS is recommended.
+
 ```bash
 npm install vlm-code-context-mcp
 npx code-context-mcp setup .
@@ -259,7 +261,7 @@ npm run bench:publish
 <p>
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="assets/readme/stack-v3-light.svg">
-  <img alt="Runtime: Node.js 24 LTS. Build: TypeScript strict mode. Languages: Exports and import edges for TypeScript/JavaScript, Python and PHP (classes, interfaces, traits, enums, functions, constants; use statements resolved through composer.json PSR-4 maps). Other files are indexed with a summary only. Database: SQLite via better-sqlite3, WAL mode. 33 tables (27 scrum + 6 code). MCP protocol: @modelcontextprotocol/sdk. The server sends short MCP instructions (about 90 tokens) on when to use the graph tools. Dashboard: React 19 + Vite + Zustand + Framer Motion. CSS variables + Tailwind, dark theme. 75 React components. Live updates: SSE via WAL file watcher. Testing: Vitest. 1841 backend tests and 104 dashboard tests. Process: 9 agent roles (configurable). 4 sprint phases with gate checks + planning gate. 6 slash commands. CLI bins: 4: code-context-mcp, code-context-dashboard, code-context-statusline, code-context-reindex" src="assets/readme/stack-v3-dark.svg" width="100%">
+  <img alt="Runtime: Node.js 22 or newer, 24 LTS recommended. Build: TypeScript strict mode. Languages: Exports and import edges for TypeScript/JavaScript, Python and PHP (classes, interfaces, traits, enums, functions, constants; use statements resolved through composer.json PSR-4 maps). Other files are indexed with a summary only. Database: SQLite via better-sqlite3, WAL mode. 33 tables (27 scrum + 6 code). MCP protocol: @modelcontextprotocol/sdk. The server sends short MCP instructions (about 90 tokens) on when to use the graph tools. Dashboard: React 19 + Vite + Zustand + Framer Motion. CSS variables + Tailwind, dark theme. 75 React components. Live updates: SSE via WAL file watcher. Testing: Vitest. 1841 backend tests and 104 dashboard tests. Process: 9 agent roles (configurable). 4 sprint phases with gate checks + planning gate. 6 slash commands. CLI bins: 4: code-context-mcp, code-context-dashboard, code-context-statusline, code-context-reindex" src="assets/readme/stack-v3-dark.svg" width="100%">
 </picture>
 </p>
 
