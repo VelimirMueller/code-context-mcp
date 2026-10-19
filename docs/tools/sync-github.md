@@ -8,14 +8,14 @@ One database holds the scrum data of several repos. A **project key** tells them
 
 1. Register the project with `set_project`:
 
-   | Name | Type | Required | Description |
-   |------|------|----------|-------------|
-   | `name` | string | yes | Project key, e.g. `code-context-mcp`. |
-   | `repo` | string | no | GitHub repo `owner/name`. |
-   | `github_project_number` | number \| null | no | Project board number (`users/<owner>/projects/<N>`). |
-   | `github_project_owner` | string \| null | no | Board owner login. Default: repo owner. |
-   | `github_assignee` | string \| null | no | Issue assignee. Default: repo owner. |
-   | `force` | boolean | no | Re-point a project that already synced (see [Authorization](#authorization)). |
+   | Name                    | Type           | Required | Description                                                                   |
+   | ----------------------- | -------------- | -------- | ----------------------------------------------------------------------------- |
+   | `name`                  | string         | yes      | Project key, e.g. `code-context-mcp`.                                         |
+   | `repo`                  | string         | no       | GitHub repo `owner/name`.                                                     |
+   | `github_project_number` | number \| null | no       | Project board number (`users/<owner>/projects/<N>`).                          |
+   | `github_project_owner`  | string \| null | no       | Board owner login. Default: repo owner.                                       |
+   | `github_assignee`       | string \| null | no       | Issue assignee. Default: repo owner.                                          |
+   | `force`                 | boolean        | no       | Re-point a project that already synced (see [Authorization](#authorization)). |
 
 2. Put the key on milestones, sprints, epics or tickets: `create_milestone`, `create_sprint`, `create_epic` and `create_ticket` take `project`; `update_milestone`, `update_sprint`, `update_epic` and `update_ticket` take `project` (`null` unassigns). An unknown key is refused.
 3. Give each new ticket a `type` (`feat`, `fix`, `chore`, `infra`, `improvement`) with `create_ticket` or `update_ticket`. `origin: "human"` marks a ticket a person wrote.
@@ -35,11 +35,11 @@ Any MCP client can call `set_project` and `sync_github`. An agent that read prom
 
 Each entry pins exact targets. Both env vars are read from the server or CLI process; no tool and no CLI flag sets them.
 
-| Env var | Entry | Allows |
-|---|---|---|
-| `CODE_CONTEXT_GITHUB_SYNC_REPOS` | `owner/repo` | Issues and milestones in that repo. No Project board. |
-| | `owner/repo@board-owner/N` | The same, plus Project board `N` of `board-owner`. Only that board. |
-| `CODE_CONTEXT_GITHUB_SYNC_ASSIGNEES` | `login` | That login as issue assignee, in addition to the repo owner. |
+| Env var                              | Entry                      | Allows                                                              |
+| ------------------------------------ | -------------------------- | ------------------------------------------------------------------- |
+| `CODE_CONTEXT_GITHUB_SYNC_REPOS`     | `owner/repo`               | Issues and milestones in that repo. No Project board.               |
+|                                      | `owner/repo@board-owner/N` | The same, plus Project board `N` of `board-owner`. Only that board. |
+| `CODE_CONTEXT_GITHUB_SYNC_ASSIGNEES` | `login`                    | That login as issue assignee, in addition to the repo owner.        |
 
 - Entries are case-insensitive, comma or space separated. Wildcards and malformed entries are ignored.
 - **Repo.** The project's `repo` must be listed.
@@ -53,25 +53,31 @@ Each entry pins exact targets. Both env vars are read from the server or CLI pro
 - **Re-point rule.** When a project has synced (a ticket holds `github_issue` or a milestone holds `github_milestone`), `set_project` refuses a new `repo`, `github_project_number` or `github_project_owner`. `force: true` lifts this only when the new repo (and the exact board pair, with a board) passes the allowlist. The assignee may change freely; every live sync checks it. An unsynced project can be re-pointed; the allowlist still gates its first live sync.
 
 ```json
-{ "mcpServers": { "code-context": { "env": {
-  "CODE_CONTEXT_GITHUB_SYNC_REPOS": "VelimirMueller/code-context-mcp@VelimirMueller/10"
-} } } }
+{
+  "mcpServers": {
+    "code-context": {
+      "env": {
+        "CODE_CONTEXT_GITHUB_SYNC_REPOS": "VelimirMueller/code-context-mcp@VelimirMueller/10"
+      }
+    }
+  }
+}
 ```
 
 ## Parameters
 
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| `project` | string | yes | Project key. |
-| `dry_run` | boolean | no | Print the plan, write nothing. Reads GitHub (2 calls) to show an exact diff. |
-| `offline` | boolean | no | Needs `dry_run: true`: no GitHub call at all; updates show as `unverified`. `offline` without `dry_run` is refused (MCP tool and CLI alike). |
-| `max_writes` | number | no | Refuse a plan with more writes. Default `100`. |
-| `adopt` | number[] | no | Issue numbers to take over although they carry no sync marker. At most 500 per run. See [Ownership and adopt](#ownership-and-adopt). |
-| `adopt_milestones` | `{ milestone_id, github_milestone }[]` | no | Explicit mapping local milestone id → GitHub milestone number, to take over an unmarked milestone. At most 100 per run, each local milestone once. |
+| Name               | Type                                   | Required | Description                                                                                                                                        |
+| ------------------ | -------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `project`          | string                                 | yes      | Project key.                                                                                                                                       |
+| `dry_run`          | boolean                                | no       | Print the plan, write nothing. Reads GitHub (2 calls) to show an exact diff.                                                                       |
+| `offline`          | boolean                                | no       | Needs `dry_run: true`: no GitHub call at all; updates show as `unverified`. `offline` without `dry_run` is refused (MCP tool and CLI alike).       |
+| `max_writes`       | number                                 | no       | Refuse a plan with more writes. Default `100`.                                                                                                     |
+| `adopt`            | number[]                               | no       | Issue numbers to take over although they carry no sync marker. At most 500 per run. See [Ownership and adopt](#ownership-and-adopt).               |
+| `adopt_milestones` | `{ milestone_id, github_milestone }[]` | no       | Explicit mapping local milestone id → GitHub milestone number, to take over an unmarked milestone. At most 100 per run, each local milestone once. |
 
 ## Ownership and adopt
 
-A stored number does not prove that the sync created the object. `update_ticket github_issue=<N>`, `update_milestone github_milestone=<N>` or the `execute` tool can point a row at any issue or milestone of the repo. So the sync writes only to objects that carry its marker.
+A stored number does not prove that the sync created the object. `update_ticket github_issue=<N>` or `update_milestone github_milestone=<N>` can point a row at any issue or milestone of the repo. (The `execute` tool could do this before #181; it now refuses every `github_*` column.) So the sync writes only to objects that carry its marker.
 
 - **Marker.** Every issue the sync creates ends its body with a hidden HTML comment:
   `<!-- code-context-sync: project=<project> ticket=<ticket_ref> -->`.
@@ -89,7 +95,7 @@ A stored number does not prove that the sync created the object. `update_ticket 
   - a read error: the run stops before its first write;
   - a repo with more than 1,000 milestones: the milestone read fails instead of returning a partial list;
   - an issue with more labels than one read returns: its labels stay as they are.
-  An offline plan is never applied: a live run always re-plans from a fresh read, and refuses to write any update whose ownership the read did not verify.
+    An offline plan is never applied: a live run always re-plans from a fresh read, and refuses to write any update whose ownership the read did not verify.
 - No marker: skipped with the note `has no code-context-sync marker — not created by this sync, left untouched`.
 - Another project's or ticket's marker: skipped with the note `carries another ticket's or project's code-context-sync marker`. Adopt never overrides this.
 - If you change the `gh` login, the issues the old login created no longer pass the author rule and are skipped.
@@ -102,6 +108,7 @@ A stored number does not prove that the sync created the object. `update_ticket 
   - The issue carries no marker.
 
   The adopt run writes the full ticket state and the marker. Later runs need no adopt.
+
 - **Adopt a milestone** by an explicit number mapping: `adopt_milestones: [{ milestone_id: 14, github_milestone: 1 }]`, CLI `--milestone 14=1`. The same bar as an issue adopt: a live, allowlisted run; the `gh` user created the milestone; it carries no marker; no other local milestone links it; and its GitHub title already is the local milestone name (case aside). A foreign marker is refused. A title match without a mapping never links. The number is stored only when the adopt passes, through the MCP tool and the CLI alike.
 - Renaming a ticket's `ticket_ref` makes its issue foreign (the marker names the old ref). Rename the GitHub title to the new ref, clear the marker line by hand, then adopt again.
 - **Cost.** The marker, author and node id checks use the one GraphQL read (the `viewer` login is in it too); adopt adds no read. Adopting 13 issues costs 1 GraphQL read + 13 REST writes (+1 REST read when the project has milestones). A no-change sync of 13 issues costs 2 calls.
@@ -109,15 +116,15 @@ A stored number does not prove that the sync created the object. `update_ticket 
 
 ## What it writes
 
-| Local | GitHub |
-|-------|--------|
-| Milestone with the project key | Milestone: title, description (+ marker), due date, closed when `completed`. Matched by stored number when the marker matches, or by an explicit adopt mapping; else created. Never matched by title. |
-| Ticket | Issue `"<ticket_ref>: <title>"`. Body: `## Why` (description before `Done when:`), `## Done when` (the rest, plus acceptance criteria) and the hidden marker line. |
-| `priority` | Label `P0`/`P1`/`P2` (`P3` has none). |
-| `type` | Exactly one of `feat`, `fix`, `chore`, `infra`, `improvement`. |
-| `origin` | `ai_issue` (default on create) or `issue` (`origin: "human"`). |
-| — | Assignee: the project's assignee (others stay). |
-| `status`, `review_status` | Board Status: DONE → **Done** (issue closed); review pending → **In review**; IN_PROGRESS / BLOCKED / PARTIAL → **In progress**; TODO in an open sprint → **Ready**; other TODO and NOT_DONE → **Backlog**. A closed issue whose ticket is not DONE is reopened. |
+| Local                          | GitHub                                                                                                                                                                                                                                                           |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Milestone with the project key | Milestone: title, description (+ marker), due date, closed when `completed`. Matched by stored number when the marker matches, or by an explicit adopt mapping; else created. Never matched by title.                                                            |
+| Ticket                         | Issue `"<ticket_ref>: <title>"`. Body: `## Why` (description before `Done when:`), `## Done when` (the rest, plus acceptance criteria) and the hidden marker line.                                                                                               |
+| `priority`                     | Label `P0`/`P1`/`P2` (`P3` has none).                                                                                                                                                                                                                            |
+| `type`                         | Exactly one of `feat`, `fix`, `chore`, `infra`, `improvement`.                                                                                                                                                                                                   |
+| `origin`                       | `ai_issue` (default on create) or `issue` (`origin: "human"`).                                                                                                                                                                                                   |
+| —                              | Assignee: the project's assignee (others stay).                                                                                                                                                                                                                  |
+| `status`, `review_status`      | Board Status: DONE → **Done** (issue closed); review pending → **In review**; IN_PROGRESS / BLOCKED / PARTIAL → **In progress**; TODO in an open sprint → **Ready**; other TODO and NOT_DONE → **Backlog**. A closed issue whose ticket is not DONE is reopened. |
 
 Labels the sync does not own stay on the issue. On an update, the type and origin labels change only when the ticket sets `type` / `origin`. A new ticket without `type` is skipped with a note.
 
@@ -187,6 +194,7 @@ code-context-sync-github --db ~/path/to/context.db --project code-context-mcp \
   CODE_CONTEXT_GITHUB_SYNC_REPOS=VelimirMueller/code-context-mcp@VelimirMueller/10 \
     code-context-sync-github --db ~/path/to/context.db --project code-context-mcp --adopt 116-128 --milestone 14=1
   ```
+
 - `--offline` needs `--dry-run`. The CLI runs every request through the same engine gate as the MCP tool.
 - A live run (no `--dry-run`) migrates the db to schema v26. An older code-context server refuses a v26 db, so update the installed package first.
 - Exit codes: 0 ok, 1 sync failed, 2 bad usage.
