@@ -229,10 +229,11 @@ npm run lint:fix
 
 ### Pre-commit Hooks
 
-Husky and lint-staged run on every commit for files matching `src/**/*.{ts,tsx,js,jsx}`:
+Husky runs lint-staged (`lint-staged.config.mjs`) on the staged files of every commit. It never runs a full build:
 
-1. `tsc --noEmit` — Type checking
-2. `npm run build` — Full build verification
+1. `tsc --noEmit` — type check, once per commit, when a staged file is under `src/` (`-p src/dashboard/app` for dashboard app files)
+2. `eslint --no-warn-ignored` — lint staged JS/TS files
+3. `prettier --write --ignore-unknown` — format staged files
 
 If a commit fails the hook, fix the issues before re-committing.
 
