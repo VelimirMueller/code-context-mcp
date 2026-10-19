@@ -13,9 +13,9 @@ or a CTE-prefixed write — can reach the database.
 Run a single read-only statement against the context database: `SELECT` (or a `WITH` CTE),
 `PRAGMA table_info(<table>)` or `PRAGMA table_list`.
 
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| `sql` | string | yes | One SELECT, `PRAGMA table_info(t)` or `PRAGMA table_list` |
+| Name  | Type   | Required | Description                                               |
+| ----- | ------ | -------- | --------------------------------------------------------- |
+| `sql` | string | yes      | One SELECT, `PRAGMA table_info(t)` or `PRAGMA table_list` |
 
 The tool description carries the schema of the code-index tables (`files`, `exports`,
 `dependencies`, without `files.content`) and the joins for "who imports X" and "exports of X",
@@ -31,11 +31,11 @@ so a reader does not need to dump `sqlite_master` first (#118).
 
 **Output limits** (constants in `src/server/query-output.ts`):
 
-| Limit | Value | When hit |
-|-------|-------|----------|
-| Rows | 50 | Note `Truncated: N of M rows shown (50-row cap)`; M is counted up to 10,000 (`10000+` beyond). |
-| Output | ~8 KB of row text | Same note with `8 KB output cap`; the first row always shows. |
-| Cell | 1,000 chars | Value ends in `…[+N chars]`; read the rest with `substr(col, start, len)`. |
+| Limit  | Value             | When hit                                                                                       |
+| ------ | ----------------- | ---------------------------------------------------------------------------------------------- |
+| Rows   | 50                | Note `Truncated: N of M rows shown (50-row cap)`; M is counted up to 10,000 (`10000+` beyond). |
+| Output | ~8 KB of row text | Same note with `8 KB output cap`; the first row always shows.                                  |
+| Cell   | 1,000 chars       | Value ends in `…[+N chars]`; read the rest with `substr(col, start, len)`.                     |
 
 The result is a JSON array, one row per line. Notes, if any, follow after a blank line.
 
@@ -57,10 +57,10 @@ query sql="PRAGMA table_info(dependencies)"
 
 Run a single `INSERT`, `UPDATE`, or `DELETE` statement against the context database.
 
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| `sql` | string | yes | A single INSERT, UPDATE, or DELETE SQL statement |
-| `params` | array | no | Optional positional bind parameters |
+| Name     | Type   | Required | Description                                      |
+| -------- | ------ | -------- | ------------------------------------------------ |
+| `sql`    | string | yes      | A single INSERT, UPDATE, or DELETE SQL statement |
+| `params` | array  | no       | Optional positional bind parameters              |
 
 **Constraints (enforced by the SQL guard):**
 
