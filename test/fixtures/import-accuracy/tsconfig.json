@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "paths": { "@/*": ["./src/*"] }
+  },
+  "include": ["src"]
+}
