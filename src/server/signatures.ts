@@ -12,11 +12,15 @@ export const MAX_SIGNATURE_CHARS = 160;
 /** Import lines stored per file; a file with more is a generated barrel. */
 export const MAX_STORED_IMPORT_LINES = 200;
 
-/** JS/TS declaration exports. Shared with the export parser in indexer.ts. */
-export const DEFAULT_EXPORT_SRC = String.raw`export\s+default\s+(function|class)\s+(\w+)`;
-export const NAMED_EXPORT_SRC = String.raw`export\s+(?:async\s+)?(function|const|let|var|class|interface|type|enum)\s+(\w+)`;
+/**
+ * JS/TS declaration exports. Shared with the export parser in indexer.ts.
+ * Group 1 is the keyword, group 2 the name. `declare`, `abstract` and `async`
+ * may precede the keyword and a generator `*` may follow it (CCA-38).
+ */
+export const DEFAULT_EXPORT_SRC = String.raw`export\s+default\s+(?:async\s+)?(?:abstract\s+)?(function|class)(?:\s*\*\s*|\s+)(\w+)`;
+export const NAMED_EXPORT_SRC = String.raw`export\s+(?:declare\s+)?(?:abstract\s+)?(?:async\s+)?(function|const|let|var|class|interface|type|enum)(?:\s*\*\s*|\s+)(\w+)`;
 
-const JS_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);
+const JS_EXTENSIONS = new Set(['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs']);
 const PY_EXTENSIONS = new Set(['.py', '.pyi']);
 
 export interface ExportDetail {

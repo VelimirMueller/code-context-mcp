@@ -26,8 +26,10 @@
  *   import, including `.js` specifiers that name `.ts` sources. Every resolved
  *   file must lie inside the index root.
  *
- * Vite `resolve.alias` is not read: the common setup mirrors tsconfig `paths`,
- * and a vite.config is code (path.resolve(__dirname, …)), not data.
+ * - Vite `resolve.alias` (CCA-38, #182): the nearest vite.config.*'s static
+ *   alias entries (vite-alias.ts) apply after `paths`, before `baseUrl`.
+ * - Workspace packages (CCA-38): a bare specifier whose `node_modules` entry
+ *   links back into the root resolves to that package's source.
  *
  * Config text is JSON with comments and trailing commas. It is parsed by a
  * linear-time scanner (no regex on the file), files above MAX_CONFIG_BYTES are
@@ -35,14 +37,26 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { applyViteAlias, parseViteAliases, type ViteAlias } from './vite-alias.js';
 
 export const MAX_CONFIG_BYTES = 1024 * 1024;
 const MAX_EXTENDS_DEPTH = 16;
 const MAX_GLOB_LENGTH = 4096;
 const CONFIG_NAMES = ['tsconfig.json', 'jsconfig.json'];
+const VITE_CONFIG_NAMES = ['ts', 'mts', 'cts', 'js', 'mjs', 'cjs'].map((e) => `vite.config.${e}`);
 
 /** Extensions tried after a specifier, in TypeScript's order (then plain JS). */
-export const RESOLVE_EXTENSIONS = ['.ts', '.tsx', '.d.ts', '.js', '.jsx', '.mjs', '.cjs'];
+export const RESOLVE_EXTENSIONS = [
+  '.ts',
+  '.tsx',
+  '.d.ts',
+  '.js',
+  '.jsx',
+  '.mts',
+  '.cts',
+  '.mjs',
+  '.cjs',
+];
 
 function insideOrSame(child: string, parent: string): boolean {
   const rel = path.relative(parent, child);
@@ -230,6 +244,8 @@ export class AliasResolver {
   private readonly nearest = new Map<string, string | null>();
   private readonly governing = new Map<string, ResolvedConfig | null>();
   private readonly fileCache = new Map<string, boolean>();
+  private readonly vite = new Map<string, { dir: string; aliases: ViteAlias[] } | null>();
+  private readonly links = new Map<string, string | null>();
 
   constructor(readonly rootDir: string) {}
 
@@ -247,8 +263,11 @@ export class AliasResolver {
   };
 
   /**
-   * The file a bare (non-relative) specifier names, through the governing
-   * config's `paths` and `baseUrl`; null = external package or unknown.
+   * The file a bare (non-relative) specifier names, in this order: the
+   * governing config's `paths`, the nearest vite.config's static
+   * `resolve.alias`, the config's `baseUrl`, then a `node_modules` link that
+   * points back into the root (a workspace package). null = external package
+   * or unknown.
    */
   resolve(specifier: string, fromFile: string): string | null {
     if (
@@ -259,8 +278,7 @@ export class AliasResolver {
     )
       return null;
     const cfg = this.configFor(fromFile);
-    if (!cfg) return null;
-    if (cfg.paths && cfg.pathsBase) {
+    if (cfg?.paths && cfg.pathsBase) {
       for (const target of matchPaths(cfg.paths, specifier)) {
         const hit = probeFile(
           path.resolve(cfg.pathsBase, expandConfigDir(target, cfg.dir)),
@@ -270,9 +288,100 @@ export class AliasResolver {
         if (hit) return hit;
       }
     }
-    if (cfg.baseUrl)
-      return probeFile(path.resolve(cfg.baseUrl, specifier), this.rootDir, this.isFile);
+    const vite = this.viteConfig(path.dirname(fromFile));
+    if (vite) {
+      const mapped = applyViteAlias(vite.aliases, specifier, vite.dir);
+      const hit = mapped ? probeFile(mapped, this.rootDir, this.isFile) : null;
+      if (hit) return hit;
+    }
+    if (cfg?.baseUrl) {
+      const hit = probeFile(path.resolve(cfg.baseUrl, specifier), this.rootDir, this.isFile);
+      if (hit) return hit;
+    }
+    return this.workspacePackage(specifier, fromFile);
+  }
+
+  /** Nearest vite.config.* from `dir` up to the root, with its static aliases (cached). */
+  private viteConfig(dir: string): { dir: string; aliases: ViteAlias[] } | null {
+    if (this.vite.has(dir)) return this.vite.get(dir)!;
+    let found: { dir: string; aliases: ViteAlias[] } | null = null;
+    if (insideOrSame(dir, this.rootDir)) {
+      const file = VITE_CONFIG_NAMES.map((n) => path.join(dir, n)).find(this.isFile);
+      if (file) {
+        let aliases: ViteAlias[] = [];
+        try {
+          if (fs.statSync(file).size <= MAX_CONFIG_BYTES)
+            aliases = parseViteAliases(fs.readFileSync(file, 'utf-8'), file);
+        } catch {
+          aliases = [];
+        }
+        found = { dir, aliases };
+      } else if (dir !== this.rootDir) {
+        const parent = path.dirname(dir);
+        if (parent !== dir) found = this.viteConfig(parent);
+      }
+    }
+    this.vite.set(dir, found);
+    return found;
+  }
+
+  /**
+   * A bare specifier through `node_modules/<pkg>` (looked up from the
+   * importing file's directory to the root) when that entry is a link whose
+   * real path is a repo directory outside any node_modules: npm, yarn and pnpm
+   * workspaces. The package root resolves through package.json `types`,
+   * `typings`, `module`, `main`, then `index.*`; a subpath (`pkg/a/b`) is
+   * probed under the package directory. `exports` maps are not read.
+   */
+  private workspacePackage(specifier: string, fromFile: string): string | null {
+    const parts = specifier.split('/');
+    const nameLen = specifier.startsWith('@') ? 2 : 1;
+    if (parts.length < nameLen || parts.some((p) => !p || p === '.' || p === '..')) return null;
+    const name = parts.slice(0, nameLen).join('/');
+    const sub = parts.slice(nameLen).join('/');
+    let dir = path.dirname(fromFile);
+    while (insideOrSame(dir, this.rootDir)) {
+      const pkgDir = this.workspaceDir(path.join(dir, 'node_modules', name));
+      if (pkgDir) {
+        if (sub) return probeFile(path.join(pkgDir, sub), this.rootDir, this.isFile);
+        return this.packageEntry(pkgDir);
+      }
+      if (dir === this.rootDir) break;
+      dir = path.dirname(dir);
+    }
     return null;
+  }
+
+  /** Real path of a node_modules entry when it lies in the root outside every node_modules. */
+  private workspaceDir(entry: string): string | null {
+    if (this.links.has(entry)) return this.links.get(entry)!;
+    let out: string | null = null;
+    try {
+      const real = fs.realpathSync(entry);
+      const rel = path.relative(this.rootDir, real);
+      if (
+        insideOrSame(real, this.rootDir) &&
+        !rel.split(path.sep).includes('node_modules') &&
+        fs.statSync(real).isDirectory()
+      )
+        out = real;
+    } catch {
+      out = null;
+    }
+    this.links.set(entry, out);
+    return out;
+  }
+
+  /** The file a workspace package's root import loads. */
+  private packageEntry(pkgDir: string): string | null {
+    const pkg = readJsonc(path.join(pkgDir, 'package.json'));
+    for (const field of ['types', 'typings', 'module', 'main']) {
+      const v = pkg?.[field];
+      if (typeof v !== 'string' || !v) continue;
+      const hit = probeFile(path.resolve(pkgDir, v), this.rootDir, this.isFile);
+      if (hit && insideOrSame(hit, pkgDir)) return hit;
+    }
+    return probeFile(path.join(pkgDir, 'index'), this.rootDir, this.isFile);
   }
 
   /** The config whose aliases apply to `file`, or null. */

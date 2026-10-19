@@ -76,7 +76,16 @@ function matchesGitignore(
 // reads it. On 2026-10-09, 71 % of the shared index was node_modules/vendor.
 const SKIP_DIRS = SKIP_DIR_NAMES;
 
-const PARSEABLE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);
+const PARSEABLE_EXTENSIONS = new Set([
+  '.ts',
+  '.tsx',
+  '.mts',
+  '.cts',
+  '.js',
+  '.jsx',
+  '.mjs',
+  '.cjs',
+]);
 const PYTHON_EXTENSIONS = new Set(['.py', '.pyi']);
 const PHP_EXTENSION = '.php';
 
@@ -91,6 +100,8 @@ const LANG_MAP: Record<string, string> = {
   '.jsx': 'javascriptreact',
   '.mjs': 'javascript',
   '.cjs': 'javascript',
+  '.mts': 'typescript',
+  '.cts': 'typescript',
   '.py': 'python',
   '.pyw': 'python',
   '.rb': 'ruby',
