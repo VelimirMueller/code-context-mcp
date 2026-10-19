@@ -26,17 +26,17 @@ The attached files describe it. Tagline: "Read less. Know more."
 
 Order of authority: README.md (current numbers and status), then CHANGELOG.md (what
 shipped in which version), then docs/REFERENCE.md and docs/api-reference.md, then
-docs/ARCHITECTURE.md. ARCHITECTURE.md is older in places: when a count differs, the
-README wins. Say which file a fact comes from when it matters.
+docs/ARCHITECTURE.md. ARCHITECTURE.md holds no tool or table counts: take them from
+the README. Say which file a fact comes from when it matters.
 
 What it is:
-- Indexes a TypeScript/JavaScript codebase into one SQLite file, context.db (WAL mode,
-  better-sqlite3). Agents query file roles, exports and dependents before they read a file.
+- Indexes a TypeScript/JavaScript, Python or PHP codebase into one SQLite file,
+  context.db (WAL mode, better-sqlite3). Agents query file roles, exports and dependents before they read a file.
 - Runs a sprint process for a 9-agent team: vision, discovery, milestones, epics, tickets,
   gates, retros. Phases: planning -> implementation -> done -> rest, each with a gate.
 - A React + Vite + Zustand dashboard on :3333 with SSE live updates from a WAL watcher.
-- 4 CLI bins: code-context-mcp, code-context-dashboard, code-context-statusline,
-  code-context-reindex. Slash commands ship in .claude/commands.
+- 5 CLI bins: code-context-mcp, code-context-dashboard, code-context-statusline,
+  code-context-reindex, code-context-sync-github. Slash commands ship in .claude/commands.
 - Node.js 24 LTS, TypeScript strict, Vitest. Tests: npm test. Lint: npm run lint.
 
 How to work on it:
