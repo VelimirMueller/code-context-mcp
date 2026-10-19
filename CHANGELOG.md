@@ -231,6 +231,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.6.0] - 2026-10-09
 
+- 2.6.0 has no git tag and was not published to npm; 2.7.0 contains its changes too.
+
 ### Added
 
 - **Read-time freshness guard** (`src/server/freshness.ts`). `search_files`, `find_symbol` and `get_file_context` stat every row before answering: size or mtime differ from what was indexed → the file is re-indexed (exports, deps, change log); gone → dropped; the query then re-runs. Every row shows `indexed <ts>`. `get_file_context` on a file inside an indexed repo that is not in the index yet indexes it on the fly (unless denied or git-ignored).
@@ -259,6 +261,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.5.0] - 2026-10-09
 
+- 2.5.0 has a git tag and a GitHub release but is not on npm; 2.5.1 contains its changes too.
+
 ### Added
 
 - **Overdrive session log** — the MCP server and the dashboard append one-line breadcrumbs to the shared per-session log `${OVERDRIVE_SESSION_LOG_DIR:-~/.claude/.local_ai_setup_logs/sessions}/<CLAUDE_CODE_SESSION_ID>.log` (`_nosession-YYYY-MM-DD.log` without a session id), in the overdrive contract format `<ts>\t<LEVEL>\tcode-context@<version>\tpid=<pid>\t<message>`. New helper `src/sessionlog.ts` (node stdlib only): one `O_APPEND` write per line, dir `0700` / file `0600`, every error swallowed, never prints (stdout is the MCP transport), `OVERDRIVE_SESSION_LOG=0` turns it off.
@@ -267,6 +271,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `CRITICAL` — exceptions escaping any MCP tool handler, dashboard routes failing with a 5xx (error class only), DB open/migration failure.
   - Only ids, counts, phases and durations are logged — never titles, descriptions, retro text, file contents, the dashboard token or SQL values. Read paths stay silent.
 - The test suite runs with `OVERDRIVE_SESSION_LOG=0` so it never writes into a real session log.
+
+## [2.4.2] - 2026-10-07
+
+### Fixed
+
+- The file watcher skips CocoaPods `Pods/` directories. (#73)
+
+### Changed
+
+- Vendored skills re-synced from upstream `main`. (#74)
 
 ## [2.4.1] - 2026-10-07
 
@@ -426,7 +440,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- **npm publish workflow** (`.github/workflows/publish.yml`) — releases are now git tag + GitHub release only; the package is not published to npm.
+- **npm publish workflow** (`.github/workflows/publish.yml`) — CI no longer publishes to npm; a release is a git tag + GitHub release. The package is still on npm: 1.2.1 and most later versions were published outside CI.
 
 ## [1.2.0] - 2026-06-09
 
@@ -446,6 +460,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Skills install **flat** at `.claude/skills/<skill>/SKILL.md`. Claude Code discovers project skills one level deep, so the upstream `frontend/` domain wrapper is stripped on install while `_shared/` is kept as a sibling so the skills' `../_shared/` references still resolve.
 
+## [1.1.5] - 2026-04-22
+
+- Version bump only; no code changes since 1.1.4. First version with a git tag (`v1.1.5`).
+
+## [1.1.4] - 2026-04-22
+
+### Changed
+
+- `package.json` `repository`, `bugs` and `homepage` point to `github.com/VelimirMueller/vlm-code-context-mcp` (was `mcp-server`).
+- `hono` bumped in the lockfile (Dependabot, #19).
+
 ## [1.1.3] - 2026-04-16
 
 ### Fixed
@@ -453,6 +478,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Package description still referenced "7-agent scrum team" — now ships with 9 agents (Security Engineer + Architect added in 1.1.2)
 
 ## [1.1.2] - 2026-04-16
+
+- 1.1.2 was not published to npm; 1.1.3 contains its changes too.
 
 ### Added
 
@@ -466,6 +493,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Flaky CI benchmark test** — "larger tasks save more" assertion compared group totals (4 small vs 3 large tasks) instead of per-task averages, causing failures on CI where indexer output differs slightly across Node versions
+
+## [1.1.1] - 2026-04-16
+
+### Fixed
+
+- Flaky CI benchmark test: "larger tasks save more" compares per-task averages, not group totals. The 1.1.2 entry lists the same fix.
 
 ## [1.1.0] - 2026-04-16
 
@@ -484,6 +517,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.2] - 2026-04-15
 
+- 1.0.2 was not published to npm; 1.1.0 contains its changes too.
+
 ### Removed
 
 - **Velocity tab** — removed `Velocity` page, `velocityStore`, `/api/velocity` endpoint, and navigation entry. Sprint velocity data (committed/completed points, badges) remains available on sprint cards and Gantt chart.
@@ -491,6 +526,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - `comparison.json` now ships in npm package and dashboard falls back to bundled copy when not found next to database — fixes empty Benchmark page on npm installs
+
+## [1.0.1] - 2026-04-15
+
+### Fixed
+
+- `comparison.json` ships in the npm package, and the dashboard falls back to the bundled copy (the 1.0.2 entry lists the same fix). The README was rewritten for the 1.0 launch.
 
 ## [1.0.0] - 2026-04-14
 
@@ -516,6 +557,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed 5 noisy debug `console.log` statements from dashboard.ts (SSE change notifications, re-index, marketing stats rebuild, client connect)
 
 ## [0.3.1] - 2026-04-14
+
+- 0.3.1 was not published to npm; 1.0.0 contains its changes too.
 
 ### Added
 
@@ -550,6 +593,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Navigation updated to include Benchmark and Velocity as top-level tabs
 - README updated with benchmark findings and efficiency metrics
+
+## 0.2.1 – 0.2.9 - 2026-04-08 to 2026-04-09
+
+Patch releases on npm without their own entry; the 0.2.0 and 0.3.0 entries describe the work. One line each, from the git log:
+
+- 0.2.1 – 0.2.4 (2026-04-08): dashboard UI overhaul steps.
+- 0.2.5 (2026-04-09): skills overhaul.
+- 0.2.6: smaller tool output to reduce tokens.
+- 0.2.7: fix an install bug in `settings.json`.
+- 0.2.8: README update and scrum tool changes.
+- 0.2.9: MCP tool coverage test and a README note.
 
 ## [0.2.0] - 2026-04-12
 
@@ -646,6 +700,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Original single-file HTML dashboard (replaced by React app)
 - Linear integration (all external sync code removed)
 
+## [0.1.1] - 2026-04-06
+
+### Fixed
+
+- The BentoGrid shows the project's own data instead of hard-coded data, so clean npm installs render. (#8)
+- The ProcessFlow page gets its `'use client'` directive.
+
 ## [0.1.0] - 2026-04-08
 
 ### Added
@@ -680,8 +741,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `zod` schema validation
 - MIT license
 
-[1.0.0]: https://github.com/VelimirMueller/mcp-server/compare/v0.3.1...v1.0.0
-[0.3.1]: https://github.com/VelimirMueller/mcp-server/compare/v0.3.0...v0.3.1
-[0.3.0]: https://github.com/VelimirMueller/mcp-server/compare/v0.2.0...v0.3.0
-[0.2.0]: https://github.com/VelimirMueller/mcp-server/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/VelimirMueller/mcp-server/releases/tag/v0.1.0
+<!-- Tagged versions link to a compare view. Versions without a git tag (tags start at v1.1.5; 1.3.0, 2.6.0 and 2.12.0 have none) link to their version-bump commit. -->
+
+[Unreleased]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.13.0...HEAD
+[2.13.0]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.11.0...v2.13.0
+[2.12.0]: https://github.com/VelimirMueller/code-context-mcp/commit/e23b7670826929286516cd10a8cf45a7747c4581
+[2.11.0]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.10.0...v2.11.0
+[2.10.0]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.9.0...v2.10.0
+[2.9.0]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.8.0...v2.9.0
+[2.8.0]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.7.0...v2.8.0
+[2.7.0]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.5.1...v2.7.0
+[2.6.0]: https://github.com/VelimirMueller/code-context-mcp/commit/cdb93fab43d09ce390c2c0fa25b2a214c1d8dfcd
+[2.5.1]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.5.0...v2.5.1
+[2.5.0]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.4.2...v2.5.0
+[2.4.2]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.4.1...v2.4.2
+[2.4.1]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.4.0...v2.4.1
+[2.4.0]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.3.0...v2.4.0
+[2.3.0]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.2.0...v2.3.0
+[2.2.0]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.1.0...v2.2.0
+[2.1.0]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.0.0...v2.1.0
+[2.0.0]: https://github.com/VelimirMueller/code-context-mcp/compare/v1.3.1...v2.0.0
+[1.3.1]: https://github.com/VelimirMueller/code-context-mcp/compare/v1.2.1...v1.3.1
+[1.3.0]: https://github.com/VelimirMueller/code-context-mcp/commit/6330a8a63631f17ab6272489f2ee864d7414c26c
+[1.2.1]: https://github.com/VelimirMueller/code-context-mcp/compare/v1.2.0...v1.2.1
+[1.2.0]: https://github.com/VelimirMueller/code-context-mcp/compare/v1.1.5...v1.2.0
+[1.1.5]: https://github.com/VelimirMueller/code-context-mcp/releases/tag/v1.1.5
+[1.1.4]: https://github.com/VelimirMueller/code-context-mcp/commit/dcfaa0accf93ae1b8a79d8ed52e32961ddd6cf8a
+[1.1.3]: https://github.com/VelimirMueller/code-context-mcp/commit/888a355f45d7bf1301cd980c6a4676d76aa35b46
+[1.1.2]: https://github.com/VelimirMueller/code-context-mcp/commit/c3d0b8458c4b8cc1a466ba1d2f92bd1b37d6900f
+[1.1.1]: https://github.com/VelimirMueller/code-context-mcp/commit/2b4b5a649e5f7cb1f40191501d9520bb1dd148e8
+[1.1.0]: https://github.com/VelimirMueller/code-context-mcp/commit/0149d4463525a884c25b4e5ca2973ce49ecead42
+[1.0.2]: https://github.com/VelimirMueller/code-context-mcp/commit/2889447906d211a7628eaeea69ed77d0e35dd0e8
+[1.0.1]: https://github.com/VelimirMueller/code-context-mcp/commit/28f3b9da45ea71e8e87fbe649e304147f16a3edf
+[1.0.0]: https://github.com/VelimirMueller/code-context-mcp/commit/de88bce6967c0859897a0a579202f830ab64d7ff
+[0.3.1]: https://github.com/VelimirMueller/code-context-mcp/commit/0c23205b6bb9d16d6200172631c01e891b115d6a
+[0.3.0]: https://github.com/VelimirMueller/code-context-mcp/commit/6581a345d97ffdd90c30787956b06add1e415d3a
+[0.2.0]: https://github.com/VelimirMueller/code-context-mcp/commit/1243cc51c328c06b5f678551696e2d937dd33a0d
+[0.1.1]: https://github.com/VelimirMueller/code-context-mcp/commit/cc7abe2f80088d912f45a91f28b1ccacd192a52c
+[0.1.0]: https://github.com/VelimirMueller/code-context-mcp/commit/eb56b1a5d61a838e50f9cb9e4c689a2a86969c84
