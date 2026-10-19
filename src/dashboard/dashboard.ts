@@ -17,7 +17,13 @@ import {
 } from '../scrum/schema.js';
 import { archiveEntity, unarchiveEntity, type ArchivableEntity } from '../scrum/archive.js';
 import { seedDefaults } from '../scrum/defaults.js';
-import { resolveDashboardToken, isAuthorized, isAllowedHost, isAllowedOrigin } from './auth.js';
+import {
+  dashboardTokenRoot,
+  resolveDashboardToken,
+  isAuthorized,
+  isAllowedHost,
+  isAllowedOrigin,
+} from './auth.js';
 import { makeWatchIgnorePredicate, WATCH_DIR_WARN_THRESHOLD } from '../shared/ignore.js';
 import { codeHandlers, sprintHandlers, benchHandlers, planningHandlers } from './handlers/index.js';
 import { log as slog, errorClass, logThrottled } from '../sessionlog.js';
@@ -1471,8 +1477,9 @@ function sendRequestError(
 }
 
 // ─── Server ──────────────────────────────────────────────────────────────────
-// Shared bearer token for /api/* (#15b). Auto-generated + persisted if unset.
-const DASHBOARD_TOKEN = resolveDashboardToken();
+// Shared bearer token for /api/* (#15b). Auto-generated + persisted if unset,
+// beside the db so the MCP server finds the same token from any cwd (#235).
+const DASHBOARD_TOKEN = resolveDashboardToken(dashboardTokenRoot(dbPath));
 
 /** Inject the dashboard token into served HTML so the same-origin app can read it. */
 function injectToken(html: string): string {

@@ -15,7 +15,7 @@ import {
   LATEST_SCHEMA_VERSION,
   peekSchemaVersion,
 } from '../scrum/schema.js';
-import { checkDistFreshness, registerScrumTools } from '../scrum/tools.js';
+import { checkDistFreshness, registerScrumTools, setDashboardDbPath } from '../scrum/tools.js';
 import { seedDefaults } from '../scrum/defaults.js';
 import { syncSkillsFromUpstream } from '../scrum/skill-sync.js';
 import { log as slog, errorClass, logToolExceptions } from '../sessionlog.js';
@@ -863,6 +863,8 @@ server.tool('health', 'Check server health and connectivity', {}, async () => {
 });
 
 // ─── Scrum tools ─────────────────────────────────────────────────────────────
+// Notify calls read the dashboard token beside this db, not beside the cwd (#235).
+setDashboardDbPath(resolvedDbPath);
 registerScrumTools(server, db);
 
 // ─── Start ────────────────────────────────────────────────────────────────────

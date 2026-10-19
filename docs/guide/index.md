@@ -104,4 +104,4 @@ npm run dashboard
 
 Open [http://localhost:3333](http://localhost:3333). The dashboard is a React SPA served from `dist/dashboard/index.html` (`dashboard.html` is a fallback only), with six tabs: **Dashboard**, **Planning**, **Code**, **Team**, **Retro**, and **Benchmark** (the Kanban board is a sub-tab of Dashboard).
 
-Requests to `/api/*` require a bearer token. The token is auto-generated on first run and persisted to `.code-context/dashboard.token`.
+Requests to `/api/*` require a bearer token. The token is auto-generated on first run and persisted to `.code-context/dashboard.token` in the directory of the `context.db` in use, so the MCP server and the dashboard share it from any working directory.

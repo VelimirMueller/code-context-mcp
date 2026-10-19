@@ -2,7 +2,9 @@
 // notifications to /api/*), and the browser frontend share a single bearer
 // token. Secure by default: if CODE_CONTEXT_DASHBOARD_TOKEN is unset, a random
 // token is generated and persisted to <root>/.code-context/dashboard.token
-// (gitignored) so all three parties can read the same value.
+// (gitignored) so all three parties can read the same value. <root> is the
+// directory of the context.db in use (#235): the dashboard and the MCP server
+// start from different cwds, but they always open the same database.
 //
 // Only /api/* is protected — the HTML page and /assets/* stay public so the
 // browser can load the app and read the token injected into the page. A
@@ -18,6 +20,15 @@ export type AuthHeaders = { headers: http.IncomingHttpHeaders };
 
 const TOKEN_DIR = '.code-context';
 const TOKEN_FILE = 'dashboard.token';
+
+/**
+ * Directory that holds the persisted token: the directory of the db file when
+ * one is known, otherwise the cwd (#235). Both processes must call this with
+ * the same db path to share one token.
+ */
+export function dashboardTokenRoot(dbPath?: string | null): string {
+  return dbPath ? path.dirname(path.resolve(dbPath)) : process.cwd();
+}
 
 /** Env var wins; otherwise read the persisted token, else generate + persist it. */
 export function resolveDashboardToken(root: string = process.cwd()): string {
