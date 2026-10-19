@@ -271,6 +271,8 @@ describe('execute gate columns: DELETE and statement shapes (#181)', () => {
   it('checkGateColumns reads strings and quoted names without mixing them up', () => {
     expect(checkGateColumns("UPDATE tickets SET title = 'it''s status = 1'").ok).toBe(true);
     expect(tokenize('"a""b" [c] `d` \'e\'').map((t) => t.value)).toEqual(['a"b', 'c', 'd', 'e']);
+    // Non-ASCII identifiers (BMP and astral) stay one word token.
+    expect(tokenize('caf\u00e9_\u{1F600}x').map((t) => t.kind)).toEqual(['word']);
     // Comments never reach the gate (validateWriteStatement rejects them first); fail closed anyway.
     expect(checkGateColumns("UPDATE tickets SET title = 'x' /* open").ok).toBe(false);
   });

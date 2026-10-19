@@ -76,9 +76,9 @@ export function tokenize(sql: string): Tok[] {
       while (j < n && /[0-9A-Za-z_.]/.test(sql[j])) j++;
       toks.push({ kind: 'number', value: sql.slice(i, j) });
       i = j;
-    } else if (/[A-Za-z_\u0080-￿]/.test(c)) {
+    } else if (/[A-Za-z_\u0080-\uffff]/.test(c)) {
       let j = i + 1;
-      while (j < n && /[A-Za-z0-9_$\u0080-￿]/.test(sql[j])) j++;
+      while (j < n && /[A-Za-z0-9_$\u0080-\uffff]/.test(sql[j])) j++;
       toks.push({ kind: 'word', value: sql.slice(i, j) });
       i = j;
     } else if (c === '?' || c === ':' || c === '@' || c === '$') {
