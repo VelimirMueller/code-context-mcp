@@ -14,7 +14,7 @@ Conventions and patterns extracted from the living codebase. Follow these when c
 | ESLint      | `@eslint/js` + `typescript-eslint` recommended                |
 | Test runner | Vitest (backend `test/`), Vitest + Testing Library (frontend) |
 | E2E         | Playwright                                                    |
-| Git hooks   | Husky + lint-staged (`tsc --noEmit` + `npm run build`)        |
+| Git hooks   | Husky + lint-staged (`tsc --noEmit` + ESLint + Prettier)      |
 
 ---
 
@@ -313,6 +313,6 @@ beforeEach(() => {
 ## 10. Git & CI
 
 - **Husky** pre-commit hook runs lint-staged.
-- **lint-staged** on `src/**/*.{ts,tsx,js,jsx}`: type-check (`tsc --noEmit`) then build.
+- **lint-staged** (`lint-staged.config.mjs`) on staged files: `tsc --noEmit` when a staged file is under `src/`, ESLint on JS/TS, Prettier on everything. No full build.
 - Commit messages: lowercase imperative (`update`, `add`, `fix`), prefixed with scope when relevant.
 - No force-pushes to main.

@@ -3,6 +3,9 @@
   "version": "2.13.0",
   "description": "AI-powered virtual IT department via MCP — codebase intelligence, 9-agent scrum team, sprint management, and React dashboard in one npm package",
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "main": "dist/server/index.js",
   "bin": {
     "code-context": "dist/server/index.js",
@@ -19,6 +22,7 @@
     ".claude/commands",
     "scripts",
     "!scripts/bench",
+    "!scripts/research",
     "!scripts/format-changed.mjs",
     "!scripts/check-contract-change.mjs",
     "comparison.json",
@@ -43,6 +47,7 @@
     "bench:renormalize": "tsx scripts/bench/renormalize.mts",
     "bench:dry": "tsx scripts/bench/live/dry-check.mts",
     "bench:suite-check": "tsx scripts/bench/live/suite-check.mts",
+    "research:import-accuracy": "tsx scripts/research/import-graph-accuracy.mts .",
     "test:frontend": "cd src/dashboard/app && node ../../../node_modules/.bin/vitest run",
     "test:all": "vitest run && cd src/dashboard/app && node ../../../node_modules/.bin/vitest run",
     "test:watch": "vitest",
@@ -63,8 +68,7 @@
     "sync:skills": "node scripts/sync-skills.mjs && node scripts/compile-skills.mjs",
     "postinstall": "node scripts/postinstall.js",
     "prepublishOnly": "npm run build",
-    "prepare": "husky",
-    "start-gemma": "npx gemma-brain start"
+    "prepare": "husky"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.0",
@@ -89,7 +93,6 @@
     "@vitest/coverage-v8": "^4.1.1",
     "eslint": "^10.2.0",
     "framer-motion": "^12.38.0",
-    "gemma-brain": "^1.0.0",
     "husky": "^9.1.7",
     "jsdom": "^29.0.1",
     "lint-staged": "^16.4.0",
@@ -130,12 +133,5 @@
     "url": "https://github.com/VelimirMueller/code-context-mcp/issues"
   },
   "homepage": "https://github.com/VelimirMueller/code-context-mcp#readme",
-  "license": "MIT",
-  "lint-staged": {
-    "*.{ts,tsx,js,jsx,mjs,cjs,mts}": [
-      "eslint --no-warn-ignored",
-      "prettier --write --ignore-unknown"
-    ],
-    "*.{json,md,yml,yaml,css,html}": "prettier --write --ignore-unknown"
-  }
+  "license": "MIT"
 }

@@ -18,7 +18,7 @@ import type Database from 'better-sqlite3';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import path from 'path';
 import { initScrumSchema, runMigrations, LATEST_SCHEMA_VERSION } from '../scrum/schema.js';
-import { registerScrumTools } from '../scrum/tools.js';
+import { registerScrumTools, setDashboardDbPath } from '../scrum/tools.js';
 import { seedDefaults } from '../scrum/defaults.js';
 import { syncSkillsFromUpstream } from '../scrum/skill-sync.js';
 import { log as slog, errorClass } from '../sessionlog.js';
@@ -88,6 +88,12 @@ export function prepareSprintDb(db: Database.Database, dbPath: string): void {
 }
 
 /** Register the sprint process tools: scrum, bridge, dump/restore, fun, stream. */
-export function registerSprintToolsets(server: McpServer, db: Database.Database): void {
+export function registerSprintToolsets(
+  server: McpServer,
+  db: Database.Database,
+  dbPath: string,
+): void {
+  // Notify calls read the dashboard token beside this db, not beside the cwd (#235).
+  setDashboardDbPath(dbPath);
   registerScrumTools(server, db);
 }

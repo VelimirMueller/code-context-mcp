@@ -3,10 +3,10 @@ node_modules
 *.db
 # Vendored or generated content keeps the upstream / generator format.
 vendor/
+# README kit spec: the vm-brand scripts read it in their own one-line-per-panel layout.
+brand/
 src/scrum/frontend-skill-defaults.generated.ts
 test/fixtures/
-# vm-brand README kit specs keep the vm-brand layout (input of make-readme-kit.py).
-brand/
 # Data files written by tools.
 benchmark-results.json
 benchmark-stochastic-results.json
@@ -17,3 +17,5 @@ test-results/
 playwright-report/
 # Contract snapshots are written by npm run contract:update (#180).
 test/contract/snapshots/
+# Benchmark run copies written by scripts/bench/snapshot.mjs.
+benchmarks/latest/

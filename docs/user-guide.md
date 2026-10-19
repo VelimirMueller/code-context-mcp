@@ -73,12 +73,14 @@ npx code-context-mcp setup .
 ```
 
 This creates:
+
 - `context.db` — SQLite database with indexed code
 - `.mcp.json` — MCP client configuration
 - `.claude/settings.json` — bridge hook (PreToolUse) so slash commands work
 - `.claude/commands/*.md` — slash command definitions (`/kickoff`, `/sprint`, `/ticket`, `/milestone`, `/retro`)
 
 **Expected output:**
+
 ```
 === Code Context MCP — Setup (my-project) ===
 
@@ -108,6 +110,7 @@ Ask your AI assistant:
 > "Call `get_project_status`"
 
 You should see a response like:
+
 ```
 Files indexed: 174
 Agents: 9
@@ -131,14 +134,14 @@ Navigate to `http://localhost:3333`
 
 ### Dashboard Tabs
 
-| Tab | Description |
-|-----|-------------|
+| Tab           | Description                                                                                        |
+| ------------- | -------------------------------------------------------------------------------------------------- |
 | **Dashboard** | Sprint overview and activity feed; includes a Kanban board sub-tab for tickets organized by status |
-| **Planning** | Interactive wizard for sprint planning |
-| **Code** | Codebase explorer — indexed files, symbols, and dependencies |
-| **Team** | Agent roster, roles, model assignments, and mood trends |
-| **Retro** | Retrospective findings, patterns, and action follow-through |
-| **Benchmark** | Velocity trends, burndown charts, and team performance metrics |
+| **Planning**  | Interactive wizard for sprint planning                                                             |
+| **Code**      | Codebase explorer — indexed files, symbols, and dependencies                                       |
+| **Team**      | Agent roster, roles, model assignments, and mood trends                                            |
+| **Retro**     | Retrospective findings, patterns, and action follow-through                                        |
+| **Benchmark** | Velocity trends, burndown charts, and team performance metrics                                     |
 
 ### Benchmark data sources
 
@@ -172,6 +175,7 @@ Use the `/kickoff` command for a fully guided experience:
 ```
 
 Your AI assistant will:
+
 1. Ask about your product vision
 2. Help you create a milestone
 3. Break down work into epics
@@ -181,6 +185,7 @@ Your AI assistant will:
 7. Archive completed work
 
 **Advantages:**
+
 - No prior knowledge needed
 - AI enforces all QA gates
 - Best practices applied automatically
@@ -194,9 +199,9 @@ If you prefer manual control:
 
 ```javascript
 await create_milestone({
-  name: "M1 — MVP",
-  description: "Minimum viable product with core features",
-  status: "active"
+  name: 'M1 — MVP',
+  description: 'Minimum viable product with core features',
+  status: 'active',
 });
 ```
 
@@ -204,11 +209,11 @@ await create_milestone({
 
 ```javascript
 await create_epic({
-  name: "User Authentication",
-  description: "Login, signup, and password recovery",
+  name: 'User Authentication',
+  description: 'Login, signup, and password recovery',
   milestone_id: 1,
   priority: 1,
-  color: "#3b82f6"
+  color: '#3b82f6',
 });
 ```
 
@@ -216,34 +221,34 @@ await create_epic({
 
 ```javascript
 await start_sprint({
-  name: "Sprint 1 — Auth",
-  goal: "Complete user authentication flow",
+  name: 'Sprint 1 — Auth',
+  goal: 'Complete user authentication flow',
   milestone_id: 1,
   epic_id: 1,
   velocity: 19,
   tickets: [
     {
-      title: "Create login form",
-      description: "Build login UI with email/password",
-      assigned_to: "fe-engineer",
+      title: 'Create login form',
+      description: 'Build login UI with email/password',
+      assigned_to: 'fe-engineer',
       story_points: 5,
-      priority: "P1"
+      priority: 'P1',
     },
     {
-      title: "Implement login API",
-      description: "POST /api/auth/login endpoint",
-      assigned_to: "be-engineer",
+      title: 'Implement login API',
+      description: 'POST /api/auth/login endpoint',
+      assigned_to: 'be-engineer',
       story_points: 5,
-      priority: "P1"
+      priority: 'P1',
     },
     {
-      title: "QA: Test login flow",
-      description: "Verify login works end-to-end",
-      assigned_to: "qa",
+      title: 'QA: Test login flow',
+      description: 'Verify login works end-to-end',
+      assigned_to: 'qa',
       story_points: 1,
-      priority: "P1"
-    }
-  ]
+      priority: 'P1',
+    },
+  ],
 });
 ```
 
@@ -256,18 +261,19 @@ await advance_sprint({ sprint_id: 1 });
 #### 5. Work Through Tickets
 
 For each ticket:
+
 ```javascript
 // Start work
-await update_ticket({ ticket_id: 1, status: "IN_PROGRESS" });
+await update_ticket({ ticket_id: 1, status: 'IN_PROGRESS' });
 
 // ... do the work ...
 
 // Mark complete
 await update_ticket({
   ticket_id: 1,
-  status: "DONE",
+  status: 'DONE',
   qa_verified: true,
-  verified_by: "qa"
+  verified_by: 'qa',
 });
 ```
 
@@ -286,51 +292,57 @@ This moves the sprint to `done` phase, then to `rest`.
 ### Finding Code
 
 **Search for a specific symbol:**
+
 ```javascript
-await find_symbol({ name: "useAuth" });
+await find_symbol({ name: 'useAuth' });
 // Returns: Files exporting useAuth with summaries
 ```
 
 **Get full context for a file:**
+
 ```javascript
-await get_file_context({ path: "/home/user/project/src/hooks/useAuth.ts" });
+await get_file_context({ path: '/home/user/project/src/hooks/useAuth.ts' });
 // Returns: Exports, imports, dependents, metadata, change history
 ```
 
 **Search files by pattern:**
+
 ```javascript
-await search_files({ query: "%test%" });
+await search_files({ query: '%test%' });
 // Returns: All files with "test" in path or summary
 ```
 
 ### Managing Tickets
 
 **Create a new ticket:**
+
 ```javascript
 await create_ticket({
   sprint_id: 1,
-  title: "Add password reset",
-  description: "User can reset password via email",
-  assigned_to: "be-engineer",
+  title: 'Add password reset',
+  description: 'User can reset password via email',
+  assigned_to: 'be-engineer',
   story_points: 3,
-  priority: "P2"
+  priority: 'P2',
 });
 ```
 
 **Link ticket to epic:**
+
 ```javascript
 await link_ticket_to_epic({
   ticket_id: 5,
-  epic_id: 2
+  epic_id: 2,
 });
 ```
 
 **Set up ticket dependencies:**
+
 ```javascript
 await add_dependency({
   source_ticket_id: 5,
   target_ticket_id: 1,
-  dependency_type: "blocked_by"
+  dependency_type: 'blocked_by',
 });
 // Ticket 5 is now blocked by ticket 1
 ```
@@ -338,49 +350,53 @@ await add_dependency({
 ### Blockers and Bugs
 
 **Report a blocker:**
+
 ```javascript
 await create_blocker({
   sprint_id: 1,
-  description: "API rate limiting preventing testing",
+  description: 'API rate limiting preventing testing',
   ticket_id: 3,
-  escalated_to: "devops"
+  escalated_to: 'devops',
 });
 ```
 
 **Log a bug:**
+
 ```javascript
 await log_bug({
   sprint_id: 1,
-  severity: "HIGH",
-  description: "Login fails with special characters in password",
+  severity: 'HIGH',
+  description: 'Login fails with special characters in password',
   ticket_id: 2,
-  steps_to_reproduce: "1. Enter password with !@#\n2. Click login",
-  expected: "User is logged in",
-  actual: "Error: Invalid password"
+  steps_to_reproduce: '1. Enter password with !@#\n2. Click login',
+  expected: 'User is logged in',
+  actual: 'Error: Invalid password',
 });
 ```
 
 ### Retrospective
 
 **Add retro findings:**
+
 ```javascript
 await add_retro_finding({
   sprint_id: 1,
-  category: "went_well",
-  finding: "Frontend and backend synced perfectly on API contract",
-  role: "fe-engineer"
+  category: 'went_well',
+  finding: 'Frontend and backend synced perfectly on API contract',
+  role: 'fe-engineer',
 });
 
 await add_retro_finding({
   sprint_id: 1,
-  category: "try_next",
-  finding: "Set up API contract testing before implementation",
-  role: "qa",
-  action_owner: "qa"
+  category: 'try_next',
+  finding: 'Set up API contract testing before implementation',
+  role: 'qa',
+  action_owner: 'qa',
 });
 ```
 
 **Analyze patterns across sprints:**
+
 ```javascript
 await analyze_retro_patterns();
 // Returns: Category breakdown, recurring issues, action follow-through rate
@@ -395,6 +411,7 @@ await analyze_retro_patterns();
 **Cause:** AI client not connected to MCP server.
 
 **Solutions:**
+
 1. Restart your AI client completely
 2. Verify `.mcp.json` exists in your project root
 3. Check that `context.db` exists
@@ -404,8 +421,9 @@ await analyze_retro_patterns();
 **Cause:** Trying to query a file that hasn't been indexed.
 
 **Solution:**
+
 ```javascript
-await index_directory({ path: "/home/user/my-project" });
+await index_directory({ path: '/home/user/my-project' });
 ```
 
 ### "Stale dist" errors
@@ -413,6 +431,7 @@ await index_directory({ path: "/home/user/my-project" });
 **Cause:** Compiled JavaScript doesn't match TypeScript source.
 
 **Solution:**
+
 ```bash
 npm run build
 ```
@@ -424,6 +443,7 @@ Then restart your AI client.
 **Cause:** Wrong database path or database not initialized.
 
 **Solution:**
+
 ```bash
 # Verify database exists
 ls -la context.db
@@ -437,9 +457,11 @@ npx code-context-mcp setup .
 **Cause:** Large codebases with many files.
 
 **Solutions:**
+
 1. Index only the directories you need:
+
 ```javascript
-await index_directory({ path: "/home/user/project/src" });
+await index_directory({ path: '/home/user/project/src' });
 ```
 
 2. Exclude node_modules and build artifacts (automatic by default)
@@ -449,6 +471,7 @@ await index_directory({ path: "/home/user/project/src" });
 **Cause:** Trying to advance sprint phase with incomplete work.
 
 **Common warnings:**
+
 - "No tickets assigned" → Add tickets with `create_ticket`
 - "Tickets still in progress" → Mark them DONE or BLOCKED
 - "Tickets need QA verification" → Set `qa_verified: true`
@@ -462,88 +485,96 @@ await index_directory({ path: "/home/user/project/src" });
 ### 1. Index Before Querying
 
 Always index your codebase before querying:
+
 ```javascript
 // First time or after big changes
-await index_directory({ path: "/home/user/project" });
+await index_directory({ path: '/home/user/project' });
 
 // Then query
-await find_symbol({ name: "useAuth" });
+await find_symbol({ name: 'useAuth' });
 ```
 
 ### 2. Set Descriptive File Descriptions
 
 Help your AI (and yourself) by adding descriptions:
+
 ```javascript
 await set_description({
-  path: "/home/user/project/src/auth.ts",
-  description: "Authentication utilities: login, logout, session management"
+  path: '/home/user/project/src/auth.ts',
+  description: 'Authentication utilities: login, logout, session management',
 });
 ```
 
 ### 3. Link Tickets to Epics
 
 Keep work organized by linking tickets:
+
 ```javascript
 await link_ticket_to_epic({
   ticket_id: 5,
-  epic_id: 2
+  epic_id: 2,
 });
 ```
 
 ### 4. Use QA Gates
 
 Don't skip QA verification:
+
 ```javascript
 await update_ticket({
   ticket_id: 5,
-  status: "DONE",
-  qa_verified: true,  // Always verify
-  verified_by: "qa"
+  status: 'DONE',
+  qa_verified: true, // Always verify
+  verified_by: 'qa',
 });
 ```
 
 ### 5. Track Time
 
 Enable better velocity forecasting:
+
 ```javascript
 await log_time({
   ticket_id: 5,
   estimated_hours: 4,
-  actual_hours: 5
+  actual_hours: 5,
 });
 ```
 
 ### 6. Document Discoveries
 
 In discovery sprints, log findings:
+
 ```javascript
 await create_discovery({
   sprint_id: 2,
-  finding: "Authentication state management needs refactoring",
-  resolution_plan: "Migrate to React Context with useReducer",
-  category: "architecture",
-  priority: "P1"
+  finding: 'Authentication state management needs refactoring',
+  resolution_plan: 'Migrate to React Context with useReducer',
+  category: 'architecture',
+  priority: 'P1',
 });
 ```
 
 ### 7. Monitor Agent Mood
 
 Track burnout risk:
+
 ```javascript
 await record_mood({
   agent_id: 3,
   sprint_id: 5,
-  mood: 2,  // Low mood = potential burnout
+  mood: 2, // Low mood = potential burnout
   workload_points: 13,
-  notes: "Heavy backend load, consider redistribution"
+  notes: 'Heavy backend load, consider redistribution',
 });
 ```
 
 ### 8. Regular Backups
 
 Export your database periodically:
+
 ```javascript
-await export_to_file({ output_path: "./backup/context-$(date +%Y%m%d).json" });
+await export_to_file({ output_path: './backup/context-$(date +%Y%m%d).json' });
 ```
 
 ---
@@ -553,6 +584,7 @@ await export_to_file({ output_path: "./backup/context-$(date +%Y%m%d).json" });
 ### Custom SQL Queries
 
 For complex queries not covered by built-in tools:
+
 ```javascript
 await query({
   sql: `
@@ -562,23 +594,25 @@ await query({
     LEFT JOIN tickets t ON t.sprint_id = s.id
     GROUP BY s.id
     ORDER BY s.id DESC
-  `
+  `,
 });
 ```
 
 ### Bulk Updates
 
-Update multiple tickets efficiently:
+Update multiple tickets efficiently. `execute` refuses the gate columns (`tickets.status`, `qa_verified`, `verified_by`, `github_*`, `deleted_at`, `sprints.status`, `archived_at`); change those with `update_ticket` or `update_sprint`, which run the gates (#181).
+
 ```javascript
 await execute({
-  sql: "UPDATE tickets SET status = ? WHERE sprint_id = ? AND assigned_to = ?",
-  params: ["TODO", 5, "developer"]
+  sql: 'UPDATE tickets SET assigned_to = ? WHERE sprint_id = ? AND assigned_to = ?',
+  params: ['backend-dev', 5, 'developer'],
 });
 ```
 
 ### Integration with CI/CD
 
 Add to your CI pipeline:
+
 ```bash
 # Index code
 npx code-context-mcp index . || echo "Index failed"

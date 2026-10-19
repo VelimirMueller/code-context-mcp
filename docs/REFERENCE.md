@@ -77,7 +77,7 @@ Unlike a plugin, these are **served by the MCP server into your live session**, 
 
 ## The agent team
 
-9 configurable agents, each with a role, model, and mood score. Dev roles default to the strongest model (`claude-fable-5`), QA to `claude-opus-5`; the rest use `claude-sonnet-5`. Change a model, tools or system prompt with the `update_agent` MCP tool or in the dashboard.
+9 configurable agents, each with a role, model, and mood score. Dev roles default to the strongest model (`claude-fable-5-1`), QA to `claude-opus-5-5`; the rest use `claude-sonnet-5-5`. Change a model, tools or system prompt with the `update_agent` MCP tool or in the dashboard.
 
 | Role               | Focus                                                          |
 | ------------------ | -------------------------------------------------------------- |
@@ -125,13 +125,13 @@ Since 2.2, the QA gate also checks **commit discipline**: a ticket can't reach `
 - **Setup and `/kickoff` handle it.** `setup` writes `CODE_CONTEXT_PROFILE=full` into `.mcp.json` (or keeps the existing setting; `--profile code` for code reading only). `/kickoff` checks `health` first and names the setting when the sprint tools are off.
 - **Breaking: two entry points.** `code-context` is the code index with a frozen contract; `code-context-sprint` adds the sprint process on the same `context.db`. `setup` installs the sprint entry. See [Entry points](#entry-points).
 
-### Unreleased — PHP in the Index 🐘
+### New in 2.13 — PHP in the Index 🐘
 
 - **`find_symbol`, `who_imports`, `exports_in` and `get_file_context` work for PHP repos.** `.php` files get exports with one-line signatures and lines: `class` (incl. `abstract`/`final`/`readonly`), `interface`, `trait`, `enum`, top-level `function` and `const`. `exports.name` is the short name, `exports.description` the namespace-qualified name, so `find_symbol` and `who_imports` take either (`OrderService`, `App\Services\OrderService`).
 - **Edges resolve through `composer.json` PSR-4.** `use` (grouped, aliased, `use function`, `use const`), `extends`, `implements`, trait `use` and class names in code (`new`, `::`, `::class`, type hints, `\A\B`) resolve via the nearest `composer.json` `autoload` / `autoload-dev` PSR-4 maps (a `composer.json` in a subdirectory such as `laravel/` works), then via the indexed declarations. Same-namespace classes need no `use`. Vendor namespaces land in `external_imports`; `vendor/` and Laravel `storage/` stay unindexed. `files.import_lines` holds the `use` lines.
 - **Comments, strings, heredoc/nowdoc and inline HTML never create exports or edges.** A small TypeScript state machine blanks them before the declarations are read. No PHP runtime and no new dependency. A synthetic 1,501-file tree (7.9 MB) indexes in about 0.8 s.
 
-### Unreleased — GitHub sync 🔁
+### New in 2.12 — GitHub Sync & Code-only Profile 🔁
 
 - **Project key.** `set_project` maps a short key to a GitHub repo and Project board. Milestones, sprints, epics and tickets take `project`; tickets inherit it from their sprint, milestone or epic. The list tools filter by it. Schema v26 leaves existing rows unassigned.
 - **`sync_github`** mirrors one project's milestones and tickets to GitHub: issues with `P0`–`P2`, type and origin labels, the owner as assignee, board Status from the ticket status, closed when DONE. Idempotent through `tickets.github_issue`; `dry_run: true` prints the plan. About 2 GitHub reads per run. Details: [sync_github](tools/sync-github.md).
@@ -141,6 +141,17 @@ Since 2.2, the QA gate also checks **commit discipline**: a ticket can't reach `
   | ------------------------------------ | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
   | `CODE_CONTEXT_GITHUB_SYNC_REPOS`     | unset: every live `sync_github` / `code-context-sync-github` run is refused | `owner/repo`: issues and milestones in that repo, no board. `owner/repo@board-owner/N`: also that one Project board. Comma or space separated. |
   | `CODE_CONTEXT_GITHUB_SYNC_ASSIGNEES` | unset: only the repo owner may be assigned                                  | `login[,login…]`: these logins may also be the project's issue assignee                                                                        |
+
+- **Code-only profile.** `CODE_CONTEXT_TOOLSETS=code` lists only the six reading tools: `find_symbol`, `get_file_context`, `who_imports`, `exports_in`, `search_files` and `query` (about 3,300 characters, about 850 tokens, of tool definitions instead of about 12,300 tokens). `query` carries the code-index schema in its description and caps its output at 50 rows or about 8 KB (see [query / execute](tools/query-execute.md)). Use it for sessions that read code but never run the sprint process. `code,code-admin` adds the index maintenance tools (`index_directory`, `get_changes`, `set_description`, `set_directory_description`, `set_change_reason`, `execute`, `health`). `all` overrides both. The maintenance tools stay in the default profile.
+- **Paths an agent can read back.** The index stores every file by its realpath, so a symlinked root (macOS `/var/folders/…` → `/private/var/folders/…`) and its target are one index. `find_symbol`, `get_file_context`, `search_files` and `get_changes` print paths relative to the indexed root that holds the server's working directory (`src/utils/helpers.ts`); files of other repos in a shared database stay absolute. `absolute_paths: true` or `CODE_CONTEXT_ABSOLUTE_PATHS=1` prints absolute paths. Tools take the relative form, the realpath and the symlinked spelling.
+- **Server instructions and compact results.** The server sends short MCP `instructions` (about 370 characters, about 90 tokens): which graph tool answers "who imports X", "where is S defined", "what does this file export or import" and "what does dir D export or leave unused", that results never hold full code (`read` the file; `get_file_context` has signatures and import lines, `snippet: true` short bodies), and that paths are project-relative. Only listed tools are named; the path sentence drops with `CODE_CONTEXT_ABSOLUTE_PATHS=1`.
+
+  | Env var                                                                                                     | 2.x default (now `full`) | `code` profile (now the default) |
+  | ----------------------------------------------------------------------------------------------------------- | ------------------------ | -------------------------------- |
+  | `OVERDRIVE_FLAIR` (header `● code-context ▸ <tool> ░▒▓` + `<kaomoji> <ms> ms` footer on text results)       | on; `0` turns it off     | off; `1` turns it on             |
+  | `CODE_CONTEXT_TIMESTAMPS` (`modified …` / `indexed …` in `find_symbol`, `get_file_context`, `search_files`) | off; `1` turns it on     | off; `1` turns it on             |
+
+  The read-time freshness check does not change: a changed or deleted file is re-indexed or dropped before the answer, and the `↻ fresh: …` / `⚠ STALE …` notice still leads the result. `index_directory` prints each directory's file and line counts once.
 
 ### New in 2.8 — Python in the Index 🐍
 
@@ -158,18 +169,8 @@ Since 2.2, the QA gate also checks **commit discipline**: a ticket can't reach `
 
 - **Answers are checked against the disk.** `search_files`, `find_symbol` and `get_file_context` stat every row they return: a changed file is re-indexed and a deleted one dropped _before_ the answer goes out, and each row carries its `indexed_at`. Per repo, a moved git `HEAD` re-indexes exactly the files `git diff --name-only <indexed>..HEAD` lists and says so in one `⚠ STALE` line; above 500 changed files it warns on every call instead of blocking.
 - **Only your code is indexed.** Git checkouts are listed with `git ls-files` (every `.gitignore`, at any depth), on top of a hard deny: `node_modules`, `vendor`, `dist`, `build`, `.next`, `coverage`, Laravel `storage/`, dot-dirs (`.git`, `.worktrees`), lockfiles, minified bundles, source maps, binaries, files over 512 KB (`CODE_CONTEXT_MAX_FILE_KB`).
-- **`code-context-reindex`** re-indexes every repo under a root: `[--all | <repo>…] [--root <dir>] [--db <file>] [--prune-missing] [--vacuum]`. A `.code-context-ignore` file in a repo keeps it out (and purges its rows). Exit 0/1.
+- **`code-context-reindex`** re-indexes every repo under a root: `[--all | <repo>…] [--root <dir>] [--db <file>] [--prune-missing] [--vacuum]`. `--root` defaults to the current directory. A `.code-context-ignore` file in a repo keeps it out (and purges its rows). Exit 0/1.
 - **Fewer tools in context.** The gamification (`record_mood`, `get_mood_trends`, `generate_vision_animation`) and the dashboard live-output stream (`send_step_progress`, `send_claude_output`, `send_claude_step`) are hidden unless `CODE_CONTEXT_TOOLSETS=fun,stream` (or `all`). No data is removed.
-- **Code-only profile.** `CODE_CONTEXT_TOOLSETS=code` lists only the six reading tools: `find_symbol`, `get_file_context`, `who_imports`, `exports_in`, `search_files` and `query` (about 3,300 characters, about 850 tokens, of tool definitions instead of about 12,300 tokens). `query` carries the code-index schema in its description and caps its output at 50 rows or about 8 KB (see [query / execute](tools/query-execute.md)). Use it for sessions that read code but never run the sprint process. `code,code-admin` adds the index maintenance tools (`index_directory`, `get_changes`, `set_description`, `set_directory_description`, `set_change_reason`, `execute`, `health`). `all` overrides both. The maintenance tools stay in the default profile.
-- **Paths an agent can read back.** The index stores every file by its realpath, so a symlinked root (macOS `/var/folders/…` → `/private/var/folders/…`) and its target are one index. `find_symbol`, `get_file_context`, `search_files` and `get_changes` print paths relative to the indexed root that holds the server's working directory (`src/utils/helpers.ts`); files of other repos in a shared database stay absolute. `absolute_paths: true` or `CODE_CONTEXT_ABSOLUTE_PATHS=1` prints absolute paths. Tools take the relative form, the realpath and the symlinked spelling.
-- **Server instructions and compact results.** The server sends short MCP `instructions` (about 370 characters, about 90 tokens): which graph tool answers "who imports X", "where is S defined", "what does this file export or import" and "what does dir D export or leave unused", that results never hold full code (`read` the file; `get_file_context` has signatures and import lines, `snippet: true` short bodies), and that paths are project-relative. Only listed tools are named; the path sentence drops with `CODE_CONTEXT_ABSOLUTE_PATHS=1`.
-
-  | Env var                                                                                                     | 2.x default (now `full`) | `code` profile (now the default) |
-  | ----------------------------------------------------------------------------------------------------------- | ------------------------ | -------------------------------- |
-  | `OVERDRIVE_FLAIR` (header `● code-context ▸ <tool> ░▒▓` + `<kaomoji> <ms> ms` footer on text results)       | on; `0` turns it off     | off; `1` turns it on             |
-  | `CODE_CONTEXT_TIMESTAMPS` (`modified …` / `indexed …` in `find_symbol`, `get_file_context`, `search_files`) | off; `1` turns it on     | off; `1` turns it on             |
-
-  The read-time freshness check does not change: a changed or deleted file is re-indexed or dropped before the answer, and the `↻ fresh: …` / `⚠ STALE …` notice still leads the result. `index_directory` prints each directory's file and line counts once.
 
 ### New in 2.4 — Roster Control 🎛️
 

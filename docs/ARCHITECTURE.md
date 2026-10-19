@@ -2,13 +2,19 @@
 
 ## Overview
 
-vlm-code-context-mcp is an MCP server that pre-indexes TypeScript/JavaScript codebases into SQLite, plus a React dashboard for visualization and sprint management.
+vlm-code-context-mcp is an MCP server that pre-indexes codebases into SQLite, plus a React dashboard for visualization and sprint management.
+
+Indexed languages (exports and import edges): TypeScript/JavaScript, Python (since 2.8) and PHP (since 2.13). Other files get a summary only.
+
+Tool and table counts live in the [README](../README.md) (stack and environment panels) and nowhere else, so this file cannot drift from them.
+
+Security: see the [threat model](security/threat-model.md) for the dashboard, the bridge and the index.
 
 ## System Components
 
 ### MCP Server (src/server/)
 
-- TypeScript parser indexes files, exports, imports, dependencies
+- Regex-based parsers for TS/JS, Python and PHP index files, exports, imports, dependencies (no language runtime needed)
 - SQLite database stores all metadata
 - MCP tools expose read/write operations to AI agents
 
@@ -23,13 +29,13 @@ One package, one server, two bins over the same `context.db`:
 
 ### Scrum System (src/scrum/)
 
-- ~26 database tables: agents, sprints, tickets, subtasks, retro_findings, blockers, bugs, skills, processes, milestones, decisions, epics, sprint_metrics, ticket_dependencies, tags, ticket_tags, agent_mood_history, event_log, discoveries, token_usage, pending_actions, workflow_runs, workflow_step_log, schema_versions, and migration shadow tables
-- The `scrum`, `fun` and `stream` toolsets (src/scrum/tools.ts and src/scrum/tools/), registered through src/server/sprint-toolsets.ts; 13 code-context tools in src/server/index.ts (`code` + `code-admin`). The `full` profile lists 97 tools, `all` lists 103
+- Scrum tables: agents, sprints, tickets, subtasks, retro_findings, blockers, bugs, skills, milestones, epics, discoveries, projects and more (table count: see the README)
+- The `scrum`, `fun` and `stream` toolsets (src/scrum/tools.ts and src/scrum/tools/), registered through src/server/sprint-toolsets.ts; the code-context tools live in src/server/index.ts (`code` + `code-admin`). `CODE_CONTEXT_PROFILE` picks the profile (default `code`, `full`, `all`; tool counts: see the README)
 - All data lives in SQLite (context.db) — no file-based storage
 
 ### Dashboard (src/dashboard/)
 
-- **App**: Vite + React 18 + TypeScript + Tailwind CSS (src/dashboard/app/)
+- **App**: Vite + React 19 + TypeScript + Tailwind CSS (src/dashboard/app/)
 - **Server**: Node.js HTTP server serving APIs + static files (src/dashboard/dashboard.ts)
 - **State**: 9 Zustand stores (fileStore, sprintStore, agentStore, planningStore, uiStore, benchmarkStore, bridgeStore, comparisonStore, toastStore)
 - **Animation**: Framer Motion for transitions + micro-interactions
@@ -49,6 +55,21 @@ organisms/   → BentoGrid, BurndownChart, DashboardTour, DependencyGraph, EpicL
                TicketDetailModal
 pages/       → Benchmark, CodeExplorer, Dashboard, ProjectManagement, Retro, Team
 ```
+
+## Pages
+
+The hash router (`src/dashboard/app/src/hooks/useHashRouter.ts`) maps `#<page>/<tab>` to six pages, in nav order:
+
+| Nav label | Hash         | Page component    |
+| --------- | ------------ | ----------------- |
+| Dashboard | `#dashboard` | Dashboard         |
+| Planning  | `#planning`  | ProjectManagement |
+| Code      | `#code`      | CodeExplorer      |
+| Team      | `#team`      | Team              |
+| Retro     | `#retro`     | Retro             |
+| Benchmark | `#benchmark` | Benchmark         |
+
+Legacy hashes `#explorer` and `#sprint` redirect to `#code` and `#dashboard`.
 
 ## State Management
 

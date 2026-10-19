@@ -13,9 +13,9 @@ or a CTE-prefixed write — can reach the database.
 Run a single read-only statement against the context database: `SELECT` (or a `WITH` CTE),
 `PRAGMA table_info(<table>)` or `PRAGMA table_list`.
 
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| `sql` | string | yes | One SELECT, `PRAGMA table_info(t)` or `PRAGMA table_list` |
+| Name  | Type   | Required | Description                                               |
+| ----- | ------ | -------- | --------------------------------------------------------- |
+| `sql` | string | yes      | One SELECT, `PRAGMA table_info(t)` or `PRAGMA table_list` |
 
 The tool description carries the schema of the code-index tables (`files`, `exports`,
 `dependencies`, without `files.content`) and the joins for "who imports X" and "exports of X",
@@ -31,11 +31,11 @@ so a reader does not need to dump `sqlite_master` first (#118).
 
 **Output limits** (constants in `src/server/query-output.ts`):
 
-| Limit | Value | When hit |
-|-------|-------|----------|
-| Rows | 50 | Note `Truncated: N of M rows shown (50-row cap)`; M is counted up to 10,000 (`10000+` beyond). |
-| Output | ~8 KB of row text | Same note with `8 KB output cap`; the first row always shows. |
-| Cell | 1,000 chars | Value ends in `…[+N chars]`; read the rest with `substr(col, start, len)`. |
+| Limit  | Value             | When hit                                                                                       |
+| ------ | ----------------- | ---------------------------------------------------------------------------------------------- |
+| Rows   | 50                | Note `Truncated: N of M rows shown (50-row cap)`; M is counted up to 10,000 (`10000+` beyond). |
+| Output | ~8 KB of row text | Same note with `8 KB output cap`; the first row always shows.                                  |
+| Cell   | 1,000 chars       | Value ends in `…[+N chars]`; read the rest with `substr(col, start, len)`.                     |
 
 The result is a JSON array, one row per line. Notes, if any, follow after a blank line.
 
@@ -57,10 +57,10 @@ query sql="PRAGMA table_info(dependencies)"
 
 Run a single `INSERT`, `UPDATE`, or `DELETE` statement against the context database.
 
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| `sql` | string | yes | A single INSERT, UPDATE, or DELETE SQL statement |
-| `params` | array | no | Optional positional bind parameters |
+| Name     | Type   | Required | Description                                      |
+| -------- | ------ | -------- | ------------------------------------------------ |
+| `sql`    | string | yes      | A single INSERT, UPDATE, or DELETE SQL statement |
+| `params` | array  | no       | Optional positional bind parameters              |
 
 **Constraints (enforced by the SQL guard):**
 
@@ -69,6 +69,28 @@ Run a single `INSERT`, `UPDATE`, or `DELETE` statement against the context datab
 - SQL comments (`--`, `/*`) are rejected.
 - DDL, PRAGMA, ATTACH, and SELECT/WITH are not permitted.
 - The statement is additionally verified as a writer by the database driver before execution.
+
+**Gate columns (#181):** `execute` refuses a write to a column that a gated tool owns. The error names the column and the tool to use.
+
+| Table        | Refused through `execute`                                          | Use instead                                            |
+| ------------ | ------------------------------------------------------------------ | ------------------------------------------------------ |
+| `tickets`    | `status`                                                           | `update_ticket`                                        |
+| `tickets`    | `qa_verified`, `verified_by`                                       | `update_ticket`                                        |
+| `tickets`    | `github_issue`, `github_repo`, `github_node_id` (every `github_*`) | `update_ticket github_issue=<N>`, `sync_github`        |
+| `tickets`    | `deleted_at`                                                       | `update_ticket status=NOT_DONE`, dashboard delete      |
+| `sprints`    | `status`                                                           | `update_sprint`, `advance_sprint`                      |
+| `sprints`    | `deleted_at`, `archived_at`                                        | dashboard sprint delete and archive                    |
+| `milestones` | `archived_at`                                                      | `update_milestone archived=true`                       |
+| `epics`      | `archived_at`                                                      | `update_epic archived=true`                            |
+| `milestones` | every `github_*` column                                            | `update_milestone github_milestone=<N>`, `sync_github` |
+| `projects`   | every `github_*` column                                            | `set_project`, `sync_github`                           |
+
+- The check covers the `INSERT` column list, the `UPDATE` `SET` list (also `SET (a, b) = …`, `IS [NOT] DISTINCT FROM` and `UPDATE … FROM`) and `ON CONFLICT … DO UPDATE SET`. Quoted names, schema prefixes and aliases resolve to the real column.
+- An `UPDATE` or upsert on these tables with a top-level comma anywhere after its `SET` list (a comma join, `ORDER BY a, b`, a `RETURNING` list), or a `name =` before its `WHERE`, is refused: the guard cannot prove the `SET` list ended there. Write a join as a subquery in `FROM (…)`.
+- `DELETE` on `tickets` and `sprints` is refused: it would drop the row and let a re-insert skip the gates.
+- `REPLACE`, `INSERT OR REPLACE` and `UPDATE OR REPLACE` on these tables are refused: the replace deletes the row and resets its gate columns.
+- An `INSERT` into these tables without a column list is refused: it writes every column.
+- Writes to the other columns and every `SELECT` stay free.
 
 **Return value:** `Rows affected: N, last id: M`
 

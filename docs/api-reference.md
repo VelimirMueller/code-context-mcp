@@ -642,6 +642,8 @@ await query({ sql: "SELECT * FROM tickets WHERE status = 'DONE'" });
 
 Run an INSERT, UPDATE, or DELETE against the context database.
 
+`execute` refuses writes to the gate columns: `tickets.status`, `tickets.qa_verified`, `tickets.verified_by`, `tickets.github_*`, `tickets.deleted_at`, `sprints.status`, `sprints.deleted_at`, `sprints.archived_at`, `milestones.github_*`, `milestones.archived_at`, `epics.archived_at` and `projects.github_*`. It also refuses `DELETE` on `tickets` and `sprints`, and `REPLACE` or an `INSERT` without a column list on `tickets`, `sprints`, `milestones`, `epics` and `projects`. The error names the column and the tool to use (`update_ticket`, `update_sprint`, `advance_sprint`, `update_milestone`, `update_epic`, `set_project`, `sync_github`). See [query / execute](./tools/query-execute.md). (#181)
+
 **Parameters:**
 
 ```typescript
@@ -657,8 +659,8 @@ Run an INSERT, UPDATE, or DELETE against the context database.
 
 ```javascript
 await execute({
-  sql: 'UPDATE tickets SET status = ? WHERE id = ?',
-  params: ['DONE', 42],
+  sql: 'UPDATE tickets SET notes = ? WHERE id = ?',
+  params: ['Waiting on design review', 42],
 });
 // Returns: "Rows affected: 1, last id: 127"
 ```
@@ -700,7 +702,7 @@ Update a roster agent's model, tools, system prompt, name, description or depart
 ```typescript
 {
   role: string,             // see list_agents
-  model?: string,           // claude-fable-5 | claude-opus-5 | claude-sonnet-5 | claude-haiku-4-5 (+ superseded claude-opus-4-8, claude-sonnet-4-6)
+  model?: string,           // claude-fable-5-1 | claude-opus-5-5 | claude-sonnet-5-5 | claude-haiku-5-5 (+ superseded claude-fable-5, claude-opus-5, claude-sonnet-5, claude-haiku-4-5, claude-opus-4-8, claude-sonnet-4-6)
   tools?: string | null,    // free-text tool inventory (null clears)
   system_prompt?: string | null,
   name?: string,

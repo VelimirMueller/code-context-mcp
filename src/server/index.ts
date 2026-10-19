@@ -862,7 +862,7 @@ server.tool('health', 'Server health, active profile and toolsets', {}, async ()
 });
 
 // ─── Sprint process tools (only when a sprint toolset is on) ─────────────────
-if (sprint) sprint.registerSprintToolsets(server, db);
+if (sprint) sprint.registerSprintToolsets(server, db, resolvedDbPath);
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 const transport = new StdioServerTransport();

@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The MCP server and the dashboard share one auth token again.** Both read or create `.code-context/dashboard.token` in the directory of the `context.db` they open (`dashboardTokenRoot` in `src/dashboard/auth.ts`); earlier each used its own cwd, so the two processes held different tokens and every MCP notify call got `401` and the dashboard did not refresh live. The MCP server passes its db path to the notify code at start (`setDashboardDbPath`); the cwd is used only when no db path is known. `CODE_CONTEXT_DASHBOARD_TOKEN` still wins when set. Migration: an old `.code-context/dashboard.token` beside a launcher cwd stays in place and is now ignored; delete it, or set `CODE_CONTEXT_DASHBOARD_TOKEN` for both processes. (#235)
 - **Restore and import never replace an existing row.** `restore_database`, `import_from_file` and `POST /api/restore` share one restore (`src/scrum/restore.ts`) that inserts with `ON CONFLICT DO NOTHING` instead of `INSERT OR REPLACE`. Earlier a dump row with a clashing id, or since v27 a clashing ticket ref, silently replaced the existing ticket, and the delete behind REPLACE also removed the children of a replaced row (a replaced sprint lost its tickets). A row equal to the existing one counts as unchanged; any other clash is listed and the existing row stays. By default a clash refuses the whole restore (MCP error, HTTP 409) and nothing is written; `on_conflict: "skip"` keeps the existing rows and restores the rest; `dry_run: true` only reports. (#230)
 - **Every ticket ref is unique across the database.** Schema v27 adds a unique index on `tickets.ticket_ref`; earlier only `UNIQUE(sprint_id, ticket_ref)` held, so two tickets without a sprint could share a `T-<n>`. The MCP `create_ticket` and `start_sprint` tools and `POST /api/tickets` take refs from one function (`nextTicketRef`, in the locked transaction from #215); `create_ticket` without `ticket_ref` now gets the next free `T-<n>`, and a hand-set ref that another ticket has is refused. Existing installs migrate on the next start: per shared ref the oldest ticket keeps it, the others get the next free ref, and the ticket history (`event_log`) keeps the old ref. All installs that share one database must update together, because an older version refuses a v27 database. (#222)
 - **The ticket notes and description e2e specs pass without retries.** `test/e2e/ticket-notes.spec.ts` and `test/e2e/ticket-description.spec.ts` each create their own done sprint and ticket and open the board on that sprint; earlier they added tickets to the shared seeded sprint with `Date.now()` titles, and failed 6 of 20 runs under `--repeat-each=10 --retries=0`. The sprint setup moves to `createOwnSprint` in `test/e2e/helpers.ts`, which the Kanban spec uses too. (#229)
@@ -59,13 +60,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **CLI change: `code-context-reindex --root` defaults to the current directory.** Earlier the default was `~/Desktop/Workspace/dev`, a path that exists only on the author's machine. Pass `--root <dir>` to scan another directory. The help text (`--help`) names the default. (#176)
+- **Current Claude models in the agent catalog.** `KNOWN_AGENT_MODELS` (`src/scrum/agent-model.ts`) and the dashboard picker (`src/dashboard/app/src/lib/constants.ts`) offer `claude-fable-5-1`, `claude-opus-5-5`, `claude-sonnet-5-5` and `claude-haiku-5-5`. Factory seeds move to `claude-fable-5-1` (dev roles), `claude-opus-5-5` (QA) and `claude-sonnet-5-5` (other roles, and the default for a new agent without a model). The earlier ids (`claude-fable-5`, `claude-opus-5`, `claude-sonnet-5`, `claude-haiku-4-5`, `claude-opus-4-8`, `claude-sonnet-4-6`) stay accepted, so existing agents keep their model. Seeding never overwrites an existing agents table: existing installs keep their models until you change them with `update_agent`, in the dashboard, or with `reset_agents`. Tier routing is unchanged. (#174)
+- **Node.js 22 or newer is the supported range.** `package.json` declares `"engines": { "node": ">=22" }`; Node.js 24 LTS is recommended. CI tests 22, 24 and the current LTS. The minimum stays 22 until 3.0.0. (#173)
 - **`@remotion/player` is no longer a direct dev dependency, and the stale navigation guide is gone.** Only the deleted `VisionPlayer` imported the player; `@remotion/cli` still installs it for `npx remotion render`. `docs/ux/navigation-migration-guide.md` is deleted, because its samples imported removed modules; the UX index, CONTRIBUTING, STYLEGUIDE and two dated plans no longer name removed modules. (#231)
 - **Unreachable dashboard modules are removed, and CI fails on new ones.** 27 files that no page reached are deleted, among them `CapacityPlanningView`, `GanttChart`, `GoogleAdsStrategy`, `SprintPlanner`, `VisionPlayer`, `hooks/usePlanning.ts` and the `components/molecules`, `components/organisms`, `hooks` and `stores` barrel files. The new `npm run check:dashboard-reachable` follows the imports from `src/main.tsx` with the TypeScript module resolver and the app tsconfig, and the CI lint job runs it. No page changes. (#223)
+- **The pre-commit hook type-checks, and `package.json` drops unused entries.** lint-staged (now `lint-staged.config.mjs`) runs `tsc --noEmit` once per commit when a staged file is under `src/` (`-p src/dashboard/app` for dashboard app files), then ESLint and Prettier on the staged files; it never runs `npm run build`. Earlier the hook ran only ESLint and Prettier, while CONTRIBUTING.md and STYLEGUIDE.md said it ran `tsc --noEmit` and `npm run build`; the docs now match the hook. The unused `gemma-brain` dev dependency and the `start-gemma` script are removed. The Remotion dev dependencies stay: `generate_vision_animation` prints `npx remotion` commands for `src/remotion/`, and `docs/guide/architecture.md` now says so. (#175)
 - **CI type-checks the dashboard app.** The `test` job runs `npm run typecheck:dashboard` (`tsc --noEmit -p src/dashboard/app`), so a type error in the dashboard app fails CI; the root `tsc --noEmit` does not include the app. The 9 type errors it found are fixed: Vite client types for `import.meta.env`, the `steps(2)` easing function instead of a string, the optional `sprint_id` on `RetroFinding`, a margin wrapper instead of an unknown `Skeleton` prop, and an agent check in `TeamManagementModal`. (#213)
 - **Unused planning components are removed from the dashboard.** `SprintPlanningView`, `PlanningWizard`, `MilestoneList`, `PlanningDashboard` with `EnhancedGanttChart`, `SprintBurndownView`, `EnhancedCapacityView` and `SprintTableView`, and `PlanningInsights` were not shown on any page and still used the old milestone status `in_progress` and `PUT` for ticket edits. No page changes. (#212)
 - **CI runs lint, format, the dashboard tests and the Playwright specs on every PR.** A new `lint` job fails on ESLint errors and runs Prettier on the files the change touches (`npm run format:changed`). The `test` job runs `npm run test:frontend`. A new `e2e` job runs the 35 Playwright specs against a seeded dashboard on a throwaway database (`npm run test:e2e`, port 4317, never a reused server). Every workflow declares `permissions:` and pins actions by commit SHA. A tracked `.husky/pre-commit` runs lint-staged (ESLint + Prettier on staged files). (#191)
 - **One transactional function moves a sprint to its next phase.** `update_sprint`, `advance_sprint` and the dashboard advance and sprint update routes call `transitionSprint` (`src/scrum/sprint-transition.ts`). It writes the status, the frozen commitment, `velocity_completed`, one auto-analysis finding (role `system`), the discovery archive, completed epics and milestone progress in one transaction. When a step fails, nothing changes and the error names the step; the dashboard answers 500. The MCP tools now also complete epics and update milestone progress on `rest`. `get_discovery_coverage` writes nothing. (#189)
 - **Typed rows and request bodies in the MCP server, the scrum tools and the dashboard write routes.** `src/scrum/rows.ts` has one row type per scrum table, and the queries in `src/server` and `src/scrum` use them; `@typescript-eslint/no-explicit-any` is an error there. Each dashboard POST, PUT and PATCH route parses its body with zod and answers 400 with the field name when a type is wrong; earlier a wrong type gave a 500 or a bad row. (#190)
+
+### Security
+
+- **`execute` cannot write the gate columns.** The tool refuses any `INSERT`, `UPDATE`, `REPLACE` or upsert that writes `tickets.status`, `tickets.qa_verified`, `tickets.verified_by`, a `tickets.github_*` column, `tickets.deleted_at`, `sprints.status`, `sprints.deleted_at`, `sprints.archived_at`, a `milestones.github_*` column, `milestones.archived_at`, `epics.archived_at` or a `projects.github_*` column. `DELETE` on `tickets` and `sprints`, `REPLACE` / `OR REPLACE` on these tables and an `INSERT` into them without a column list are refused too, because they reset the gate columns. The error names the column and the tool that runs the gates (`update_ticket`, `update_sprint` / `advance_sprint`, `update_milestone`, `update_epic`, `set_project`, `sync_github`, or the dashboard delete and archive actions). Earlier a free `UPDATE` set a ticket to `DONE`, verified it or pointed it at any GitHub issue, which the dashboard and the gate tools refuse. The check (`src/server/sql-gate-columns.ts`) parses tokens, not text: quoted names (`"x"`, `` `x` ``, `[x]`, `'x'`), schema prefixes, aliases, row-value `SET (a, b) = …`, `UPDATE … FROM`, `IS [NOT] DISTINCT FROM` and `ON CONFLICT … DO UPDATE SET` resolve to the real column; a statement it cannot read on a gated table is refused, and so is an `UPDATE` or upsert with a top-level comma anywhere after its `SET` list, or a `name =` before its `WHERE`. A hand-written parser cannot match SQLite's grammar exactly (`RETURNING`, for one, is also a valid column name), so unknown shapes are refused. Writes to other columns and every `SELECT` stay free. (#181)
 
 ## [2.13.0] - 2026-10-12
 
@@ -168,8 +177,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Live GitHub writes need `CODE_CONTEXT_GITHUB_SYNC_REPOS`.** A live `sync_github` or `code-context-sync-github` run writes only to the exact targets in this env var of the server or CLI process; no MCP tool or CLI flag sets it, so a prompt-injected agent cannot point a project at another repo or board and publish there. `owner/repo` allows issues and milestones only; `owner/repo@board-owner/N` also allows that one Project board, never another board of the same owner. The assignee must be the repo owner or a login in `CODE_CONTEXT_GITHUB_SYNC_ASSIGNEES`. Only the fixed label set is sent. A live run resolves the Project id from the allowed board and never trusts the cached id. Dry runs need nothing. `set_project` refuses to change the repo or board of a project that already synced, unless `force: true` and the new target is allowlisted. The path guard normalizes encodings (`file://`, percent, HTML entities, escaped slashes, `C:/Users/…`) on its own and refuses any local path outside an http(s) URL path; the scrubber handles the same forms. (#140)
 - **No local paths reach GitHub.** Titles, bodies and milestone texts lose `/Users/…`, `/home/…`, `/var/folders/…`, `/private/…`, `/tmp/…`, `/Volumes/…` and `C:\Users\…` paths (`…/<last segment>` stays); a text that still holds one is refused. The scrubber and the guard split tokens at the same characters, so `,` `*` `|` `{}` neighbours cannot hide a path from the guard. (#140)
 - **No secrets reach GitHub.** A ticket title, description, acceptance criterion or milestone text that holds a secret is refused, never scrubbed; the message names the field and the secret type, never the value. Detected: GitHub, Anthropic, OpenAI, AWS (key id and secret), Slack (token and webhook), Google and Stripe keys, JWTs, PEM private keys, `Authorization: Bearer|Basic`, passwords in URLs, `.env`-style `*_KEY=` / `*_SECRET=` / `*_TOKEN=` / `*_PASSWORD=` lines, and `key/secret/token/password = <16+ key-like chars>`. The check runs on the raw text and on a decoded copy (percent, HTML entities, escapes, invisible characters, markdown marks). Words like "token", issue numbers, git SHAs, UUIDs and run ids like `dsk-20261011-090622` pass. (#140)
-- **`sync_github` writes only issues and milestones it created.** Each created issue body ends with `<!-- code-context-sync: project=<project> ticket=<ticket_ref> -->`, each created milestone description with `<!-- code-context-sync: project=<project> milestone=<local id> -->`. A live run updates, closes, relabels, assigns or moves on the board only an issue whose current body carries the marker of the same project and ticket; an unmarked issue or one with another project's or ticket's marker is skipped with a plan note. Milestones work the same and are never linked by title. Reason: `update_ticket github_issue=N`, `update_milestone github_milestone=N` or `execute` could point a ticket at any issue of an allowlisted repo, and the next sync overwrote it. (#143)
-- **Ownership does not rest on the marker alone.** A live run writes an existing issue or milestone only when, in the same read: its marker names this project and ticket (or local milestone), the authenticated `gh` user created it (issue author / milestone creator = GraphQL `viewer`), and its node id matches the one the db recorded at create or adopt time (columns `tickets.github_node_id`, `milestones.github_node_id`; objects synced before get it recorded on their first verified run). Reason: on a public repo anyone can open an issue and paste the marker; a ticket pointed at it (`update_ticket github_issue=N`, `execute`) made the sync edit, assign, label and board that stranger's issue. Adopt needs the `gh` user as author too. `update_ticket github_issue` and `update_milestone github_milestone` clear the recorded node id. (#143)
+- **`sync_github` writes only issues and milestones it created.** Each created issue body ends with `<!-- code-context-sync: project=<project> ticket=<ticket_ref> -->`, each created milestone description with `<!-- code-context-sync: project=<project> milestone=<local id> -->`. A live run updates, closes, relabels, assigns or moves on the board only an issue whose current body carries the marker of the same project and ticket; an unmarked issue or one with another project's or ticket's marker is skipped with a plan note. Milestones work the same and are never linked by title. Reason: `update_ticket github_issue=N`, `update_milestone github_milestone=N` or `execute` could point a ticket at any issue of an allowlisted repo, and the next sync overwrote it. (#143) Note added for #181: `execute` can no longer write the `github_*` columns; use `update_ticket`, `update_milestone` or `sync_github`.
+- **Ownership does not rest on the marker alone.** A live run writes an existing issue or milestone only when, in the same read: its marker names this project and ticket (or local milestone), the authenticated `gh` user created it (issue author / milestone creator = GraphQL `viewer`), and its node id matches the one the db recorded at create or adopt time (columns `tickets.github_node_id`, `milestones.github_node_id`; objects synced before get it recorded on their first verified run). Reason: on a public repo anyone can open an issue and paste the marker; a ticket pointed at it (`update_ticket github_issue=N`, `execute`) made the sync edit, assign, label and board that stranger's issue. Note added for #181: the `execute` path is closed. Adopt needs the `gh` user as author too. `update_ticket github_issue` and `update_milestone github_milestone` clear the recorded node id. (#143)
 - **Fail closed on anything the read cannot verify.** A stored number the live read did not return, returned for another repo (transfer), with another number or without a node id, a read without viewer login, two tickets (or two local milestones) linking one object: skipped with a note, never written. Before this, an issue missing from the GraphQL result fell into the offline branch and got a full unverified update. The milestone list reads every page (refused past 1,000 milestones) instead of the first 100; an issue with more labels than one read returns keeps its labels. A live run refuses any update whose ownership this run's read did not verify, and never applies an offline plan. A no-change sync of 13 issues still costs 2 gh calls. (#143)
 - **One gate for the MCP tool, the CLI and the engine.** `syncGithub` checks the request (`offline` needs `dry_run`, positive `max_writes`, at most 500 adopt issues and 100 milestone mappings), the allowlist (`liveSyncGate`, which the CLI also uses for its rollback), board, assignee and every ownership and adopt rule. Before, the MCP tool ran `offline: true` without `dry_run` as a live run, and the CLI stored a `--milestone <id>=<N>` mapping before the engine decided on it. Milestone adopt now has the same bar as an issue adopt: created by the `gh` user, unmarked, linked by no other local milestone, GitHub title equal to the local name. A test runs one matrix through all three entry points and expects the same writes and db state. (#143)
 
@@ -265,6 +274,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.6.0] - 2026-10-09
 
+- 2.6.0 has no git tag and was not published to npm; 2.7.0 contains its changes too.
+
 ### Added
 
 - **Read-time freshness guard** (`src/server/freshness.ts`). `search_files`, `find_symbol` and `get_file_context` stat every row before answering: size or mtime differ from what was indexed → the file is re-indexed (exports, deps, change log); gone → dropped; the query then re-runs. Every row shows `indexed <ts>`. `get_file_context` on a file inside an indexed repo that is not in the index yet indexes it on the fly (unless denied or git-ignored).
@@ -293,6 +304,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.5.0] - 2026-10-09
 
+- 2.5.0 has a git tag and a GitHub release but is not on npm; 2.5.1 contains its changes too.
+
 ### Added
 
 - **Overdrive session log** — the MCP server and the dashboard append one-line breadcrumbs to the shared per-session log `${OVERDRIVE_SESSION_LOG_DIR:-~/.claude/.local_ai_setup_logs/sessions}/<CLAUDE_CODE_SESSION_ID>.log` (`_nosession-YYYY-MM-DD.log` without a session id), in the overdrive contract format `<ts>\t<LEVEL>\tcode-context@<version>\tpid=<pid>\t<message>`. New helper `src/sessionlog.ts` (node stdlib only): one `O_APPEND` write per line, dir `0700` / file `0600`, every error swallowed, never prints (stdout is the MCP transport), `OVERDRIVE_SESSION_LOG=0` turns it off.
@@ -301,6 +314,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `CRITICAL` — exceptions escaping any MCP tool handler, dashboard routes failing with a 5xx (error class only), DB open/migration failure.
   - Only ids, counts, phases and durations are logged — never titles, descriptions, retro text, file contents, the dashboard token or SQL values. Read paths stay silent.
 - The test suite runs with `OVERDRIVE_SESSION_LOG=0` so it never writes into a real session log.
+
+## [2.4.2] - 2026-10-07
+
+### Fixed
+
+- The file watcher skips CocoaPods `Pods/` directories. (#73)
+
+### Changed
+
+- Vendored skills re-synced from upstream `main`. (#74)
 
 ## [2.4.1] - 2026-10-07
 
@@ -460,7 +483,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- **npm publish workflow** (`.github/workflows/publish.yml`) — releases are now git tag + GitHub release only; the package is not published to npm.
+- **npm publish workflow** (`.github/workflows/publish.yml`) — CI no longer publishes to npm; a release is a git tag + GitHub release. The package is still on npm: 1.2.1 and most later versions were published outside CI.
 
 ## [1.2.0] - 2026-06-09
 
@@ -480,6 +503,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Skills install **flat** at `.claude/skills/<skill>/SKILL.md`. Claude Code discovers project skills one level deep, so the upstream `frontend/` domain wrapper is stripped on install while `_shared/` is kept as a sibling so the skills' `../_shared/` references still resolve.
 
+## [1.1.5] - 2026-04-22
+
+- Version bump only; no code changes since 1.1.4. First version with a git tag (`v1.1.5`).
+
+## [1.1.4] - 2026-04-22
+
+### Changed
+
+- `package.json` `repository`, `bugs` and `homepage` point to `github.com/VelimirMueller/vlm-code-context-mcp` (was `mcp-server`).
+- `hono` bumped in the lockfile (Dependabot, #19).
+
 ## [1.1.3] - 2026-04-16
 
 ### Fixed
@@ -487,6 +521,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Package description still referenced "7-agent scrum team" — now ships with 9 agents (Security Engineer + Architect added in 1.1.2)
 
 ## [1.1.2] - 2026-04-16
+
+- 1.1.2 was not published to npm; 1.1.3 contains its changes too.
 
 ### Added
 
@@ -500,6 +536,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Flaky CI benchmark test** — "larger tasks save more" assertion compared group totals (4 small vs 3 large tasks) instead of per-task averages, causing failures on CI where indexer output differs slightly across Node versions
+
+## [1.1.1] - 2026-04-16
+
+### Fixed
+
+- Flaky CI benchmark test: "larger tasks save more" compares per-task averages, not group totals. The 1.1.2 entry lists the same fix.
 
 ## [1.1.0] - 2026-04-16
 
@@ -518,6 +560,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.2] - 2026-04-15
 
+- 1.0.2 was not published to npm; 1.1.0 contains its changes too.
+
 ### Removed
 
 - **Velocity tab** — removed `Velocity` page, `velocityStore`, `/api/velocity` endpoint, and navigation entry. Sprint velocity data (committed/completed points, badges) remains available on sprint cards and Gantt chart.
@@ -525,6 +569,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - `comparison.json` now ships in npm package and dashboard falls back to bundled copy when not found next to database — fixes empty Benchmark page on npm installs
+
+## [1.0.1] - 2026-04-15
+
+### Fixed
+
+- `comparison.json` ships in the npm package, and the dashboard falls back to the bundled copy (the 1.0.2 entry lists the same fix). The README was rewritten for the 1.0 launch.
 
 ## [1.0.0] - 2026-04-14
 
@@ -550,6 +600,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed 5 noisy debug `console.log` statements from dashboard.ts (SSE change notifications, re-index, marketing stats rebuild, client connect)
 
 ## [0.3.1] - 2026-04-14
+
+- 0.3.1 was not published to npm; 1.0.0 contains its changes too.
 
 ### Added
 
@@ -584,6 +636,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Navigation updated to include Benchmark and Velocity as top-level tabs
 - README updated with benchmark findings and efficiency metrics
+
+## 0.2.1 – 0.2.9 - 2026-04-08 to 2026-04-09
+
+Patch releases on npm without their own entry; the 0.2.0 and 0.3.0 entries describe the work. One line each, from the git log:
+
+- 0.2.1 – 0.2.4 (2026-04-08): dashboard UI overhaul steps.
+- 0.2.5 (2026-04-09): skills overhaul.
+- 0.2.6: smaller tool output to reduce tokens.
+- 0.2.7: fix an install bug in `settings.json`.
+- 0.2.8: README update and scrum tool changes.
+- 0.2.9: MCP tool coverage test and a README note.
 
 ## [0.2.0] - 2026-04-12
 
@@ -680,6 +743,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Original single-file HTML dashboard (replaced by React app)
 - Linear integration (all external sync code removed)
 
+## [0.1.1] - 2026-04-06
+
+### Fixed
+
+- The BentoGrid shows the project's own data instead of hard-coded data, so clean npm installs render. (#8)
+- The ProcessFlow page gets its `'use client'` directive.
+
 ## [0.1.0] - 2026-04-08
 
 ### Added
@@ -714,8 +784,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `zod` schema validation
 - MIT license
 
-[1.0.0]: https://github.com/VelimirMueller/mcp-server/compare/v0.3.1...v1.0.0
-[0.3.1]: https://github.com/VelimirMueller/mcp-server/compare/v0.3.0...v0.3.1
-[0.3.0]: https://github.com/VelimirMueller/mcp-server/compare/v0.2.0...v0.3.0
-[0.2.0]: https://github.com/VelimirMueller/mcp-server/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/VelimirMueller/mcp-server/releases/tag/v0.1.0
+<!-- Tagged versions link to a compare view. Versions without a git tag (tags start at v1.1.5; 1.3.0, 2.6.0 and 2.12.0 have none) link to their version-bump commit. -->
+
+[Unreleased]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.13.0...HEAD
+[2.13.0]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.11.0...v2.13.0
+[2.12.0]: https://github.com/VelimirMueller/code-context-mcp/commit/e23b7670826929286516cd10a8cf45a7747c4581
+[2.11.0]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.10.0...v2.11.0
+[2.10.0]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.9.0...v2.10.0
+[2.9.0]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.8.0...v2.9.0
+[2.8.0]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.7.0...v2.8.0
+[2.7.0]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.5.1...v2.7.0
+[2.6.0]: https://github.com/VelimirMueller/code-context-mcp/commit/cdb93fab43d09ce390c2c0fa25b2a214c1d8dfcd
+[2.5.1]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.5.0...v2.5.1
+[2.5.0]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.4.2...v2.5.0
+[2.4.2]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.4.1...v2.4.2
+[2.4.1]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.4.0...v2.4.1
+[2.4.0]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.3.0...v2.4.0
+[2.3.0]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.2.0...v2.3.0
+[2.2.0]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.1.0...v2.2.0
+[2.1.0]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.0.0...v2.1.0
+[2.0.0]: https://github.com/VelimirMueller/code-context-mcp/compare/v1.3.1...v2.0.0
+[1.3.1]: https://github.com/VelimirMueller/code-context-mcp/compare/v1.2.1...v1.3.1
+[1.3.0]: https://github.com/VelimirMueller/code-context-mcp/commit/6330a8a63631f17ab6272489f2ee864d7414c26c
+[1.2.1]: https://github.com/VelimirMueller/code-context-mcp/compare/v1.2.0...v1.2.1
+[1.2.0]: https://github.com/VelimirMueller/code-context-mcp/compare/v1.1.5...v1.2.0
+[1.1.5]: https://github.com/VelimirMueller/code-context-mcp/releases/tag/v1.1.5
+[1.1.4]: https://github.com/VelimirMueller/code-context-mcp/commit/dcfaa0accf93ae1b8a79d8ed52e32961ddd6cf8a
+[1.1.3]: https://github.com/VelimirMueller/code-context-mcp/commit/888a355f45d7bf1301cd980c6a4676d76aa35b46
+[1.1.2]: https://github.com/VelimirMueller/code-context-mcp/commit/c3d0b8458c4b8cc1a466ba1d2f92bd1b37d6900f
+[1.1.1]: https://github.com/VelimirMueller/code-context-mcp/commit/2b4b5a649e5f7cb1f40191501d9520bb1dd148e8
+[1.1.0]: https://github.com/VelimirMueller/code-context-mcp/commit/0149d4463525a884c25b4e5ca2973ce49ecead42
+[1.0.2]: https://github.com/VelimirMueller/code-context-mcp/commit/2889447906d211a7628eaeea69ed77d0e35dd0e8
+[1.0.1]: https://github.com/VelimirMueller/code-context-mcp/commit/28f3b9da45ea71e8e87fbe649e304147f16a3edf
+[1.0.0]: https://github.com/VelimirMueller/code-context-mcp/commit/de88bce6967c0859897a0a579202f830ab64d7ff
+[0.3.1]: https://github.com/VelimirMueller/code-context-mcp/commit/0c23205b6bb9d16d6200172631c01e891b115d6a
+[0.3.0]: https://github.com/VelimirMueller/code-context-mcp/commit/6581a345d97ffdd90c30787956b06add1e415d3a
+[0.2.0]: https://github.com/VelimirMueller/code-context-mcp/commit/1243cc51c328c06b5f678551696e2d937dd33a0d
+[0.1.1]: https://github.com/VelimirMueller/code-context-mcp/commit/cc7abe2f80088d912f45a91f28b1ccacd192a52c
+[0.1.0]: https://github.com/VelimirMueller/code-context-mcp/commit/eb56b1a5d61a838e50f9cb9e4c689a2a86969c84

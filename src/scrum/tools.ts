@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { resolveDashboardToken } from '../dashboard/auth.js';
+import { dashboardTokenRoot, resolveDashboardToken } from '../dashboard/auth.js';
 import { formatModelRouting, KNOWN_AGENT_MODELS, modelToTier } from './agent-model.js';
 import {
   buildCommitContract,
@@ -85,8 +85,19 @@ function resolveDashboardPort(db: Database.Database): string {
 
 /** Bearer header so MCP→dashboard notify calls authenticate against /api/* (#15b). */
 let cachedDashboardToken: string | null = null;
+let dashboardDbPath: string | null = null;
+
+/**
+ * Tell the notify path which db this process serves, so it reads the token
+ * beside that db, like the dashboard does (#235). Without it, the cwd is used.
+ */
+export function setDashboardDbPath(dbPath: string | null): void {
+  dashboardDbPath = dbPath;
+  cachedDashboardToken = null;
+}
+
 function dashboardAuthHeaders(): Record<string, string> {
-  cachedDashboardToken ??= resolveDashboardToken();
+  cachedDashboardToken ??= resolveDashboardToken(dashboardTokenRoot(dashboardDbPath));
   return { Authorization: `Bearer ${cachedDashboardToken}` };
 }
 

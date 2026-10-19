@@ -62,6 +62,7 @@
 <summary><picture><source media="(prefers-color-scheme: light)" srcset="assets/readme/links-13-v3-light.svg"><img alt="Plain text" src="assets/readme/links-13-v3-dark.svg" width="32%"></picture></summary>
 
 ```bash
+# Requires Node.js 22 or newer. Node.js 24 LTS is recommended.
 npm install vlm-code-context-mcp
 
 # The code index (default): 6 tools
@@ -169,14 +170,14 @@ Read("src/auth.ts")                  → only now read the actual code
 <p>
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="assets/readme/bench-runs-v3-light.svg">
-  <img alt="GLM 5.3 · I1-I6 (683 files) · n=5: Success vanilla / cc / guided: 26/30 · 26/30 · 28/30. Uncached tokens saved: cc +33.7 % [+11.1 .. +45.2], guided +47.1 % [+34.7 .. +61.2]. Cost saved: n/a (subscription). Uncached tokens per PASS: 12,213 · 8,091 · 5,997. DeepSeek v4 pro · I1-I6 (683 files) · n=5: Success vanilla / cc / guided: 25/30 · 29/30 · 30/30. Uncached tokens saved: cc +28.4 % [+24.1 .. +34.5], guided +34.7 % [+15.1 .. +49.1]. Cost saved cc / guided: +29.1 % / +34.5 %. Uncached tokens per PASS: 22,342 · 13,800 · 12,153. DeepSeek v4 pro · L1, L4, L6 · n=3: Success vanilla / cc / guided: 9/9 · 9/9 · 8/9. Uncached tokens saved: cc +16.4 % [-11.1 .. +54.1], guided +7.3 % [+0.1 .. +16.8]. Cost saved cc / guided: +16.4 % / +8.4 %. Uncached tokens per PASS: 55,259 · 46,206 · 57,635. Opus (Claude Code) · L1, I1 · n=2: Success vanilla / cc / guided: 4/4 · 4/4 · none. Uncached tokens saved: cc -46.0 % [-82.5 .. -31.9], guided none. Cost saved cc / guided: -36.5 % / none. Uncached tokens per PASS: 4,508 · 6,579 · none" src="assets/readme/bench-runs-v3-dark.svg" width="100%">
+  <img alt="GLM 5.3 · I1-I6 (683 files) · n=5: Success vanilla / cc / guided: 26/30 · 26/30 · 28/30. Uncached tokens saved: cc +33.7 % [+11.1 .. +45.2], guided +47.1 % [+34.7 .. +61.2]. Cost saved: n/a (subscription). Uncached tokens per PASS: 12,213 · 8,091 · 5,997. DeepSeek v4 pro · I1-I6 (683 files) · n=5: Success vanilla / cc / guided: 25/30 · 29/30 · 30/30. Uncached tokens saved: cc +28.4 % [+24.1 .. +34.5], guided +34.7 % [+15.1 .. +49.1]. Cost saved cc / guided: +29.1 % / +34.5 %. Uncached tokens per PASS: 22,342 · 13,800 · 12,153. DeepSeek v4 pro · L1, L4, L6 · n=3: Success vanilla / cc / guided: 9/9 · 9/9 · 8/9. Uncached tokens saved: cc +16.4 % [-11.1 .. +54.1], guided +7.3 % [+0.1 .. +16.8]. Cost saved cc / guided: +16.4 % / +8.4 %. Uncached tokens per PASS: 55,259 · 46,206 · 57,635. GLM 5.3 · L1, L2, I1-I6 · n=3 · glm-20261011-184607: Success vanilla / cc / guided: 23/24 · 21/24 · 21/24. Uncached tokens saved: cc +27.8 % [+19.4 .. +40.4], guided +38.4 % [+33.4 .. +43.5]. Cost saved: n/a (subscription). Uncached tokens per PASS: 8,919 · 7,054 · 6,020. Verdict SUBOPTIMAL: success drops from 95.8 % to 87.5 %. Opus (Claude Code) · L1, I1 · n=2 · opus-20261011-134112: Success vanilla / cc / guided: 4/4 · 4/4 · none. Uncached tokens saved: cc -46.0 % [-82.5 .. -31.9], guided none. Cost saved cc / guided: -36.5 % / none. Uncached tokens per PASS: 4,508 · 6,579 · none. Opus (Claude Code) · L1, L2, I1-I6 · n=1 · opus-20261011-145449: Success vanilla / cc / guided: 6/8 · 6/8 · 7/8. Uncached tokens saved: cc +11.2 %, guided +15.4 % (n=1, no range). Cost saved cc / guided: +7.9 % / +13.5 %. Uncached tokens per PASS: 10,070 · 8,946 · 7,306" src="assets/readme/bench-runs-v3-dark.svg" width="100%">
 </picture>
 </p>
 
 <p>
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="assets/readme/bench-read-v3-light.svg">
-  <img alt="Proof runs: Real agent numbers from proof runs on 2026-10-11, rescored and renormalized. &quot;Saved&quot; compares each arm with vanilla (no server); positive means fewer. Range = min .. max over repeats. Caveats: Small n, fixed fixtures (L1 sample project, L4/L6 this repo, I-tasks the generated fixture), one day. GLM caching: GLM caches tool definitions across sessions with no off switch, so its uncached counts leave out that prefix. Opus is a smoke check: n=2 per task and arm (one cold, one warm), no guided arm. The guided DeepSeek miss is an L6 timeout (300 s). Older runs: Agent runs before 2026-10-11 00:00 UTC told every arm to use the built-in file tools. They do not show the server in use" src="assets/readme/bench-read-v3-dark.svg" width="100%">
+  <img alt="Proof runs: Real agent numbers from proof runs on 2026-10-11, rescored and renormalized. &quot;Saved&quot; compares each arm with vanilla (no server); positive means fewer. Range = min .. max over repeats. Caveats: Small n, fixed fixtures (L1/L2 sample project, L4/L6 this repo, I-tasks the generated fixture), one day. The guided DeepSeek miss is an L6 timeout (300 s). GLM caching: GLM caches tool definitions across sessions with no off switch, so its uncached counts leave out that prefix. Opus is a smoke check: opus-20261011-134112: n=2 per task and arm (one cold, one warm), no guided arm. opus-20261011-145449: 8 tasks, n=1, no range. The two runs disagree on the sign. Read both as indicative. Verdict: The bench verdict compares each arm with vanilla. A success drop of more than 5 points is SUBOPTIMAL, also when the tokens go down. glm-20261011-184607 is SUBOPTIMAL for this reason. Older runs: Agent runs before 2026-10-11 00:00 UTC told every arm to use the built-in file tools. They do not show the server in use" src="assets/readme/bench-read-v3-dark.svg" width="100%">
 </picture>
 </p>
 
@@ -206,7 +207,7 @@ npm run bench:publish
 <p>
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="assets/readme/pages-v3-light.svg">
-  <img alt="Dashboard: Kanban board, phase gate stepper, burndown, velocity, sprint checklist. Planning: Milestone tracker, epic progress, discovery pipeline. Code: File tree, dependency graph, export/import map, change history. Team: Agent cards, model badges, mood trends, workload bars. Retro: Bento grid insights, cross-sprint patterns, recurring themes. Benchmark: MCP vs vanilla comparison with animated metrics. Velocity: Sprint-by-sprint trends, committed vs completed" src="assets/readme/pages-v3-dark.svg" width="100%">
+  <img alt="Dashboard: Kanban board, phase gate stepper, burndown, velocity, sprint checklist. Planning: Milestone tracker, epic progress, discovery pipeline. Code: File tree, dependency graph, export/import map, change history. Team: Agent cards, model badges, mood trends, workload bars. Retro: Bento grid insights, cross-sprint patterns, recurring themes. Benchmark: MCP vs vanilla comparison with animated metrics" src="assets/readme/pages-v3-dark.svg" width="100%">
 </picture>
 </p>
 
@@ -238,7 +239,7 @@ npm run bench:publish
 <p>
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="assets/readme/team-v3-light.svg">
-  <img alt="9 configurable agents: Product Owner, Team Lead, Architect, Backend Developer, Frontend Developer, Developer, QA Engineer, Security Engineer, DevOps. Default models: Dev roles default to claude-fable-5, QA to claude-opus-5, the rest to claude-sonnet-5. Change an agent: Change a model, tools or system prompt with the update_agent MCP tool or in the dashboard. The model routes execution: During /kickoff and /sprint, a subagent at the assigned model tier (fable/opus/sonnet/haiku) implements each ticket. Several agents per ticket: Since 2.0. The lead implements, supporters verify, QA needs every verdict. Roles and focus: In docs/REFERENCE.md (the agent team)" src="assets/readme/team-v3-dark.svg" width="100%">
+  <img alt="9 configurable agents: Product Owner, Team Lead, Architect, Backend Developer, Frontend Developer, Developer, QA Engineer, Security Engineer, DevOps. Default models: Dev roles default to claude-fable-5-1, QA to claude-opus-5-5, the rest to claude-sonnet-5-5. Change an agent: Change a model, tools or system prompt with the update_agent MCP tool or in the dashboard. The model routes execution: During /kickoff and /sprint, a subagent at the assigned model tier (fable/opus/sonnet/haiku) implements each ticket. Several agents per ticket: Since 2.0. The lead implements, supporters verify, QA needs every verdict. Roles and focus: In docs/REFERENCE.md (the agent team)" src="assets/readme/team-v3-dark.svg" width="100%">
 </picture>
 </p>
 
@@ -265,7 +266,7 @@ npm run bench:publish
 <p>
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="assets/readme/stack-v3-light.svg">
-  <img alt="Runtime: Node.js 24 LTS. Build: TypeScript strict mode. Languages: Exports and import edges for TypeScript/JavaScript, Python and PHP (classes, interfaces, traits, enums, functions, constants; use statements resolved through composer.json PSR-4 maps). Other files are indexed with a summary only. Database: SQLite via better-sqlite3, WAL mode. 33 tables (27 scrum + 6 code). MCP protocol: @modelcontextprotocol/sdk. The server sends short MCP instructions (about 90 tokens) on when to use the graph tools. Dashboard: React 19 + Vite + Zustand + Framer Motion. CSS variables + Tailwind, dark theme. 75 React components. Live updates: SSE via WAL file watcher. Testing: Vitest. 1841 backend tests and 104 dashboard tests. Process: 9 agent roles (configurable). 4 sprint phases with gate checks + planning gate. 6 slash commands. CLI bins: 7: code-context (index), code-context-sprint (sprint process), code-context-mcp (setup), code-context-dashboard, code-context-statusline, code-context-reindex, code-context-sync-github. Alias: vlm-code-context-mcp = code-context" src="assets/readme/stack-v3-dark.svg" width="100%">
+  <img alt="Runtime: Node.js 22 or newer, 24 LTS recommended. Build: TypeScript strict mode. Languages: Exports and import edges for TypeScript/JavaScript, Python and PHP (classes, interfaces, traits, enums, functions, constants; use statements resolved through composer.json PSR-4 maps). Other files are indexed with a summary only. Database: SQLite via better-sqlite3, WAL mode. 33 tables (27 scrum + 6 code). MCP protocol: @modelcontextprotocol/sdk. The server sends short MCP instructions (about 90 tokens) on when to use the graph tools. Dashboard: React 19 + Vite + Zustand + Framer Motion. CSS variables + Tailwind, dark theme. 75 React components. Live updates: SSE via WAL file watcher. Testing: Vitest. 1841 backend tests and 104 dashboard tests. Process: 9 agent roles (configurable). 4 sprint phases with gate checks + planning gate. 6 slash commands. CLI bins: 7: code-context (index), code-context-sprint (sprint process), code-context-mcp (setup), code-context-dashboard, code-context-statusline, code-context-reindex, code-context-sync-github. Alias: vlm-code-context-mcp = code-context" src="assets/readme/stack-v3-dark.svg" width="100%">
 </picture>
 </p>
 
@@ -348,7 +349,7 @@ npm run test:all  # backend + frontend
 <p>
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="assets/readme/status-v3-light.svg">
-  <img alt="Release: 2.13.0 on npm. Python index: since 2.8. Tests: 1841, vitest. Dashboard: 7 pages, live. Fun + stream: hidden unless opted in" src="assets/readme/status-v3-dark.svg" width="100%">
+  <img alt="Release: 2.13.0 on npm. Python index: since 2.8. Tests: 1841, vitest. Dashboard: 6 pages, live. Fun + stream: hidden unless opted in" src="assets/readme/status-v3-dark.svg" width="100%">
 </picture>
 </p>
 
@@ -364,8 +365,6 @@ npm run test:all  # backend + frontend
 <a href="docs/REFERENCE.md#release-highlights"><picture><source media="(prefers-color-scheme: light)" srcset="assets/readme/links-12-v3-light.svg"><img alt="Release highlights (docs/REFERENCE.md#release-highlights)" src="assets/readme/links-12-v3-dark.svg" width="32%"></picture></a>
 <a href="https://www.npmjs.com/package/vlm-code-context-mcp"><picture><source media="(prefers-color-scheme: light)" srcset="assets/readme/links-1-v3-light.svg"><img alt="npm (https://www.npmjs.com/package/vlm-code-context-mcp)" src="assets/readme/links-1-v3-dark.svg" width="32%"></picture></a>
 </p>
-
-<p align="center">Public contract for 3.x (tools, inputs, outputs, profiles, bins, database): <a href="docs/CONTRACT.md">docs/CONTRACT.md</a>. A change to it needs a major version.</p>
 
 <p>
 <picture>

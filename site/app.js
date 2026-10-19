@@ -609,10 +609,38 @@
   // overflowed one inner scroll area (the "open" button clipped to "ope" at
   // 1280, columns off-screen at 390). Grid rows reflow: one line per run on
   // wide viewports, stacked cards below 720 px — nothing ever clips.
-  function renderHistory(runs, onSelect) {
+  function runRow(r, onSelect) {
+    var m = D.kindMeta(r.kind) || { label: r.kind };
+    var cls = r.kind === 'simulated' ? 'k-sim' : r.kind === 'agent-claude' ? 'k-claude' : 'k-agent';
+    var btn = el(
+      'button',
+      { class: 'rk rk-open rowbtn', type: 'button', 'aria-label': 'open run ' + r.id },
+      ['open ->'],
+    );
+    btn.addEventListener('click', function () {
+      onSelect(r);
+    });
+    return el('li', { class: 'runrow' }, [
+      el('span', { class: 'rk rk-kind' }, [el('span', { class: 'kbadge ' + cls }, [m.label])]),
+      el('span', { class: 'rk rk-date' }, [r.date]),
+      el('span', { class: 'rk rk-model' }, [r.model || '—']),
+      el('span', { class: 'rk rk-headline' }, [headlineText(r)]),
+      btn,
+    ]);
+  }
+
+  // groups (optional, from D.historyOf): one block per run, each with a
+  // heading ("Run 1 · 2026-10-11") and its rows; without groups, one flat list.
+  function renderHistory(runs, onSelect, hist) {
     var box = $('history-body');
     clear(box);
-    if (!runs.length) {
+    var note = $('history-reset');
+    if (note) {
+      note.hidden = !(hist && hist.note);
+      if (hist && hist.note) note.textContent = hist.note;
+    }
+    var groups = hist && hist.groups && hist.groups.length ? hist.groups : null;
+    if (!runs.length && !groups) {
       box.appendChild(
         el('div', { class: 'pending' }, [
           el('b', null, ['No published runs yet. ']),
@@ -625,31 +653,35 @@
     ['Kind', 'Date', 'Model', 'Headline', ''].forEach(function (t) {
       head.appendChild(el('span', { class: 'rk rk-' + (t ? t.toLowerCase() : 'open') }, [t]));
     });
-    var ul = el('ul', { class: 'runs' });
-    runs.forEach(function (r) {
-      var m = D.kindMeta(r.kind) || { label: r.kind };
-      var cls =
-        r.kind === 'simulated' ? 'k-sim' : r.kind === 'agent-claude' ? 'k-claude' : 'k-agent';
-      var btn = el(
-        'button',
-        { class: 'rk rk-open rowbtn', type: 'button', 'aria-label': 'open run ' + r.id },
-        ['open ->'],
-      );
-      btn.addEventListener('click', function () {
-        onSelect(r);
+    box.appendChild(head);
+    if (!groups) {
+      var ul = el('ul', { class: 'runs' });
+      runs.forEach(function (r) {
+        ul.appendChild(runRow(r, onSelect));
       });
-      ul.appendChild(
-        el('li', { class: 'runrow' }, [
-          el('span', { class: 'rk rk-kind' }, [el('span', { class: 'kbadge ' + cls }, [m.label])]),
-          el('span', { class: 'rk rk-date' }, [r.date]),
-          el('span', { class: 'rk rk-model' }, [r.model || '—']),
-          el('span', { class: 'rk rk-headline' }, [headlineText(r)]),
-          btn,
+      box.appendChild(ul);
+      return;
+    }
+    groups.forEach(function (g) {
+      var sec = el('div', { class: 'run-group' + (g.baseline ? ' run-group-baseline' : '') });
+      sec.appendChild(
+        el('h3', { class: 'run-group-title' }, [
+          g.label +
+            ' · ' +
+            g.date +
+            ' · ' +
+            g.runs.length +
+            (g.runs.length === 1 ? ' kind' : ' kinds'),
         ]),
       );
+      if (g.note) sec.appendChild(el('p', { class: 'sub run-group-note' }, [g.note]));
+      var gul = el('ul', { class: 'runs' });
+      g.runs.forEach(function (r) {
+        gul.appendChild(runRow(r, onSelect));
+      });
+      sec.appendChild(gul);
+      box.appendChild(sec);
     });
-    box.appendChild(head);
-    box.appendChild(ul);
   }
 
   // ---- run detail ----
@@ -2120,6 +2152,20 @@
         return [];
       });
   }
+  // Baseline run files named in BENCH_CONFIG.HISTORY (shipped in site/baseline/).
+  function loadBaseline() {
+    var h = CFG.HISTORY;
+    var files = h && h.baseline && Array.isArray(h.baseline.files) ? h.baseline.files : [];
+    return Promise.all(
+      files.map(function (f) {
+        return getJSON(f).catch(function () {
+          return null;
+        });
+      }),
+    ).then(function (list) {
+      return list.filter(Boolean);
+    });
+  }
   function loadLatest(indexRuns) {
     return getJSON(CFG.LATEST || 'data/latest.json')
       .then(function (raw) {
@@ -2149,9 +2195,13 @@
     function paint(d) {
       renderHeadline(d.latest);
       if (d.simple !== false) paintSimple(d.runs, d.summaries || []);
-      renderHistory(d.runs, function (r) {
-        renderDetail(r, d.runs);
-      });
+      renderHistory(
+        d.runs,
+        function (r) {
+          renderDetail(r, d.runs);
+        },
+        d.history,
+      );
       renderDetail(d.latest, d.runs);
     }
     function paintEmpty() {
@@ -2168,11 +2218,17 @@
     // latest table on the public runs.
     var priv = loadPrivate();
     priv.then(renderPrivate);
-    Promise.all([loadIndexRuns(), priv])
-      .then(function (both) {
-        var runs = both[0];
+    Promise.all([loadIndexRuns(), priv, CFG.HISTORY ? loadBaseline() : Promise.resolve([])])
+      .then(function (all) {
+        var hist = D.historyOf(all[0], all[2], CFG.HISTORY);
+        var runs = hist ? hist.runs : all[0];
         return loadLatest(runs).then(function (latest) {
-          return { runs: runs, latest: latest, summaries: (both[1] || []).filter(Boolean) };
+          return {
+            runs: runs,
+            latest: latest,
+            history: hist,
+            summaries: (all[1] || []).filter(Boolean),
+          };
         });
       })
       .then(paint)

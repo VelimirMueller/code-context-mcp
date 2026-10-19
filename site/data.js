@@ -116,6 +116,56 @@
       });
   }
 
+  // ---- history restart (BENCH_CONFIG.HISTORY) ----
+  // runs: index entries (raw or normalized); baseline: raw baseline run files.
+  // Returns null when no restart is configured, else
+  //   { runs: kept runs newest first, groups: [{ label, date, note, baseline, runs }], note }
+  // Groups: one per publish date at or after h.since, newest first, numbered
+  // "Run 1" for the oldest kept date; the baseline group comes last.
+  function historyOf(runs, baseline, h) {
+    if (!isObj(h) || typeof h.since !== 'string') return null;
+    var cut = tsMillis(h.since);
+    if (cut === null) return null;
+    var kept = sortRunsDesc(
+      arr(runs).map(function (r) {
+        return r && r.raw ? r.raw : r;
+      }),
+    ).filter(function (r) {
+      var t = tsMillis(r.ts);
+      return t !== null && t >= cut;
+    });
+    var dates = [];
+    kept.forEach(function (r) {
+      if (dates.indexOf(r.date) < 0) dates.push(r.date);
+    });
+    dates.sort();
+    var groups = dates
+      .map(function (d, i) {
+        return {
+          label: 'Run ' + (i + 1),
+          date: d,
+          note: null,
+          baseline: false,
+          runs: kept.filter(function (r) {
+            return r.date === d;
+          }),
+        };
+      })
+      .reverse();
+    var b = isObj(h.baseline) ? h.baseline : null;
+    var base = sortRunsDesc(baseline);
+    if (b && base.length) {
+      groups.push({
+        label: typeof b.label === 'string' && b.label ? b.label : 'Baseline',
+        date: base[0].date,
+        note: typeof b.note === 'string' ? b.note : null,
+        baseline: true,
+        runs: base,
+      });
+    }
+    return { runs: kept, groups: groups, note: typeof h.note === 'string' ? h.note : null };
+  }
+
   // ---- legacy validity rules (pre-registration v2) ----
   function preregVersion(raw) {
     return isObj(raw) && isObj(raw.prereg) && typeof raw.prereg.version === 'string'
@@ -1023,6 +1073,7 @@
     isAgentKind: isAgentKind,
     normalizeRun: normalizeRun,
     sortRunsDesc: sortRunsDesc,
+    historyOf: historyOf,
     headlineOf: headlineOf,
     verdictOf: verdictOf,
     treatmentRate: treatmentRate,
