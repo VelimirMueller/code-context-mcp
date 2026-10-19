@@ -1,0 +1,59 @@
+name: Benchmark snapshot
+
+# Keeps a copy of the last published benchmark run in the repository
+# (benchmarks/latest/), next to the code it measured. The last run is the
+# newest run of each kind on the newest publish date, the same rule the
+# benchmark site uses for "Run N". Source: the bench-results branch, written
+# by bench:publish and benchmark.yml. The change lands as a PR, never as a
+# direct push to main. It runs only when bench-results changes, never on a timer.
+on:
+  push:
+    branches: [bench-results]
+  workflow_dispatch:
+
+# Nothing by default; the job declares its own permissions below.
+permissions: {}
+
+concurrency:
+  group: bench-snapshot
+  cancel-in-progress: true
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the chore/bench-snapshot branch
+      pull-requests: write # open or update the snapshot PR
+    steps:
+      - name: Check out main
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: main
+
+      - name: Read the bench-results data
+        run: |
+          set -euo pipefail
+          git fetch --depth 1 origin bench-results
+          mkdir -p "$RUNNER_TEMP/bench"
+          git archive FETCH_HEAD data | tar -x -C "$RUNNER_TEMP/bench"
+
+      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
+        with:
+          node-version: '24'
+
+      - name: Copy the last run into benchmarks/latest/
+        run: node scripts/bench/snapshot.mjs "$RUNNER_TEMP/bench/data" benchmarks/latest
+
+      - name: Open or update the snapshot PR
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          branch: chore/bench-snapshot
+          add-paths: |
+            benchmarks/latest/
+          commit-message: 'chore(bench): copy the last benchmark run into benchmarks/latest'
+          title: 'chore(bench): snapshot of the last benchmark run'
+          body: |
+            Automated copy of the last published benchmark run from the `bench-results` branch
+            into `benchmarks/latest/` (newest run of each kind on the newest publish date).
+            `manifest.json` lists the runs. The numbers are unchanged copies; the site shows the
+            same run: https://velimirmueller.github.io/code-context-mcp/

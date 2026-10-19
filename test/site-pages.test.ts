@@ -13,6 +13,7 @@ interface Opts {
   index?: any;
   runs?: Record<string, any>; // id -> run JSON (served from data/runs/)
   extra?: Record<string, any>; // other data files by path (e.g. data/private/index.json)
+  history?: any; // BENCH_CONFIG.HISTORY for this load; default null (flat history)
 }
 
 function load(o: Opts) {
@@ -34,6 +35,9 @@ function load(o: Opts) {
     return Promise.resolve({ ok: false, status: 404 });
   };
   w.eval(readFileSync(join(SITE, 'config.js'), 'utf8'));
+  // The shipped config restarts the history on 2026-10-11; fixtures are older.
+  // Tests opt in with o.history, so every other test sees the flat history.
+  w.BENCH_CONFIG.HISTORY = o.history === undefined ? null : o.history;
   w.eval(readFileSync(join(SITE, 'data.js'), 'utf8'));
   w.eval(readFileSync(join(SITE, 'app.js'), 'utf8'));
   return w as any;
@@ -279,6 +283,7 @@ describe('history', () => {
       return Promise.resolve({ ok: false, status: 404 });
     };
     w.eval(readFileSync(join(SITE, 'config.js'), 'utf8'));
+    w.BENCH_CONFIG.HISTORY = null; // flat history: the fixtures predate the shipped restart
     w.eval(readFileSync(join(SITE, 'data.js'), 'utf8'));
     w.eval(readFileSync(join(SITE, 'app.js'), 'utf8'));
     await tick();
@@ -521,14 +526,25 @@ describe('honest headline with spread (CCA-08)', () => {
 
 describe('private suite summaries (CCA-19)', () => {
   const arm = (success: number, unc: number, cost: number | null, wall: number) => ({
-    sessions: 6, success_pct: success, uncached_per_session: unc, uncached_per_pass: Math.round(unc * 1.1),
-    cost_usd: cost, cost_per_pass: cost === null ? null : cost / 5, wall_mean_ms: wall,
+    sessions: 6,
+    success_pct: success,
+    uncached_per_session: unc,
+    uncached_per_pass: Math.round(unc * 1.1),
+    cost_usd: cost,
+    cost_per_pass: cost === null ? null : cost / 5,
+    wall_mean_ms: wall,
   });
   const saved = (pct: number, cost: number | null) => ({
-    uncached_saved_pct: pct, uncached_saved_spread: { min: pct - 5, max: pct + 5, repeats: 2 }, cost_saved_pct: cost,
+    uncached_saved_pct: pct,
+    uncached_saved_spread: { min: pct - 5, max: pct + 5, repeats: 2 },
+    cost_saved_pct: cost,
   });
   const block = () => ({
-    arms: { vanilla: arm(83.3, 2850, 0.3, 30000), cc: arm(100, 1700, 0.18, 24000), cc_guided: arm(100, 1650, 0.18, 23000) },
+    arms: {
+      vanilla: arm(83.3, 2850, 0.3, 30000),
+      cc: arm(100, 1700, 0.18, 24000),
+      cc_guided: arm(100, 1650, 0.18, 23000),
+    },
     saved: { cc: saved(40.4, 40), cc_guided: saved(42.1, 40) },
   });
   const summary = {
@@ -536,18 +552,36 @@ describe('private suite summaries (CCA-19)', () => {
     alias: 'Real-world suite A',
     generated: '2026-10-12',
     code_context_version: '1.9.0',
-    scope: { sources: 7, files: 5321, total_mb: 48.2, tasks: 12, tasks_per_group: { 'Single-page app': 4, 'cross-repo': 3 } },
+    scope: {
+      sources: 7,
+      files: 5321,
+      total_mb: 48.2,
+      tasks: 12,
+      tasks_per_group: { 'Single-page app': 4, 'cross-repo': 3 },
+    },
     runs: [
       {
-        model: 'claude-opus-4-1', provider_kind: 'agent-opus', date: '2026-10-12', repeats: 2, ...block(),
-        groups: [{ group: 'Single-page app', tasks: 4, ...block() }, { group: 'cross-repo', tasks: 3, ...block() }],
+        model: 'claude-opus-4-1',
+        provider_kind: 'agent-opus',
+        date: '2026-10-12',
+        repeats: 2,
+        ...block(),
+        groups: [
+          { group: 'Single-page app', tasks: 4, ...block() },
+          { group: 'cross-repo', tasks: 3, ...block() },
+        ],
       },
     ],
   };
   const index = {
     schema: 'ccc-bench-private-index/1',
     summaries: [
-      { slug: 'real-world-suite-a', alias: 'Real-world suite A', generated: '2026-10-12', file: 'private/real-world-suite-a.json' },
+      {
+        slug: 'real-world-suite-a',
+        alias: 'Real-world suite A',
+        generated: '2026-10-12',
+        file: 'private/real-world-suite-a.json',
+      },
       // A path outside data/private/ is never fetched.
       { slug: 'evil', alias: 'Evil', generated: '2026-10-12', file: '../runs/x.json' },
     ],
@@ -589,7 +623,10 @@ describe('private suite summaries (CCA-19)', () => {
     const w = load({
       latest: sim(),
       index: { runs: [sim()] },
-      extra: { 'data/private/index.json': index, 'data/private/real-world-suite-a.json': { schema: 'ccc-bench/1', alias: 'x' } },
+      extra: {
+        'data/private/index.json': index,
+        'data/private/real-world-suite-a.json': { schema: 'ccc-bench/1', alias: 'x' },
+      },
     });
     await tick();
     expect(w.document.getElementById('private').hidden).toBe(true);
@@ -976,7 +1013,14 @@ describe('latest-run table: review fixes (#160)', () => {
   });
 
   it('simpleRowOf ignores an odd stored verdict (arm vanilla) and never shows vanilla numbers', () => {
-    const odd = { code: 'BENEFICIAL', indicative: false, repeats: 3, arm: 'vanilla', arms: {}, sentences: ['x'] };
+    const odd = {
+      code: 'BENEFICIAL',
+      indicative: false,
+      repeats: 3,
+      arm: 'vanilla',
+      arms: {},
+      sentences: ['x'],
+    };
     const row = D().simpleRowOf(pick(block(odd, 3)), null);
     expect(row.verdict.arm).toBe('cc'); // computed with the rule, not the stored object
     expect(row.verdict.code).toBe('SUBOPTIMAL'); // success 90 → 80
@@ -985,7 +1029,8 @@ describe('latest-run table: review fixes (#160)', () => {
 
   it('blockVerdictInputOf falls back to 1 repeat for a missing or bad count', () => {
     const d = D();
-    for (const r of [undefined, null, 0, -2, 'x']) expect(d.blockVerdictInputOf(block(null), r).repeats).toBe(1);
+    for (const r of [undefined, null, 0, -2, 'x'])
+      expect(d.blockVerdictInputOf(block(null), r).repeats).toBe(1);
     expect(d.blockVerdictInputOf(block(null), 3).repeats).toBe(3);
     const row = d.simpleRowOf(pick(block(null, undefined)), null);
     expect(row.repeats).toBe(1);
@@ -1002,5 +1047,100 @@ describe('latest-run table: review fixes (#160)', () => {
     expect(L.changeClass(-0.6)).toBe('num neg');
     expect(L.changeText(null, 'less', 'more')).toBe('—');
     expect(L.changeClass(null)).toBe('num na');
+  });
+});
+
+describe('history restart (BENCH_CONFIG.HISTORY)', () => {
+  const HIST = {
+    since: '2026-10-10T00:00:00Z',
+    note: 'History restarted on 2026-10-13. Earlier runs stay on the bench-results branch.',
+    baseline: {
+      label: 'Baseline',
+      note: 'Simulated only, June 2026. Older tool set.',
+      files: ['baseline/sim-20260611-182528.json'],
+    },
+  };
+  const june = () =>
+    JSON.parse(readFileSync(join(SITE, 'baseline', 'sim-20260611-182528.json'), 'utf8'));
+
+  it('lists only runs since the restart as Run N, then the baseline, and shows the note', async () => {
+    const w = load({
+      latest: glm(),
+      index: indexFixture(),
+      runs: { 'sim-20261010-140322': sim(), 'glm-20261010-153000': glm() },
+      extra: { 'baseline/sim-20260611-182528.json': june() },
+      history: HIST,
+    });
+    await tick();
+    const doc = w.document;
+    const titles = [...doc.querySelectorAll('#history-body .run-group-title')].map(
+      (t: any) => t.textContent,
+    );
+    expect(titles).toEqual(['Run 1 · 2026-10-10 · 2 kinds', 'Baseline · 2026-06-11 · 1 kind']);
+    const dates = [...doc.querySelectorAll('#history-body .runrow .rk-date')].map(
+      (d: any) => d.textContent,
+    );
+    expect(dates).toEqual(['2026-10-10', '2026-10-10', '2026-06-11']);
+    expect(doc.getElementById('history-body').textContent).not.toContain('2026-10-09');
+    expect(doc.querySelector('.run-group-baseline .run-group-note').textContent).toContain(
+      'Older tool set',
+    );
+    const note = doc.getElementById('history-reset');
+    expect(note.hidden).toBe(false);
+    expect(note.textContent).toContain('bench-results');
+  });
+
+  it('opens the baseline detail from its own file, without a data/runs fetch', async () => {
+    const w = load({
+      latest: glm(),
+      index: indexFixture(),
+      runs: { 'glm-20261010-153000': glm() },
+      extra: { 'baseline/sim-20260611-182528.json': june() },
+      history: HIST,
+    });
+    await tick();
+    const row = w.document.querySelector('.run-group-baseline .runrow');
+    (row.querySelector('button') as any).click();
+    await tick();
+    const d = w.document.getElementById('detail-body').textContent;
+    expect(d).toContain('sim-20260611-182528');
+    expect(d).toContain('44.9 %');
+  });
+
+  it('numbers runs by publish date, oldest kept date = Run 1', () => {
+    const w = load({ latest: false, index: { runs: [] } });
+    const D = w.BenchData;
+    const mk = (id: string, ts: string) => ({ ...sim(), run_id: id, date: ts.slice(0, 10), ts });
+    const h = D.historyOf(
+      [
+        mk('sim-a', '2026-10-12T09:00:00Z'),
+        mk('sim-b', '2026-10-11T15:00:00Z'),
+        mk('sim-c', '2026-10-11T09:00:00Z'),
+      ],
+      [],
+      { since: '2026-10-11T14:00:00Z' },
+    );
+    expect(h.groups.map((g: any) => g.label + ' ' + g.date)).toEqual([
+      'Run 2 2026-10-12',
+      'Run 1 2026-10-11',
+    ]);
+    expect(h.runs.map((r: any) => r.id)).toEqual(['sim-a', 'sim-b']);
+    expect(D.historyOf([], [], null)).toBe(null);
+  });
+
+  it('the shipped config restarts on a parseable date and its baseline file is a valid run', () => {
+    const w = load({ latest: false, index: { runs: [] } });
+    // re-read the shipped value: load() replaced it for the page under test
+    const cfg = new JSDOM('', { runScripts: 'outside-only' }).window as any;
+    cfg.eval(readFileSync(join(SITE, 'config.js'), 'utf8'));
+    const H = cfg.BENCH_CONFIG.HISTORY;
+    expect(Number.isNaN(Date.parse(H.since))).toBe(false);
+    for (const f of H.baseline.files) {
+      expect(existsSync(join(SITE, f))).toBe(true);
+      const run = w.BenchData.normalizeRun(JSON.parse(readFileSync(join(SITE, f), 'utf8')));
+      expect(run.kind).toBe('simulated');
+      expect(f.endsWith(run.id + '.json')).toBe(true);
+      expect(run.headline.tokensSavedPct).toBe(44.9);
+    }
   });
 });
