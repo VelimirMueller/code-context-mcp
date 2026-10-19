@@ -10,10 +10,30 @@
  * Fonts: Inter and Space Mono (vm-brand §3) are served from assets/fonts on the
  * same origin, so the page still makes zero third-party requests.
  */
-@font-face { font-family: Inter; font-weight: 400; font-display: swap; src: url('assets/fonts/inter-latin-400-normal.woff2') format('woff2'); }
-@font-face { font-family: Inter; font-weight: 600; font-display: swap; src: url('assets/fonts/inter-latin-600-normal.woff2') format('woff2'); }
-@font-face { font-family: 'Space Mono'; font-weight: 400; font-display: swap; src: url('assets/fonts/space-mono-latin-400-normal.woff2') format('woff2'); }
-@font-face { font-family: 'Space Mono'; font-weight: 700; font-display: swap; src: url('assets/fonts/space-mono-latin-700-normal.woff2') format('woff2'); }
+@font-face {
+  font-family: Inter;
+  font-weight: 400;
+  font-display: swap;
+  src: url('assets/fonts/inter-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: Inter;
+  font-weight: 600;
+  font-display: swap;
+  src: url('assets/fonts/inter-latin-600-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Space Mono';
+  font-weight: 400;
+  font-display: swap;
+  src: url('assets/fonts/space-mono-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Space Mono';
+  font-weight: 700;
+  font-display: swap;
+  src: url('assets/fonts/space-mono-latin-700-normal.woff2') format('woff2');
+}
 :root {
   --accent: #6366f1;
   --font-mono: 'Space Mono', ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;

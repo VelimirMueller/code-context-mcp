@@ -526,14 +526,25 @@ describe('honest headline with spread (CCA-08)', () => {
 
 describe('private suite summaries (CCA-19)', () => {
   const arm = (success: number, unc: number, cost: number | null, wall: number) => ({
-    sessions: 6, success_pct: success, uncached_per_session: unc, uncached_per_pass: Math.round(unc * 1.1),
-    cost_usd: cost, cost_per_pass: cost === null ? null : cost / 5, wall_mean_ms: wall,
+    sessions: 6,
+    success_pct: success,
+    uncached_per_session: unc,
+    uncached_per_pass: Math.round(unc * 1.1),
+    cost_usd: cost,
+    cost_per_pass: cost === null ? null : cost / 5,
+    wall_mean_ms: wall,
   });
   const saved = (pct: number, cost: number | null) => ({
-    uncached_saved_pct: pct, uncached_saved_spread: { min: pct - 5, max: pct + 5, repeats: 2 }, cost_saved_pct: cost,
+    uncached_saved_pct: pct,
+    uncached_saved_spread: { min: pct - 5, max: pct + 5, repeats: 2 },
+    cost_saved_pct: cost,
   });
   const block = () => ({
-    arms: { vanilla: arm(83.3, 2850, 0.3, 30000), cc: arm(100, 1700, 0.18, 24000), cc_guided: arm(100, 1650, 0.18, 23000) },
+    arms: {
+      vanilla: arm(83.3, 2850, 0.3, 30000),
+      cc: arm(100, 1700, 0.18, 24000),
+      cc_guided: arm(100, 1650, 0.18, 23000),
+    },
     saved: { cc: saved(40.4, 40), cc_guided: saved(42.1, 40) },
   });
   const summary = {
@@ -541,18 +552,36 @@ describe('private suite summaries (CCA-19)', () => {
     alias: 'Real-world suite A',
     generated: '2026-10-12',
     code_context_version: '1.9.0',
-    scope: { sources: 7, files: 5321, total_mb: 48.2, tasks: 12, tasks_per_group: { 'Single-page app': 4, 'cross-repo': 3 } },
+    scope: {
+      sources: 7,
+      files: 5321,
+      total_mb: 48.2,
+      tasks: 12,
+      tasks_per_group: { 'Single-page app': 4, 'cross-repo': 3 },
+    },
     runs: [
       {
-        model: 'claude-opus-4-1', provider_kind: 'agent-opus', date: '2026-10-12', repeats: 2, ...block(),
-        groups: [{ group: 'Single-page app', tasks: 4, ...block() }, { group: 'cross-repo', tasks: 3, ...block() }],
+        model: 'claude-opus-4-1',
+        provider_kind: 'agent-opus',
+        date: '2026-10-12',
+        repeats: 2,
+        ...block(),
+        groups: [
+          { group: 'Single-page app', tasks: 4, ...block() },
+          { group: 'cross-repo', tasks: 3, ...block() },
+        ],
       },
     ],
   };
   const index = {
     schema: 'ccc-bench-private-index/1',
     summaries: [
-      { slug: 'real-world-suite-a', alias: 'Real-world suite A', generated: '2026-10-12', file: 'private/real-world-suite-a.json' },
+      {
+        slug: 'real-world-suite-a',
+        alias: 'Real-world suite A',
+        generated: '2026-10-12',
+        file: 'private/real-world-suite-a.json',
+      },
       // A path outside data/private/ is never fetched.
       { slug: 'evil', alias: 'Evil', generated: '2026-10-12', file: '../runs/x.json' },
     ],
@@ -594,7 +623,10 @@ describe('private suite summaries (CCA-19)', () => {
     const w = load({
       latest: sim(),
       index: { runs: [sim()] },
-      extra: { 'data/private/index.json': index, 'data/private/real-world-suite-a.json': { schema: 'ccc-bench/1', alias: 'x' } },
+      extra: {
+        'data/private/index.json': index,
+        'data/private/real-world-suite-a.json': { schema: 'ccc-bench/1', alias: 'x' },
+      },
     });
     await tick();
     expect(w.document.getElementById('private').hidden).toBe(true);
@@ -981,7 +1013,14 @@ describe('latest-run table: review fixes (#160)', () => {
   });
 
   it('simpleRowOf ignores an odd stored verdict (arm vanilla) and never shows vanilla numbers', () => {
-    const odd = { code: 'BENEFICIAL', indicative: false, repeats: 3, arm: 'vanilla', arms: {}, sentences: ['x'] };
+    const odd = {
+      code: 'BENEFICIAL',
+      indicative: false,
+      repeats: 3,
+      arm: 'vanilla',
+      arms: {},
+      sentences: ['x'],
+    };
     const row = D().simpleRowOf(pick(block(odd, 3)), null);
     expect(row.verdict.arm).toBe('cc'); // computed with the rule, not the stored object
     expect(row.verdict.code).toBe('SUBOPTIMAL'); // success 90 → 80
@@ -990,7 +1029,8 @@ describe('latest-run table: review fixes (#160)', () => {
 
   it('blockVerdictInputOf falls back to 1 repeat for a missing or bad count', () => {
     const d = D();
-    for (const r of [undefined, null, 0, -2, 'x']) expect(d.blockVerdictInputOf(block(null), r).repeats).toBe(1);
+    for (const r of [undefined, null, 0, -2, 'x'])
+      expect(d.blockVerdictInputOf(block(null), r).repeats).toBe(1);
     expect(d.blockVerdictInputOf(block(null), 3).repeats).toBe(3);
     const row = d.simpleRowOf(pick(block(null, undefined)), null);
     expect(row.repeats).toBe(1);
@@ -1037,7 +1077,9 @@ describe('history restart (BENCH_CONFIG.HISTORY)', () => {
       (t: any) => t.textContent,
     );
     expect(titles).toEqual(['Run 1 · 2026-10-10 · 2 kinds', 'Baseline · 2026-06-11 · 1 kind']);
-    const dates = [...doc.querySelectorAll('#history-body .runrow .rk-date')].map((d: any) => d.textContent);
+    const dates = [...doc.querySelectorAll('#history-body .runrow .rk-date')].map(
+      (d: any) => d.textContent,
+    );
     expect(dates).toEqual(['2026-10-10', '2026-10-10', '2026-06-11']);
     expect(doc.getElementById('history-body').textContent).not.toContain('2026-10-09');
     expect(doc.querySelector('.run-group-baseline .run-group-note').textContent).toContain(
@@ -1070,7 +1112,11 @@ describe('history restart (BENCH_CONFIG.HISTORY)', () => {
     const D = w.BenchData;
     const mk = (id: string, ts: string) => ({ ...sim(), run_id: id, date: ts.slice(0, 10), ts });
     const h = D.historyOf(
-      [mk('sim-a', '2026-10-12T09:00:00Z'), mk('sim-b', '2026-10-11T15:00:00Z'), mk('sim-c', '2026-10-11T09:00:00Z')],
+      [
+        mk('sim-a', '2026-10-12T09:00:00Z'),
+        mk('sim-b', '2026-10-11T15:00:00Z'),
+        mk('sim-c', '2026-10-11T09:00:00Z'),
+      ],
       [],
       { since: '2026-10-11T14:00:00Z' },
     );
