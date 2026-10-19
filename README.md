@@ -365,6 +365,8 @@ npm run test:all  # backend + frontend
 <a href="https://www.npmjs.com/package/vlm-code-context-mcp"><picture><source media="(prefers-color-scheme: light)" srcset="assets/readme/links-1-v3-light.svg"><img alt="npm (https://www.npmjs.com/package/vlm-code-context-mcp)" src="assets/readme/links-1-v3-dark.svg" width="32%"></picture></a>
 </p>
 
+<p align="center">Public contract for 3.x (tools, inputs, outputs, profiles, bins, database): <a href="docs/CONTRACT.md">docs/CONTRACT.md</a>. A change to it needs a major version.</p>
+
 <p>
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="assets/readme/footer-v3-light.svg">

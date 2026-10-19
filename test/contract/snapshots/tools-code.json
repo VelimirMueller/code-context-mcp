@@ -1,0 +1,119 @@
+[
+  {
+    "name": "exports_in",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dir": {
+          "type": "string"
+        },
+        "unused": {
+          "type": "boolean"
+        },
+        "absolute_paths": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "dir"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "find_symbol",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "absolute_paths": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "get_file_context",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "snippet": {
+          "type": "boolean"
+        },
+        "include_changes": {
+          "type": "boolean"
+        },
+        "change_limit": {
+          "type": "number"
+        },
+        "absolute_paths": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "query",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sql": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sql"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "search_files",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        },
+        "absolute_paths": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "who_imports",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "type": "string"
+        },
+        "absolute_paths": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "target"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  }
+]

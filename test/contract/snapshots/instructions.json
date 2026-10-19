@@ -1,0 +1,5 @@
+{
+  "code": "Code index of this project; prefer it to grep. Who imports X: who_imports. Where is S defined: find_symbol. What a file exports or imports: get_file_context. What dir D exports or leaves unused: exports_in. Results never hold full code: read the file for that. get_file_context gives signatures and import lines, snippet:true short bodies. Paths are project-relative.",
+  "full": "Code index of this project; prefer it to grep. Who imports X: who_imports. Where is S defined: find_symbol. What a file exports or imports: get_file_context. What dir D exports or leaves unused: exports_in. Results never hold full code: read the file for that. get_file_context gives signatures and import lines, snippet:true short bodies. Paths are project-relative.",
+  "all": "Code index of this project; prefer it to grep. Who imports X: who_imports. Where is S defined: find_symbol. What a file exports or imports: get_file_context. What dir D exports or leaves unused: exports_in. Results never hold full code: read the file for that. get_file_context gives signatures and import lines, snippet:true short bodies. Paths are project-relative."
+}

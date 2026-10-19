@@ -15,3 +15,5 @@ data/
 # Browser test output.
 test-results/
 playwright-report/
+# Contract snapshots are written by npm run contract:update (#180).
+test/contract/snapshots/

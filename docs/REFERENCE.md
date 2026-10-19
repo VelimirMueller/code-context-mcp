@@ -23,7 +23,7 @@ The long version. The [README](../README.md) has the short one.
 
 ## Entry points
 
-One npm package, two MCP entry points over the same server code and the same `context.db` (#179):
+One npm package, two MCP entry points over the same server code and the same `context.db` (#179). The frozen public surface of both, and how to change it, is in [CONTRACT.md](CONTRACT.md) (#180):
 
 | Bin                   | File                    | Default profile | Tools | Use it for                                     |
 | --------------------- | ----------------------- | --------------- | ----- | ---------------------------------------------- |
