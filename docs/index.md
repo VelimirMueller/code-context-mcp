@@ -28,4 +28,6 @@ features:
     details: A 6-page React SPA at :3333 — Dashboard, Planning, Code, Team, Retro, and Benchmark. The folder tree, file detail, change history, and dependency graph live inside the Code tab; live SSE updates keep it current as you edit.
   - title: Hardened by Default
     details: Path-traversal containment in the indexer, query/execute guarded as single read-only and write-only statements, and a bearer-token gate on every dashboard /api/* route.
+    link: /security/threat-model
+    linkText: Threat model
 ---

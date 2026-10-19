@@ -4,6 +4,8 @@
 
 vlm-code-context-mcp is an MCP server that pre-indexes TypeScript/JavaScript codebases into SQLite, plus a React dashboard for visualization and sprint management.
 
+Security: see the [threat model](security/threat-model.md) for the dashboard, the bridge and the index.
+
 ## System Components
 
 ### MCP Server (src/server/)
