@@ -16,8 +16,13 @@
  *
  * Matching follows @rollup/plugin-alias: entries in order, a string `find`
  * matches the specifier itself or the specifier followed by `/`.
+ *
+ * Limits: every `alias:` property in the file is read, not only the one under
+ * `resolve` (a plugin option named `alias` adds entries too); a template is a
+ * path only when it opens with a path-valued `${…}`.
  */
 import path from 'node:path';
+import { log } from '../sessionlog.js';
 
 export interface ViteAlias {
   find: string;
@@ -36,6 +41,10 @@ type Tok =
 
 const MAX_TOKENS = 200_000;
 const MAX_DEPTH = 4;
+/** value() calls per config file; past it the file yields no aliases (hostile config). */
+export const MAX_EVAL_STEPS = 10_000;
+/** Longest path or string a value may grow to (`join(a, a)` chains double it). */
+const MAX_VALUE_LENGTH = 4096;
 
 const isIdStart = (c: string): boolean =>
   (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c === '_' || c === '$';
@@ -164,6 +173,11 @@ type Val = { kind: 'path'; v: string } | { kind: 'url'; v: string } | { kind: 's
 
 class Evaluator {
   private readonly consts = new Map<string, [number, number]>();
+  /** Evaluated consts; 'pending' while one is being evaluated, so a cycle yields null. */
+  private readonly constValues = new Map<string, Val | null | 'pending'>();
+  private steps = 0;
+  /** True once MAX_EVAL_STEPS value() calls were spent. */
+  exhausted = false;
 
   constructor(
     private readonly toks: Tok[],
@@ -187,6 +201,15 @@ class Evaluator {
 
   /** Value of toks[a..b), or null when it is not one of the static forms. */
   value(a: number, b: number, depth = 0): Val | null {
+    if (this.exhausted || ++this.steps > MAX_EVAL_STEPS) {
+      this.exhausted = true;
+      return null;
+    }
+    const v = this.compute(a, b, depth);
+    return v && v.v.length <= MAX_VALUE_LENGTH ? v : null;
+  }
+
+  private compute(a: number, b: number, depth: number): Val | null {
     if (depth > MAX_DEPTH || a >= b) return null;
     const t = this.toks;
     const one = b - a === 1 ? t[a] : null;
@@ -238,13 +261,17 @@ class Evaluator {
       const ar = args(t, i);
       if (!ar || ar.end !== b) return null;
       const fn = chain[chain.length - 1];
-      const vals = ar.ranges.map((r) => this.value(r[0], r[1], depth + 1));
-      if (vals.some((v) => !v)) return null;
-      const strs = (vals as Val[]).map((v) => v.v);
+      const vals: Val[] = [];
+      for (const [x, y] of ar.ranges) {
+        const v = this.value(x, y, depth + 1);
+        if (!v) return null; // stop at the first argument that is not static
+        vals.push(v);
+      }
+      const strs = vals.map((v) => v.v);
       if (dotted === 'process.cwd' && vals.length === 0) return { kind: 'path', v: this.dir };
-      if (fn === 'fileURLToPath' && vals.length === 1 && vals[0]!.kind === 'url')
-        return { kind: 'path', v: vals[0]!.v };
-      if (vals.some((v) => v!.kind === 'url')) return null;
+      if (fn === 'fileURLToPath' && vals.length === 1 && vals[0].kind === 'url')
+        return { kind: 'path', v: vals[0].v };
+      if (vals.some((v) => v.kind === 'url')) return null;
       if (fn === 'resolve') return { kind: 'path', v: path.resolve(this.dir, ...strs) };
       if (fn === 'join' && strs.length) {
         const joined = path.join(...strs);
@@ -263,7 +290,16 @@ class Evaluator {
     if (dotted === '__filename' || dotted === 'import.meta.filename')
       return { kind: 'path', v: this.file };
     const c = this.consts.get(dotted);
-    return c ? this.value(c[0], c[1], depth + 1) : null;
+    if (!c) return null;
+    // Each const is evaluated once (at depth 0): a const used many times, or
+    // consts that reference each other, cost linear work, never exponential.
+    const memo = this.constValues.get(dotted);
+    if (memo === 'pending') return null;
+    if (memo !== undefined) return memo;
+    this.constValues.set(dotted, 'pending');
+    const v = depth > MAX_DEPTH ? null : this.value(c[0], c[1], 0);
+    this.constValues.set(dotted, v);
+    return v;
   }
 
   /**
@@ -325,6 +361,13 @@ export function parseViteAliases(text: string, configFile: string): ViteAlias[] 
         if (isP(toks[j], ',')) j++;
       }
     }
+  }
+  if (ev.exhausted) {
+    log(
+      'WARN',
+      `vite-alias: evaluation budget of ${MAX_EVAL_STEPS} steps used up; config aliases ignored`,
+    );
+    return [];
   }
   return out;
 }

@@ -432,16 +432,21 @@ export const BUNDLER_ONLY = 'resolved only under bundler rules (Node16 ESM wants
 /** Category for an edge through a Vite alias that tsconfig `paths` does not mirror. */
 export const VITE_ONLY = 'vite alias only (not in tsconfig paths)';
 
-const bundlerCache = ts.createModuleResolutionCache('/', (x) => x, DEFAULT_OPTIONS);
+const bundlerCaches = new Map<string, ts.ModuleResolutionCache>();
 
 /** The file `spec` names from `file` under bundler resolution, or null. */
-function bundlerResolve(spec: string, file: string): string | null {
+function bundlerResolve(spec: string, file: string, root: string): string | null {
+  let cache = bundlerCaches.get(root);
+  if (!cache) {
+    cache = ts.createModuleResolutionCache(root, (x) => x, DEFAULT_OPTIONS);
+    bundlerCaches.set(root, cache);
+  }
   const r = ts.resolveModuleName(
     spec,
     file,
     { ...DEFAULT_OPTIONS, allowJs: true, resolveJsonModule: true },
     ts.sys,
-    bundlerCache,
+    cache,
   );
   return r.resolvedModule ? realpath(r.resolvedModule.resolvedFileName) : null;
 }
@@ -464,7 +469,7 @@ function categorizeExtra(
     if (hits.length === 0) continue;
     const t = hits.find((h) => h.target)?.target ?? null;
     if (!t) {
-      const bundler = bundlerResolve(s, source);
+      const bundler = bundlerResolve(s, source, root);
       if (bundler === target) return { spec: s, category: BUNDLER_ONLY };
       if (!isRelative(s) && viteKeys.some((k) => matchesAliasKey(s, k)))
         return { spec: s, category: VITE_ONLY };
@@ -727,7 +732,7 @@ export function measureRepo(rootArg: string, opts: MeasureOptions = {}): RepoRep
         refsByFile.get(src) ?? [],
         vite.keysFor(src),
       );
-      if (!isRelative(spec)) aliasFp++;
+      if (spec !== '?' && !isRelative(spec)) aliasFp++;
       bump(fpCat, category);
       falsePositives.push({ source: src, target: tgt, spec, category });
     }
@@ -917,10 +922,11 @@ function main(argv: string[]): void {
     const a = argv[i];
     if (a === '--sample') sample = Number(argv[++i]);
     else if (a === '--seed') seed = Number(argv[++i]);
-    else if (a === '--json') jsonOut = argv[++i];
+    else if (a === '--json') jsonOut = argv[++i] ?? null;
     else roots.push(a);
   }
-  if (roots.length === 0) {
+  const bad = !Number.isInteger(sample) || sample < 1 || !Number.isInteger(seed);
+  if (roots.length === 0 || bad || (argv.includes('--json') && !jsonOut)) {
     console.error(
       'usage: import-graph-accuracy.mts <repo-root> [...] [--sample 50] [--seed 182] [--json out.json]',
     );

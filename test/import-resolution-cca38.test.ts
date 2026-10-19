@@ -14,7 +14,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
-import { applyViteAlias, parseViteAliases, tokenize } from '../src/server/vite-alias.js';
+import {
+  applyViteAlias,
+  MAX_EVAL_STEPS,
+  parseViteAliases,
+  tokenize,
+} from '../src/server/vite-alias.js';
 import { AliasResolver } from '../src/server/tsconfig-paths.js';
 import { initSchema } from '../src/server/schema.js';
 import { indexDirectory, parseExports } from '../src/server/indexer.js';
@@ -73,6 +78,46 @@ describe('parseViteAliases', () => {
     expect(
       parseViteAliases('const alias = makeAliases(); export default { resolve: { alias } }', CFG),
     ).toEqual([]);
+  });
+
+  it('evaluates a const used 30 times through nested spreads in linear time', () => {
+    const lines = ["const a0 = path.resolve(__dirname, 'src');", 'const b0 = a0;'];
+    for (let i = 1; i <= 30; i++) {
+      lines.push(`const a${i} = path.join(...[a${i - 1}, ...[a${i - 1}]], a${i - 1});`);
+      lines.push(`const b${i} = path.resolve(b${i - 1}, b${i - 1}, b${i - 1});`);
+    }
+    lines.push('export default { resolve: { alias: { "@": b30, x: a30, y: a0 } } };');
+    const t0 = performance.now();
+    const out = parseViteAliases(lines.join('\n'), CFG);
+    expect(performance.now() - t0).toBeLessThan(100);
+    // resolve() of absolute paths keeps the last one; spreads are not static.
+    expect(out).toEqual([
+      { find: '@', replacement: '/repo/app/src', rootRelative: false },
+      { find: 'y', replacement: '/repo/app/src', rootRelative: false },
+    ]);
+  });
+
+  it('gives up on a const cycle and on values that keep doubling', () => {
+    const cycle = `const a = path.join(b, 'x'); const b = path.join(a, 'y');
+      export default { resolve: { alias: { '@': a, ok: path.resolve(__dirname, 'ok') } } };`;
+    expect(parseViteAliases(cycle, CFG)).toEqual([
+      { find: 'ok', replacement: '/repo/app/ok', rootRelative: false },
+    ]);
+    const lines = ["const a0 = path.resolve(__dirname, 'src');"];
+    for (let i = 1; i <= 40; i++) lines.push(`const a${i} = path.join(a${i - 1}, a${i - 1});`);
+    lines.push("export default { resolve: { alias: { '@': a40 } } };");
+    const t0 = performance.now();
+    expect(parseViteAliases(lines.join('\n'), CFG)).toEqual([]);
+    expect(performance.now() - t0).toBeLessThan(100);
+  });
+
+  it('yields no aliases once the evaluation budget is used up', () => {
+    const entries = Array.from(
+      { length: MAX_EVAL_STEPS },
+      (_, i) => `k${i}: path.resolve(__dirname, 'x')`,
+    );
+    const text = `export default { resolve: { alias: { ${entries.join(', ')} } } };`;
+    expect(parseViteAliases(text, CFG)).toEqual([]);
   });
 
   it('does not mistake division for a regex literal', () => {
