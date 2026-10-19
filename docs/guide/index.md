@@ -11,16 +11,16 @@ In total the server registers **94 MCP tools** (11 code-context + 83 scrum). The
 
 Here is the directory breakdown:
 
-| Directory | Description |
-|-----------|-------------|
-| `src/bridge/` | The bridge hook that connects the live AI session to the dashboard (`hook.ts`). |
-| `src/dashboard/` | Web dashboard — HTTP server (`dashboard.ts`), bearer-token auth (`auth.ts`), a static fallback page (`dashboard.html`), and the React SPA under `app/`. |
-| `src/remotion/` | Remotion video composition for the vision animation (`index.tsx`, `types.ts`, `VisionVideo.tsx`). |
-| `src/scrum/` | The scrum/agent system — 83 tools (`tools.ts`), the ~26-table schema (`schema.ts`), factory defaults including the 9 agents (`defaults.ts`), model-routing helpers (`agent-model.ts`), and the frontend skill playbook and generated defaults (`frontend-playbook.ts`, `frontend-skill-defaults.generated.ts`). |
-| `src/server/` | Core MCP server — the 11 code-context tools (`index.ts`), the file indexer (`indexer.ts`), the index schema (`schema.ts`), the SQL guard (`sql-guard.ts`), and the `setup` CLI (`setup.ts`). |
-| `docs/` | VitePress documentation site — guides, tool references, and architecture docs. |
-| `docs/guide/` | This getting-started guide and the architecture overview. |
-| `docs/tools/` | Reference pages for the MCP tools — parameters, examples, and usage. |
+| Directory        | Description                                                                                                                                                                                                                                                                                                     |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/bridge/`    | The bridge hook that connects the live AI session to the dashboard (`hook.ts`).                                                                                                                                                                                                                                 |
+| `src/dashboard/` | Web dashboard — HTTP server (`dashboard.ts`), bearer-token auth (`auth.ts`), a static fallback page (`dashboard.html`), and the React SPA under `app/`.                                                                                                                                                         |
+| `src/remotion/`  | Remotion video composition for the vision animation (`index.tsx`, `types.ts`, `VisionVideo.tsx`).                                                                                                                                                                                                               |
+| `src/scrum/`     | The scrum/agent system — 83 tools (`tools.ts`), the ~26-table schema (`schema.ts`), factory defaults including the 9 agents (`defaults.ts`), model-routing helpers (`agent-model.ts`), and the frontend skill playbook and generated defaults (`frontend-playbook.ts`, `frontend-skill-defaults.generated.ts`). |
+| `src/server/`    | Core MCP server — the 11 code-context tools (`index.ts`), the file indexer (`indexer.ts`), the index schema (`schema.ts`), the SQL guard (`sql-guard.ts`), and the `setup` CLI (`setup.ts`).                                                                                                                    |
+| `docs/`          | VitePress documentation site — guides, tool references, and architecture docs.                                                                                                                                                                                                                                  |
+| `docs/guide/`    | This getting-started guide and the architecture overview.                                                                                                                                                                                                                                                       |
+| `docs/tools/`    | Reference pages for the MCP tools — parameters, examples, and usage.                                                                                                                                                                                                                                            |
 
 ## The code-context tools
 
@@ -34,16 +34,16 @@ The 11 code-context tools (defined in `src/server/index.ts`):
 
 The scrum half manages a full sprint lifecycle from the same database. It ships with a **9-agent team** (defined in `src/scrum/defaults.ts`):
 
-| Agent | Default model |
-|-------|---------------|
-| `fe-engineer` | `claude-opus-4-8` |
-| `be-engineer` | `claude-opus-4-8` |
-| `developer` | `claude-opus-4-8` |
-| `qa` | `claude-opus-4-8` |
-| `devops` | `claude-sonnet-4-6` |
-| `security` | `claude-sonnet-4-6` |
-| `architect` | `claude-sonnet-4-6` |
-| `team-lead` | `claude-sonnet-4-6` |
+| Agent           | Default model       |
+| --------------- | ------------------- |
+| `fe-engineer`   | `claude-opus-4-8`   |
+| `be-engineer`   | `claude-opus-4-8`   |
+| `developer`     | `claude-opus-4-8`   |
+| `qa`            | `claude-opus-4-8`   |
+| `devops`        | `claude-sonnet-4-6` |
+| `security`      | `claude-sonnet-4-6` |
+| `architect`     | `claude-sonnet-4-6` |
+| `team-lead`     | `claude-sonnet-4-6` |
 | `product-owner` | `claude-sonnet-4-6` |
 
 **Model routing.** A ticket's assigned-agent model routes execution. `load_phase_context` (implementation phase) and `get_ticket` emit a "Model routing" directive, and `/kickoff` / `/sprint` implement each ticket by spawning a subagent at that tier.
@@ -104,4 +104,4 @@ npm run dashboard
 
 Open [http://localhost:3333](http://localhost:3333). The dashboard is a React SPA served from `dist/dashboard/index.html` (`dashboard.html` is a fallback only), with six tabs: **Dashboard**, **Planning**, **Code**, **Team**, **Retro**, and **Benchmark** (the Kanban board is a sub-tab of Dashboard).
 
-Requests to `/api/*` require a bearer token. The token is auto-generated on first run and persisted to `.code-context/dashboard.token`.
+Requests to `/api/*` require a bearer token. The token is auto-generated on first run and persisted to `.code-context/dashboard.token` in the directory of the `context.db` in use, so the MCP server and the dashboard share it from any working directory.
