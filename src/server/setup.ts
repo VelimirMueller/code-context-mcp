@@ -23,7 +23,7 @@ const args = process.argv.slice(2);
 
 if (args.includes('--help') || args.includes('-h')) {
   console.log(`
-code-context-mcp — Pre-index your codebase for AI agents
+code-context-mcp — Set up code-context in a project (index + sprint process)
 
 Usage:
   code-context-mcp [path]              Set up or update a project (default: current dir)
@@ -39,9 +39,10 @@ Options:
   --name <name>                        Project name (default: directory name)
   --defaults                           Non-interactive: skip prompts, auto-create vision & milestone
   --profile <code|full|all>            Tool profile written to .mcp.json (CODE_CONTEXT_PROFILE).
-                                       Default: full (the sprint process, 97 tools). code = the
-                                       6 reading tools only. An existing setting is kept unless
-                                       --profile is given.
+                                       Default: full (the sprint process, 97 tools) on the
+                                       code-context-sprint entry. code = the 6 reading tools on
+                                       the code-context (index) entry. An existing setting is
+                                       kept unless --profile is given.
 
 Examples:
   code-context-mcp .                   Set up (or update) the current directory
@@ -52,6 +53,10 @@ Examples:
 
 After setup:
   code-context-dashboard               Open dashboard (default port: ${process.env.DASHBOARD_PORT || '3333'})
+
+MCP entries (one package, one context.db):
+  code-context         The code index. 6 tools by default (profile code).
+  code-context-sprint  The sprint process on top: profile full by default.
 
 MCP Tools (by profile):
   code   find_symbol, get_file_context, who_imports, exports_in, search_files, query
@@ -93,7 +98,10 @@ const PROJECT_NAME =
   nameIdx >= 0 && args[nameIdx + 1] ? args[nameIdx + 1] : path.basename(TARGET_DIR);
 
 const DB_PATH = path.resolve(TARGET_DIR, 'context.db');
-const SERVER_ENTRY = path.resolve(SERVER_DIR, 'index.js');
+// #179: two entries over the same server and context.db. setup installs the
+// sprint entry (it seeds the sprint process); --profile code installs the index entry.
+const INDEX_ENTRY = path.resolve(SERVER_DIR, 'index.js');
+const SPRINT_ENTRY = path.resolve(SERVER_DIR, 'sprint.js');
 
 // ─── Detect mode: fresh vs update ────────────────────────────────────────────
 const dbExisted = fs.existsSync(DB_PATH);
@@ -105,8 +113,7 @@ if (UPDATE_MODE) {
   console.log(`=== Code Context MCP — Setup (${PROJECT_NAME}) ===\n`);
 }
 console.log(`  Target directory : ${TARGET_DIR}`);
-console.log(`  Database         : ${DB_PATH}`);
-console.log(`  MCP server       : ${SERVER_ENTRY}\n`);
+console.log(`  Database         : ${DB_PATH}\n`);
 
 if (UPDATE_MODE) {
   console.log('  Existing database detected → migration mode (use --force for a full reset)\n');
@@ -317,7 +324,6 @@ if (UPDATE_MODE) {
 // In fresh mode we use individual step() calls.
 
 const mcpConfigPath = path.resolve(TARGET_DIR, '.mcp.json');
-const relServer = './' + path.relative(TARGET_DIR, SERVER_ENTRY).split(path.sep).join('/');
 
 /**
  * The tool profile for this project (#178). The server's own default is the
@@ -387,6 +393,12 @@ if (previous.env && typeof previous.env === 'object' && !Array.isArray(previous.
   }
 }
 const toolProfile = profileEnv(previousEnv);
+// The entry matches the profile: `code` = the index entry, `full`/`all` = the
+// sprint entry. CODE_CONTEXT_PROFILE stays in env too: explicit, shown by
+// `health`, and the same .mcp.json entry still works if pointed at index.js.
+const sprintEntry = toolProfile.profile !== 'code';
+const serverEntry = sprintEntry ? SPRINT_ENTRY : INDEX_ENTRY;
+const relServer = './' + path.relative(TARGET_DIR, serverEntry).split(path.sep).join('/');
 // Other keys of an existing entry (type, cwd, …) pass through; command/args are repaired.
 mcpConfig.mcpServers['code-context'] = {
   ...previous,
@@ -396,11 +408,12 @@ mcpConfig.mcpServers['code-context'] = {
 };
 fs.writeFileSync(mcpConfigPath, JSON.stringify(mcpConfig, null, 2) + '\n');
 console.log(`  Wrote ${mcpConfigPath}`);
+console.log(`  MCP entry: ${sprintEntry ? 'code-context-sprint' : 'code-context'} (${relServer})`);
 console.log(`  Tool profile: ${toolProfile.profile} (${toolProfile.source})`);
 console.log(
   toolProfile.profile === 'code'
-    ? '  Sprint tools are off. Turn them on with --profile full or CODE_CONTEXT_PROFILE=full.\n'
-    : '  Code reading only? Use --profile code (6 tools instead of 97).\n',
+    ? '  Sprint tools are off. Turn them on with --profile full or CODE_CONTEXT_PROFILE=full (the code-context-sprint entry).\n'
+    : '  Code reading only? Use --profile code (the code-context entry, 6 tools instead of 97).\n',
 );
 
 // Keep the index (it stores file contents) out of the project's git history

@@ -12,18 +12,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The lean `code` profile is the default.** A server with no setting lists 6 tools (`find_symbol`, `get_file_context`, `who_imports`, `exports_in`, `search_files`, `query`): about 850 tokens of tool definitions per model call instead of about 12,300. Every positive benchmark run used this profile. The old default, 97 tools (toolsets `code`, `code-admin`, `scrum`), is now the `full` profile. (#178)
 - **The sprint process is opt-in.** `CODE_CONTEXT_PROFILE` picks the profile: `code` (default), `full` or `all` (103 tools, adds `fun` and `stream`). `CODE_CONTEXT_TOOLSETS` still adds single toolsets (`code-admin`, `scrum`, `fun`, `stream`, `all`); it only adds and never removes a toolset of the profile. Without `full`, the 2.x meaning of `CODE_CONTEXT_TOOLSETS=fun,stream` (the default plus `fun` and `stream`) becomes `code` plus `fun` and `stream`.
 - **Flair follows the sprint tools.** The flair header and footer are on when the `scrum` toolset is on (`full`, `all`) and off otherwise, so they are off by default now. `OVERDRIVE_FLAIR=0`/`1` still forces it.
+- **Two entry points in one package: the code index and the sprint process.** `code-context` (`dist/server/index.js`) is the index: its tool contract is frozen, with no setting it lists the 6 `code` tools. `code-context-sprint` (`dist/server/sprint.js`) loads the same server with `CODE_CONTEXT_PROFILE=full` as its default (97 tools); the scrum, bridge and dump/restore tools and the dashboard ride with it. A known `CODE_CONTEXT_PROFILE` still wins on both entries. (#179)
+- **The index entry no longer creates, migrates or seeds the scrum tables.** Under the `code` profile it opens `context.db` with the code-index tables only and never loads `src/scrum`, `src/dashboard` or `src/bridge`. A sprint toolset (`full`, `all`, or `CODE_CONTEXT_TOOLSETS` with `scrum`, `fun` or `stream`) loads them through `src/server/sprint-toolsets.ts`. `test/boundary.test.ts` fails on any other import from `src/server` into the sprint side. (#179)
 
 ### Added
 
 - **`health` reports `profile` and `toolsets`**, and `ignored_settings` for a value the server did not understand. The server logs the profile at start and a WARN line for an ignored value.
 - **`setup` writes the profile into `.mcp.json`.** It sets `CODE_CONTEXT_PROFILE=full` in the `code-context` entry `env`, because setup installs the sprint process. `--profile code|full|all` picks another one. An existing `CODE_CONTEXT_PROFILE` is kept, a 2.x `CODE_CONTEXT_TOOLSETS=code` stays lean, and other keys of the entry (`env`, `type`, …) are no longer dropped. `--name` and `--profile` values are no longer taken as the target path.
-- **`/kickoff` checks the profile first.** Step 0a calls `health` and stops with the exact setting when the `scrum` or `code-admin` toolset is off.
+- **`/kickoff` checks the profile first.** Step 0a calls `health` and stops with the exact setting when the `scrum` or `code-admin` toolset is off. It names the `code-context-sprint` entry as the fix.
+- **New bins `code-context`, `code-context-sprint` and `vlm-code-context-mcp`.** `vlm-code-context-mcp` is an alias of `code-context`, so `npx -y vlm-code-context-mcp ./context.db` starts the index. `code-context-mcp` stays the setup command. (#179)
+- **`setup` installs the entry that matches the profile.** `full` and `all` write `dist/server/sprint.js` into `.mcp.json`, `code` writes `dist/server/index.js`. Setup still writes `CODE_CONTEXT_PROFILE`: the setting is explicit, `health` shows it, and the entry still works when pointed at `index.js`. (#179)
+- **CI runs on pull requests to release branches** (`release/**`), not only on `main`. (#179)
 
 ### Migration
 
 - **An install that uses the sprint tools sets `CODE_CONTEXT_PROFILE=full`** in the server `env` (`.mcp.json` → `mcpServers["code-context"].env`, or `--mcp-config`, or the shell). `npx code-context-mcp setup .` does it for a project: in update mode it writes `full` when the entry has no profile setting yet.
 - **`CODE_CONTEXT_TOOLSETS=code` keeps working** and changes nothing now; remove it when you like.
 - **`/kickoff` in an existing project** keeps its old copy (setup never overwrites a command file). Delete `.claude/commands/kickoff.md` and run setup again to get Step 0a.
+- **Pick an entry (#179).** `code-context-sprint` is canonical for the sprint process, `code-context` for the index:
+  - You use the sprint process: change the command to `code-context-sprint` (or the args to `…/dist/server/sprint.js <db>`). `npx code-context-mcp setup .` does it in update mode.
+  - You only read code: keep `dist/server/index.js` (now `code-context`) and remove `CODE_CONTEXT_PROFILE`. You get the lean profile.
+  - An existing `.mcp.json` with `dist/server/index.js` and `CODE_CONTEXT_PROFILE=full` keeps working in 3.x: the index entry loads the sprint toolsets when the profile asks for them.
+- **One shared `context.db`.** Both entries open the same file. The index entry owns the code-index tables (`files`, `exports`, `dependencies`, `directories`, `changes`, `indexed_repos`); the sprint entry owns the scrum tables and the `schema_versions` stamp. A database the index entry created gets its scrum tables, stamped at the latest version, on the first start of the sprint entry. Both entries refuse a database stamped by a newer version.
 
 ## [Unreleased]
 

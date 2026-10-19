@@ -1,3 +1,15 @@
+#!/usr/bin/env node
+/**
+ * The index entry (#179): bins `code-context` and `vlm-code-context-mcp`.
+ *
+ * Frozen contract: with no profile env it lists the six `code` tools
+ * (CODE_TOOLS in tool-wrap.ts) and touches only the code-index tables of
+ * context.db. Nothing here imports src/scrum, src/dashboard or src/bridge
+ * (test/boundary.test.ts). The sprint process rides on top: the
+ * `code-context-sprint` bin (src/server/sprint.ts) sets
+ * `CODE_CONTEXT_PROFILE=full` and loads this file; any sprint toolset then
+ * loads ./sprint-toolsets.js, the one module that reaches src/scrum.
+ */
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import Database from 'better-sqlite3';
@@ -9,15 +21,8 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { initSchema } from './schema.js';
 import { indexDirectory, migrateUnresolvedRoots } from './indexer.js';
-import {
-  initScrumSchema,
-  runMigrations,
-  LATEST_SCHEMA_VERSION,
-  peekSchemaVersion,
-} from '../scrum/schema.js';
-import { checkDistFreshness, registerScrumTools } from '../scrum/tools.js';
-import { seedDefaults } from '../scrum/defaults.js';
-import { syncSkillsFromUpstream } from '../scrum/skill-sync.js';
+import { LATEST_SCHEMA_VERSION, peekSchemaVersion } from './schema-version.js';
+import { checkDistFreshness } from './dist-freshness.js';
 import { log as slog, errorClass, logToolExceptions } from '../sessionlog.js';
 import { FreshnessGuard, freshnessNotice, type FreshRow } from './freshness.js';
 import {
@@ -31,7 +36,15 @@ import { formatIndexSummary } from './index-summary.js';
 import { resolveToolPath, resolveDirPath, pathDisplay, canonicalPath } from './path-resolve.js';
 import { declarationLines, hasSignatureParser, parseStoredImportLines } from './signatures.js';
 import { whoImports, exportsIn } from './graph.js';
-import { errorMessage, type CountRow } from '../scrum/rows.js';
+
+interface CountRow {
+  c: number;
+}
+
+/** The message of a caught value. */
+function errorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const DB_PATH = process.argv[2] ?? './context.db';
@@ -54,8 +67,14 @@ if (!isFreshDb) {
   }
 }
 
+// Profile + toolsets (CODE_CONTEXT_PROFILE, CODE_CONTEXT_TOOLSETS; #178): `code` by default.
+const toolSelection = resolveToolsets();
+// #179: the sprint process loads only when one of its toolsets is on.
+const sprint = toolSelection.toolsets.some((t) => t === 'scrum' || t === 'fun' || t === 'stream')
+  ? await import('./sprint-toolsets.js')
+  : null;
+
 let db: Database.Database;
-let preMigrationVersion: number;
 try {
   db = new Database(resolvedDbPath);
   db.pragma('journal_mode = WAL');
@@ -64,33 +83,19 @@ try {
   // transactions instead of failing a read-time refresh with SQLITE_BUSY.
   db.pragma('busy_timeout = 5000');
 
+  // The code-index tables: owned by this entry, idempotent on every open.
   initSchema(db);
-  initScrumSchema(db);
-  // Peek the stamped version before migrating so the report shows the delta
-  preMigrationVersion =
-    (db.prepare('SELECT MAX(version) v FROM schema_versions').get() as { v: number | null })?.v ??
-    0;
-  runMigrations(db, { freshDb: isFreshDb });
 } catch (err) {
   slog(
     'CRITICAL',
-    `server: db open/migration failed db=${path.basename(resolvedDbPath)} error=${errorClass(err)}`,
+    `server: db open failed db=${path.basename(resolvedDbPath)} error=${errorClass(err)}`,
   );
   throw err;
 }
-if (!isFreshDb && preMigrationVersion < LATEST_SCHEMA_VERSION) {
-  slog(
-    'WARN',
-    `server: migrations applied db=${path.basename(resolvedDbPath)} schema v${preMigrationVersion}→v${LATEST_SCHEMA_VERSION}`,
-  );
-}
-console.error(
-  isFreshDb
-    ? `[schema] v${LATEST_SCHEMA_VERSION} (new database)`
-    : preMigrationVersion < LATEST_SCHEMA_VERSION
-      ? `[schema] migrated v${preMigrationVersion} → v${LATEST_SCHEMA_VERSION}`
-      : `[schema] v${LATEST_SCHEMA_VERSION} (up to date)`,
-);
+// The scrum tables: owned by the sprint process (created, migrated, seeded).
+if (sprint) sprint.prepareSprintDb(db, resolvedDbPath);
+else
+  console.error(`[schema] code index ready (${isFreshDb ? 'new database' : 'existing database'})`);
 
 // CCA-01: rows are keyed by realpath. Rebase roots an older version stored
 // under a symlinked spelling (/var/folders/… on macOS) once, at boot.
@@ -106,28 +111,6 @@ try {
   slog('WARN', `server: realpath migration failed error=${errorClass(err)}`);
 }
 
-// Seed factory defaults into empty tables (never overwrites existing data)
-const seeded = seedDefaults(db);
-if (seeded.agents + seeded.skills > 0) {
-  console.error(
-    `[seed] Seeded ${seeded.agents} agents, ${seeded.skills} skills from factory defaults`,
-  );
-}
-
-// Best-effort refresh of fe:* skills from the latest upstream release.
-// Non-blocking and offline-safe; baked defaults remain the fallback.
-// Opt-in with CODE_CONTEXT_SKILLS_AUTOSYNC=1: synced skills land in agent
-// prompts, so pulling remote content on every boot must be the user's choice.
-if (process.env.CODE_CONTEXT_SKILLS_AUTOSYNC === '1') {
-  void syncSkillsFromUpstream(db).then((r) => {
-    if (r.ok && !r.skipped) {
-      console.error(
-        `[skills] Synced to ${r.tag}: ${r.inserted} new, ${r.updated} updated, ${r.preserved} user-edited preserved`,
-      );
-    }
-  });
-}
-
 // src/server/ and dist/server/ both sit two levels below package.json.
 const PKG_VERSION: string = (() => {
   try {
@@ -139,8 +122,6 @@ const PKG_VERSION: string = (() => {
 })();
 
 // CCA-06 (#121): short `instructions` naming only the listed code tools.
-// Profile + toolsets (CODE_CONTEXT_PROFILE, CODE_CONTEXT_TOOLSETS; #178): `code` by default.
-const toolSelection = resolveToolsets();
 const hiddenToolFilter = toolFilter(toolSelection);
 const instructions = serverInstructions(hiddenToolFilter);
 const server = new McpServer(
@@ -842,7 +823,13 @@ server.tool('health', 'Server health, active profile and toolsets', {}, async ()
   }
 
   const fileCount = db.prepare('SELECT COUNT(*) as c FROM files').get() as { c: number };
-  const sprintCount = db.prepare('SELECT COUNT(*) as c FROM sprints').get() as { c: number };
+  // The sprints table exists once the sprint process has opened this file.
+  const hasSprints = !!db
+    .prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'sprints'`)
+    .get();
+  const sprintCount = hasSprints
+    ? (db.prepare('SELECT COUNT(*) as c FROM sprints').get() as CountRow)
+    : null;
 
   return {
     content: [
@@ -874,8 +861,8 @@ server.tool('health', 'Server health, active profile and toolsets', {}, async ()
   };
 });
 
-// ─── Scrum tools ─────────────────────────────────────────────────────────────
-registerScrumTools(server, db);
+// ─── Sprint process tools (only when a sprint toolset is on) ─────────────────
+if (sprint) sprint.registerSprintToolsets(server, db);
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 const transport = new StdioServerTransport();
