@@ -61,7 +61,8 @@ export function tokenize(sql: string): Tok[] {
       i = end === -1 ? n : end + 1;
     } else if (c === '/' && sql[i + 1] === '*') {
       const end = sql.indexOf('*/', i + 2);
-      i = end === -1 ? n : end + 2;
+      if (end === -1) throw new ParseError('unterminated comment');
+      i = end + 2;
     } else if (c === "'") {
       quoted("'", 'string', true);
     } else if (c === '"') {
