@@ -4,7 +4,8 @@
 //   code-context-reindex [--all | <repo-path>…] [--root <dir>] [--db <file>]
 //                        [--prune-missing] [--vacuum] [--quiet]
 //
-// No repo paths = --all. Repos with a `.code-context-ignore` file are skipped
+// No repo paths = --all. --root defaults to the current directory.
+// Repos with a `.code-context-ignore` file are skipped
 // and their rows purged; dot-directories (.worktrees) are never descended into.
 // Exit 0 when every repo indexed, 1 when any failed, 2 on bad usage.
 import path from 'node:path';
@@ -40,7 +41,8 @@ function flair(quiet: boolean) {
 }
 
 const USAGE =
-  'usage: code-context-reindex [--all | <repo-path>...] [--root <dir>] [--db <file>] [--prune-missing] [--vacuum] [--quiet]';
+  'usage: code-context-reindex [--all | <repo-path>...] [--root <dir>] [--db <file>] [--prune-missing] [--vacuum] [--quiet]\n' +
+  '  --root <dir>  directory to scan for git repos (default: the current directory)';
 
 function expandHome(p: string): string {
   return p === '~' || p.startsWith('~/') ? path.join(os.homedir(), p.slice(1)) : p;
@@ -57,7 +59,7 @@ interface Args {
 
 export function parseArgs(argv: string[]): Args | string {
   const a: Args = {
-    root: path.join(os.homedir(), 'Desktop', 'Workspace', 'dev'),
+    root: process.cwd(),
     db: process.env.CODE_CONTEXT_DB || './context.db',
     repos: [],
     pruneMissing: false,

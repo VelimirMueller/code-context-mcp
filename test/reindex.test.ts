@@ -142,6 +142,12 @@ describe('CLI args', () => {
     expect(parseArgs(['--nope'])).toBe('unknown option --nope');
     expect(parseArgs(['--root'])).toBe('--root needs a directory');
   });
+
+  it('defaults --root to the current directory', () => {
+    const a = parseArgs([]);
+    expect(typeof a).toBe('object');
+    if (typeof a === 'object') expect(a.root).toBe(path.resolve(process.cwd()));
+  });
 });
 
 describe('CLI end to end (non-TTY)', () => {
