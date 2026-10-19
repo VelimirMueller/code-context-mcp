@@ -9,15 +9,15 @@
 // cross-origin attacker cannot read that injected token (same-origin policy)
 // nor call /api/* without it.
 
-import { randomBytes } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import path from "node:path";
-import type http from "node:http";
+import { randomBytes } from 'node:crypto';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import path from 'node:path';
+import type http from 'node:http';
 
 export type AuthHeaders = { headers: http.IncomingHttpHeaders };
 
-const TOKEN_DIR = ".code-context";
-const TOKEN_FILE = "dashboard.token";
+const TOKEN_DIR = '.code-context';
+const TOKEN_FILE = 'dashboard.token';
 
 /** Env var wins; otherwise read the persisted token, else generate + persist it. */
 export function resolveDashboardToken(root: string = process.cwd()): string {
@@ -27,31 +27,31 @@ export function resolveDashboardToken(root: string = process.cwd()): string {
   const dir = path.join(root, TOKEN_DIR);
   const file = path.join(dir, TOKEN_FILE);
   if (existsSync(file)) {
-    const existing = readFileSync(file, "utf-8").trim();
+    const existing = readFileSync(file, 'utf-8').trim();
     if (existing) return existing;
   }
-  const token = randomBytes(32).toString("hex");
+  const token = randomBytes(32).toString('hex');
   mkdirSync(dir, { recursive: true });
-  writeFileSync(file, token + "\n", { mode: 0o600 });
-  const gitignore = path.join(dir, ".gitignore");
-  if (!existsSync(gitignore)) writeFileSync(gitignore, "*\n"); // never commit the secret
+  writeFileSync(file, token + '\n', { mode: 0o600 });
+  const gitignore = path.join(dir, '.gitignore');
+  if (!existsSync(gitignore)) writeFileSync(gitignore, '*\n'); // never commit the secret
   return token;
 }
 
 /** Token from the Authorization: Bearer header, falling back to ?token= (EventSource). */
 export function extractRequestToken(req: AuthHeaders, url: URL): string | null {
-  const auth = req.headers["authorization"];
-  if (typeof auth === "string" && auth.startsWith("Bearer ")) {
-    const t = auth.slice("Bearer ".length).trim();
+  const auth = req.headers['authorization'];
+  if (typeof auth === 'string' && auth.startsWith('Bearer ')) {
+    const t = auth.slice('Bearer '.length).trim();
     if (t) return t;
   }
-  const q = url.searchParams.get("token");
+  const q = url.searchParams.get('token');
   return q && q.trim() ? q.trim() : null;
 }
 
 /** Only /api/* is protected; the page, SPA routes, and assets are public. */
 export function isPublicPath(pathname: string): boolean {
-  return !pathname.startsWith("/api/");
+  return !pathname.startsWith('/api/');
 }
 
 /** Length-checked, constant-time-ish comparison to avoid timing leaks. */
@@ -74,13 +74,17 @@ export function isAuthorized(req: AuthHeaders, url: URL, expected: string): bool
 // which the PreToolUse hook feeds into the agent). The browser still sends the
 // attacker's hostname in Host, so allowlisting loopback names closes it.
 
-const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]"]);
+const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]']);
 
 /** Host must name a loopback host on the port we actually listen on. */
 export function isAllowedHost(host: string | undefined, port: number): boolean {
   if (!host) return false;
   let parsed: URL;
-  try { parsed = new URL(`http://${host}`); } catch { return false; }
+  try {
+    parsed = new URL(`http://${host}`);
+  } catch {
+    return false;
+  }
   // Round-trip check rejects userinfo, paths and other smuggling in the header.
   if (parsed.host !== host.toLowerCase()) return false;
   if (!LOOPBACK_HOSTNAMES.has(parsed.hostname)) return false;
@@ -93,7 +97,7 @@ export function isAllowedHost(host: string | undefined, port: number): boolean {
  * (the MCP server's notify calls, curl). "null" origins are refused.
  */
 export function isAllowedOrigin(method: string | undefined, origin: string | undefined): boolean {
-  if (["GET", "HEAD", "OPTIONS"].includes(method ?? "GET")) return true;
+  if (['GET', 'HEAD', 'OPTIONS'].includes(method ?? 'GET')) return true;
   if (origin === undefined) return true;
   try {
     return LOOPBACK_HOSTNAMES.has(new URL(origin).hostname);
