@@ -1,26 +1,26 @@
 # MCP Tools Overview
 
-The server exposes **103 tools** via the Model Context Protocol (97 by default; `CODE_CONTEXT_TOOLSETS=all` adds 6 optional ones): **13 code-context tools** (codebase indexing and search) and **90 scrum & agent tools** (sprints, tickets, ceremonies, metrics, and the agent workflow). Tool descriptions and directory metadata are maintained by the MCP server itself — the same indexing engine that powers the code-context tools also keeps their documentation up to date.
+The server exposes **103 tools** via the Model Context Protocol. Since 3.0.0 it lists only the 6 code tools by default; `CODE_CONTEXT_PROFILE=full` lists 97 and `all` lists 103 (see [Tool profiles](../REFERENCE.md#tool-profiles)). The tools are **13 code-context tools** (codebase indexing and search) and **90 scrum & agent tools** (sprints, tickets, ceremonies, metrics, and the agent workflow). Tool descriptions and directory metadata are maintained by the MCP server itself — the same indexing engine that powers the code-context tools also keeps their documentation up to date.
 
 ## Code-context tools
 
 The codebase indexing and search half of the server. These 13 tools scan a directory, build a searchable index, and answer structured queries about files, symbols, and changes.
 
-| Tool | Description |
-|------|-------------|
-| [`index_directory`](./index-directory) | Scan a directory and build the index |
-| [`find_symbol`](./find-symbol) | Find which files export a given symbol |
-| [`get_file_context`](./get-file-context) | Get full file context: exports, imports, dependents, changes |
-| [`who_imports`](./who-imports) | Which files import a file or symbol: complete list from the import graph |
-| [`exports_in`](./exports-in) | What a directory exports, and which exports nothing imports |
-| [`get_changes`](./get-changes) | View recent file changes with diffs |
-| [`search_files`](./search-files) | Search indexed files by path or summary |
-| [`query`](./query-execute) | Run read-only SQL against the database |
-| [`execute`](./query-execute) | Run write SQL against the database |
-| `set_description` | Set a human-readable description for any indexed file |
-| `set_directory_description` | Set a description for an indexed directory |
-| `set_change_reason` | Record the reason behind a recorded file change |
-| `health` | Report server and index health |
+| Tool                                     | Description                                                              |
+| ---------------------------------------- | ------------------------------------------------------------------------ |
+| [`index_directory`](./index-directory)   | Scan a directory and build the index                                     |
+| [`find_symbol`](./find-symbol)           | Find which files export a given symbol                                   |
+| [`get_file_context`](./get-file-context) | Get full file context: exports, imports, dependents, changes             |
+| [`who_imports`](./who-imports)           | Which files import a file or symbol: complete list from the import graph |
+| [`exports_in`](./exports-in)             | What a directory exports, and which exports nothing imports              |
+| [`get_changes`](./get-changes)           | View recent file changes with diffs                                      |
+| [`search_files`](./search-files)         | Search indexed files by path or summary                                  |
+| [`query`](./query-execute)               | Run read-only SQL against the database                                   |
+| [`execute`](./query-execute)             | Run write SQL against the database                                       |
+| `set_description`                        | Set a human-readable description for any indexed file                    |
+| `set_directory_description`              | Set a description for an indexed directory                               |
+| `set_change_reason`                      | Record the reason behind a recorded file change                          |
+| `health`                                 | Report server and index health                                           |
 
 ::: tip Read-only by default
 `query` and `execute` are guarded: `query` accepts a single read-only `SELECT`/`WITH`, and `execute` accepts a single `INSERT`/`UPDATE`/`DELETE`. Stacked statements, comments, DDL, `PRAGMA`, and `ATTACH` are rejected.
@@ -74,7 +74,7 @@ The scrum/agent workflow half of the server. These 90 tools drive sprints, ticke
 
 `request_user_input`, `get_user_response`, `send_step_progress`¹, `send_claude_output`¹, `send_claude_step`¹
 
-¹ Hidden by default since 2.6.0 — toolset `stream`. `record_mood`, `get_mood_trends` and `generate_vision_animation` are toolset `fun`. Enable with `CODE_CONTEXT_TOOLSETS=fun,stream` (or `all`); the data and the dashboard are unaffected.
+¹ Hidden by default since 2.6.0 — toolset `stream`. `record_mood`, `get_mood_trends` and `generate_vision_animation` are toolset `fun`. Enable with `CODE_CONTEXT_TOOLSETS=fun,stream` or `CODE_CONTEXT_PROFILE=all`; the data and the dashboard are unaffected.
 
 ## Context Efficiency
 

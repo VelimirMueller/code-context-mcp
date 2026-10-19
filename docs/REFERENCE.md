@@ -10,7 +10,7 @@ The long version. The [README](../README.md) has the short one.
      ▼
   ┌────────────────────┐   stat + git diff   ┌────────────────────┐
   │  MCP server        │ ──────────────────▸ │  your repo         │
-  │  97 tools          │ ◂────────────────── │  git ls-files only │
+  │  6 tools · full 97 │ ◂────────────────── │  git ls-files only │
   │  compact cards     │   re-index changed  └────────────────────┘
   └─────────┬──────────┘
             │  reads · writes
@@ -21,36 +21,60 @@ The long version. The [README](../README.md) has the short one.
   └────────────────────┘   ticket edits  └────────────────────┘
 ```
 
+## Tool profiles
+
+Every listed tool costs model context on every call. Since 3.0.0 the server lists only the code tools unless you turn the sprint process on.
+
+| Profile (`CODE_CONTEXT_PROFILE`) | Toolsets                      | Tools | Tool definitions per call     |
+| -------------------------------- | ----------------------------- | ----- | ----------------------------- |
+| `code` (default, nothing set)    | `code`                        | 6     | about 3,300 chars, 850 tokens |
+| `full` (the 2.x default)         | `code`, `code-admin`, `scrum` | 97    | about 12,300 tokens           |
+| `all`                            | every toolset                 | 103   | a little more than `full`     |
+
+| Toolset      | Tools                                                                                                                      |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `code`       | `find_symbol`, `get_file_context`, `who_imports`, `exports_in`, `search_files`, `query`. Always on.                        |
+| `code-admin` | `index_directory`, `get_changes`, `set_description`, `set_directory_description`, `set_change_reason`, `execute`, `health` |
+| `scrum`      | Every other tool: sprints, tickets, retros, milestones, epics, agents, skills, the dashboard bridge, dump and restore      |
+| `fun`        | `record_mood`, `get_mood_trends`, `generate_vision_animation`                                                              |
+| `stream`     | `send_step_progress`, `send_claude_output`, `send_claude_step`                                                             |
+
+- **Turn the sprint process on:** `CODE_CONTEXT_PROFILE=full` in the server `env`. `npx code-context-mcp setup .` writes it into `.mcp.json` (`--profile code|full|all` picks another one; an existing setting is kept).
+- **Add single toolsets:** `CODE_CONTEXT_TOOLSETS` is a comma list added to the profile, for example `code-admin`, `scrum`, `fun,stream` or `all`. It only adds; it never removes a toolset of the profile. `code` and `default` (2.x spellings) change nothing.
+- **Check what is on:** `health` (toolset `code-admin`) reports `profile` and `toolsets`. `/kickoff` reads it first and stops with the exact setting when the sprint tools are off. Unknown values are ignored, listed under `ignored_settings` and logged as a WARN line.
+- **Flair** (the `● code-context ▸ <tool>` header and the kaomoji footer) is on when the `scrum` toolset is on and off otherwise; `OVERDRIVE_FLAIR=0`/`1` forces it.
+- **The data stays.** A hidden tool is only not listed: the tables, the dashboard and the HTTP API keep working in every profile.
+
 ## Skill sets (server-provided)
 
 The server ships three predefined skill libraries — **Frontend** (22 skills: React 19 / Vue 3 scaffolding, routing, state, forms, auth, i18n, testing, accessibility, performance, design systems, motion, PWA, plus an editable **house-style primer**), **Landing pages** (structure, SEO, lead capture, content audits), and **Workflow** (write-pull-requests, write-commit-messages).
 
 Unlike a plugin, these are **served by the MCP server into your live session**, not copied into your repo. `/kickoff` asks once which sets to enable (frontend is on by default; `update_skill_sets` changes it any time). When a sprint has `fe-engineer` work, `load_phase_context` injects the house-style primer and the enabled skill indexes — workflow skills inject for every implementer; your agent then pulls any skill's full guidance on demand with `get_skill({ name })`. No restart, no files to manage.
 
-| | |
-|---|---|
-| Source | [`claude_development_skills`](https://github.com/VelimirMueller/claude_development_skills) — vendored under `vendor/skills/` (build input) |
-| Storage | seeded into the project DB `skills` table (`fe:*`, `la:*`, `wf:*`); **edit them to make them yours** — re-seeds never overwrite your edits |
-| Opt-in | `/kickoff` Phase 1b asks once; `update_skill_sets({ landing: true, ... })` any time |
-| Trigger | fe/la on `fe-engineer` tickets, wf on any implementation work during `/kickoff` |
-| Load | index + primer up front; full body via `get_skill({ name })` |
-| Update | opt-in boot-time sync from the latest upstream release (`CODE_CONTEXT_SKILLS_AUTOSYNC=1`); `npm run sync:skills` re-vendors the offline fallback |
+|         |                                                                                                                                                  |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Source  | [`claude_development_skills`](https://github.com/VelimirMueller/claude_development_skills) — vendored under `vendor/skills/` (build input)       |
+| Storage | seeded into the project DB `skills` table (`fe:*`, `la:*`, `wf:*`); **edit them to make them yours** — re-seeds never overwrite your edits       |
+| Opt-in  | `/kickoff` Phase 1b asks once; `update_skill_sets({ landing: true, ... })` any time                                                              |
+| Trigger | fe/la on `fe-engineer` tickets, wf on any implementation work during `/kickoff`                                                                  |
+| Load    | index + primer up front; full body via `get_skill({ name })`                                                                                     |
+| Update  | opt-in boot-time sync from the latest upstream release (`CODE_CONTEXT_SKILLS_AUTOSYNC=1`); `npm run sync:skills` re-vendors the offline fallback |
 
 ## The agent team
 
 9 configurable agents, each with a role, model, and mood score. Dev roles default to the strongest model (`claude-fable-5`), QA to `claude-opus-5`; the rest use `claude-sonnet-5`. Change a model, tools or system prompt with the `update_agent` MCP tool or in the dashboard.
 
-| Role | Focus |
-|---|---|
-| Product Owner | Vision, priorities, stakeholder alignment |
-| Team Lead | Coordination, code review, quality |
-| Architect | System design, technology decisions, structural integrity |
-| Backend Developer | APIs, database, server logic |
-| Frontend Developer | Dashboard components, UI/UX |
-| Developer | Full-stack features across frontend and backend |
-| QA Engineer | Testing, verification, quality gates |
-| Security Engineer | Vulnerability review, threat modeling, security best practices |
-| DevOps | CI/CD, builds, deployment |
+| Role               | Focus                                                          |
+| ------------------ | -------------------------------------------------------------- |
+| Product Owner      | Vision, priorities, stakeholder alignment                      |
+| Team Lead          | Coordination, code review, quality                             |
+| Architect          | System design, technology decisions, structural integrity      |
+| Backend Developer  | APIs, database, server logic                                   |
+| Frontend Developer | Dashboard components, UI/UX                                    |
+| Developer          | Full-stack features across frontend and backend                |
+| QA Engineer        | Testing, verification, quality gates                           |
+| Security Engineer  | Vulnerability review, threat modeling, security best practices |
+| DevOps             | CI/CD, builds, deployment                                      |
 
 Add, remove, or swap models through MCP tools or with a single click in the dashboard — and the choice **routes execution**: during `/kickoff` and `/sprint`, each ticket is implemented by a subagent spawned at its assigned agent's model tier (`fable`/`opus`/`sonnet`/`haiku`).
 
@@ -64,12 +88,12 @@ Since 2.0, tickets can carry **multiple agents with per-assignment model overrid
 planning → implementation → done → rest
 ```
 
-| Phase | Duration | Gate |
-|---|---|---|
-| **Planning** | 1 day | Tickets assigned, velocity committed |
-| **Implementation** | 3 days | All tickets DONE or NOT_DONE, blockers resolved |
-| **Done** | 0.5 day | Retro findings recorded, QA verified |
-| **Rest** | 0.5 day | Automatic after retro |
+| Phase              | Duration | Gate                                            |
+| ------------------ | -------- | ----------------------------------------------- |
+| **Planning**       | 1 day    | Tickets assigned, velocity committed            |
+| **Implementation** | 3 days   | All tickets DONE or NOT_DONE, blockers resolved |
+| **Done**           | 0.5 day  | Retro findings recorded, QA verified            |
+| **Rest**           | 0.5 day  | Automatic after retro                           |
 
 Phases, durations, and gates are fully customizable via `update_sprint_config`.
 
@@ -78,6 +102,12 @@ Since 2.0, planning is **gated**: `start_sprint` and `advance_sprint` refuse to 
 Since 2.2, the QA gate also checks **commit discipline**: a ticket can't reach `qa_verified` while its referencing commits lack the `Why:/What:/How:` body groups — and closes feed the burndown automatically.
 
 ## Release highlights
+
+### Unreleased 3.0.0 — Lean by Default 🪶
+
+- **Breaking: `code` is the default profile.** A server with no setting lists the 6 reading tools (about 850 tokens of definitions) instead of 97 (about 12,300 tokens). Every positive benchmark run used this profile.
+- **The sprint process is opt-in.** `CODE_CONTEXT_PROFILE=full` lists the 2.x default again; `all` lists every tool. `CODE_CONTEXT_TOOLSETS` still adds single toolsets. See [Tool profiles](#tool-profiles).
+- **Setup and `/kickoff` handle it.** `setup` writes `CODE_CONTEXT_PROFILE=full` into `.mcp.json` (or keeps the existing setting; `--profile code` for code reading only). `/kickoff` checks `health` first and names the setting when the sprint tools are off.
 
 ### Unreleased — PHP in the Index 🐘
 
@@ -91,10 +121,10 @@ Since 2.2, the QA gate also checks **commit discipline**: a ticket can't reach `
 - **`sync_github`** mirrors one project's milestones and tickets to GitHub: issues with `P0`–`P2`, type and origin labels, the owner as assignee, board Status from the ticket status, closed when DONE. Idempotent through `tickets.github_issue`; `dry_run: true` prints the plan. About 2 GitHub reads per run. Details: [sync_github](tools/sync-github.md).
 - **Live writes need an allowlist outside MCP.** A live sync writes only to the exact targets in `CODE_CONTEXT_GITHUB_SYNC_REPOS`; no tool sets it. A board needs the exact `owner/repo@board-owner/N` entry. The assignee must be the repo owner or listed in `CODE_CONTEXT_GITHUB_SYNC_ASSIGNEES`. `set_project` refuses to re-point a project that already synced, unless `force: true` and the new target is allowlisted. Dry runs need nothing. A text that holds a secret (API keys, tokens, JWTs, private keys, credentials; raw or encoded) is refused with the field and secret type named. Every published text is scrubbed of local paths in any encoding (`file://`, `%2F`, `&#47;`, `\/`, `C:/Users/…`), and an independent guard refuses what survives.
 
-  | Env var | Default | Effect |
-  |---|---|---|
-  | `CODE_CONTEXT_GITHUB_SYNC_REPOS` | unset: every live `sync_github` / `code-context-sync-github` run is refused | `owner/repo`: issues and milestones in that repo, no board. `owner/repo@board-owner/N`: also that one Project board. Comma or space separated. |
-  | `CODE_CONTEXT_GITHUB_SYNC_ASSIGNEES` | unset: only the repo owner may be assigned | `login[,login…]`: these logins may also be the project's issue assignee |
+  | Env var                              | Default                                                                     | Effect                                                                                                                                         |
+  | ------------------------------------ | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `CODE_CONTEXT_GITHUB_SYNC_REPOS`     | unset: every live `sync_github` / `code-context-sync-github` run is refused | `owner/repo`: issues and milestones in that repo, no board. `owner/repo@board-owner/N`: also that one Project board. Comma or space separated. |
+  | `CODE_CONTEXT_GITHUB_SYNC_ASSIGNEES` | unset: only the repo owner may be assigned                                  | `login[,login…]`: these logins may also be the project's issue assignee                                                                        |
 
 ### New in 2.8 — Python in the Index 🐍
 
@@ -110,7 +140,7 @@ Since 2.2, the QA gate also checks **commit discipline**: a ticket can't reach `
 
 ### New in 2.6 — Fresh Index 🧊
 
-- **Answers are checked against the disk.** `search_files`, `find_symbol` and `get_file_context` stat every row they return: a changed file is re-indexed and a deleted one dropped *before* the answer goes out, and each row carries its `indexed_at`. Per repo, a moved git `HEAD` re-indexes exactly the files `git diff --name-only <indexed>..HEAD` lists and says so in one `⚠ STALE` line; above 500 changed files it warns on every call instead of blocking.
+- **Answers are checked against the disk.** `search_files`, `find_symbol` and `get_file_context` stat every row they return: a changed file is re-indexed and a deleted one dropped _before_ the answer goes out, and each row carries its `indexed_at`. Per repo, a moved git `HEAD` re-indexes exactly the files `git diff --name-only <indexed>..HEAD` lists and says so in one `⚠ STALE` line; above 500 changed files it warns on every call instead of blocking.
 - **Only your code is indexed.** Git checkouts are listed with `git ls-files` (every `.gitignore`, at any depth), on top of a hard deny: `node_modules`, `vendor`, `dist`, `build`, `.next`, `coverage`, Laravel `storage/`, dot-dirs (`.git`, `.worktrees`), lockfiles, minified bundles, source maps, binaries, files over 512 KB (`CODE_CONTEXT_MAX_FILE_KB`).
 - **`code-context-reindex`** re-indexes every repo under a root: `[--all | <repo>…] [--root <dir>] [--db <file>] [--prune-missing] [--vacuum]`. A `.code-context-ignore` file in a repo keeps it out (and purges its rows). Exit 0/1.
 - **Fewer tools in context.** The gamification (`record_mood`, `get_mood_trends`, `generate_vision_animation`) and the dashboard live-output stream (`send_step_progress`, `send_claude_output`, `send_claude_step`) are hidden unless `CODE_CONTEXT_TOOLSETS=fun,stream` (or `all`). No data is removed.
@@ -118,10 +148,10 @@ Since 2.2, the QA gate also checks **commit discipline**: a ticket can't reach `
 - **Paths an agent can read back.** The index stores every file by its realpath, so a symlinked root (macOS `/var/folders/…` → `/private/var/folders/…`) and its target are one index. `find_symbol`, `get_file_context`, `search_files` and `get_changes` print paths relative to the indexed root that holds the server's working directory (`src/utils/helpers.ts`); files of other repos in a shared database stay absolute. `absolute_paths: true` or `CODE_CONTEXT_ABSOLUTE_PATHS=1` prints absolute paths. Tools take the relative form, the realpath and the symlinked spelling.
 - **Server instructions and compact results.** The server sends short MCP `instructions` (about 370 characters, about 90 tokens): which graph tool answers "who imports X", "where is S defined", "what does this file export or import" and "what does dir D export or leave unused", that results never hold full code (`read` the file; `get_file_context` has signatures and import lines, `snippet: true` short bodies), and that paths are project-relative. Only listed tools are named; the path sentence drops with `CODE_CONTEXT_ABSOLUTE_PATHS=1`.
 
-  | Env var | Default profile | `code` profile |
-  |---|---|---|
-  | `OVERDRIVE_FLAIR` (header `● code-context ▸ <tool> ░▒▓` + `<kaomoji> <ms> ms` footer on text results) | on; `0` turns it off | off; `1` turns it on |
-  | `CODE_CONTEXT_TIMESTAMPS` (`modified …` / `indexed …` in `find_symbol`, `get_file_context`, `search_files`) | off; `1` turns it on | off; `1` turns it on |
+  | Env var                                                                                                     | 2.x default (now `full`) | `code` profile (now the default) |
+  | ----------------------------------------------------------------------------------------------------------- | ------------------------ | -------------------------------- |
+  | `OVERDRIVE_FLAIR` (header `● code-context ▸ <tool> ░▒▓` + `<kaomoji> <ms> ms` footer on text results)       | on; `0` turns it off     | off; `1` turns it on             |
+  | `CODE_CONTEXT_TIMESTAMPS` (`modified …` / `indexed …` in `find_symbol`, `get_file_context`, `search_files`) | off; `1` turns it on     | off; `1` turns it on             |
 
   The read-time freshness check does not change: a changed or deleted file is re-indexed or dropped before the answer, and the `↻ fresh: …` / `⚠ STALE …` notice still leads the result. `index_directory` prints each directory's file and line counts once.
 

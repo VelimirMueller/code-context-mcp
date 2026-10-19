@@ -5,6 +5,8 @@ node_modules
 vendor/
 src/scrum/frontend-skill-defaults.generated.ts
 test/fixtures/
+# vm-brand README kit specs keep the vm-brand layout (input of make-readme-kit.py).
+brand/
 # Data files written by tools.
 benchmark-results.json
 benchmark-stochastic-results.json

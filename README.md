@@ -266,7 +266,7 @@ npm run bench:publish
 <p>
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="assets/readme/env-v3-light.svg">
-  <img alt="default: 97 MCP tools. CODE_CONTEXT_TOOLSETS=all: 103 MCP tools. CODE_CONTEXT_TOOLSETS=code: 6 tools: find_symbol, get_file_context, who_imports, exports_in, search_files, query. OVERDRIVE_FLAIR: Flair header/footer on text results. On by default, off under code. 0/1 force it. CODE_CONTEXT_TIMESTAMPS=1: Adds modified/indexed timestamps. Off by default. CODE_CONTEXT_ABSOLUTE_PATHS=1: Absolute paths" src="assets/readme/env-v3-dark.svg" width="100%">
+  <img alt="default (code): 6 tools: find_symbol, get_file_context, who_imports, exports_in, search_files, query. CODE_CONTEXT_PROFILE=full: 97 MCP tools: the sprint process. The 2.x default. setup writes it. CODE_CONTEXT_PROFILE=all: 103 MCP tools. CODE_CONTEXT_TOOLSETS: Adds toolsets: code-admin, scrum, fun, stream. OVERDRIVE_FLAIR: Flair header/footer on text results. On with the sprint tools, off under code. 0/1 force it. CODE_CONTEXT_TIMESTAMPS=1: Adds modified/indexed timestamps. Off by default. CODE_CONTEXT_ABSOLUTE_PATHS=1: Absolute paths" src="assets/readme/env-v3-dark.svg" width="100%">
 </picture>
 </p>
 
@@ -302,9 +302,10 @@ claude mcp remove code-context
 ```
 
 ```bash
-# Toolsets (default: 97 MCP tools)
-CODE_CONTEXT_TOOLSETS=all    # 103 tools
-CODE_CONTEXT_TOOLSETS=code   # 6 code tools
+# Profiles (default: code, 6 tools)
+CODE_CONTEXT_PROFILE=full     # 97 tools: the sprint process (setup writes it)
+CODE_CONTEXT_PROFILE=all      # 103 tools
+CODE_CONTEXT_TOOLSETS=scrum   # add toolsets: code-admin, scrum, fun, stream
 
 # Output
 OVERDRIVE_FLAIR=0              # flair off (1 forces it on)
