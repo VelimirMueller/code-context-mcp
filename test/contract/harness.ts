@@ -3,8 +3,9 @@
  *
  * Every value here is deterministic: tools sort by name, sample outputs run
  * against a fresh copy of test/fixtures/sample-project with the copy's
- * realpath replaced by `<ROOT>`, and no profile, flair, timestamp or path
- * env leaks in from the parent process.
+ * realpath replaced by `<ROOT>`. The settings that change what the server
+ * lists or prints (CONTRACT_ENV) never come from the parent process; the rest
+ * of the env (PATH, HOME, …) does, and the server output depends on none of it.
  */
 import fs from 'node:fs';
 import os from 'node:os';

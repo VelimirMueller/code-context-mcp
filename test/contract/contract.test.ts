@@ -114,6 +114,7 @@ describe('contract: default output of the code tools (#180)', () => {
       if (o.args.absolute_paths) continue;
       expect(o.text, `${o.tool} ${JSON.stringify(o.args)}`).not.toMatch(/<ROOT>|<TMP>/);
       expect(o.text).not.toMatch(/\b(indexed|modified) \d{4}-\d{2}-\d{2}/);
+      expect(o.text).not.toMatch(/\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/);
     }
     expect(new Set(out.map((o) => o.tool))).toEqual(new Set(CODE_TOOLS));
     matchSnapshot('outputs-code.json', out);

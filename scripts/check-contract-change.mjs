@@ -106,6 +106,7 @@ function main() {
   }
   let changed;
   let baseVersion;
+  let headVersion;
   try {
     changed = git(['diff', '--name-only', `${base}...HEAD`, '--', SNAPSHOT_DIR], root)
       .split('\n')
@@ -115,7 +116,12 @@ function main() {
     console.error(`contract gate: cannot diff against ${base} (fetch-depth 0?): ${e.message}`);
     return 64;
   }
-  const headVersion = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
+  try {
+    headVersion = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
+  } catch (e) {
+    console.error(`contract gate: cannot read package.json: ${e.message}`);
+    return 64;
+  }
 
   const r = decide({ baseHasSnapshots, changed, baseVersion, headVersion, labels });
   for (const f of r.contractFiles) say(`  changed: ${f}`);
