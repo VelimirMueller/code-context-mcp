@@ -19,15 +19,15 @@
  *
  * Call once, before any tool is registered (after logToolExceptions is fine).
  */
-import { log as slog } from "../sessionlog.js";
+import { log as slog } from '../sessionlog.js';
 
 /** Optional toolsets and their tools. Everything not listed is always on. */
 export const OPTIONAL_TOOLSETS: Readonly<Record<string, readonly string[]>> = {
   // Scrum gamification: agent mood tracking and the Remotion vision video.
-  fun: ["record_mood", "get_mood_trends", "generate_vision_animation"],
+  fun: ['record_mood', 'get_mood_trends', 'generate_vision_animation'],
   // Live-output streaming into the dashboard wizard panel. No command or skill
   // calls them; request_user_input / get_user_response stay on (kickoff uses them).
-  stream: ["send_step_progress", "send_claude_output", "send_claude_step"],
+  stream: ['send_step_progress', 'send_claude_output', 'send_claude_step'],
 };
 
 /**
@@ -38,12 +38,12 @@ export const OPTIONAL_TOOLSETS: Readonly<Record<string, readonly string[]>> = {
  * read code but never run the sprint process (benchmarks, OpenCode workers, one-off agents).
  */
 export const CODE_TOOLS: readonly string[] = [
-  "find_symbol",
-  "get_file_context",
-  "who_imports",
-  "exports_in",
-  "search_files",
-  "query",
+  'find_symbol',
+  'get_file_context',
+  'who_imports',
+  'exports_in',
+  'search_files',
+  'query',
 ];
 
 /**
@@ -52,13 +52,13 @@ export const CODE_TOOLS: readonly string[] = [
  * never needs them: the index is pre-built and re-checked against the disk.
  */
 export const CODE_ADMIN_TOOLS: readonly string[] = [
-  "index_directory",
-  "set_description",
-  "set_directory_description",
-  "set_change_reason",
-  "get_changes",
-  "execute",
-  "health",
+  'index_directory',
+  'set_description',
+  'set_directory_description',
+  'set_change_reason',
+  'get_changes',
+  'execute',
+  'health',
 ];
 
 /** Anything with `has(toolName)`: a Set of hidden names, or a profile rule. */
@@ -72,10 +72,15 @@ export interface ToolFilter {
  * `code-admin` keeps CODE_ADMIN_TOOLS too. `all` still wins and hides nothing.
  * Otherwise the optional-toolset rules of hiddenTools apply unchanged.
  */
-export function toolFilter(env: string | undefined = process.env.CODE_CONTEXT_TOOLSETS): ToolFilter {
-  const wanted = (env ?? "").split(",").map((s) => s.trim().toLowerCase().replace(/^\+/, ""));
+export function toolFilter(
+  env: string | undefined = process.env.CODE_CONTEXT_TOOLSETS,
+): ToolFilter {
+  const wanted = (env ?? '').split(',').map((s) => s.trim().toLowerCase().replace(/^\+/, ''));
   if (isCodeProfile(env)) {
-    const keep = new Set([...CODE_TOOLS, ...(wanted.includes("code-admin") ? CODE_ADMIN_TOOLS : [])]);
+    const keep = new Set([
+      ...CODE_TOOLS,
+      ...(wanted.includes('code-admin') ? CODE_ADMIN_TOOLS : []),
+    ]);
     return { has: (name: string) => !keep.has(name) };
   }
   return hiddenTools(env);
@@ -86,32 +91,36 @@ export function toolFilter(env: string | undefined = process.env.CODE_CONTEXT_TO
  * (`fun,stream`), or `all`. Unset/empty/`default` = none of them. Unknown
  * names are ignored. Returns the set of tool names to hide.
  */
-export function hiddenTools(env: string | undefined = process.env.CODE_CONTEXT_TOOLSETS): Set<string> {
+export function hiddenTools(
+  env: string | undefined = process.env.CODE_CONTEXT_TOOLSETS,
+): Set<string> {
   const wanted = new Set(
-    (env ?? "")
-      .split(",")
-      .map((s) => s.trim().toLowerCase().replace(/^\+/, ""))
+    (env ?? '')
+      .split(',')
+      .map((s) => s.trim().toLowerCase().replace(/^\+/, ''))
       .filter(Boolean),
   );
   const hidden = new Set<string>();
-  if (wanted.has("all")) return hidden;
+  if (wanted.has('all')) return hidden;
   for (const [set, tools] of Object.entries(OPTIONAL_TOOLSETS)) {
     if (!wanted.has(set)) for (const t of tools) hidden.add(t);
   }
   return hidden;
 }
 
-const GLYPH = "●";
-const TOOL = "code-context";
-const OK = ["┬─┬ノ( º _ºノ)", "(⌐■_■)", "ᕙ(⇀‸↼‶)ᕗ", "(•̀ᴗ•́)و"];
-const FAIL = ["(╯°□°)╯︵ ┻━┻", "ಠ_ಠ"];
+const GLYPH = '●';
+const TOOL = 'code-context';
+const OK = ['┬─┬ノ( º _ºノ)', '(⌐■_■)', 'ᕙ(⇀‸↼‶)ᕗ', '(•̀ᴗ•́)و'];
+const FAIL = ['(╯°□°)╯︵ ┻━┻', 'ಠ_ಠ'];
 
 const TRUTHY = /^(1|true|yes)$/i;
 
 /** True when CODE_CONTEXT_TOOLSETS selects the `code` profile (and not `all`). */
-export function isCodeProfile(env: string | undefined = process.env.CODE_CONTEXT_TOOLSETS): boolean {
-  const wanted = (env ?? "").split(",").map((s) => s.trim().toLowerCase().replace(/^\+/, ""));
-  return wanted.includes("code") && !wanted.includes("all");
+export function isCodeProfile(
+  env: string | undefined = process.env.CODE_CONTEXT_TOOLSETS,
+): boolean {
+  const wanted = (env ?? '').split(',').map((s) => s.trim().toLowerCase().replace(/^\+/, ''));
+  return wanted.includes('code') && !wanted.includes('all');
 }
 
 /**
@@ -123,8 +132,8 @@ export function flairEnabled(
   flair: string | undefined = process.env.OVERDRIVE_FLAIR,
   toolsets: string | undefined = process.env.CODE_CONTEXT_TOOLSETS,
 ): boolean {
-  const v = (flair ?? "").trim();
-  if (v === "0" || /^(false|no|off)$/i.test(v)) return false;
+  const v = (flair ?? '').trim();
+  if (v === '0' || /^(false|no|off)$/i.test(v)) return false;
   if (TRUTHY.test(v)) return true;
   return !isCodeProfile(toolsets);
 }
@@ -136,8 +145,10 @@ export function flairEnabled(
  * re-indexes changed files and prints a notice when it did, so the
  * timestamps cost tokens without changing an answer.
  */
-export function showTimestamps(env: string | undefined = process.env.CODE_CONTEXT_TIMESTAMPS): boolean {
-  return TRUTHY.test((env ?? "").trim());
+export function showTimestamps(
+  env: string | undefined = process.env.CODE_CONTEXT_TIMESTAMPS,
+): boolean {
+  return TRUTHY.test((env ?? '').trim());
 }
 
 /** Upper bound for serverInstructions(), pinned by test/tool-wrap.test.ts (~95 tokens). */
@@ -150,24 +161,26 @@ export const MAX_INSTRUCTIONS_CHARS = 400;
  */
 export function serverInstructions(
   hidden: ToolFilter = toolFilter(),
-  absolutePaths: boolean = TRUTHY.test(process.env.CODE_CONTEXT_ABSOLUTE_PATHS ?? ""),
+  absolutePaths: boolean = TRUTHY.test(process.env.CODE_CONTEXT_ABSOLUTE_PATHS ?? ''),
 ): string | undefined {
   const on = (t: string) => !hidden.has(t);
   const routes = [
-    ["who_imports", "Who imports X: who_imports."],
-    ["find_symbol", "Where is S defined: find_symbol."],
-    ["get_file_context", "What a file exports or imports: get_file_context."],
-    ["exports_in", "What dir D exports or leaves unused: exports_in."],
-  ].filter(([t]) => on(t)).map(([, r]) => r);
+    ['who_imports', 'Who imports X: who_imports.'],
+    ['find_symbol', 'Where is S defined: find_symbol.'],
+    ['get_file_context', 'What a file exports or imports: get_file_context.'],
+    ['exports_in', 'What dir D exports or leaves unused: exports_in.'],
+  ]
+    .filter(([t]) => on(t))
+    .map(([, r]) => r);
   if (routes.length === 0) return undefined;
-  const parts = ["Code index of this project; prefer it to grep.", ...routes];
+  const parts = ['Code index of this project; prefer it to grep.', ...routes];
   parts.push(
-    on("get_file_context")
-      ? "Results never hold full code: read the file for that. get_file_context gives signatures and import lines, snippet:true short bodies."
-      : "Results never hold full code: read the file for that.",
+    on('get_file_context')
+      ? 'Results never hold full code: read the file for that. get_file_context gives signatures and import lines, snippet:true short bodies.'
+      : 'Results never hold full code: read the file for that.',
   );
-  if (!absolutePaths) parts.push("Paths are project-relative.");
-  return parts.join(" ");
+  if (!absolutePaths) parts.push('Paths are project-relative.');
+  return parts.join(' ');
 }
 
 /** Header line, ≤ 72 chars. */
@@ -187,7 +200,7 @@ export function looksLikeJson(text: string): boolean {
   const t = text.trim();
   const first = t[0];
   const last = t[t.length - 1];
-  if (!((first === "{" && last === "}") || (first === "[" && last === "]"))) return false;
+  if (!((first === '{' && last === '}') || (first === '[' && last === ']'))) return false;
   if (t.length > 2_000_000) return true; // too big to parse on the hot path; shape is enough
   try {
     JSON.parse(t);
@@ -197,16 +210,19 @@ export function looksLikeJson(text: string): boolean {
   }
 }
 
-type TextItem = { type: "text"; text: string };
+type TextItem = { type: 'text'; text: string };
 type ToolResult = { content?: unknown[]; isError?: boolean; [k: string]: unknown };
 
 /** Add header/footer to a tool result. Pure; returns the input when nothing applies. */
 export function decorate(result: unknown, tool: string, ms: number): unknown {
   try {
-    if (!flairEnabled() || !result || typeof result !== "object") return result;
+    if (!flairEnabled() || !result || typeof result !== 'object') return result;
     const r = result as ToolResult;
     if (!Array.isArray(r.content) || r.content.length === 0) return result;
-    const texts = r.content.filter((c): c is TextItem => !!c && (c as TextItem).type === "text" && typeof (c as TextItem).text === "string");
+    const texts = r.content.filter(
+      (c): c is TextItem =>
+        !!c && (c as TextItem).type === 'text' && typeof (c as TextItem).text === 'string',
+    );
     if (texts.length === 0) return result;
     if (texts.some((c) => looksLikeJson(c.text))) return result;
     const failed = r.isError === true;
@@ -233,7 +249,7 @@ const patched = new WeakSet<object>();
 export function instrumentTools(server: object, hidden: ToolFilter = toolFilter()): void {
   if (patched.has(server)) return;
   const target = server as { tool?: unknown };
-  if (typeof target.tool !== "function") return;
+  if (typeof target.tool !== 'function') return;
   patched.add(server);
   const original = target.tool as (...args: unknown[]) => unknown;
 
@@ -241,34 +257,34 @@ export function instrumentTools(server: object, hidden: ToolFilter = toolFilter(
     const name = args[0];
     const last = args.length - 1;
     const handler = args[last];
-    if (typeof name === "string" && hidden.has(name)) {
+    if (typeof name === 'string' && hidden.has(name)) {
       // Not registered: invisible to tools/list, uncallable. Callers in this
       // codebase never use the returned handle.
       return { name, enabled: false, enable() {}, disable() {}, remove() {}, update() {} };
     }
-    if (args.length >= 2 && typeof name === "string" && typeof handler === "function") {
+    if (args.length >= 2 && typeof name === 'string' && typeof handler === 'function') {
       const fn = handler as (...a: unknown[]) => unknown;
       const finish = (result: unknown, start: number): unknown => {
         const ms = performance.now() - start;
-        slog("INFO", `done ${name} in ${Math.round(ms)} ms`);
+        slog('INFO', `done ${name} in ${Math.round(ms)} ms`);
         return decorate(result, name, ms);
       };
       const wrapped = function (this: unknown, ...callArgs: unknown[]): unknown {
         const start = performance.now();
         const result = fn.apply(this, callArgs);
-        if (result && typeof (result as { then?: unknown }).then === "function") {
+        if (result && typeof (result as { then?: unknown }).then === 'function') {
           return (result as Promise<unknown>).then(
             (v) => finish(v, start),
             (err: unknown) => {
-              slog("INFO", `done ${name} in ${Math.round(performance.now() - start)} ms (threw)`);
+              slog('INFO', `done ${name} in ${Math.round(performance.now() - start)} ms (threw)`);
               throw err;
             },
           );
         }
         return finish(result, start);
       };
-      Object.defineProperty(wrapped, "length", { value: fn.length });
-      Object.defineProperty(wrapped, "name", { value: fn.name });
+      Object.defineProperty(wrapped, 'length', { value: fn.length });
+      Object.defineProperty(wrapped, 'name', { value: fn.name });
       args = args.slice();
       args[last] = wrapped;
     }
