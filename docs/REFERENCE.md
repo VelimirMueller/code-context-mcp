@@ -10,7 +10,7 @@ The long version. The [README](../README.md) has the short one.
      ▼
   ┌────────────────────┐   stat + git diff   ┌────────────────────┐
   │  MCP server        │ ──────────────────▸ │  your repo         │
-  │  97 tools          │ ◂────────────────── │  git ls-files only │
+  │  6 tools · full 97 │ ◂────────────────── │  git ls-files only │
   │  compact cards     │   re-index changed  └────────────────────┘
   └─────────┬──────────┘
             │  reads · writes
@@ -20,6 +20,30 @@ The long version. The [README](../README.md) has the short one.
   │  SQLite, WAL mode  │ ◂────────────── │  live-editable     │
   └────────────────────┘   ticket edits  └────────────────────┘
 ```
+
+## Tool profiles
+
+Every listed tool costs model context on every call. Since 3.0.0 the server lists only the code tools unless you turn the sprint process on.
+
+| Profile (`CODE_CONTEXT_PROFILE`) | Toolsets                      | Tools | Tool definitions per call     |
+| -------------------------------- | ----------------------------- | ----- | ----------------------------- |
+| `code` (default, nothing set)    | `code`                        | 6     | about 3,300 chars, 850 tokens |
+| `full` (the 2.x default)         | `code`, `code-admin`, `scrum` | 97    | about 12,300 tokens           |
+| `all`                            | every toolset                 | 103   | a little more than `full`     |
+
+| Toolset      | Tools                                                                                                                      |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `code`       | `find_symbol`, `get_file_context`, `who_imports`, `exports_in`, `search_files`, `query`. Always on.                        |
+| `code-admin` | `index_directory`, `get_changes`, `set_description`, `set_directory_description`, `set_change_reason`, `execute`, `health` |
+| `scrum`      | Every other tool: sprints, tickets, retros, milestones, epics, agents, skills, the dashboard bridge, dump and restore      |
+| `fun`        | `record_mood`, `get_mood_trends`, `generate_vision_animation`                                                              |
+| `stream`     | `send_step_progress`, `send_claude_output`, `send_claude_step`                                                             |
+
+- **Turn the sprint process on:** `CODE_CONTEXT_PROFILE=full` in the server `env`. `npx code-context-mcp setup .` writes it into `.mcp.json` (`--profile code|full|all` picks another one; an existing setting is kept).
+- **Add single toolsets:** `CODE_CONTEXT_TOOLSETS` is a comma list added to the profile, for example `code-admin`, `scrum`, `fun,stream` or `all`. It only adds; it never removes a toolset of the profile. `code` and `default` (2.x spellings) change nothing.
+- **Check what is on:** `health` (toolset `code-admin`) reports `profile` and `toolsets`. `/kickoff` reads it first and stops with the exact setting when the sprint tools are off. Unknown values are ignored, listed under `ignored_settings` and logged as a WARN line.
+- **Flair** (the `● code-context ▸ <tool>` header and the kaomoji footer) is on when the `scrum` toolset is on and off otherwise; `OVERDRIVE_FLAIR=0`/`1` forces it.
+- **The data stays.** A hidden tool is only not listed: the tables, the dashboard and the HTTP API keep working in every profile.
 
 ## Skill sets (server-provided)
 
@@ -78,6 +102,12 @@ Since 2.0, planning is **gated**: `start_sprint` and `advance_sprint` refuse to 
 Since 2.2, the QA gate also checks **commit discipline**: a ticket can't reach `qa_verified` while its referencing commits lack the `Why:/What:/How:` body groups — and closes feed the burndown automatically.
 
 ## Release highlights
+
+### Unreleased 3.0.0 — Lean by Default 🪶
+
+- **Breaking: `code` is the default profile.** A server with no setting lists the 6 reading tools (about 850 tokens of definitions) instead of 97 (about 12,300 tokens). Every positive benchmark run used this profile.
+- **The sprint process is opt-in.** `CODE_CONTEXT_PROFILE=full` lists the 2.x default again; `all` lists every tool. `CODE_CONTEXT_TOOLSETS` still adds single toolsets. See [Tool profiles](#tool-profiles).
+- **Setup and `/kickoff` handle it.** `setup` writes `CODE_CONTEXT_PROFILE=full` into `.mcp.json` (or keeps the existing setting; `--profile code` for code reading only). `/kickoff` checks `health` first and names the setting when the sprint tools are off.
 
 ### Unreleased — PHP in the Index 🐘
 

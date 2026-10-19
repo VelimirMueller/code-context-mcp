@@ -14,6 +14,7 @@ import {
 import { seedDefaults } from '../scrum/defaults.js';
 import { applyStatuslineSetting } from './statusline.js';
 import { ensureDbGitignored, DB_IGNORE_PATTERN } from './gitignore.js';
+import { PROFILES, type Profile } from './tool-wrap.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SERVER_DIR = path.resolve(__dirname);
@@ -37,19 +38,26 @@ Options:
                                        renamed to context.db.bak-<timestamp> first
   --name <name>                        Project name (default: directory name)
   --defaults                           Non-interactive: skip prompts, auto-create vision & milestone
+  --profile <code|full|all>            Tool profile written to .mcp.json (CODE_CONTEXT_PROFILE).
+                                       Default: full (the sprint process, 97 tools). code = the
+                                       6 reading tools only. An existing setting is kept unless
+                                       --profile is given.
 
 Examples:
   code-context-mcp .                   Set up (or update) the current directory
   code-context-mcp setup ~/my-project  Full setup for a project
   code-context-mcp --defaults .        Non-interactive setup/update (CI-friendly)
   code-context-mcp --force .           Re-initialize from scratch (old DB backed up)
+  code-context-mcp --profile code .    Set up for code reading only (no sprint tools)
 
 After setup:
   code-context-dashboard               Open dashboard (default port: ${process.env.DASHBOARD_PORT || '3333'})
 
-MCP Tools:
-  code-context tools (index, search, file context, symbols, changes)
-  scrum suite (sprints, tickets, retros, milestones, agents, bridge, dump/restore)
+MCP Tools (by profile):
+  code   find_symbol, get_file_context, who_imports, exports_in, search_files, query
+  full   + index maintenance + scrum suite (sprints, tickets, retros, milestones, agents,
+         bridge, dump/restore)
+  all    + fun and stream toolsets
 `);
   process.exit(0);
 }
@@ -58,7 +66,26 @@ const FORCE = args.includes('--force');
 const USE_DEFAULTS = args.includes('--defaults');
 
 const nameIdx = args.indexOf('--name');
-const nonFlagArgs = args.filter((a) => !a.startsWith('--') && !a.startsWith('-'));
+const profileIdx = args.indexOf('--profile');
+const profileEq = args.find((a) => a.startsWith('--profile='));
+const PROFILE_ARG = (
+  profileEq
+    ? profileEq.slice('--profile='.length)
+    : profileIdx >= 0
+      ? args[profileIdx + 1]
+      : undefined
+)
+  ?.trim()
+  .toLowerCase();
+if ((profileIdx >= 0 || profileEq) && !(PROFILE_ARG && PROFILE_ARG in PROFILES)) {
+  console.error(
+    `  ERROR: --profile takes one of ${Object.keys(PROFILES).join(', ')} (got ${JSON.stringify(PROFILE_ARG ?? '')}).`,
+  );
+  process.exit(1);
+}
+// Values of --name and --profile are not the target path.
+const valueIdx = new Set([nameIdx + 1, profileIdx + 1].filter((i) => i > 0));
+const nonFlagArgs = args.filter((a, i) => !a.startsWith('-') && !valueIdx.has(i));
 const isSetupCommand = nonFlagArgs[0] === 'setup';
 const targetPath = isSetupCommand ? nonFlagArgs[1] || '.' : nonFlagArgs[0] || '.';
 const TARGET_DIR = path.resolve(targetPath);
@@ -291,10 +318,39 @@ if (UPDATE_MODE) {
 
 const mcpConfigPath = path.resolve(TARGET_DIR, '.mcp.json');
 const relServer = './' + path.relative(TARGET_DIR, SERVER_ENTRY).split(path.sep).join('/');
-const serverEntry = {
-  command: 'node',
-  args: [relServer, DB_PATH],
-};
+
+/**
+ * The tool profile for this project (#178). The server's own default is the
+ * lean `code` profile; setup installs the sprint process (scrum seed, /kickoff,
+ * bridge hook), so it writes `CODE_CONTEXT_PROFILE=full` unless the entry
+ * already says what it wants. Precedence: --profile; else an existing
+ * CODE_CONTEXT_PROFILE; else an existing CODE_CONTEXT_TOOLSETS that lists
+ * `code` (a 2.x lean install, kept lean); else `full`, which is also what a
+ * 2.x install without a setting had.
+ */
+function profileEnv(existing: Record<string, string>): {
+  env: Record<string, string>;
+  profile: string;
+  source: string;
+} {
+  const env = { ...existing };
+  if (PROFILE_ARG) {
+    env.CODE_CONTEXT_PROFILE = PROFILE_ARG;
+    return { env, profile: PROFILE_ARG, source: '--profile' };
+  }
+  if (env.CODE_CONTEXT_PROFILE) {
+    return { env, profile: env.CODE_CONTEXT_PROFILE, source: 'kept from .mcp.json' };
+  }
+  const toolsets = (env.CODE_CONTEXT_TOOLSETS ?? '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase().replace(/^\+/, ''));
+  if (toolsets.includes('code') && !toolsets.includes('all')) {
+    return { env, profile: 'code', source: 'kept: CODE_CONTEXT_TOOLSETS lists code' };
+  }
+  const profile: Profile = 'full';
+  env.CODE_CONTEXT_PROFILE = profile;
+  return { env, profile, source: 'setup default for the sprint process' };
+}
 
 // Configure MCP client (.mcp.json)
 if (!UPDATE_MODE) step('Configuring MCP client...');
@@ -312,9 +368,33 @@ if (fs.existsSync(mcpConfigPath)) {
     // Overwrite if corrupted
   }
 }
-mcpConfig.mcpServers['code-context'] = serverEntry;
+const existingEntry = mcpConfig.mcpServers['code-context'];
+const previous: { env?: unknown; [key: string]: unknown } =
+  existingEntry && typeof existingEntry === 'object' && !Array.isArray(existingEntry)
+    ? (existingEntry as Record<string, unknown>)
+    : {};
+const previousEnv: Record<string, string> = {};
+if (previous.env && typeof previous.env === 'object' && !Array.isArray(previous.env)) {
+  for (const [k, v] of Object.entries(previous.env as Record<string, unknown>)) {
+    if (typeof v === 'string') previousEnv[k] = v;
+  }
+}
+const toolProfile = profileEnv(previousEnv);
+// Other keys of an existing entry (type, cwd, …) pass through; command/args are repaired.
+mcpConfig.mcpServers['code-context'] = {
+  ...previous,
+  command: 'node',
+  args: [relServer, DB_PATH],
+  env: toolProfile.env,
+};
 fs.writeFileSync(mcpConfigPath, JSON.stringify(mcpConfig, null, 2) + '\n');
-console.log(`  Wrote ${mcpConfigPath}\n`);
+console.log(`  Wrote ${mcpConfigPath}`);
+console.log(`  Tool profile: ${toolProfile.profile} (${toolProfile.source})`);
+console.log(
+  toolProfile.profile === 'code'
+    ? '  Sprint tools are off. Turn them on with --profile full or CODE_CONTEXT_PROFILE=full.\n'
+    : '  Code reading only? Use --profile code (6 tools instead of 97).\n',
+);
 
 // Keep the index (it stores file contents) out of the project's git history
 if (ensureDbGitignored(TARGET_DIR) === 'added') {
@@ -415,6 +495,6 @@ console.log('Dashboard:');
 console.log(`  npx code-context-dashboard ${DB_PATH}  — Open at http://localhost:${dashPort}`);
 console.log(`  npx code-context-dashboard ${DB_PATH} ${dashPort} .  — With file watcher`);
 console.log('');
-console.log('Restart your AI client to load the MCP tools (98 total).');
+console.log(`Restart your AI client to load the MCP tools (profile: ${toolProfile.profile}).`);
 console.log('All data lives in context.db — no .claude/ files needed.');
 console.log('');

@@ -2,6 +2,21 @@
 
 Run the complete scrum lifecycle from product vision through sprint rest. Use native question UI for every structured choice, render server-built cards verbatim, enforce all QA gates and the planning gate.
 
+## Step 0a — Check the Tool Profile
+
+The sprint tools are opt-in since 3.0.0: the server's default profile is `code` (6 reading tools). Kickoff needs the `full` profile (toolsets `code`, `code-admin`, `scrum`).
+
+- If `health` is in your tool list, call `health()` and read `profile` and `toolsets`.
+- Stop here when `health` is not listed, or `toolsets` lacks `scrum` or `code-admin`. Tell the user, then wait:
+
+```yaml
+sprint_tools: off # profile: <profile from health, or code>
+fix: CODE_CONTEXT_PROFILE=full
+where: .mcp.json → mcpServers["code-context"].env
+or: npx code-context-mcp setup . --profile full
+then: restart the AI client, run /kickoff again
+```
+
 ## Step 0 — Load Context (2 calls)
 
 ```
@@ -259,4 +274,5 @@ Close with the sprint-complete card (from step above) plus a one-line pointer: `
 10. **Link everything** — tickets→epics, epics→milestones, discoveries→tickets.
 11. **Archive on close** — discoveries, epics, milestones all get their final status.
 12. **Resume from where you left off** — check existing state before asking redundant questions.
-13. **Surface anomalies.** If retro patterns, mood trends, or velocity suggest a problem, highlight it.
+13. **Full profile first.** Step 0a runs before any other call; never work around missing sprint tools.
+14. **Surface anomalies.** If retro patterns, mood trends, or velocity suggest a problem, highlight it.

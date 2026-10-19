@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Database from 'better-sqlite3';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, existsSync, readdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,6 +22,7 @@ function runSetup(dir: string, ...extra: string[]): string {
     cwd: REPO_ROOT,
     timeout: 120_000,
     env: { ...process.env, CODE_CONTEXT_ALLOWED_ROOTS: dir },
+    stdio: ['ignore', 'pipe', 'pipe'],
   });
 }
 
@@ -143,6 +144,81 @@ describe('--force backup WAL handling (discovery #27)', () => {
       expect(row?.goal).toBe('must survive --force backup');
     } finally {
       writer.close();
+    }
+  }, 120_000);
+});
+
+describe('setup writes the tool profile into .mcp.json (#178)', () => {
+  let dir: string;
+  const entry = () =>
+    JSON.parse(readFileSync(path.join(dir, '.mcp.json'), 'utf-8')).mcpServers['code-context'];
+  const writeEntry = (e: Record<string, unknown>) =>
+    writeFileSync(
+      path.join(dir, '.mcp.json'),
+      JSON.stringify({ mcpServers: { 'code-context': e, other: { command: 'x' } } }),
+    );
+
+  beforeAll(() => {
+    dir = mkdtempSync(path.join(tmpdir(), 'setup-profile-'));
+    writeFileSync(path.join(dir, 'hello.ts'), 'export const hi = 1;\n');
+  });
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+  it('a fresh setup turns the sprint process on: CODE_CONTEXT_PROFILE=full', () => {
+    const out = runSetup(dir);
+    expect(entry().env).toEqual({ CODE_CONTEXT_PROFILE: 'full' });
+    expect(out).toMatch(/Tool profile: full/);
+  }, 120_000);
+
+  it('update mode keeps an existing setting and the other keys of the entry', () => {
+    writeEntry({
+      command: 'old',
+      args: [],
+      type: 'stdio',
+      env: { CODE_CONTEXT_PROFILE: 'code', FOO: '1' },
+    });
+    const out = runSetup(dir);
+    const e = entry();
+    expect(e.env).toEqual({ CODE_CONTEXT_PROFILE: 'code', FOO: '1' });
+    expect(e.type).toBe('stdio');
+    expect(e.command).toBe('node');
+    expect(JSON.parse(readFileSync(path.join(dir, '.mcp.json'), 'utf-8')).mcpServers.other).toEqual(
+      { command: 'x' },
+    );
+    expect(out).toMatch(/Sprint tools are off.*CODE_CONTEXT_PROFILE=full/);
+  }, 120_000);
+
+  it('a 2.x install without a setting gets full, so it keeps its sprint tools', () => {
+    writeEntry({ command: 'node', args: [] });
+    runSetup(dir);
+    expect(entry().env).toEqual({ CODE_CONTEXT_PROFILE: 'full' });
+  }, 120_000);
+
+  it('a 2.x lean install (CODE_CONTEXT_TOOLSETS=code) stays lean', () => {
+    writeEntry({ command: 'node', args: [], env: { CODE_CONTEXT_TOOLSETS: 'code' } });
+    runSetup(dir);
+    expect(entry().env).toEqual({ CODE_CONTEXT_TOOLSETS: 'code' });
+  }, 120_000);
+
+  it('--profile wins over an existing setting and is not taken as the path', () => {
+    execFileSync(TSX, [SETUP, '--profile', 'code', dir, '--defaults'], {
+      encoding: 'utf-8',
+      cwd: REPO_ROOT,
+      timeout: 120_000,
+      env: { ...process.env, CODE_CONTEXT_ALLOWED_ROOTS: dir },
+    });
+    expect(entry().env.CODE_CONTEXT_PROFILE).toBe('code');
+    runSetup(dir, '--profile=full');
+    expect(entry().env.CODE_CONTEXT_PROFILE).toBe('full');
+  }, 120_000);
+
+  it('an unknown --profile is refused before anything is written', () => {
+    const fresh = mkdtempSync(path.join(tmpdir(), 'setup-badprofile-'));
+    try {
+      expect(() => runSetup(fresh, '--profile', 'sprint')).toThrow();
+      expect(existsSync(path.join(fresh, 'context.db'))).toBe(false);
+    } finally {
+      rmSync(fresh, { recursive: true, force: true });
     }
   }, 120_000);
 });

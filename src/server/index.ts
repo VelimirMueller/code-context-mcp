@@ -20,7 +20,13 @@ import { seedDefaults } from '../scrum/defaults.js';
 import { syncSkillsFromUpstream } from '../scrum/skill-sync.js';
 import { log as slog, errorClass, logToolExceptions } from '../sessionlog.js';
 import { FreshnessGuard, freshnessNotice, type FreshRow } from './freshness.js';
-import { instrumentTools, toolFilter, serverInstructions, showTimestamps } from './tool-wrap.js';
+import {
+  instrumentTools,
+  toolFilter,
+  serverInstructions,
+  showTimestamps,
+  resolveToolsets,
+} from './tool-wrap.js';
 import { formatIndexSummary } from './index-summary.js';
 import { resolveToolPath, resolveDirPath, pathDisplay, canonicalPath } from './path-resolve.js';
 import { declarationLines, hasSignatureParser, parseStoredImportLines } from './signatures.js';
@@ -133,7 +139,9 @@ const PKG_VERSION: string = (() => {
 })();
 
 // CCA-06 (#121): short `instructions` naming only the listed code tools.
-const hiddenToolFilter = toolFilter();
+// Profile + toolsets (CODE_CONTEXT_PROFILE, CODE_CONTEXT_TOOLSETS; #178): `code` by default.
+const toolSelection = resolveToolsets();
+const hiddenToolFilter = toolFilter(toolSelection);
 const instructions = serverInstructions(hiddenToolFilter);
 const server = new McpServer(
   { name: 'code-context', version: PKG_VERSION },
@@ -143,7 +151,7 @@ const server = new McpServer(
 // Session log: an exception escaping any tool handler (core or scrum) is a
 // CRITICAL breadcrumb — tool name + error class only, then rethrown unchanged.
 logToolExceptions(server);
-// Toolsets (CODE_CONTEXT_TOOLSETS), flair and the `done <tool> in N ms` line.
+// Toolsets, flair and the `done <tool> in N ms` line.
 instrumentTools(server, hiddenToolFilter);
 
 // Read-time freshness: every file-returning tool checks its rows against the
@@ -821,7 +829,7 @@ server.tool(
 );
 
 // ─── Health Check ───────────────────────────────────────────────────────────────
-server.tool('health', 'Check server health and connectivity', {}, async () => {
+server.tool('health', 'Server health, active profile and toolsets', {}, async () => {
   const startTime = Date.now();
   let dbHealthy = false;
   let dbError: string | null = null;
@@ -852,6 +860,10 @@ server.tool('health', 'Check server health and connectivity', {}, async () => {
               sprints: sprintCount?.c ?? 0,
             },
             dist_freshness: checkDistFreshness() ?? 'fresh',
+            // #178: kickoff reads these to see whether the sprint tools are on.
+            profile: toolSelection.profile,
+            toolsets: toolSelection.toolsets,
+            ...(toolSelection.ignored.length ? { ignored_settings: toolSelection.ignored } : {}),
           },
           null,
           2,
@@ -869,4 +881,10 @@ registerScrumTools(server, db);
 const transport = new StdioServerTransport();
 await server.connect(transport);
 console.error(`code-context MCP server running — db: ${DB_PATH}`);
-slog('INFO', `server: started version=${PKG_VERSION} db=${path.basename(resolvedDbPath)}`);
+slog(
+  'INFO',
+  `server: started version=${PKG_VERSION} db=${path.basename(resolvedDbPath)} profile=${toolSelection.profile} toolsets=${toolSelection.toolsets.join(',')}`,
+);
+if (toolSelection.ignored.length) {
+  slog('WARN', `server: ignored unknown tool settings: ${toolSelection.ignored.join(' ')}`);
+}

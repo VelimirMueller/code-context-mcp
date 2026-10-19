@@ -1,6 +1,6 @@
 # MCP Tools API Reference
 
-Key tool reference for `vlm-code-context-mcp`. The server exposes **97 MCP tools** in the default profile (103 with `CODE_CONTEXT_TOOLSETS=all`, 6 with `code`): codebase-context tools (registered in `src/server/index.ts`) and scrum/workflow tools (registered in `src/scrum/tools.ts` and `src/scrum/tools/`). This page documents the most commonly used tools; for the full list use the MCP tool inspector or browse the source directly.
+Key tool reference for `vlm-code-context-mcp`. The server exposes **6 MCP tools** in the default `code` profile, 97 with `CODE_CONTEXT_PROFILE=full` and 103 with `all` (see [Tool profiles](REFERENCE.md#tool-profiles)): codebase-context tools (registered in `src/server/index.ts`) and scrum/workflow tools (registered in `src/scrum/tools.ts` and `src/scrum/tools/`). This page documents the most commonly used tools; for the full list use the MCP tool inspector or browse the source directly.
 
 ## Table of Contents
 

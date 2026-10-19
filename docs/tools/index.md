@@ -1,6 +1,6 @@
 # MCP Tools Overview
 
-The server exposes **103 tools** via the Model Context Protocol (97 by default; `CODE_CONTEXT_TOOLSETS=all` adds 6 optional ones): **13 code-context tools** (codebase indexing and search) and **90 scrum & agent tools** (sprints, tickets, ceremonies, metrics, and the agent workflow). Tool descriptions and directory metadata are maintained by the MCP server itself — the same indexing engine that powers the code-context tools also keeps their documentation up to date.
+The server exposes **103 tools** via the Model Context Protocol. Since 3.0.0 it lists only the 6 code tools by default; `CODE_CONTEXT_PROFILE=full` lists 97 and `all` lists 103 (see [Tool profiles](../REFERENCE.md#tool-profiles)). The tools are **13 code-context tools** (codebase indexing and search) and **90 scrum & agent tools** (sprints, tickets, ceremonies, metrics, and the agent workflow). Tool descriptions and directory metadata are maintained by the MCP server itself — the same indexing engine that powers the code-context tools also keeps their documentation up to date.
 
 ## Code-context tools
 
@@ -74,7 +74,7 @@ The scrum/agent workflow half of the server. These 90 tools drive sprints, ticke
 
 `request_user_input`, `get_user_response`, `send_step_progress`¹, `send_claude_output`¹, `send_claude_step`¹
 
-¹ Hidden by default since 2.6.0 — toolset `stream`. `record_mood`, `get_mood_trends` and `generate_vision_animation` are toolset `fun`. Enable with `CODE_CONTEXT_TOOLSETS=fun,stream` (or `all`); the data and the dashboard are unaffected.
+¹ Hidden by default since 2.6.0 — toolset `stream`. `record_mood`, `get_mood_trends` and `generate_vision_animation` are toolset `fun`. Enable with `CODE_CONTEXT_TOOLSETS=fun,stream` or `CODE_CONTEXT_PROFILE=all`; the data and the dashboard are unaffected.
 
 ## Context Efficiency
 

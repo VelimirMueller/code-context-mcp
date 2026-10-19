@@ -5,6 +5,26 @@ All notable changes to `vlm-code-context-mcp` are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased — 3.0.0]
+
+### Breaking
+
+- **The lean `code` profile is the default.** A server with no setting lists 6 tools (`find_symbol`, `get_file_context`, `who_imports`, `exports_in`, `search_files`, `query`): about 850 tokens of tool definitions per model call instead of about 12,300. Every positive benchmark run used this profile. The old default, 97 tools (toolsets `code`, `code-admin`, `scrum`), is now the `full` profile. (#178)
+- **The sprint process is opt-in.** `CODE_CONTEXT_PROFILE` picks the profile: `code` (default), `full` or `all` (103 tools, adds `fun` and `stream`). `CODE_CONTEXT_TOOLSETS` still adds single toolsets (`code-admin`, `scrum`, `fun`, `stream`, `all`); it only adds and never removes a toolset of the profile. Without `full`, the 2.x meaning of `CODE_CONTEXT_TOOLSETS=fun,stream` (the default plus `fun` and `stream`) becomes `code` plus `fun` and `stream`.
+- **Flair follows the sprint tools.** The flair header and footer are on when the `scrum` toolset is on (`full`, `all`) and off otherwise, so they are off by default now. `OVERDRIVE_FLAIR=0`/`1` still forces it.
+
+### Added
+
+- **`health` reports `profile` and `toolsets`**, and `ignored_settings` for a value the server did not understand. The server logs the profile at start and a WARN line for an ignored value.
+- **`setup` writes the profile into `.mcp.json`.** It sets `CODE_CONTEXT_PROFILE=full` in the `code-context` entry `env`, because setup installs the sprint process. `--profile code|full|all` picks another one. An existing `CODE_CONTEXT_PROFILE` is kept, a 2.x `CODE_CONTEXT_TOOLSETS=code` stays lean, and other keys of the entry (`env`, `type`, …) are no longer dropped. `--name` and `--profile` values are no longer taken as the target path.
+- **`/kickoff` checks the profile first.** Step 0a calls `health` and stops with the exact setting when the `scrum` or `code-admin` toolset is off.
+
+### Migration
+
+- **An install that uses the sprint tools sets `CODE_CONTEXT_PROFILE=full`** in the server `env` (`.mcp.json` → `mcpServers["code-context"].env`, or `--mcp-config`, or the shell). `npx code-context-mcp setup .` does it for a project: in update mode it writes `full` when the entry has no profile setting yet.
+- **`CODE_CONTEXT_TOOLSETS=code` keeps working** and changes nothing now; remove it when you like.
+- **`/kickoff` in an existing project** keeps its old copy (setup never overwrites a command file). Delete `.claude/commands/kickoff.md` and run setup again to get Step 0a.
+
 ## [Unreleased]
 
 ### Fixed
