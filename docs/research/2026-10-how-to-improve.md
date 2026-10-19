@@ -13,14 +13,14 @@
 
 ## Method
 
-| Source | What | Where |
-| --- | --- | --- |
-| Live runs | 14 `ccc-bench/1` runs, 3 models, tasks L1–L6 (this repo, small fixture) and I1–I6 (683-file synthetic TS fixture) | `bench-results` branch, `data/runs/*.json` |
-| Run artefacts | Per-session event streams of every live run | runner temp dirs `bench-live-<run_id>-*` (local only, not published) |
-| Re-check | The current checkers (`scripts/bench/live/checkers.mts`) re-run on the saved final answers of `glm-20261011-184607`. No API calls | this research |
-| Tool lists | `tools/list` of the installed 2.13.0 server, default and `CODE_CONTEXT_TOOLSETS=code` | this research |
-| Census | All `mcp__code-context__*` calls in Claude Code transcripts (`~/.claude/projects`, 2026-09-21 → 2026-10-19, 1,295 sessions) and `context.db` tables, opened read-only | this research |
-| Prior art | Aider, Serena, Sourcegraph, Claude Code tool search | links in [Comparable tools](#how-comparable-tools-solve-this) |
+| Source        | What                                                                                                                                                                  | Where                                                                |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Live runs     | 14 `ccc-bench/1` runs, 3 models, tasks L1–L6 (this repo, small fixture) and I1–I6 (683-file synthetic TS fixture)                                                     | `bench-results` branch, `data/runs/*.json`                           |
+| Run artefacts | Per-session event streams of every live run                                                                                                                           | runner temp dirs `bench-live-<run_id>-*` (local only, not published) |
+| Re-check      | The current checkers (`scripts/bench/live/checkers.mts`) re-run on the saved final answers of `glm-20261011-184607`. No API calls                                     | this research                                                        |
+| Tool lists    | `tools/list` of the installed 2.13.0 server, default and `CODE_CONTEXT_TOOLSETS=code`                                                                                 | this research                                                        |
+| Census        | All `mcp__code-context__*` calls in Claude Code transcripts (`~/.claude/projects`, 2026-09-21 → 2026-10-19, 1,295 sessions) and `context.db` tables, opened read-only | this research                                                        |
+| Prior art     | Aider, Serena, Sourcegraph, Claude Code tool search                                                                                                                   | links in [Comparable tools](#how-comparable-tools-solve-this)        |
 
 Token figures are **uncached tokens** (input + output + cache writes) per session, the figure the bench headline uses. "Saved" is `(vanilla − cc) / vanilla`; negative means cc used more.
 
@@ -32,18 +32,18 @@ Profiles in the old runs: 2.9.0 runs used the default profile (no `CODE_CONTEXT_
 
 `code` profile (6 tools), uncached tokens per session, cc vs vanilla:
 
-| Task | Type | vanilla size | Opus | DeepSeek v4 pro | GLM 5.3 |
-| --- | --- | --- | --- | --- | --- |
-| L1 | find one symbol, small fixture | 2–5k | −22 % | −21 % | −92 % |
-| L2 | small edit, small fixture | 2–7k | −17 % | −45 % | −15 % |
-| I5 | find one declaration among decoys | 3–4k | −16 % | −12 % | **+48 %** |
-| I1 | importers of a module | 5–13k | −47 % | **+26 %** | **+35 %** |
-| I2 | importers of a module | 7–15k | **+40 %** | **+12 %** | **+35 %** |
-| I3 | importers of one symbol, via barrels | 6–23k | **+6 %** | **+47 %** | −19 % |
-| I4 | unused exports of a directory | 14–27k | **+56 %** | **+24 %** | **+52 %** |
-| I6 | two-hop dependents | 7–27k | −30 % | **+41 %** | **+21 %** |
-| L4 | importers, this repo | 12k | — | **+16 %** | — |
-| L6 | dead exports, this repo | 149k | — | **+18 %** | — |
+| Task | Type                                 | vanilla size | Opus      | DeepSeek v4 pro | GLM 5.3   |
+| ---- | ------------------------------------ | ------------ | --------- | --------------- | --------- |
+| L1   | find one symbol, small fixture       | 2–5k         | −22 %     | −21 %           | −92 %     |
+| L2   | small edit, small fixture            | 2–7k         | −17 %     | −45 %           | −15 %     |
+| I5   | find one declaration among decoys    | 3–4k         | −16 %     | −12 %           | **+48 %** |
+| I1   | importers of a module                | 5–13k        | −47 %     | **+26 %**       | **+35 %** |
+| I2   | importers of a module                | 7–15k        | **+40 %** | **+12 %**       | **+35 %** |
+| I3   | importers of one symbol, via barrels | 6–23k        | **+6 %**  | **+47 %**       | −19 %     |
+| I4   | unused exports of a directory        | 14–27k       | **+56 %** | **+24 %**       | **+52 %** |
+| I6   | two-hop dependents                   | 7–27k        | −30 %     | **+41 %**       | **+21 %** |
+| L4   | importers, this repo                 | 12k          | —         | **+16 %**       | —         |
+| L6   | dead exports, this repo              | 149k         | —         | **+18 %**       | —         |
 
 (Opus: n = 1 per I task, n = 3 for I1 and L1. DeepSeek and GLM: n = 3–8.)
 
@@ -56,10 +56,10 @@ Profiles in the old runs: 2.9.0 runs used the default profile (no `CODE_CONTEXT_
 
 Measured `tools/list` of 2.13.0:
 
-| Profile | Tools | Definition size | ≈ tokens per model call |
-| --- | --- | --- | --- |
-| default | 97 | 56,624 chars | ~12,300–14,000 (CHANGELOG 2.11.0 says ~12,300) |
-| `code` | 6 | 3,362 chars | ~840 |
+| Profile | Tools | Definition size | ≈ tokens per model call                        |
+| ------- | ----- | --------------- | ---------------------------------------------- |
+| default | 97    | 56,624 chars    | ~12,300–14,000 (CHANGELOG 2.11.0 says ~12,300) |
+| `code`  | 6     | 3,362 chars     | ~840                                           |
 
 What the overhead costs depends on the client:
 
@@ -82,15 +82,15 @@ Data: `opus-20261011-134112` (−46 % uncached, n = 2) and `opus-20261011-145449
 
 The current checkers, re-run on the saved answers, reproduce all 7 failures. Per failed session:
 
-| Session | Answer correct? | Why the checker failed it |
-| --- | --- | --- |
-| cc I3 r3 | yes, 12/12 files | Also names 5 files it **excluded** ("not counted: `src/core/index.ts` …"). `maxExtra: 1` counts every named path. |
-| cc-guided I3 r2 | yes, 12/12 | same: 5 excluded files named in the explanation |
-| cc I4 r3 | yes, 7/7 in the final block | The per-file prose above the block names 3 used exports. The checker counts them as claims. |
-| cc-guided I4 r2 | yes, 7/7 in the final block | The "Used" and "Decoy cases" sections confuse the section parser. 0/7 parsed. |
-| cc-guided L1 r1 | yes | "Dependencies: None — … has no import statements" does not match the dependency regex |
-| cc I6 r2 | **no** | Lists the second hop as prose ("the loyalty api files"), not as paths. 0/16 parsed. |
-| vanilla I1 r3 | **no** | Misses `worker.ts`, adds a barrel |
+| Session         | Answer correct?             | Why the checker failed it                                                                                         |
+| --------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| cc I3 r3        | yes, 12/12 files            | Also names 5 files it **excluded** ("not counted: `src/core/index.ts` …"). `maxExtra: 1` counts every named path. |
+| cc-guided I3 r2 | yes, 12/12                  | same: 5 excluded files named in the explanation                                                                   |
+| cc I4 r3        | yes, 7/7 in the final block | The per-file prose above the block names 3 used exports. The checker counts them as claims.                       |
+| cc-guided I4 r2 | yes, 7/7 in the final block | The "Used" and "Decoy cases" sections confuse the section parser. 0/7 parsed.                                     |
+| cc-guided L1 r1 | yes                         | "Dependencies: None — … has no import statements" does not match the dependency regex                             |
+| cc I6 r2        | **no**                      | Lists the second hop as prose ("the loyalty api files"), not as paths. 0/16 parsed.                               |
+| vanilla I1 r3   | **no**                      | Misses `worker.ts`, adds a barrel                                                                                 |
 
 - Corrected success: **vanilla 23/24 (95.8 %), cc 23/24 (95.8 %), cc-guided 24/24 (100 %)**. No real drop.
 - Why only the cc arms: the tool output is rich (re-export counts, "complete list from the import graph"). GLM checks it with grep, finds the decoys, and **explains its exclusions**. Each explanation names extra paths or symbols. The strict checkers count those names as answers.
@@ -98,12 +98,12 @@ The current checkers, re-run on the saved answers, reproduce all 7 failures. Per
 
 ### 5. How comparable tools solve the same problems
 
-| Tool | Approach | Lesson for code-context |
-| --- | --- | --- |
-| [Aider repo map](https://aider.chat/docs/repomap.html) | Tree-sitter tags, a file dependency graph ranked by PageRank, rendered to a **token budget** (`--map-tokens`, default 1k) and pushed with every request. No tool calls. | Give results a size budget. Rank and cut long lists (finding 1, GLM I3). |
-| [Serena](https://github.com/oraios/serena) | Symbol tools on top of LSP language servers (40+ languages). Tool sets per context and mode in YAML. Inside a harness like Claude Code it turns off its own `read_file`/`search_for_pattern`, because the harness already has them. | Ship a small default and let the client context add tools (#178). Do not duplicate the harness tools. Use a compiler-grade backend for accuracy (#182). |
-| [Sourcegraph code graph / Cody](https://sourcegraph.com/resources/context-compare) | Precise code intelligence from SCIP indexes built by real compilers in CI, plus keyword search. | Precision comes from compiler indexes, not regex. Results that models can trust do not need a grep check afterwards (#182). |
-| [Claude Code tool search](https://code.claude.com/docs/en/mcp) | Defers MCP definitions by default. `_meta["anthropic/alwaysLoad"]: true` on a tool, or `alwaysLoad` per server, loads it upfront. Server instructions steer the search. | Mark the 6 code tools `alwaysLoad`: ~840 tokens upfront and no ToolSearch round trip. Keep server instructions short and keyword-rich. |
+| Tool                                                                               | Approach                                                                                                                                                                                                                            | Lesson for code-context                                                                                                                                 |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Aider repo map](https://aider.chat/docs/repomap.html)                             | Tree-sitter tags, a file dependency graph ranked by PageRank, rendered to a **token budget** (`--map-tokens`, default 1k) and pushed with every request. No tool calls.                                                             | Give results a size budget. Rank and cut long lists (finding 1, GLM I3).                                                                                |
+| [Serena](https://github.com/oraios/serena)                                         | Symbol tools on top of LSP language servers (40+ languages). Tool sets per context and mode in YAML. Inside a harness like Claude Code it turns off its own `read_file`/`search_for_pattern`, because the harness already has them. | Ship a small default and let the client context add tools (#178). Do not duplicate the harness tools. Use a compiler-grade backend for accuracy (#182). |
+| [Sourcegraph code graph / Cody](https://sourcegraph.com/resources/context-compare) | Precise code intelligence from SCIP indexes built by real compilers in CI, plus keyword search.                                                                                                                                     | Precision comes from compiler indexes, not regex. Results that models can trust do not need a grep check afterwards (#182).                             |
+| [Claude Code tool search](https://code.claude.com/docs/en/mcp)                     | Defers MCP definitions by default. `_meta["anthropic/alwaysLoad"]: true` on a tool, or `alwaysLoad` per server, loads it upfront. Server instructions steer the search.                                                             | Mark the 6 code tools `alwaysLoad`: ~840 tokens upfront and no ToolSearch round trip. Keep server instructions short and keyword-rich.                  |
 
 ### 6. Which sprint-process tools real sessions call
 
@@ -124,16 +124,16 @@ Claude Code transcripts, 2026-09-21 → 2026-10-19. Transcripts older than 30 da
 
 ## Recommendations (ranked)
 
-| Rank | Recommendation | Expected effect (evidence) | Cost | Breaking | Feeds |
-| --- | --- | --- | --- | --- | --- |
-| 1 | Fix the bench measurement first: count `who_imports`/`exports_in` in `CODE_CONTEXT_TOOLS`. Score only the final answer block (one fenced list), so excluded names in prose do not count. Then rescore the published runs. | GLM `184607` cc 87.5 % → 95.8 %, cc-guided → 100 %. Opus treatment rate 25 % → 88 %. Every later verdict depends on this. | S | no | #183 |
-| 2 | Make `code` the default profile; sprint tools only after `/kickoff` or an explicit toolset. | Upfront clients: −11.5k tokens per model call, −~21k weighted per 10-call session. Default-profile runs: 15 of 18 cells rose, median +263 % uncached tokens. | M | yes | #178 |
-| 3 | Set `_meta["anthropic/alwaysLoad"]: true` on the 6 code tools. | Removes the `ToolSearch` round trip in Claude Code (the cause of 0/12 calls in v1). Costs ~840 tokens upfront. | S | no | #178, #180 |
-| 4 | Add a size budget to list results (`who_imports`, `exports_in`): a `limit`, ranked by relevance, with a count of the rest. Answer a symbol query before the module query. | GLM I3, the only I task that got more expensive (+19 %): the module query returned 97 rows where the symbol query returned 13. | S–M | no (optional param) | #180 |
-| 5 | Tell the model when to use the tools: cross-file questions yes, one-file lookups no. Put it in the server instructions and in the hint. | Small tasks (vanilla < 6k) rose in 8 of 9 cells, by 12 % to 92 %. The guided arm already saves more (GLM 38.4 % vs 27.8 %, DeepSeek I4 40 % vs 24 %). | S | no | #178 |
-| 6 | Measure and publish import-graph precision/recall. Then state it in the output so models stop checking results with grep. | Grep checks are the remaining cost: 1–3 extra calls in 7/7 Opus I sessions, and the cause of the GLM explanations. | M–L | no | #182 |
-| 7 | Split the index from the sprint process, and keep the sprint process first-class. Hide the 54 never-called sprint tools behind optional toolsets. | Real use is 91 % sprint tools. A sprint profile of ~31 tools instead of 85 cuts its definitions by about two thirds. | L | yes | #179 |
-| 8 | Freeze profiles, tool names and answer formats in the contract tests. | 2.12.0 cut `code` from 11 to 6 tools in a minor release, so old runs cannot be compared. | M | yes (policy) | #180 |
+| Rank | Recommendation                                                                                                                                                                                                            | Expected effect (evidence)                                                                                                                                   | Cost | Breaking            | Feeds      |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---- | ------------------- | ---------- |
+| 1    | Fix the bench measurement first: count `who_imports`/`exports_in` in `CODE_CONTEXT_TOOLS`. Score only the final answer block (one fenced list), so excluded names in prose do not count. Then rescore the published runs. | GLM `184607` cc 87.5 % → 95.8 %, cc-guided → 100 %. Opus treatment rate 25 % → 88 %. Every later verdict depends on this.                                    | S    | no                  | #183       |
+| 2    | Make `code` the default profile; sprint tools only after `/kickoff` or an explicit toolset.                                                                                                                               | Upfront clients: −11.5k tokens per model call, −~21k weighted per 10-call session. Default-profile runs: 15 of 18 cells rose, median +263 % uncached tokens. | M    | yes                 | #178       |
+| 3    | Set `_meta["anthropic/alwaysLoad"]: true` on the 6 code tools.                                                                                                                                                            | Removes the `ToolSearch` round trip in Claude Code (the cause of 0/12 calls in v1). Costs ~840 tokens upfront.                                               | S    | no                  | #178, #180 |
+| 4    | Add a size budget to list results (`who_imports`, `exports_in`): a `limit`, ranked by relevance, with a count of the rest. Answer a symbol query before the module query.                                                 | GLM I3, the only I task that got more expensive (+19 %): the module query returned 97 rows where the symbol query returned 13.                               | S–M  | no (optional param) | #180       |
+| 5    | Tell the model when to use the tools: cross-file questions yes, one-file lookups no. Put it in the server instructions and in the hint.                                                                                   | Small tasks (vanilla < 6k) rose in 8 of 9 cells, by 12 % to 92 %. The guided arm already saves more (GLM 38.4 % vs 27.8 %, DeepSeek I4 40 % vs 24 %).        | S    | no                  | #178       |
+| 6    | Measure and publish import-graph precision/recall. Then state it in the output so models stop checking results with grep.                                                                                                 | Grep checks are the remaining cost: 1–3 extra calls in 7/7 Opus I sessions, and the cause of the GLM explanations.                                           | M–L  | no                  | #182       |
+| 7    | Split the index from the sprint process, and keep the sprint process first-class. Hide the 54 never-called sprint tools behind optional toolsets.                                                                         | Real use is 91 % sprint tools. A sprint profile of ~31 tools instead of 85 cuts its definitions by about two thirds.                                         | L    | yes                 | #179       |
+| 8    | Freeze profiles, tool names and answer formats in the contract tests.                                                                                                                                                     | 2.12.0 cut `code` from 11 to 6 tools in a minor release, so old runs cannot be compared.                                                                     | M    | yes (policy)        | #180       |
 
 ## The #183 v2 run
 
