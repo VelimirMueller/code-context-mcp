@@ -77,13 +77,16 @@ export function prepareSprintDb(db: Database.Database, dbPath: string): void {
   // Opt-in with CODE_CONTEXT_SKILLS_AUTOSYNC=1: synced skills land in agent
   // prompts, so pulling remote content on every boot must be the user's choice.
   if (process.env.CODE_CONTEXT_SKILLS_AUTOSYNC === '1') {
-    void syncSkillsFromUpstream(db).then((r) => {
-      if (r.ok && !r.skipped) {
-        console.error(
-          `[skills] Synced to ${r.tag}: ${r.inserted} new, ${r.updated} updated, ${r.preserved} user-edited preserved`,
-        );
-      }
-    });
+    void syncSkillsFromUpstream(db)
+      .then((r) => {
+        if (r.ok && !r.skipped) {
+          console.error(
+            `[skills] Synced to ${r.tag}: ${r.inserted} new, ${r.updated} updated, ${r.preserved} user-edited preserved`,
+          );
+        }
+      })
+      // Best effort: a rejected sync must never end the server process.
+      .catch((err: unknown) => slog('WARN', `server: skills sync failed error=${errorClass(err)}`));
   }
 }
 
