@@ -31,16 +31,18 @@ test('after login the cookie carries fetch and SSE, and scripts cannot read it',
   await openApp(page);
   const result = await page.evaluate(async () => {
     const r = await fetch('/api/sprints');
+    // The server sends an initial frame on connect; the timer keeps a lost
+    // frame from hanging the test until the 30 s spec timeout.
     const sse = await new Promise<boolean>((resolve) => {
       const es = new EventSource('/api/events');
-      es.onmessage = () => {
+      const done = (ok: boolean) => {
+        clearTimeout(timer);
         es.close();
-        resolve(true);
+        resolve(ok);
       };
-      es.onerror = () => {
-        es.close();
-        resolve(false);
-      };
+      const timer = setTimeout(() => done(false), 5000);
+      es.onmessage = () => done(true);
+      es.onerror = () => done(false);
     });
     return { status: r.status, sse, cookie: document.cookie };
   });
@@ -48,9 +50,12 @@ test('after login the cookie carries fetch and SSE, and scripts cannot read it',
   expect(result.sse).toBe(true);
   expect(result.cookie).not.toContain('cc_dashboard_session');
   const cookies = await page.context().cookies();
-  const session = cookies.find((c) => c.name === 'cc_dashboard_session');
+  const port = new URL(page.url()).port;
+  const session = cookies.find((c) => c.name === `cc_dashboard_session_${port}`);
   expect(session?.httpOnly).toBe(true);
   expect(session?.sameSite).toBe('Strict');
+  // Max-Age=43200: the browser stores an expiry about 12 h ahead.
+  expect(session!.expires - Date.now() / 1000).toBeGreaterThan(11 * 3600);
 });
 
 test('login() works on its own and a cookie write passes the origin check', async ({ page }) => {
@@ -59,4 +64,14 @@ test('login() works on its own and a cookie write passes the origin check', asyn
     async () => (await fetch('/api/notify', { method: 'POST' })).status,
   );
   expect(status).toBe(200);
+});
+
+test('logout ends the browser session', async ({ page }) => {
+  await login(page);
+  const statuses = await page.evaluate(async () => {
+    const out = (await fetch('/api/auth/logout', { method: 'POST' })).status;
+    const after = (await fetch('/api/sprints')).status;
+    return { out, after };
+  });
+  expect(statuses).toEqual({ out: 200, after: 401 });
 });

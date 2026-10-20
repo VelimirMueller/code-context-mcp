@@ -11,7 +11,7 @@
 // Only /health, /assets/* and /auth/launch are public; the page and /api/*
 // need the bearer header or the cookie.
 
-import { createHmac, randomBytes } from 'node:crypto';
+import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, chmodSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import type http from 'node:http';
@@ -134,42 +134,107 @@ export function tokensMatch(a: string | null, b: string | null): boolean {
 /** How a request proved itself: the bearer header (MCP server, hooks, scripts) or the browser cookie. */
 export type AuthMethod = 'bearer' | 'cookie';
 
-export function authenticate(req: AuthHeaders, expected: string): AuthMethod | null {
+/** Browser sessions of one dashboard: the store and the port its cookie is named after. */
+export type SessionContext = { sessions: Sessions; port: number };
+
+export function authenticate(
+  req: AuthHeaders,
+  expected: string,
+  session?: SessionContext,
+): AuthMethod | null {
   if (tokensMatch(extractRequestToken(req), expected)) return 'bearer';
-  if (tokensMatch(readCookie(req, SESSION_COOKIE), dashboardSessionValue(expected))) {
+  if (session && session.sessions.isValid(readCookie(req, sessionCookieName(session.port)))) {
     return 'cookie';
   }
   return null;
 }
 
-export function isAuthorized(req: AuthHeaders, url: URL, expected: string): boolean {
+export function isAuthorized(
+  req: AuthHeaders,
+  url: URL,
+  expected: string,
+  session?: SessionContext,
+): boolean {
   if (isPublicPath(url.pathname)) return true;
-  return authenticate(req, expected) !== null;
+  return authenticate(req, expected, session) !== null;
 }
 
 // ─── Browser session: one-time launch URL + HttpOnly cookie (#243) ──────────
 // A launch code is random, single use and expires after LAUNCH_CODE_TTL_MS.
 // Only a bearer holder can mint one (POST /api/auth/launch; the dashboard also
-// prints one at startup). GET /auth/launch?code= burns the code, sets the
-// cookie and redirects to /. The cookie value is an HMAC of the token, so it
-// survives a dashboard restart, is useless as a bearer token, and changes when
-// the token rotates. Cookies are not port-scoped: a page on another localhost
-// port is same-site, so cookie-authed writes must also pass
-// isAllowedCookieRequest (exact dashboard Origin).
+// prints one at startup). GET /auth/launch?code= burns the code, starts a
+// session and redirects to /. The session id is random (32 bytes), held in
+// memory only and ends after SESSION_TTL_MS; a dashboard restart ends every
+// session. Cookies are not port-scoped: every other localhost service the
+// browser visits receives the cookie. A random, expiring id limits that leak
+// to one login for at most 12 h (never the token, never past a restart), and
+// cookie-authed writes must also pass isAllowedCookieRequest (exact Origin).
+// The cookie name carries the port, so two dashboards never overwrite each other.
 
-export const SESSION_COOKIE = 'cc_dashboard_session';
+export const SESSION_COOKIE_PREFIX = 'cc_dashboard_session_';
+export const SESSION_TTL_MS = 12 * 60 * 60_000;
 export const LAUNCH_PATH = '/auth/launch';
 export const LAUNCH_CODE_TTL_MS = 5 * 60_000;
 const MAX_OPEN_LAUNCH_CODES = 32;
+const MAX_SESSIONS = 64;
 
-/** Cookie value for a token: HMAC, so the cookie never equals the bearer token. */
-export function dashboardSessionValue(token: string): string {
-  return createHmac('sha256', token).update('code-context-dashboard-session').digest('hex');
+/** Cookie name of the dashboard on this port. */
+export function sessionCookieName(port: number): string {
+  return `${SESSION_COOKIE_PREFIX}${port}`;
 }
 
-/** Set-Cookie header for the browser session. No Max-Age: it ends with the browser session. */
-export function sessionCookieHeader(token: string): string {
-  return `${SESSION_COOKIE}=${dashboardSessionValue(token)}; HttpOnly; SameSite=Strict; Path=/`;
+/** Set-Cookie header that starts a session; Max-Age matches the server-side lifetime. */
+export function sessionCookieHeader(port: number, id: string): string {
+  return `${sessionCookieName(port)}=${id}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_TTL_MS / 1000}`;
+}
+
+/** Set-Cookie header that clears the session cookie (logout). */
+export function clearSessionCookieHeader(port: number): string {
+  return `${sessionCookieName(port)}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0`;
+}
+
+/** SHA-256 of a secret: the map key, so a lookup never compares the secret itself. */
+function secretKey(secret: string): string {
+  return createHash('sha256').update(secret).digest('hex');
+}
+
+/**
+ * Browser sessions, in memory only. Random 32-byte ids with an absolute
+ * lifetime; at most MAX_SESSIONS, the least recently created goes first. The
+ * map is keyed by the SHA-256 of the id, so lookup timing says nothing about
+ * the id.
+ */
+export class Sessions {
+  private sessions = new Map<string, number>();
+
+  constructor(private ttlMs = SESSION_TTL_MS) {}
+
+  create(now = Date.now()): { id: string; expiresAt: number } {
+    for (const [k, exp] of this.sessions) if (exp <= now) this.sessions.delete(k);
+    while (this.sessions.size >= MAX_SESSIONS) {
+      this.sessions.delete(this.sessions.keys().next().value as string);
+    }
+    const id = randomBytes(32).toString('hex');
+    const expiresAt = now + this.ttlMs;
+    this.sessions.set(secretKey(id), expiresAt);
+    return { id, expiresAt };
+  }
+
+  isValid(id: string | null, now = Date.now()): boolean {
+    if (!id) return false;
+    const key = secretKey(id);
+    const exp = this.sessions.get(key);
+    if (exp === undefined) return false;
+    if (exp <= now) {
+      this.sessions.delete(key);
+      return false;
+    }
+    return true;
+  }
+
+  end(id: string | null): void {
+    if (id) this.sessions.delete(secretKey(id));
+  }
 }
 
 /** Value of one cookie from the Cookie header, or null. */
@@ -191,7 +256,7 @@ export class LaunchCodes {
 
   mint(now = Date.now()): { code: string; expiresAt: number } {
     for (const [c, exp] of this.codes) if (exp <= now) this.codes.delete(c);
-    // Bounded: the oldest open code goes first.
+    // Bounded: the least recently minted open code goes first.
     while (this.codes.size >= MAX_OPEN_LAUNCH_CODES) {
       this.codes.delete(this.codes.keys().next().value as string);
     }

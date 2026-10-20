@@ -27,6 +27,10 @@ import {
   isAllowedOrigin,
   isAllowedCookieRequest,
   sessionCookieHeader,
+  clearSessionCookieHeader,
+  sessionCookieName,
+  readCookie,
+  Sessions,
   LaunchCodes,
   LAUNCH_PATH,
   LAUNCH_CODE_TTL_MS,
@@ -1514,8 +1518,9 @@ function cspHeader(nonce: string): string {
 }
 
 // Browser login (#243): the page never carries the token. A bearer holder
-// mints a single-use launch URL; opening it sets the HttpOnly session cookie.
+// mints a single-use launch URL; opening it starts a random, 12 h session.
 const launchCodes = new LaunchCodes();
+const sessions = new Sessions();
 
 function mintLaunchUrl(port: number): { url: string; expiresAt: string } {
   const { code, expiresAt } = launchCodes.mint();
@@ -1590,7 +1595,10 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
 
   // Auth (#15b, #243): the bearer header (MCP server, hooks, scripts) or the
   // browser session cookie; only /health, /assets/* and the launch URL are public.
-  const authMethod = isPublicPath(url.pathname) ? null : authenticate(req, DASHBOARD_TOKEN);
+  const listenPort = req.socket.localPort ?? PORT;
+  const authMethod = isPublicPath(url.pathname)
+    ? null
+    : authenticate(req, DASHBOARD_TOKEN, { sessions, port: listenPort });
   if (!isPublicPath(url.pathname) && !authMethod) {
     // Path only — never the query string.
     logRejected(401, 'missing-or-invalid-token', req.method, url.pathname);
@@ -1631,8 +1639,20 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       res.end(loginPage('This launch link has expired or was already used.'));
       return;
     }
-    res.writeHead(303, { Location: '/', 'Set-Cookie': sessionCookieHeader(DASHBOARD_TOKEN) });
+    const { id } = sessions.create();
+    res.writeHead(303, { Location: '/', 'Set-Cookie': sessionCookieHeader(listenPort, id) });
     res.end();
+    return;
+  }
+
+  // Logout: end this browser's session and clear its cookie.
+  if (url.pathname === '/api/auth/logout' && req.method === 'POST') {
+    sessions.end(readCookie(req, sessionCookieName(listenPort)));
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Set-Cookie': clearSessionCookieHeader(listenPort),
+    });
+    res.end('{"ok":true}');
     return;
   }
 
@@ -1646,7 +1666,7 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       return;
     }
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(mintLaunchUrl(req.socket.localPort ?? PORT)));
+    res.end(JSON.stringify(mintLaunchUrl(listenPort)));
     return;
   }
 

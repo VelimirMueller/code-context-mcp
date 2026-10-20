@@ -24,7 +24,10 @@ export async function login(page: Page): Promise<void> {
   const minted = await page.request.post('/api/auth/launch', { headers: BEARER });
   expect(minted.ok(), await minted.text()).toBe(true);
   const { url } = (await minted.json()) as { url: string };
-  await page.goto(url);
+  const res = await page.goto(url);
+  // Fail here, not in a later step: the launch must land on the dashboard root.
+  expect(res?.status(), `launch URL answered ${res?.status()}`).toBe(200);
+  expect(new URL(page.url()).pathname).toBe('/');
 }
 
 /**

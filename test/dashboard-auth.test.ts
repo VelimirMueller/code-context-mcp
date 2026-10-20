@@ -11,12 +11,14 @@ import {
   isAllowedHost,
   isAllowedOrigin,
   authenticate,
-  dashboardSessionValue,
+  Sessions,
+  sessionCookieName,
+  clearSessionCookieHeader,
   sessionCookieHeader,
   readCookie,
   LaunchCodes,
   isAllowedCookieRequest,
-  SESSION_COOKIE,
+  SESSION_TTL_MS,
 } from '../src/dashboard/auth.js';
 
 const ENV = 'CODE_CONTEXT_DASHBOARD_TOKEN';
@@ -109,16 +111,27 @@ describe('dashboard auth: authorization decisions', () => {
       isAuthorized({ headers: {} }, new URL(`http://localhost/api/events?token=${TOKEN}`), TOKEN),
     ).toBe(false);
   });
-  it('allows /api with the session cookie', () => {
-    const req = {
-      headers: { cookie: `other=1; ${SESSION_COOKIE}=${dashboardSessionValue(TOKEN)}` },
-    };
-    expect(isAuthorized(req, new URL('http://localhost/api/events'), TOKEN)).toBe(true);
-    expect(authenticate(req, TOKEN)).toBe('cookie');
+  it('allows /api with a live session cookie for this port', () => {
+    const sessions = new Sessions();
+    const { id } = sessions.create();
+    const req = { headers: { cookie: `other=1; ${sessionCookieName(3333)}=${id}` } };
+    const ctx = { sessions, port: 3333 };
+    expect(isAuthorized(req, new URL('http://localhost/api/events'), TOKEN, ctx)).toBe(true);
+    expect(authenticate(req, TOKEN, ctx)).toBe('cookie');
   });
-  it('tells bearer from cookie and refuses the token itself as the cookie', () => {
+  it('ignores the cookie of another port and an unknown or token-valued id', () => {
+    const sessions = new Sessions();
+    const { id } = sessions.create();
+    const ctx = { sessions, port: 3333 };
+    const other = { headers: { cookie: `${sessionCookieName(3334)}=${id}` } };
+    expect(authenticate(other, TOKEN, ctx)).toBeNull();
+    const unknown = { headers: { cookie: `${sessionCookieName(3333)}=${'a'.repeat(64)}` } };
+    expect(authenticate(unknown, TOKEN, ctx)).toBeNull();
+    const tokenAsCookie = { headers: { cookie: `${sessionCookieName(3333)}=${TOKEN}` } };
+    expect(authenticate(tokenAsCookie, TOKEN, ctx)).toBeNull();
+  });
+  it('tells bearer from cookie', () => {
     expect(authenticate({ headers: { authorization: `Bearer ${TOKEN}` } }, TOKEN)).toBe('bearer');
-    expect(authenticate({ headers: { cookie: `${SESSION_COOKIE}=${TOKEN}` } }, TOKEN)).toBeNull();
     expect(authenticate({ headers: {} }, TOKEN)).toBeNull();
   });
   it('rejects /api with a wrong token', () => {
@@ -153,13 +166,39 @@ describe('dashboard auth: DNS-rebinding guard', () => {
 });
 
 describe('dashboard auth: browser session (#243)', () => {
-  const TOKEN = 'secret-token';
-  it('issues an HttpOnly, SameSite=Strict, Path=/ cookie that is not the token', () => {
-    const header = sessionCookieHeader(TOKEN);
-    expect(header).toContain('HttpOnly');
-    expect(header).toContain('SameSite=Strict');
-    expect(header).toContain('Path=/');
-    expect(header).not.toContain(TOKEN);
+  it('issues a per-port HttpOnly, SameSite=Strict, Path=/ cookie with a 12 h Max-Age', () => {
+    const header = sessionCookieHeader(3333, 'abc');
+    expect(header).toBe(
+      'cc_dashboard_session_3333=abc; HttpOnly; SameSite=Strict; Path=/; Max-Age=43200',
+    );
+    expect(SESSION_TTL_MS).toBe(43_200_000);
+    expect(clearSessionCookieHeader(3333)).toContain('Max-Age=0');
+  });
+  it('mints a random id per session', () => {
+    const sessions = new Sessions();
+    const a = sessions.create().id;
+    const b = sessions.create().id;
+    expect(a).toMatch(/^[0-9a-f]{64}$/);
+    expect(a).not.toBe(b);
+    expect(sessions.isValid(a) && sessions.isValid(b)).toBe(true);
+  });
+  it('expires a session after its lifetime and ends it on logout', () => {
+    const sessions = new Sessions(1000);
+    const { id, expiresAt } = sessions.create(0);
+    expect(expiresAt).toBe(1000);
+    expect(sessions.isValid(id, 999)).toBe(true);
+    expect(sessions.isValid(id, 1000)).toBe(false);
+    const live = new Sessions();
+    const s2 = live.create().id;
+    live.end(s2);
+    expect(live.isValid(s2)).toBe(false);
+    expect(live.isValid(null)).toBe(false);
+  });
+  it('keeps at most 64 sessions, dropping the least recently created', () => {
+    const sessions = new Sessions();
+    const first = sessions.create().id;
+    for (let i = 0; i < 64; i++) sessions.create();
+    expect(sessions.isValid(first)).toBe(false);
   });
   it('reads one cookie out of the Cookie header', () => {
     expect(readCookie({ headers: { cookie: 'a=1; b=2' } }, 'b')).toBe('2');

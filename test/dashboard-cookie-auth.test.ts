@@ -36,7 +36,10 @@ interface Res {
   body: string;
 }
 
-/** Raw HTTP to 127.0.0.1; `firstChunk` returns on the first body chunk (SSE never ends). */
+/**
+ * Raw HTTP to 127.0.0.1; `firstChunk` returns on the first body chunk (SSE
+ * never ends). Rejects on a socket error or after 5 s, so a dead server fails fast.
+ */
 function request(
   method: string,
   pathname: string,
@@ -66,7 +69,9 @@ function request(
         );
       },
     );
-    req.on('error', (e) => (opts.firstChunk ? undefined : reject(e)));
+    // reject() after resolve() is a no-op, so the destroy() above is harmless.
+    req.setTimeout(5000, () => req.destroy(new Error(`timeout: ${method} ${pathname}`)));
+    req.on('error', reject);
     req.end();
   });
 }
@@ -153,7 +158,9 @@ describe('dashboard browser login (#243)', () => {
     expect(first.headers.location).toBe('/');
     const cookie = String(first.headers['set-cookie']?.[0] ?? '');
     expect(cookie).toMatch(
-      /^cc_dashboard_session=[0-9a-f]{64}; HttpOnly; SameSite=Strict; Path=\/$/,
+      new RegExp(
+        `^cc_dashboard_session_${PORT}=[0-9a-f]{64}; HttpOnly; SameSite=Strict; Path=/; Max-Age=43200$`,
+      ),
     );
     expect(cookie).not.toContain(TOKEN);
 
@@ -161,6 +168,30 @@ describe('dashboard browser login (#243)', () => {
     expect(again.status).toBe(401);
     expect(again.headers['set-cookie']).toBeUndefined();
     expect((await request('GET', '/auth/launch?code=' + 'a'.repeat(64))).status).toBe(401);
+  });
+
+  it('each launch gets its own random session', async () => {
+    const a = await login();
+    const b = await login();
+    expect(a).not.toBe(b);
+    expect((await request('GET', '/api/sprints', { Cookie: a })).status).toBe(200);
+    expect((await request('GET', '/api/sprints', { Cookie: b })).status).toBe(200);
+  });
+
+  it('an unknown session id or the cookie name of another port is refused', async () => {
+    const unknown = `cc_dashboard_session_${PORT}=${'b'.repeat(64)}`;
+    expect((await request('GET', '/api/sprints', { Cookie: unknown })).status).toBe(401);
+    const id = (await login()).split('=')[1];
+    const otherPort = `cc_dashboard_session_${PORT + 1}=${id}`;
+    expect((await request('GET', '/api/sprints', { Cookie: otherPort })).status).toBe(401);
+  });
+
+  it('logout ends the session and clears the cookie', async () => {
+    const cookie = await login();
+    const out = await request('POST', '/api/auth/logout', { Cookie: cookie, Origin: ORIGIN });
+    expect(out.status).toBe(200);
+    expect(String(out.headers['set-cookie']?.[0])).toContain('Max-Age=0');
+    expect((await request('GET', '/api/sprints', { Cookie: cookie })).status).toBe(401);
   });
 
   it('the cookie opens the page, without the token in it', async () => {

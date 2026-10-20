@@ -131,7 +131,7 @@ The dashboard provides a live view of your project's scrum process. Open it with
 npx code-context-dashboard ./context.db
 ```
 
-Open the one-time launch URL the dashboard prints at startup, or run `/ccui` in Claude Code. The launch URL logs the browser in with an `HttpOnly` cookie and works once; plain `http://localhost:3333` shows only a short login page. For a fresh URL, run `node node_modules/vlm-code-context-mcp/scripts/dashboard-launch-url.mjs ./context.db`.
+Open the one-time launch URL the dashboard prints at startup, or run `/ccui` in Claude Code. The launch URL works once and logs the browser in with an `HttpOnly` cookie for 12 h (a dashboard restart logs it out; run `/ccui` again); plain `http://localhost:3333` shows only a short login page. For a fresh URL, run `node node_modules/vlm-code-context-mcp/scripts/dashboard-launch-url.mjs ./context.db`.
 
 ### Dashboard Tabs
 

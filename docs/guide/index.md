@@ -104,6 +104,6 @@ npm run dashboard
 
 Open [http://localhost:3333](http://localhost:3333). The dashboard is a React SPA served from `dist/dashboard/index.html` (`dashboard.html` is a fallback only), with six tabs: **Dashboard**, **Planning**, **Code**, **Team**, **Retro**, and **Benchmark** (the Kanban board is a sub-tab of Dashboard).
 
-The browser logs in through a one-time launch URL: the dashboard prints one at startup, and `/ccui` (or `node scripts/dashboard-launch-url.mjs <db>`) mints a fresh one. Opening it sets an `HttpOnly` session cookie; plain `http://localhost:3333` without that cookie shows only a short login page. A launch URL works once and expires after 5 minutes.
+The browser logs in through a one-time launch URL: the dashboard prints one at startup, and `/ccui` (or `node scripts/dashboard-launch-url.mjs <db>`) mints a fresh one. Opening it starts a 12 h session in an `HttpOnly` cookie named after the port (`cc_dashboard_session_<port>`); a dashboard restart ends every session, so run `/ccui` again; plain `http://localhost:3333` without that cookie shows only a short login page. A launch URL works once and expires after 5 minutes.
 
 The MCP server, hooks and scripts send a bearer token in the `Authorization` header (`?token=` is refused). The token is auto-generated on first run and persisted to `.code-context/dashboard.token` in the directory of the `context.db` in use, so the MCP server and the dashboard share it from any working directory.
