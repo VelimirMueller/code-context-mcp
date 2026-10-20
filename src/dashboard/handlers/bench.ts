@@ -29,15 +29,15 @@
  * enforces) AND be listed in the index; dir reads are realpath-checked to stay
  * inside the bench dir; git runs via execFile (no shell) with a short timeout.
  */
-import { execFile } from "node:child_process";
-import fs from "node:fs";
-import path from "node:path";
+import { execFile } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 
-export const BENCH_DIR_ENV = "CODE_CONTEXT_BENCH_DIR";
-export const BENCH_PRIVATE_DIRS_ENV = "CODE_CONTEXT_BENCH_PRIVATE_DIRS";
+export const BENCH_DIR_ENV = 'CODE_CONTEXT_BENCH_DIR';
+export const BENCH_PRIVATE_DIRS_ENV = 'CODE_CONTEXT_BENCH_PRIVATE_DIRS';
 /** Key of a private bench dir in the index response and the run route (`?suite=`). */
 export const PRIVATE_KEY_PATTERN = /^p[0-9]{1,3}$/;
-export const BENCH_GIT_REF = "origin/bench-results";
+export const BENCH_GIT_REF = 'origin/bench-results';
 /** Mirrors scripts/bench/lib/index-builder.mts RUN_ID_PATTERN. */
 export const RUN_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,80}$/;
 
@@ -48,16 +48,16 @@ const GIT_CACHE_MS = 5 * 60 * 1000;
 export const EMPTY_MESSAGE =
   `No benchmark runs found. Set ${BENCH_DIR_ENV} to a dir with index.json + runs/ ` +
   "(e.g. a code-context checkout's data/ after `npm run bench` / `npm run bench:live`), " +
-  "or copy that data/ dir to <project>/bench/ next to context.db. " +
+  'or copy that data/ dir to <project>/bench/ next to context.db. ' +
   `In a code-context checkout, \`git fetch origin bench-results\` enables the git fallback.`;
 
 export type BenchSource =
-  | { type: "dir"; dir: string; origin: "env" | "db" }
-  | { type: "git"; repo: string }
-  | { type: "none" };
+  | { type: 'dir'; dir: string; origin: 'env' | 'db' }
+  | { type: 'git'; repo: string }
+  | { type: 'none' };
 
 export interface BenchSourceInfo {
-  type: BenchSource["type"];
+  type: BenchSource['type'];
   /** Human-readable origin, e.g. "env CODE_CONTEXT_BENCH_DIR" or "git origin/bench-results". */
   label: string;
 }
@@ -70,14 +70,17 @@ export interface ResolveOptions {
 }
 
 export class BenchError extends Error {
-  constructor(message: string, public status: number) {
+  constructor(
+    message: string,
+    public status: number,
+  ) {
     super(message);
   }
 }
 
 function hasIndex(dir: string): boolean {
   try {
-    return fs.statSync(path.join(dir, "index.json")).isFile();
+    return fs.statSync(path.join(dir, 'index.json')).isFile();
   } catch {
     return false;
   }
@@ -86,9 +89,15 @@ function hasIndex(dir: string): boolean {
 function runGit(cwd: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile(
-      "git",
+      'git',
       args,
-      { cwd, timeout: GIT_TIMEOUT_MS, maxBuffer: GIT_MAX_BUFFER, encoding: "utf-8", windowsHide: true },
+      {
+        cwd,
+        timeout: GIT_TIMEOUT_MS,
+        maxBuffer: GIT_MAX_BUFFER,
+        encoding: 'utf-8',
+        windowsHide: true,
+      },
       (err, stdout) => (err ? reject(err) : resolve(stdout)),
     );
   });
@@ -113,7 +122,7 @@ export function clearBenchCache(): void {
 
 async function gitRepoWithBenchRef(packageDir: string): Promise<string | null> {
   const root = path.resolve(packageDir);
-  const top = await cachedGit(root, "toplevel", ["rev-parse", "--show-toplevel"]);
+  const top = await cachedGit(root, 'toplevel', ['rev-parse', '--show-toplevel']);
   if (!top) return null;
   let same: boolean;
   try {
@@ -122,32 +131,41 @@ async function gitRepoWithBenchRef(packageDir: string): Promise<string | null> {
     same = false;
   }
   if (!same) return null;
-  const ref = await cachedGit(root, "ref", ["rev-parse", "--verify", "--quiet", `${BENCH_GIT_REF}^{commit}`]);
+  const ref = await cachedGit(root, 'ref', [
+    'rev-parse',
+    '--verify',
+    '--quiet',
+    `${BENCH_GIT_REF}^{commit}`,
+  ]);
   return ref ? root : null;
 }
 
 export async function resolveBenchSource(opts: ResolveOptions): Promise<BenchSource> {
   const env = opts.env ?? process.env;
   const envDir = env[BENCH_DIR_ENV];
-  if (envDir && hasIndex(path.resolve(envDir))) return { type: "dir", dir: path.resolve(envDir), origin: "env" };
-  const dbDir = path.join(path.dirname(path.resolve(opts.dbPath)), "bench");
-  if (hasIndex(dbDir)) return { type: "dir", dir: dbDir, origin: "db" };
+  if (envDir && hasIndex(path.resolve(envDir)))
+    return { type: 'dir', dir: path.resolve(envDir), origin: 'env' };
+  const dbDir = path.join(path.dirname(path.resolve(opts.dbPath)), 'bench');
+  if (hasIndex(dbDir)) return { type: 'dir', dir: dbDir, origin: 'db' };
   const repo = await gitRepoWithBenchRef(opts.packageDir);
-  if (repo) return { type: "git", repo };
-  return { type: "none" };
+  if (repo) return { type: 'git', repo };
+  return { type: 'none' };
 }
 
 export function describeSource(src: BenchSource): BenchSourceInfo {
-  if (src.type === "dir") {
-    return { type: "dir", label: src.origin === "env" ? `env ${BENCH_DIR_ENV}` : "<project>/bench/" };
+  if (src.type === 'dir') {
+    return {
+      type: 'dir',
+      label: src.origin === 'env' ? `env ${BENCH_DIR_ENV}` : '<project>/bench/',
+    };
   }
-  if (src.type === "git") return { type: "git", label: `git ${BENCH_GIT_REF}` };
-  return { type: "none", label: "none" };
+  if (src.type === 'git') return { type: 'git', label: `git ${BENCH_GIT_REF}` };
+  return { type: 'none', label: 'none' };
 }
 
 function isInside(base: string, p: string): boolean {
   const rel = path.relative(base, p);
-  return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
+  return rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel);
 }
 
 /** Read `rel` (index.json or runs/<id>.json) strictly inside `dir`. */
@@ -159,7 +177,7 @@ function readInsideDir(dir: string, rel: string): string | null {
     return null;
   }
   const target = path.resolve(base, rel);
-  if (!isInside(base, target)) throw new BenchError("path outside bench dir", 400);
+  if (!isInside(base, target)) throw new BenchError('path outside bench dir', 400);
   let real: string;
   try {
     real = fs.realpathSync(target);
@@ -167,13 +185,14 @@ function readInsideDir(dir: string, rel: string): string | null {
     return null;
   }
   // Symlinks must not lead out of the bench dir either.
-  if (!isInside(base, real)) throw new BenchError("path outside bench dir", 400);
-  return fs.readFileSync(real, "utf-8");
+  if (!isInside(base, real)) throw new BenchError('path outside bench dir', 400);
+  return fs.readFileSync(real, 'utf-8');
 }
 
 async function readRaw(src: BenchSource, rel: string): Promise<string | null> {
-  if (src.type === "dir") return readInsideDir(src.dir, rel);
-  if (src.type === "git") return cachedGit(src.repo, `show:${rel}`, ["show", `${BENCH_GIT_REF}:data/${rel}`]);
+  if (src.type === 'dir') return readInsideDir(src.dir, rel);
+  if (src.type === 'git')
+    return cachedGit(src.repo, `show:${rel}`, ['show', `${BENCH_GIT_REF}:data/${rel}`]);
   return null;
 }
 
@@ -195,12 +214,13 @@ function parseIndex(raw: string | null): IndexLike | null {
     return null;
   }
   const p = parsed as Partial<IndexLike> | null;
-  if (!p || typeof p !== "object" || !Array.isArray(p.runs)) return null;
+  if (!p || typeof p !== 'object' || !Array.isArray(p.runs)) return null;
   // Drop entries whose run_id could not be served anyway.
   const runs = p.runs.filter(
-    (r): r is IndexEntryLike => !!r && typeof r === "object" && typeof r.run_id === "string" && RUN_ID_PATTERN.test(r.run_id),
+    (r): r is IndexEntryLike =>
+      !!r && typeof r === 'object' && typeof r.run_id === 'string' && RUN_ID_PATTERN.test(r.run_id),
   );
-  return { schema: String(p.schema ?? ""), runs };
+  return { schema: String(p.schema ?? ''), runs };
 }
 
 /** One private suite data dir from CODE_CONTEXT_BENCH_PRIVATE_DIRS. */
@@ -215,12 +235,12 @@ export interface PrivateBenchDir {
 
 function readSuiteMeta(dir: string): { alias?: string; id?: string } | null {
   try {
-    const raw = fs.readFileSync(path.join(dir, "suite.json"), "utf-8");
+    const raw = fs.readFileSync(path.join(dir, 'suite.json'), 'utf-8');
     const v = JSON.parse(raw) as Record<string, unknown>;
-    if (!v || typeof v !== "object") return null;
+    if (!v || typeof v !== 'object') return null;
     return {
-      alias: typeof v.alias === "string" && v.alias.trim() ? v.alias.trim() : undefined,
-      id: typeof v.id === "string" ? v.id : undefined,
+      alias: typeof v.alias === 'string' && v.alias.trim() ? v.alias.trim() : undefined,
+      id: typeof v.id === 'string' ? v.id : undefined,
     };
   } catch {
     return null;
@@ -244,9 +264,9 @@ export function resolvePrivateDirs(env: NodeJS.ProcessEnv = process.env): Privat
     const abs = path.resolve(e);
     let dataDir: string;
     let suiteDir: string;
-    if (fs.existsSync(path.join(abs, "suite.json"))) {
+    if (fs.existsSync(path.join(abs, 'suite.json'))) {
       suiteDir = abs;
-      dataDir = path.join(abs, "data");
+      dataDir = path.join(abs, 'data');
     } else {
       dataDir = abs;
       suiteDir = path.dirname(abs);
@@ -275,24 +295,29 @@ export interface BenchIndexResponse {
 }
 
 function tsOf(r: IndexEntryLike): number {
-  const t = Date.parse(String(r.ts ?? r.date ?? ""));
+  const t = Date.parse(String(r.ts ?? r.date ?? ''));
   return Number.isNaN(t) ? 0 : t;
 }
 
 export async function apiBenchIndex(opts: ResolveOptions): Promise<BenchIndexResponse> {
   const src = await resolveBenchSource(opts);
-  const index = parseIndex(await readRaw(src, "index.json"));
+  const index = parseIndex(await readRaw(src, 'index.json'));
   const privDirs = resolvePrivateDirs(opts.env ?? process.env);
   const privRuns: PrivateIndexEntry[] = [];
   const privInfo: Array<{ key: string; alias: string; runs: number }> = [];
   for (const p of privDirs) {
     let pIndex: IndexLike | null = null;
     try {
-      pIndex = parseIndex(readInsideDir(p.dir, "index.json"));
+      pIndex = parseIndex(readInsideDir(p.dir, 'index.json'));
     } catch {
       pIndex = null;
     }
-    const runs = (pIndex?.runs ?? []).map((r) => ({ ...r, private: true as const, suite: p.alias, source_key: p.key }));
+    const runs = (pIndex?.runs ?? []).map((r) => ({
+      ...r,
+      private: true as const,
+      suite: p.alias,
+      source_key: p.key,
+    }));
     privRuns.push(...runs);
     privInfo.push({ key: p.key, alias: p.alias, runs: runs.length });
   }
@@ -304,16 +329,23 @@ export async function apiBenchIndex(opts: ResolveOptions): Promise<BenchIndexRes
       .map((x) => x.r);
     return {
       source: describeSource(src),
-      index: { schema: index?.schema || "ccc-bench-index/1", runs: merged },
+      index: { schema: index?.schema || 'ccc-bench-index/1', runs: merged },
       private: privInfo,
-      ...(index && index.runs.length > 0 ? {} : { message: `No public runs in ${describeSource(src).label}; showing private suite runs only.` }),
+      ...(index && index.runs.length > 0
+        ? {}
+        : {
+            message: `No public runs in ${describeSource(src).label}; showing private suite runs only.`,
+          }),
     };
   }
   if (!index || index.runs.length === 0) {
     return {
       source: describeSource(src),
       index: null,
-      message: src.type === "none" ? EMPTY_MESSAGE : `No readable runs in ${describeSource(src).label}. ${EMPTY_MESSAGE}`,
+      message:
+        src.type === 'none'
+          ? EMPTY_MESSAGE
+          : `No readable runs in ${describeSource(src).label}. ${EMPTY_MESSAGE}`,
       ...(privInfo.length ? { private: privInfo } : {}),
     };
   }
@@ -329,7 +361,7 @@ function parseRun(raw: string): unknown {
   try {
     return JSON.parse(raw);
   } catch {
-    throw new BenchError("run file is not valid JSON", 500);
+    throw new BenchError('run file is not valid JSON', 500);
   }
 }
 
@@ -337,22 +369,28 @@ function parseRun(raw: string): unknown {
  * One run file. `suiteKey` (p0, p1, …) selects a private suite dir from
  * CODE_CONTEXT_BENCH_PRIVATE_DIRS; without it the public source serves.
  */
-export async function apiBenchRun(opts: ResolveOptions, runId: string, suiteKey?: string | null): Promise<BenchRunResponse> {
-  if (!RUN_ID_PATTERN.test(runId)) throw new BenchError("invalid run id", 400);
+export async function apiBenchRun(
+  opts: ResolveOptions,
+  runId: string,
+  suiteKey?: string | null,
+): Promise<BenchRunResponse> {
+  if (!RUN_ID_PATTERN.test(runId)) throw new BenchError('invalid run id', 400);
   if (suiteKey !== undefined && suiteKey !== null) {
-    if (!PRIVATE_KEY_PATTERN.test(suiteKey)) throw new BenchError("invalid suite key", 400);
+    if (!PRIVATE_KEY_PATTERN.test(suiteKey)) throw new BenchError('invalid suite key', 400);
     const p = resolvePrivateDirs(opts.env ?? process.env).find((d) => d.key === suiteKey);
-    if (!p) throw new BenchError("private suite not found", 404);
-    const pIndex = parseIndex(readInsideDir(p.dir, "index.json"));
-    if (!pIndex || !pIndex.runs.some((r) => r.run_id === runId)) throw new BenchError("run not found", 404);
+    if (!p) throw new BenchError('private suite not found', 404);
+    const pIndex = parseIndex(readInsideDir(p.dir, 'index.json'));
+    if (!pIndex || !pIndex.runs.some((r) => r.run_id === runId))
+      throw new BenchError('run not found', 404);
     const raw = readInsideDir(p.dir, `runs/${runId}.json`);
-    if (!raw) throw new BenchError("run file missing", 404);
-    return { source: { type: "dir", label: `private suite ${p.alias}` }, run: parseRun(raw) };
+    if (!raw) throw new BenchError('run file missing', 404);
+    return { source: { type: 'dir', label: `private suite ${p.alias}` }, run: parseRun(raw) };
   }
   const src = await resolveBenchSource(opts);
-  const index = parseIndex(await readRaw(src, "index.json"));
-  if (!index || !index.runs.some((r) => r.run_id === runId)) throw new BenchError("run not found", 404);
+  const index = parseIndex(await readRaw(src, 'index.json'));
+  if (!index || !index.runs.some((r) => r.run_id === runId))
+    throw new BenchError('run not found', 404);
   const raw = await readRaw(src, `runs/${runId}.json`);
-  if (!raw) throw new BenchError("run file missing", 404);
+  if (!raw) throw new BenchError('run file missing', 404);
   return { source: describeSource(src), run: parseRun(raw) };
 }

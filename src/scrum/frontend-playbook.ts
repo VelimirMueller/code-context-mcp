@@ -1,22 +1,24 @@
-import type Database from "better-sqlite3";
-import { execFileSync } from "node:child_process";
-import { getEnabledSkillSets, SKILL_SETS, type SkillSetDef } from "./skill-sets.js";
+import type Database from 'better-sqlite3';
+import { execFileSync } from 'node:child_process';
+import { getEnabledSkillSets, SKILL_SETS, type SkillSetDef } from './skill-sets.js';
 
 /** Read one skill's full content by name. Returns null if the skill is absent or has no content. */
 export function getSkillContent(db: Database.Database, name: string): string | null {
-  const row = db.prepare(`SELECT content FROM skills WHERE name = ?`).get(name) as { content: string | null } | undefined;
+  const row = db.prepare(`SELECT content FROM skills WHERE name = ?`).get(name) as
+    | { content: string | null }
+    | undefined;
   return row?.content ?? null;
 }
 
 /** Pull the `description:` line out of a SKILL.md YAML frontmatter block. */
 export function parseSkillSummary(content: string): string {
   const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  if (!fm) return "";
+  if (!fm) return '';
   const m = fm[1].match(/^description:\s*(.+)$/m);
-  if (!m) return "";
-  const val = m[1].trim().replace(/\r$/, "");
-  if (val === "|" || val === ">") return ""; // YAML block-scalar indicator, not a summary
-  return val.replace(/^["']|["']$/g, "").slice(0, 120);
+  if (!m) return '';
+  const val = m[1].trim().replace(/\r$/, '');
+  if (val === '|' || val === '>') return ''; // YAML block-scalar indicator, not a summary
+  return val.replace(/^["']|["']$/g, '').slice(0, 120);
 }
 
 /**
@@ -38,7 +40,7 @@ export function buildSkillSetIndex(db: Database.Database, set: SkillSetDef): str
   const skills = rows.filter((r) => !r.name.startsWith(`${set.prefix}:_`));
   return skills.map((r) => {
     const summary = parseSkillSummary(r.content);
-    return `- \`${r.name}\`${summary ? ` — ${summary}` : ""}`;
+    return `- \`${r.name}\`${summary ? ` — ${summary}` : ''}`;
   });
 }
 
@@ -55,24 +57,34 @@ export function buildFrontendPlaybook(db: Database.Database): string | null {
   const primer = db.prepare(`SELECT content FROM skills WHERE name = 'fe:_house-style'`).get() as
     | { content: string }
     | undefined;
-  const feSet = SKILL_SETS.find((s) => s.id === "frontend")!;
+  const feSet = SKILL_SETS.find((s) => s.id === 'frontend')!;
   const index = buildSkillSetIndex(db, feSet);
 
   if (!primer?.content && index.length === 0) return null;
 
-  const sections: string[] = ["", "## Frontend Playbook"];
+  const sections: string[] = ['', '## Frontend Playbook'];
   if (primer?.content) sections.push(primer.content.trim());
   if (index.length) {
-    sections.push("", "### Available frontend skills", "Load full guidance with `get_skill({ name })`:", ...index);
+    sections.push(
+      '',
+      '### Available frontend skills',
+      'Load full guidance with `get_skill({ name })`:',
+      ...index,
+    );
   }
   if (enabled.landing) {
-    const laSet = SKILL_SETS.find((s) => s.id === "landing")!;
+    const laSet = SKILL_SETS.find((s) => s.id === 'landing')!;
     const laIndex = buildSkillSetIndex(db, laSet);
     if (laIndex.length) {
-      sections.push("", "### Available landing-page skills", "Load full guidance with `get_skill({ name })`:", ...laIndex);
+      sections.push(
+        '',
+        '### Available landing-page skills',
+        'Load full guidance with `get_skill({ name })`:',
+        ...laIndex,
+      );
     }
   }
-  return sections.join("\n");
+  return sections.join('\n');
 }
 
 /**
@@ -83,19 +95,19 @@ export function buildFrontendPlaybook(db: Database.Database): string | null {
 export function buildWorkflowPlaybook(db: Database.Database): string | null {
   const enabled = getEnabledSkillSets(db);
   if (!enabled.workflow) return null;
-  const wfSet = SKILL_SETS.find((s) => s.id === "workflow")!;
+  const wfSet = SKILL_SETS.find((s) => s.id === 'workflow')!;
   const index = buildSkillSetIndex(db, wfSet);
   if (index.length === 0) return null;
   return [
-    "",
-    "## Core Skills",
-    "Use these for commits, pull requests, security and toolchain audits, and the stack profile — load with `get_skill({ name })`:",
+    '',
+    '## Core Skills',
+    'Use these for commits, pull requests, security and toolchain audits, and the stack profile — load with `get_skill({ name })`:',
     ...index,
-  ].join("\n");
+  ].join('\n');
 }
 
 /** The skill row the Commit contract block is distilled from. */
-export const COMMIT_SKILL_NAME = "wf:write-commit-messages";
+export const COMMIT_SKILL_NAME = 'wf:write-commit-messages';
 
 /**
  * Compact "Commit contract" derived live from the `wf:write-commit-messages`
@@ -129,7 +141,7 @@ export function buildCommitContract(db: Database.Database): string | null {
     .split(/\r?\n\s*\r?\n/)[0]
     ?.split(/\r?\n/)
     .map((l) => l.trim())
-    .join(" ");
+    .join(' ');
   const subjectRule = firstParagraph?.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? firstParagraph;
 
   // Step 4 → the fenced ```text Why/What/How template (the canonical body shape).
@@ -139,28 +151,28 @@ export function buildCommitContract(db: Database.Database): string | null {
   if (!subjectRule || !bodyTemplate) return null; // skill restructured → omit, don't fabricate
 
   const trailerNote = /Co-Authored-By:/.test(content)
-    ? "Preserve the house trailer(s) the audit detects (e.g. `Co-Authored-By:`) after the three groups."
+    ? 'Preserve the house trailer(s) the audit detects (e.g. `Co-Authored-By:`) after the three groups.'
     : null;
 
   const lines = [
-    "",
-    "### Commit contract",
+    '',
+    '### Commit contract',
     `Apply this when committing — distilled from \`${COMMIT_SKILL_NAME}\`; load it with \`get_skill\` for the full discipline.`,
     `- **Subject:** ${subjectRule}`,
     // "exactly three": the QA commit gate (COMMIT_BODY_LABELS) enforces Why/What/How, so the contract must not promise less
-    "- **Body:** exactly three labeled bullet groups, every bullet derived from the diff:",
-    "```text",
+    '- **Body:** exactly three labeled bullet groups, every bullet derived from the diff:',
+    '```text',
     bodyTemplate,
-    "```",
+    '```',
   ];
   if (trailerNote) lines.push(`- ${trailerNote}`);
-  return lines.join("\n");
+  return lines.join('\n');
 }
 
 // ─── T-274: QA-gate commit-format check ──────────────────────────────────────
 
 /** The three labeled body groups the house commit contract requires, in order. */
-const COMMIT_BODY_LABELS = ["Why:", "What:", "How:"] as const;
+const COMMIT_BODY_LABELS = ['Why:', 'What:', 'How:'] as const;
 
 /** One commit on the branch that references the ticket and the labels it is missing. */
 export interface CommitFormatViolation {
@@ -229,22 +241,38 @@ export function checkCommitFormat(
   opts: { cwd?: string; base?: string; timeoutMs?: number } = {},
 ): CommitFormatResult {
   const cwd = opts.cwd ?? process.cwd();
-  const base = opts.base ?? "main";
+  const base = opts.base ?? 'main';
   const timeout = opts.timeoutMs ?? 5000;
-  const pass = (extra: Partial<CommitFormatResult>): CommitFormatResult =>
-    ({ ok: true, violations: [], inspected: 0, exempt: false, skipped: false, note: null, ...extra });
+  const pass = (extra: Partial<CommitFormatResult>): CommitFormatResult => ({
+    ok: true,
+    violations: [],
+    inspected: 0,
+    exempt: false,
+    skipped: false,
+    note: null,
+    ...extra,
+  });
 
   const git = (args: string[]): string =>
-    execFileSync("git", args, { cwd, timeout, encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 4 * 1024 * 1024 });
+    execFileSync('git', args, {
+      cwd,
+      timeout,
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      maxBuffer: 4 * 1024 * 1024,
+    });
 
   // Resolve the range base. If `main` does not exist (or this is not a repo),
   // degrade gracefully rather than block.
   let range: string;
   try {
-    git(["rev-parse", "--verify", "--quiet", `${base}^{commit}`]);
+    git(['rev-parse', '--verify', '--quiet', `${base}^{commit}`]);
     range = `${base}..HEAD`;
   } catch {
-    return pass({ skipped: true, note: `commit-format check skipped — '${base}' not resolvable here (not a git repo, or '${base}' missing); failing open` });
+    return pass({
+      skipped: true,
+      note: `commit-format check skipped — '${base}' not resolvable here (not a git repo, or '${base}' missing); failing open`,
+    });
   }
 
   // Collect the referencing commits (hash + parent count) NUL-delimited so
@@ -254,35 +282,44 @@ export function checkCommitFormat(
     // %h short-hash | %P parent hashes | %s subject — record-separated by \x1e.
     // Merges are NOT filtered out here; we include them so parent-count can mark
     // them exempt below (and so a merge can't hide a referencing commit).
-    raw = git(["log", range, "--grep", ref, "--format=%h%x1f%P%x1f%s%x1e"]);
+    raw = git(['log', range, '--grep', ref, '--format=%h%x1f%P%x1f%s%x1e']);
   } catch (e) {
     const err = e instanceof Error ? (e as NodeJS.ErrnoException) : undefined;
     const why = err ? (err.code ?? err.message) : String(e);
-    return pass({ skipped: true, note: `commit-format check skipped — git log failed (${why || "unknown"}); failing open` });
+    return pass({
+      skipped: true,
+      note: `commit-format check skipped — git log failed (${why || 'unknown'}); failing open`,
+    });
   }
 
-  const records = raw.split("\x1e").map((r) => r.trim()).filter(Boolean);
+  const records = raw
+    .split('\x1e')
+    .map((r) => r.trim())
+    .filter(Boolean);
   if (records.length === 0) {
-    return pass({ exempt: true, note: `no commits reference ${ref} on ${range} — exempt from the commit-format gate` });
+    return pass({
+      exempt: true,
+      note: `no commits reference ${ref} on ${range} — exempt from the commit-format gate`,
+    });
   }
 
   const violations: CommitFormatViolation[] = [];
   let inspected = 0;
   for (const rec of records) {
-    const [hash, parents, subject] = rec.split("\x1f");
+    const [hash, parents, subject] = rec.split('\x1f');
     if (!hash) continue;
     // Merge commits (2+ parents) are exempt from the body check.
-    if ((parents ?? "").trim().split(/\s+/).filter(Boolean).length >= 2) continue;
+    if ((parents ?? '').trim().split(/\s+/).filter(Boolean).length >= 2) continue;
     inspected++;
     let body: string;
     try {
-      body = git(["log", "-1", "--format=%B", hash]);
+      body = git(['log', '-1', '--format=%B', hash]);
     } catch {
       // Couldn't read this commit's body — fail-open for this one rather than block.
       continue;
     }
     const missing = missingCommitBodyLabels(body);
-    if (missing.length > 0) violations.push({ hash, subject: subject ?? "", missing });
+    if (missing.length > 0) violations.push({ hash, subject: subject ?? '', missing });
   }
 
   return pass({ ok: violations.length === 0, violations, inspected });
@@ -300,8 +337,10 @@ export function formatCommitFormatBlock(ref: string, result: CommitFormatResult)
     `${result.violations.length} commit(s) referencing ${ref} lack the required Why:/What:/How: body groups:`,
   ];
   for (const v of result.violations) {
-    const subj = v.subject ? ` ${v.subject.length > 60 ? v.subject.slice(0, 57) + "…" : v.subject}` : "";
-    lines.push(`- ${v.hash}${subj} — missing ${v.missing.join(", ")}`);
+    const subj = v.subject
+      ? ` ${v.subject.length > 60 ? v.subject.slice(0, 57) + '…' : v.subject}`
+      : '';
+    lines.push(`- ${v.hash}${subj} — missing ${v.missing.join(', ')}`);
   }
   lines.push(
     ``,
@@ -310,5 +349,5 @@ export function formatCommitFormatBlock(ref: string, result: CommitFormatResult)
     `- already pushed → add a squash note in the PR so the merge commit carries the groups (don't rewrite published history).`,
     `Load \`get_skill({ name: "${COMMIT_SKILL_NAME}" })\` for the full discipline.`,
   );
-  return lines.join("\n");
+  return lines.join('\n');
 }
