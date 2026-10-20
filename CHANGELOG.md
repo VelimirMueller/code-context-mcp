@@ -5,7 +5,9 @@ All notable changes to `vlm-code-context-mcp` are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased — 3.0.0]
+## [Unreleased]
+
+## [3.0.0] - 2026-10-20
 
 ### Breaking
 
@@ -38,8 +40,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - An existing `.mcp.json` with `dist/server/index.js` and `CODE_CONTEXT_PROFILE=full` keeps working in 3.x: the index entry loads the sprint toolsets when the profile asks for them.
 - **Open the dashboard through a launch URL (#243).** Plain `http://localhost:3333` no longer logs a browser in. Run `/ccui`, or open the launch URL the dashboard prints at startup; mint a new one with `node node_modules/vlm-code-context-mcp/scripts/dashboard-launch-url.mjs <db>`. A script that used `/api/events?token=` sends `Authorization: Bearer <token>` instead. A session lasts 12 h; after that, or after a dashboard restart, run `/ccui` again.
 - **One shared `context.db`.** Both entries open the same file. The index entry owns the code-index tables (`files`, `exports`, `dependencies`, `directories`, `changes`, `indexed_repos`); the sprint entry owns the scrum tables and the `schema_versions` stamp. A database the index entry created gets its scrum tables, stamped at the latest version, on the first start of the sprint entry. Both entries refuse a database stamped by a newer version.
-
-## [Unreleased]
 
 ### Fixed
 

@@ -1,7 +1,7 @@
 <p>
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="assets/banner/hero-v3-light.svg">
-  <img alt="code-context-mcp. Read less. Know more. Stable, v2.13.0. MCP, code index, sprints, dashboard." src="assets/banner/hero-v3-dark.svg" width="100%">
+  <img alt="code-context-mcp. Read less. Know more. Stable, v3.0.0. MCP, code index, sprints, dashboard." src="assets/banner/hero-v3-dark.svg" width="100%">
 </picture>
 </p>
 
@@ -266,7 +266,7 @@ npm run bench:publish
 <p>
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="assets/readme/stack-v3-light.svg">
-  <img alt="Runtime: Node.js 22 or newer, 24 LTS recommended. Build: TypeScript strict mode. Languages: Exports and import edges for TypeScript/JavaScript, Python and PHP (classes, interfaces, traits, enums, functions, constants; use statements resolved through composer.json PSR-4 maps). Other files are indexed with a summary only. Database: SQLite via better-sqlite3, WAL mode. 33 tables (27 scrum + 6 code). MCP protocol: @modelcontextprotocol/sdk. The server sends short MCP instructions (about 90 tokens) on when to use the graph tools. Dashboard: React 19 + Vite + Zustand + Framer Motion. CSS variables + Tailwind, dark theme. 75 React components. Live updates: SSE via WAL file watcher. Testing: Vitest. 1841 backend tests and 104 dashboard tests. Process: 9 agent roles (configurable). 4 sprint phases with gate checks + planning gate. 6 slash commands. CLI bins: 7: code-context (index), code-context-sprint (sprint process), code-context-mcp (setup), code-context-dashboard, code-context-statusline, code-context-reindex, code-context-sync-github. Alias: vlm-code-context-mcp = code-context" src="assets/readme/stack-v3-dark.svg" width="100%">
+  <img alt="Runtime: Node.js 22 or newer, 24 LTS recommended. Build: TypeScript strict mode. Languages: Exports and import edges for TypeScript/JavaScript, Python and PHP (classes, interfaces, traits, enums, functions, constants; use statements resolved through composer.json PSR-4 maps). Other files are indexed with a summary only. Database: SQLite via better-sqlite3, WAL mode. 33 tables (27 scrum + 6 code). MCP protocol: @modelcontextprotocol/sdk. The server sends short MCP instructions (about 90 tokens) on when to use the graph tools. Dashboard: React 19 + Vite + Zustand + Framer Motion. CSS variables + Tailwind, dark theme. 75 React components. Live updates: SSE via WAL file watcher. Testing: Vitest. 2423 backend tests and 142 dashboard tests. Process: 9 agent roles (configurable). 4 sprint phases with gate checks + planning gate. 6 slash commands. CLI bins: 7: code-context (index), code-context-sprint (sprint process), code-context-mcp (setup), code-context-dashboard, code-context-statusline, code-context-reindex, code-context-sync-github. Alias: vlm-code-context-mcp = code-context" src="assets/readme/stack-v3-dark.svg" width="100%">
 </picture>
 </p>
 
@@ -349,14 +349,14 @@ npm run test:all  # backend + frontend
 <p>
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="assets/readme/status-v3-light.svg">
-  <img alt="Release: 2.13.0 on npm. Python index: since 2.8. Tests: 1841, vitest. Dashboard: 6 pages, live. Fun + stream: hidden unless opted in" src="assets/readme/status-v3-dark.svg" width="100%">
+  <img alt="Release: 3.0.0 on npm. Python index: since 2.8. Tests: 2423, vitest. Dashboard: 6 pages, live. Fun + stream: hidden unless opted in" src="assets/readme/status-v3-dark.svg" width="100%">
 </picture>
 </p>
 
 <p>
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="assets/readme/release-v3-light.svg">
-  <img alt="Stable: 2.13.0 on npm. The npm chip links the live version and downloads. License: MIT. Changes: In CHANGELOG.md. Release highlights 2.0 to 2.8: In docs/REFERENCE.md (release highlights)" src="assets/readme/release-v3-dark.svg" width="100%">
+  <img alt="Stable: 3.0.0 on npm. The npm chip links the live version and downloads. License: MIT. Changes: In CHANGELOG.md. Release highlights 2.0 to 2.8: In docs/REFERENCE.md (release highlights)" src="assets/readme/release-v3-dark.svg" width="100%">
 </picture>
 </p>
 
