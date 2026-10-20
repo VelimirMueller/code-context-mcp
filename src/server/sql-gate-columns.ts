@@ -136,26 +136,45 @@ const GATES: Record<string, TableGate> = {
       if (c.startsWith('github_')) return 'sync_github';
       if (c === 'archived_at')
         return 'update_milestone (archived; it checks that the milestone is completed)';
+      // The archive check reads status (src/scrum/archive.ts), so status is gated too (#263).
+      if (c === 'status') return 'update_milestone (status)';
       return null;
     },
-    remove: null,
+    remove:
+      'update_milestone (archived); milestones are not deleted through execute (the delete sets tickets.milestone_id to NULL)',
   },
   epics: {
-    column: (c) =>
-      c === 'archived_at' ? 'update_epic (archived; it checks that the epic is completed)' : null,
-    remove: null,
+    column: (c) => {
+      if (c === 'archived_at')
+        return 'update_epic (archived; it checks that the epic is completed)';
+      if (c === 'status') return 'update_epic (status)';
+      return null;
+    },
+    remove:
+      'update_epic (archived); epics are not deleted through execute (the delete sets tickets.epic_id to NULL)',
   },
   projects: {
-    column: (c) => (c.startsWith('github_') ? 'set_project or sync_github' : null),
-    remove: null,
+    // sync_github resolves its target from these columns (syncTargetOf in
+    // src/scrum/github-sync.ts): name is the lookup key, repo / github_project_owner /
+    // github_project_number / github_assignee the target. set_project keeps an
+    // already-synced project on its repo unless force=true and allowlisted (#263).
+    column: (c) => {
+      if (c === 'repo') return 'set_project (repo)';
+      if (c === 'name')
+        return 'set_project; a project key is not renamed through execute (sync_github looks the project up by it)';
+      if (c.startsWith('github_')) return 'set_project or sync_github';
+      return null;
+    },
+    remove:
+      'set_project; projects are not deleted through execute (a deleted and re-created key skips the set_project re-point check)',
   },
 };
 
 /** Lower-case "table.column" list of every gated column, for docs and tests. */
 export const GATE_COLUMN_SUMMARY =
   'tickets.status, tickets.qa_verified, tickets.verified_by, tickets.github_*, tickets.deleted_at, ' +
-  'sprints.status, sprints.deleted_at, sprints.archived_at, milestones.github_*, milestones.archived_at, ' +
-  'epics.archived_at, projects.github_*';
+  'sprints.status, sprints.deleted_at, sprints.archived_at, milestones.status, milestones.github_*, ' +
+  'milestones.archived_at, epics.status, epics.archived_at, projects.name, projects.repo, projects.github_*';
 
 // ─── Parser ─────────────────────────────────────────────────────────────────
 
