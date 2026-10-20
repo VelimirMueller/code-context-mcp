@@ -6,12 +6,12 @@
 export function getDashboardToken(): string {
   const w = window as unknown as { __DASHBOARD_TOKEN__?: string };
   const env = (import.meta.env as Record<string, string | undefined>).VITE_DASHBOARD_TOKEN;
-  return w.__DASHBOARD_TOKEN__ || env || "";
+  return w.__DASHBOARD_TOKEN__ || env || '';
 }
 
 /** Append ?token= to a URL — for EventSource, which cannot send request headers. */
 export function withToken(url: string): string {
   const token = getDashboardToken();
   if (!token) return url;
-  return `${url}${url.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`;
+  return `${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
 }

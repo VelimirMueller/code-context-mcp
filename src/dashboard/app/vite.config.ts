@@ -22,7 +22,10 @@ export default defineConfig({
       ],
     },
     proxy: {
-      '/api': { target: `http://localhost:${process.env.VITE_DASHBOARD_PORT ?? '3333'}`, changeOrigin: true },
+      '/api': {
+        target: `http://localhost:${process.env.VITE_DASHBOARD_PORT ?? '3333'}`,
+        changeOrigin: true,
+      },
     },
   },
   build: {
