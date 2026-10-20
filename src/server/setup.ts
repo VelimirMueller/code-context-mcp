@@ -12,7 +12,12 @@ import {
 } from '../scrum/schema.js';
 import { seedDefaults } from '../scrum/defaults.js';
 import { applyStatuslineSetting } from './statusline.js';
-import { ensureDbGitignored, DB_IGNORE_PATTERN } from './gitignore.js';
+import {
+  ensureDbGitignored,
+  ensureDumpGitignored,
+  DB_IGNORE_PATTERN,
+  DUMP_IGNORE_PATTERN,
+} from './gitignore.js';
 import { openDbSecure, copyFileSecure, restrictFile } from '../secure-file.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -320,9 +325,13 @@ mcpConfig.mcpServers['code-context'] = serverEntry;
 fs.writeFileSync(mcpConfigPath, JSON.stringify(mcpConfig, null, 2) + '\n');
 console.log(`  Wrote ${mcpConfigPath}\n`);
 
-// Keep the index (it stores file contents) out of the project's git history
+// Keep the index (it stores file contents) and the export dump (it holds
+// every table) out of the project's git history
 if (ensureDbGitignored(TARGET_DIR) === 'added') {
   console.log(`  Added ${DB_IGNORE_PATTERN} to ${path.join(TARGET_DIR, '.gitignore')}\n`);
+}
+if (ensureDumpGitignored(TARGET_DIR) === 'added') {
+  console.log(`  Added ${DUMP_IGNORE_PATTERN} to ${path.join(TARGET_DIR, '.gitignore')}\n`);
 }
 
 // Configure bridge hook (.claude/settings.json)

@@ -200,6 +200,9 @@ describe('export_to_file dump (#248)', () => {
     registerScrumTools(server as never, db);
 
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cc-export-secure-'));
+    // The dump path must sit inside the allowed roots (#250)
+    const savedRoots = process.env.CODE_CONTEXT_ALLOWED_ROOTS;
+    process.env.CODE_CONTEXT_ALLOWED_ROOTS = dir;
     try {
       const dump = path.join(dir, 'code-context-dump.json');
       const res = await server.tools.get('export_to_file')!({ output_path: dump });
@@ -212,6 +215,8 @@ describe('export_to_file dump (#248)', () => {
       expect(parsed.version).toBe('2.0.0');
       expect(parsed.tables).toBeTypeOf('object');
     } finally {
+      if (savedRoots === undefined) delete process.env.CODE_CONTEXT_ALLOWED_ROOTS;
+      else process.env.CODE_CONTEXT_ALLOWED_ROOTS = savedRoots;
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
