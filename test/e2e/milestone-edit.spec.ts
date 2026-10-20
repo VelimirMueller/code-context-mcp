@@ -1,5 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
-import { openApp } from './helpers';
+import type { Page } from '@playwright/test';
+import { test, expect, openApp } from './helpers';
 
 /**
  * #205: a milestone edit on the Planning page saves the status and the

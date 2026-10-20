@@ -11,8 +11,8 @@ import path from 'path';
  * (`dashboardTokenRoot` in src/dashboard/auth.ts): CODE_CONTEXT_DASHBOARD_TOKEN
  * wins, else .code-context/dashboard.token beside the db — the path from
  * VITE_DASHBOARD_DB or the default ../../../context.db. With the header on the
- * proxy, the page needs no token in dev: fetch and the EventSource ?token=
- * fallback both pass isAuthorized through it.
+ * proxy, the page needs no token and no session cookie in dev (#243): fetch
+ * and the EventSource both pass the bearer check through it.
  */
 function devDashboardToken(): string {
   const fromEnv = process.env.CODE_CONTEXT_DASHBOARD_TOKEN;

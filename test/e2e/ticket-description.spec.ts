@@ -1,5 +1,4 @@
-import { test, expect } from '@playwright/test';
-import { createOwnSprint, openApp } from './helpers';
+import { test, expect, createOwnSprint, openApp } from './helpers';
 
 /**
  * #206: a ticket description emptied in the editor is cleared, and it stays

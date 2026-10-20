@@ -1,15 +1,45 @@
 import { randomUUID } from 'node:crypto';
-import { expect, type APIRequestContext, type Page } from '@playwright/test';
+import { test as base, expect, type APIRequestContext, type Page } from '@playwright/test';
+
+/** Token the e2e dashboard runs with (playwright.config.ts passes it to serve.mjs). */
+export const E2E_TOKEN = 'e2e-token-0123456789abcdef0123456789';
+const BEARER = { Authorization: `Bearer ${E2E_TOKEN}` };
 
 /**
- * Open the dashboard with the landing animation and the first-run tour
- * already dismissed (their flags live in session/local storage).
+ * Specs import `test` from here (#243): the `request` fixture sends the bearer
+ * header like the MCP server does, while the browser carries no header and
+ * logs in through the launch URL (openApp), like a user after /ccui.
+ */
+export const test = base.extend({
+  request: async ({ playwright, baseURL }, use) => {
+    const ctx = await playwright.request.newContext({ baseURL, extraHTTPHeaders: BEARER });
+    await use(ctx);
+    await ctx.dispose();
+  },
+});
+export { expect };
+
+/** Log the browser in: mint a one-time launch URL (bearer) and open it (sets the cookie). */
+export async function login(page: Page): Promise<void> {
+  const minted = await page.request.post('/api/auth/launch', { headers: BEARER });
+  expect(minted.ok(), await minted.text()).toBe(true);
+  const { url } = (await minted.json()) as { url: string };
+  const res = await page.goto(url);
+  // Fail here, not in a later step: the launch must land on the dashboard root.
+  expect(res?.status(), `launch URL answered ${res?.status()}`).toBe(200);
+  expect(new URL(page.url()).pathname).toBe('/');
+}
+
+/**
+ * Log in, then open the dashboard with the landing animation and the first-run
+ * tour already dismissed (their flags live in session/local storage).
  */
 export async function openApp(page: Page, hash = ''): Promise<void> {
   await page.addInitScript(() => {
     sessionStorage.setItem('landing-played', 'true');
     localStorage.setItem('tour-completed', 'true');
   });
+  await login(page);
   await page.goto(`/${hash}`);
   await page.waitForSelector('[role="tablist"]', { timeout: 10_000 });
 }

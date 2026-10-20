@@ -1,5 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
-import { createOwnSprint, openApp } from './helpers';
+import type { Page } from '@playwright/test';
+import { test, expect, createOwnSprint, openApp } from './helpers';
 
 /**
  * #198: dragging a card to another Kanban column changes the ticket status,

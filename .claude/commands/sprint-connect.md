@@ -26,9 +26,10 @@ When the user runs `/sprint-connect`, execute this loop:
 ### Step 1: Announce connection
 
 Tell the user:
+
 ```
 Sprint Connect active. Dashboard actions will be handled automatically.
-Open http://localhost:3333 (or whichever port) to use the UI.
+Run /ccui, or open the launch URL the dashboard printed at startup, to use the UI.
 Say "disconnect" to stop listening.
 ```
 
@@ -92,6 +93,7 @@ IMPORTANT: After each action, report back what you did. Keep polling until 3 min
 ### Step 3: Monitor and re-spawn
 
 When the background agent finishes (timeout or completion):
+
 1. Check if the user said "disconnect" — if so, stop
 2. Otherwise, tell the user: "Listener timed out after 3 min idle. Re-spawning..."
 3. Go back to Step 2
@@ -99,6 +101,7 @@ When the background agent finishes (timeout or completion):
 ### Step 4: Handle disconnect
 
 When the user says "disconnect", "quit", or "stop":
+
 1. Let any running background agent finish its current action
 2. Say: "Sprint Connect disconnected. Dashboard buttons will use direct API only."
 

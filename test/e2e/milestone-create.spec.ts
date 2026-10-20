@@ -1,5 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
-import { openApp } from './helpers';
+import type { Page } from '@playwright/test';
+import { test, expect, openApp } from './helpers';
 
 /**
  * #199: a milestone created from the Planning page is saved with its name

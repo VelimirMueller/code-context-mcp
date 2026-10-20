@@ -764,7 +764,10 @@ describe('PATCH /api/ticket/:id — SSE notification', () => {
     const id = insertTicket();
 
     const controller = new AbortController();
-    const stream = await fetch(`${BASE}/api/events?token=${TOKEN}`, { signal: controller.signal });
+    const stream = await fetch(`${BASE}/api/events`, {
+      headers: authHeaders(),
+      signal: controller.signal,
+    });
     expect(stream.ok).toBe(true);
     const reader = stream.body!.getReader();
     const decoder = new TextDecoder();
