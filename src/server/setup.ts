@@ -2,7 +2,6 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import Database from 'better-sqlite3';
 import { initSchema } from './schema.js';
 import { indexDirectory } from './indexer.js';
 import {
@@ -14,6 +13,7 @@ import {
 import { seedDefaults } from '../scrum/defaults.js';
 import { applyStatuslineSetting } from './statusline.js';
 import { ensureDbGitignored, DB_IGNORE_PATTERN } from './gitignore.js';
+import { openDbSecure, copyFileSecure, restrictFile } from '../secure-file.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SERVER_DIR = path.resolve(__dirname);
@@ -102,7 +102,7 @@ function step(label: string): void {
  */
 function checkpointWalForBackup(dbPath: string): void {
   try {
-    const checkpointDb = new Database(dbPath);
+    const checkpointDb = openDbSecure(dbPath);
     // better-sqlite3 returns [{ busy, log, checkpointed }] for this pragma.
     const ckptResult = checkpointDb.pragma('wal_checkpoint(TRUNCATE)') as Array<{
       busy: number;
@@ -139,8 +139,12 @@ if (FORCE && dbExisted) {
     const sib = DB_PATH + ext;
     if (fs.existsSync(sib)) {
       fs.renameSync(sib, bakPath + ext);
+      restrictFile(bakPath + ext);
     }
   }
+  // The backup holds the full db content: 0600 even when the renamed db was
+  // group/world-readable (rename keeps the old mode).
+  restrictFile(bakPath);
   console.log(`  Backup location: ${bakPath}\n`);
 }
 
@@ -166,7 +170,7 @@ if (UPDATE_MODE) {
     checkpointWalForBackup(DB_PATH);
 
     try {
-      fs.copyFileSync(DB_PATH, DB_PATH + '.bak');
+      copyFileSecure(DB_PATH, DB_PATH + '.bak');
     } catch (err) {
       console.error(
         `  ERROR: Could not create the pre-migration backup (context.db.bak): ${err instanceof Error ? err.message : String(err)}`,
@@ -179,7 +183,7 @@ if (UPDATE_MODE) {
     console.log(`  Backup created: context.db.bak`);
 
     // Open for migration
-    const db = new Database(DB_PATH);
+    const db = openDbSecure(DB_PATH);
     db.pragma('journal_mode = WAL');
     db.pragma('foreign_keys = ON');
     try {
@@ -211,7 +215,7 @@ if (UPDATE_MODE) {
   step('Initializing database...');
 
   const isFreshDb = !fs.existsSync(DB_PATH);
-  const db = new Database(DB_PATH);
+  const db = openDbSecure(DB_PATH);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   initSchema(db);
