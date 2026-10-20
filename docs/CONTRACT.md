@@ -4,7 +4,7 @@ This page is the frozen public surface of `vlm-code-context-mcp` for every 3.x r
 
 **The rule:** a change to anything in this contract needs a **major version bump** and a **`### Breaking` entry in CHANGELOG.md**. CI enforces it (see [How to change the contract](#how-to-change-the-contract)).
 
-- **Normative source:** the JSON snapshots in [`test/contract/snapshots/`](../test/contract/snapshots/). This page explains them. When the page and a snapshot disagree, the snapshot wins and the page gets a fix.
+- **Normative source:** the JSON snapshots in [`test/contract/snapshots/`](https://github.com/VelimirMueller/code-context-mcp/tree/main/test/contract/snapshots). This page explains them. When the page and a snapshot disagree, the snapshot wins and the page gets a fix.
 - **Not in the contract:** tool and parameter descriptions (prose, hashed in `descriptions.json`), the dashboard and its HTTP API, the slash commands and skills, the flair look, log lines, the benchmark tooling, and the outputs of the sprint tools (best effort, see [Sprint profile](#the-sprint-profile)).
 - **Why:** 2.12.0, a minor release, changed the default output (project-relative paths, no timestamps) and cut the `code` profile from 11 to 6 tools. Clients that parsed the old output broke without warning. The CHANGELOG entry of 2.12.0 now records it.
 
