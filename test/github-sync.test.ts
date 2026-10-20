@@ -92,11 +92,19 @@ import {
   type GhRunner,
 } from '../src/scrum/github-gateway.js';
 import { registerGithubTools, upsertProject } from '../src/scrum/tools/github.js';
-import { registerScrumTools } from '../src/scrum/tools.js';
+import { registerScrumTools, setDashboardDbPath } from '../src/scrum/tools.js';
+import { writeDashboardPort } from '../src/dashboard/auth.js';
 import { parseArgs, parseIssueList, run as runCli } from '../src/server/sync-github-cli.js';
 import { initSchema } from '../src/server/schema.js';
 
 process.env.CODE_CONTEXT_DASHBOARD_TOKEN ??= 'test-token-unused-by-fake-server';
+
+// Point notifyDashboard at a closed port so tests never reach a running
+// dashboard (#246: the notify port comes from the file beside the db, not the row).
+const NOTIFY_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'cc-notify-'));
+writeDashboardPort(NOTIFY_ROOT, 9);
+setDashboardDbPath(path.join(NOTIFY_ROOT, 'context.db'));
+afterAll(() => fs.rmSync(NOTIFY_ROOT, { recursive: true, force: true }));
 
 const REPO = 'octo/app';
 const OPTIONS = {
@@ -233,7 +241,6 @@ function memDb(): Database.Database {
   db.pragma('foreign_keys = ON');
   initScrumSchema(db);
   runMigrations(db, { freshDb: true });
-  db.prepare("INSERT INTO skills (name, content) VALUES ('_dashboard_port', '9')").run();
   return db;
 }
 
