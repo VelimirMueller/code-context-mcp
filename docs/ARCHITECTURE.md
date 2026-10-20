@@ -6,7 +6,7 @@ vlm-code-context-mcp is an MCP server that pre-indexes codebases into SQLite, pl
 
 Indexed languages (exports and import edges): TypeScript/JavaScript, Python (since 2.8) and PHP (since 2.13). Other files get a summary only.
 
-Tool and table counts live in the [README](../README.md) (stack and environment panels) and nowhere else, so this file cannot drift from them.
+Tool and table counts live in the [README](https://github.com/VelimirMueller/code-context-mcp/blob/main/README.md) (stack and environment panels) and nowhere else, so this file cannot drift from them.
 
 Security: see the [threat model](security/threat-model.md) for the dashboard, the bridge and the index.
 

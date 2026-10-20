@@ -19,6 +19,8 @@
  * but unhandled parts (step-start, reasoning) are skipped silently.
  */
 
+import { CODE_TOOLS } from '../../../src/server/tool-wrap.js';
+
 /**
  * The alias code-context is registered under in the per-workspace opencode
  * config (opencode-config.mts uses this same constant). opencode prefixes MCP
@@ -30,21 +32,12 @@
 export const CODE_CONTEXT_SERVER_ALIAS = 'code-context';
 
 /**
- * Tools served by the code-context MCP server (src/server/index.ts).
+ * Tools served by the code-context MCP server's `code` profile, read from
+ * CODE_TOOLS (src/server/tool-wrap.ts). The live bench runs every cc arm with
+ * CODE_CONTEXT_TOOLSETS=code, so these six tools are exactly the code-context
+ * tools a session can call.
  */
-export const CODE_CONTEXT_TOOLS: readonly string[] = [
-  'index_directory',
-  'find_symbol',
-  'get_file_context',
-  'search_files',
-  'set_description',
-  'set_directory_description',
-  'set_change_reason',
-  'get_changes',
-  'query',
-  'execute',
-  'health',
-];
+export const CODE_CONTEXT_TOOLS: readonly string[] = CODE_TOOLS;
 
 /** Exact MCP tool names as opencode reports them: `<server alias>_<tool>`. */
 const CODE_CONTEXT_TOOL_NAMES: ReadonlySet<string> = new Set(

@@ -2,7 +2,6 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import Database from 'better-sqlite3';
 import { initSchema } from './schema.js';
 import { indexDirectory } from './indexer.js';
 import {
@@ -13,8 +12,14 @@ import {
 } from '../scrum/schema.js';
 import { seedDefaults } from '../scrum/defaults.js';
 import { applyStatuslineSetting } from './statusline.js';
-import { ensureDbGitignored, DB_IGNORE_PATTERN } from './gitignore.js';
+import {
+  ensureDbGitignored,
+  ensureDumpGitignored,
+  DB_IGNORE_PATTERN,
+  DUMP_IGNORE_PATTERN,
+} from './gitignore.js';
 import { PROFILES, type Profile } from './tool-wrap.js';
+import { openDbSecure, copyFileSecure, restrictFile } from '../secure-file.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SERVER_DIR = path.resolve(__dirname);
@@ -136,7 +141,7 @@ function step(label: string): void {
  */
 function checkpointWalForBackup(dbPath: string): void {
   try {
-    const checkpointDb = new Database(dbPath);
+    const checkpointDb = openDbSecure(dbPath);
     // better-sqlite3 returns [{ busy, log, checkpointed }] for this pragma.
     const ckptResult = checkpointDb.pragma('wal_checkpoint(TRUNCATE)') as Array<{
       busy: number;
@@ -173,8 +178,12 @@ if (FORCE && dbExisted) {
     const sib = DB_PATH + ext;
     if (fs.existsSync(sib)) {
       fs.renameSync(sib, bakPath + ext);
+      restrictFile(bakPath + ext);
     }
   }
+  // The backup holds the full db content: 0600 even when the renamed db was
+  // group/world-readable (rename keeps the old mode).
+  restrictFile(bakPath);
   console.log(`  Backup location: ${bakPath}\n`);
 }
 
@@ -200,7 +209,7 @@ if (UPDATE_MODE) {
     checkpointWalForBackup(DB_PATH);
 
     try {
-      fs.copyFileSync(DB_PATH, DB_PATH + '.bak');
+      copyFileSecure(DB_PATH, DB_PATH + '.bak');
     } catch (err) {
       console.error(
         `  ERROR: Could not create the pre-migration backup (context.db.bak): ${err instanceof Error ? err.message : String(err)}`,
@@ -213,7 +222,7 @@ if (UPDATE_MODE) {
     console.log(`  Backup created: context.db.bak`);
 
     // Open for migration
-    const db = new Database(DB_PATH);
+    const db = openDbSecure(DB_PATH);
     db.pragma('journal_mode = WAL');
     db.pragma('foreign_keys = ON');
     try {
@@ -245,7 +254,7 @@ if (UPDATE_MODE) {
   step('Initializing database...');
 
   const isFreshDb = !fs.existsSync(DB_PATH);
-  const db = new Database(DB_PATH);
+  const db = openDbSecure(DB_PATH);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   initSchema(db);
@@ -416,9 +425,13 @@ console.log(
     : '  Code reading only? Use --profile code (the code-context entry, 6 tools instead of 97).\n',
 );
 
-// Keep the index (it stores file contents) out of the project's git history
+// Keep the index (it stores file contents) and the export dump (it holds
+// every table) out of the project's git history
 if (ensureDbGitignored(TARGET_DIR) === 'added') {
   console.log(`  Added ${DB_IGNORE_PATTERN} to ${path.join(TARGET_DIR, '.gitignore')}\n`);
+}
+if (ensureDumpGitignored(TARGET_DIR) === 'added') {
+  console.log(`  Added ${DUMP_IGNORE_PATTERN} to ${path.join(TARGET_DIR, '.gitignore')}\n`);
 }
 
 // Configure bridge hook (.claude/settings.json)
@@ -452,8 +465,11 @@ if (fs.existsSync(claudeSettingsPath)) {
 if (!claudeSettings.hooks) claudeSettings.hooks = {};
 if (!claudeSettings.hooks.PreToolUse) claudeSettings.hooks.PreToolUse = [];
 
-// Always write the correct bridge hook (repairs broken configs from older versions)
-const bridgeHookCmd = `node ${hookScript}`;
+// Always write the correct bridge hook (repairs broken configs from older versions).
+// Pass the absolute db path so the hook never has to walk directories for it (#245).
+/** Single-quote a path for the hook command (POSIX); a quote inside becomes '\\''. */
+const shQuote = (v: string): string => `'${v.replace(/'/g, `'\\''`)}'`;
+const bridgeHookCmd = `node ${shQuote(hookScript)} --db ${shQuote(DB_PATH)}`;
 // Remove any existing bridge hook entries (including old flat-format ones)
 claudeSettings.hooks.PreToolUse = claudeSettings.hooks.PreToolUse.filter((entry) => {
   // Remove old flat-format entries: { type: "command", command: "...bridge/hook..." }

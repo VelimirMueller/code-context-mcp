@@ -16,7 +16,7 @@ import {
   renderPrompt,
   DEFAULT_LIVE_TASKS,
 } from '../scripts/bench/live/tasks.mts';
-import { runChecker, normaliseAnswer } from '../scripts/bench/live/checkers.mts';
+import { runChecker, normaliseAnswer, answerBlock } from '../scripts/bench/live/checkers.mts';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FIXTURE = path.join(repoRoot, 'test', 'fixtures', 'sample-project');
@@ -174,6 +174,28 @@ describe('L1 answer checker', () => {
 
   it('normalises case, backticks, backslashes and whitespace', () => {
     expect(normaliseAnswer('  `SRC\\Utils\\HELPERS.TS`  ')).toBe('src/utils/helpers.ts');
+  });
+});
+
+describe('answerBlock (CCA-07, #261)', () => {
+  it('returns the last fenced code block', () => {
+    expect(answerBlock('explain\n\n```\nsrc/a.ts\n```\n\nmore prose\n```\nsrc/b.ts\n```')).toBe(
+      'src/b.ts',
+    );
+  });
+
+  it('returns the text after the last Answer/Result/Final answer line', () => {
+    expect(answerBlock('notes\n\nAnswer:\nsrc/a.ts\nsrc/b.ts')).toBe('src/a.ts\nsrc/b.ts');
+    expect(answerBlock('Result: src/a.ts')).toBe('src/a.ts');
+    expect(answerBlock('Final answer:\n- src/a.ts')).toBe('- src/a.ts');
+  });
+
+  it('falls back to the whole message without a fence or marker', () => {
+    expect(answerBlock('src/a.ts\nsrc/b.ts')).toBe('src/a.ts\nsrc/b.ts');
+  });
+
+  it('prefers the fenced block over a marker line', () => {
+    expect(answerBlock('Answer:\nwrong\n\n```\nsrc/a.ts\n```')).toBe('src/a.ts');
   });
 });
 

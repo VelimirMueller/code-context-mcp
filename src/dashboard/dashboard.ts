@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import http from 'http';
-import { execSync } from 'child_process';
+import { randomBytes } from 'crypto';
+import { execFileSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -23,10 +24,15 @@ import {
   isAuthorized,
   isAllowedHost,
   isAllowedOrigin,
+  dashboardProof,
+  writeDashboardPort,
+  removeDashboardPort,
 } from './auth.js';
 import { makeWatchIgnorePredicate, WATCH_DIR_WARN_THRESHOLD } from '../shared/ignore.js';
 import { codeHandlers, sprintHandlers, benchHandlers, planningHandlers } from './handlers/index.js';
+import { gitArgs } from '../server/git.js';
 import { log as slog, errorClass, logThrottled } from '../sessionlog.js';
+import { openDbSecure } from '../secure-file.js';
 
 /** Rejected-request breadcrumb, at most one per status+path per minute (anyone local can trigger these). */
 function logRejected(
@@ -120,7 +126,7 @@ if (!isFreshDb) {
 
 let writeDb: Database.Database;
 try {
-  writeDb = new Database(dbPath);
+  writeDb = openDbSecure(dbPath);
   writeDb.pragma('journal_mode = WAL');
   writeDb.pragma('foreign_keys = ON');
 
@@ -731,7 +737,7 @@ function apiActivity() {
   }
 }
 
-function apiHealth() {
+function apiHealth(nonce?: string) {
   const agentCount = (writeDb.prepare('SELECT COUNT(*) as c FROM agents').get() as any).c;
   const skillCount = (writeDb.prepare('SELECT COUNT(*) as c FROM skills').get() as any).c;
 
@@ -742,7 +748,9 @@ function apiHealth() {
   try {
     // Try to get git commit hash
     try {
-      buildHash = execSync('git rev-parse --short HEAD', { encoding: 'utf-8' }).trim();
+      buildHash = execFileSync('git', gitArgs(['rev-parse', '--short', 'HEAD']), {
+        encoding: 'utf-8',
+      }).trim();
     } catch {
       // Fallback to package.json version
       const pkgPath = path.resolve(process.cwd(), 'package.json');
@@ -766,12 +774,17 @@ function apiHealth() {
     // Ignore if dist doesn't exist
   }
 
-  return {
+  const health = {
+    // Listener challenge-response (#246): `server` names us, and `proof` is
+    // computed only for a request that carries a nonce. A plain /health
+    // reveals no static hash a rogue listener could replay.
+    server: 'code-context-dashboard',
     agentCount,
     skillCount,
     buildHash,
     lastBuildTime,
   };
+  return nonce ? { ...health, proof: dashboardProof(DASHBOARD_TOKEN, nonce) } : health;
 }
 
 // ─── Bridge API helpers ────────────────────────────────────────────────────
@@ -1481,9 +1494,19 @@ function sendRequestError(
 // beside the db so the MCP server finds the same token from any cwd (#235).
 const DASHBOARD_TOKEN = resolveDashboardToken(dashboardTokenRoot(dbPath));
 
+/** A random, per-response nonce that pairs the CSP script-src with the inline scripts. */
+function makeNonce(): string {
+  return randomBytes(16).toString('base64');
+}
+
+/** CSP for every HTML response: same-origin assets and one nonce'd inline script, nothing else. */
+function cspHeader(nonce: string): string {
+  return `default-src 'self'; script-src 'self' 'nonce-${nonce}'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'`;
+}
+
 /** Inject the dashboard token into served HTML so the same-origin app can read it. */
-function injectToken(html: string): string {
-  const tag = `<script>window.__DASHBOARD_TOKEN__=${JSON.stringify(DASHBOARD_TOKEN)};</script>`;
+function injectToken(html: string, nonce: string): string {
+  const tag = `<script nonce="${nonce}">window.__DASHBOARD_TOKEN__=${JSON.stringify(DASHBOARD_TOKEN)};</script>`;
   return html.includes('</head>') ? html.replace('</head>', `${tag}</head>`) : tag + html;
 }
 
@@ -1498,6 +1521,27 @@ const server = http.createServer((req, res) => {
     }
   });
 });
+
+// ─── Clean shutdown (#246) ────────────────────────────────────────────────────
+// A client treats a missing port file as "no dashboard", so the dashboard must
+// remove `.code-context/dashboard.port` when it stops — otherwise a stale port
+// keeps the MCP notify client pointed at a dead listener (or one another
+// process now holds).
+server.on('close', () => {
+  try {
+    removeDashboardPort(dashboardTokenRoot(dbPath));
+  } catch {}
+});
+
+function shutdown(signal: string): void {
+  slog('INFO', `dashboard: ${signal} — shutting down`);
+  const force = setTimeout(() => process.exit(0), 3000);
+  force.unref();
+  server.close();
+}
+
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
 
 async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
   const url = new URL(req.url ?? '/', `http://localhost:${PORT}`);
@@ -1521,6 +1565,7 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('Access-Control-Allow-Origin', 'http://localhost:' + PORT);
 
   // Bearer-token auth on all /api/* routes (#15b); page + assets stay public so
@@ -1634,7 +1679,8 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
   // Health check endpoint (no auth required for monitoring)
   if (url.pathname === '/health' && req.method === 'GET') {
     res.setHeader('Content-Type', 'application/json');
-    const data = apiHealth();
+    const nonce = url.searchParams.get('nonce') ?? undefined;
+    const data = apiHealth(nonce);
     res.writeHead(200);
     res.end(JSON.stringify(data));
     return;
@@ -2106,16 +2152,20 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     return;
   }
 
-  // SPA fallback: serve index.html for all non-API routes
+  // SPA fallback: serve index.html for all non-API routes. Every HTML response
+  // gets a CSP that allows same-origin scripts plus one per-response nonce; the
+  // inline token script and the legacy page's inline script carry that nonce.
+  const nonce = makeNonce();
+  res.setHeader('Content-Security-Policy', cspHeader(nonce));
+  res.setHeader('Content-Type', 'text/html');
   try {
     const indexHtml = fs.readFileSync(path.join(distDir, 'index.html'), 'utf-8');
-    res.setHeader('Content-Type', 'text/html');
     res.writeHead(200);
-    res.end(injectToken(indexHtml));
+    res.end(injectToken(indexHtml, nonce));
   } catch {
-    res.setHeader('Content-Type', 'text/html');
+    const page = HTML.replace('<script>', `<script nonce="${nonce}">`);
     res.writeHead(200);
-    res.end(injectToken(HTML));
+    res.end(injectToken(page, nonce));
   }
 }
 
@@ -2131,7 +2181,12 @@ function startServer(port: number, maxRetries = 10): void {
     }
   });
   server.listen(port, '127.0.0.1', () => {
-    // Write actual port to DB so MCP tools can find the dashboard
+    // Port file beside the db (0600) — the ONLY port the MCP notify client
+    // trusts (#246): any db writer can change the row below.
+    try {
+      writeDashboardPort(dashboardTokenRoot(dbPath), port);
+    } catch {}
+    // Row kept for the UI (legacy readers); the notify client ignores it (#246)
     try {
       writeDb
         .prepare(
@@ -2139,13 +2194,13 @@ function startServer(port: number, maxRetries = 10): void {
         )
         .run(String(port));
     } catch {}
-    // Write port to .env.local so Vite dev proxy auto-configures on next start
+    // Write the port to .env.local so the Vite dev proxy auto-configures on
+    // next start. Never the token (#247): `vite build` would inline it into
+    // the published assets. The dev proxy reads the token file itself.
     try {
       const envLocalPath = path.join(__dirname, 'app', '.env.local');
-      fs.writeFileSync(
-        envLocalPath,
-        `VITE_DASHBOARD_PORT=${port}\nVITE_DASHBOARD_TOKEN=${DASHBOARD_TOKEN}\n`,
-      );
+      fs.writeFileSync(envLocalPath, `VITE_DASHBOARD_PORT=${port}\n`, { mode: 0o600 });
+      fs.chmodSync(envLocalPath, 0o600); // writeFileSync mode applies to creation only
     } catch {}
     console.log(`VLM Code Context | AI Virtual IT Department — http://localhost:${port}`);
     slog(

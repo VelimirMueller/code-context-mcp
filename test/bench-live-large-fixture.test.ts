@@ -295,3 +295,42 @@ describe('I4 unused-exports checker', () => {
       expect(names).not.toContain(n);
   });
 });
+
+describe('answer block scoring (CCA-07, #261)', () => {
+  const expected = key.answers.formatMoneyImporters;
+  // Files that mention formatMoney but are not importers (real grep noise).
+  const decoys = key.decoys.formatMoney;
+  const fenced = (block: string[], prose: string[] = []): string =>
+    [
+      'The import graph lists these files as importers of `formatMoney`:',
+      '',
+      '```',
+      ...block,
+      '```',
+      ...prose,
+    ].join('\n');
+
+  it('excluded names in prose do not count when the right answer sits in a fenced block', async () => {
+    const answer = fenced(expected, [
+      '',
+      'Not counted (re-export or a mere mention):',
+      ...decoys.map((f) => `- \`${f}\``),
+    ]);
+    const r = await check('I3', answer);
+    expect(r.detail).toBe(`${expected.length}/${expected.length} found, 0 extra`);
+    expect(r.pass).toBe(true);
+  });
+
+  it('a wrong path inside the block still fails', async () => {
+    const r = await check('I3', fenced(['src/not-an-importer.ts']));
+    expect(r.pass).toBe(false);
+    expect(r.detail).toMatch(/missing/);
+  });
+
+  it('--score-prose keeps the old behaviour: prose extras count', async () => {
+    const answer = fenced(expected, ['', 'Not counted:', ...decoys.map((f) => `- \`${f}\``)]);
+    const r = await runChecker(task('I3'), tmp, answer, { scoreProse: true });
+    expect(r.pass).toBe(false);
+    expect(r.detail).toContain(`${decoys.length} extra`);
+  });
+});

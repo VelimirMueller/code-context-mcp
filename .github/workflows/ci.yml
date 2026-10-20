@@ -41,6 +41,8 @@ jobs:
       - run: npm test
       - run: npm run test:frontend
       - run: npm run build
+      # Dist assets must not carry the dashboard token (#247).
+      - run: npm run check:dist-token
 
   lint:
     runs-on: ubuntu-latest
@@ -152,3 +154,41 @@ jobs:
             exit 1
           fi
           echo "Vendored skills validation passed: $ACTUAL_COUNT skills"
+
+  # VitePress build; catches dead links (#264). Runs only when the PR touches docs/.
+  docs:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # the docs-changed check diffs against the base commit
+      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: docs/package-lock.json
+      - name: Did this pull request touch docs/?
+        id: docs-changed
+        env:
+          # SHAs reach the shell through env only, never ${{ }} in run.
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          base="${PR_BASE}"
+          case "$base" in
+            ''|0000000000000000000000000000000000000000) base="origin/main" ;;
+          esac
+          if git diff --name-only "${base}...HEAD" -- docs/ | grep -q .; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No docs/ file changed; docs build skipped."
+          fi
+      - run: npm ci
+        if: steps.docs-changed.outputs.changed == 'true'
+        working-directory: docs
+      - name: VitePress build (fails on dead links)
+        run: npm run build
+        if: steps.docs-changed.outputs.changed == 'true'
+        working-directory: docs

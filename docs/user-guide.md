@@ -147,7 +147,7 @@ Navigate to `http://localhost:3333`
 
 The Benchmark tab reads published runs from `CODE_CONTEXT_BENCH_DIR` (a dir with `index.json` + `runs/`), then `<db dir>/bench/`, then `origin/bench-results` in a code-context checkout.
 
-To also see the runs of your **private suites** (see [BENCHMARK-GUIDE.md](../BENCHMARK-GUIDE.md#private-suites)), list their dirs in `CODE_CONTEXT_BENCH_PRIVATE_DIRS` when you start the dashboard. Separate entries with `:` (`;` on Windows). An entry is a suite dir (with `suite.json`) or its `data/` dir:
+To also see the runs of your **private suites** (see [BENCHMARK-GUIDE.md](https://github.com/VelimirMueller/code-context-mcp/blob/main/BENCHMARK-GUIDE.md#private-suites)), list their dirs in `CODE_CONTEXT_BENCH_PRIVATE_DIRS` when you start the dashboard. Separate entries with `:` (`;` on Windows). An entry is a suite dir (with `suite.json`) or its `data/` dir:
 
 ```bash
 CODE_CONTEXT_BENCH_PRIVATE_DIRS=~/bench/suite-a:~/bench/suite-b \

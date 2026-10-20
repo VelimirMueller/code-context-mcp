@@ -62,6 +62,7 @@ Every env setting the shipped code reads is in `env.json`. A rename or removal i
 | `OVERDRIVE_FLAIR=0` / `1`                                                                                     | Flair off / on. Unset: on when the `scrum` toolset is on.                             |
 | `CODE_CONTEXT_ALLOWED_ROOTS`                                                                                  | Directories `index_directory` and the reindex CLI may index.                          |
 | `CODE_CONTEXT_MAX_FILE_KB`                                                                                    | Size limit of an indexed file.                                                        |
+| `CODE_CONTEXT_INDEX_ALLOW`                                                                                    | Basenames or `*.ext` globs the secret-file deny list lets back into the index.        |
 | `CODE_CONTEXT_DB`                                                                                             | Default db of the reindex and sync CLIs.                                              |
 | `CODE_CONTEXT_SKILLS_AUTOSYNC=1`                                                                              | Sync skills from upstream at boot (sprint entry).                                     |
 | `CODE_CONTEXT_GITHUB_SYNC_REPOS`, `CODE_CONTEXT_GITHUB_SYNC_ASSIGNEES`                                        | Allowlist of live GitHub sync writes.                                                 |

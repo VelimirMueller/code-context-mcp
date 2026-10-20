@@ -18,9 +18,25 @@ const MAX_BUFFER = 256 * 1024 * 1024;
 /** A full SHA-1 or SHA-256 object id, nothing else. */
 export const SHA_RE = /^[0-9a-f]{40}$|^[0-9a-f]{64}$/;
 
+const GIT_SAFE_ARGS = ['-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null'];
+
+/**
+ * Build the argument list for a git invocation so a repo-local `.git/config`
+ * cannot run commands: `core.fsmonitor` and `core.hooksPath` are forced off.
+ * A `diff` invocation also disables external diff drivers and textconv. `args`
+ * is the git command line starting with the subcommand (e.g. `['ls-files', …]`).
+ */
+export function gitArgs(args: string[]): string[] {
+  const [cmd, ...rest] = args;
+  if (cmd === 'diff') {
+    return [...GIT_SAFE_ARGS, 'diff', '--no-ext-diff', '--no-textconv', ...rest];
+  }
+  return [...GIT_SAFE_ARGS, ...args];
+}
+
 function git(cwd: string, args: string[]): { ok: boolean; stdout: string } {
   try {
-    const r = spawnSync('git', ['-C', cwd, ...args], {
+    const r = spawnSync('git', ['-C', cwd, ...gitArgs(args)], {
       shell: false,
       encoding: 'utf-8',
       timeout: GIT_TIMEOUT_MS,
@@ -164,7 +180,7 @@ export function gitChangedFiles(root: string, from: string, to: string): string[
 /** True when git says `file` is ignored in the checkout at `root`. False on any doubt. */
 export function gitIsIgnored(root: string, file: string): boolean {
   try {
-    const r = spawnSync('git', ['-C', root, 'check-ignore', '-q', '--', file], {
+    const r = spawnSync('git', ['-C', root, ...gitArgs(['check-ignore', '-q', '--', file])], {
       shell: false,
       timeout: 5_000,
       stdio: 'ignore',

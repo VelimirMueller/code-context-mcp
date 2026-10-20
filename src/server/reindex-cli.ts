@@ -11,10 +11,10 @@
 import path from 'node:path';
 import os from 'node:os';
 import fs from 'node:fs';
-import Database from 'better-sqlite3';
 import { initSchema } from './schema.js';
 import { runReindex, type ReindexSummary } from './reindex.js';
 import { log as slog } from '../sessionlog.js';
+import { openDbSecure } from '../secure-file.js';
 import { flairFooter } from './tool-wrap.js';
 
 // ─── Flair (overdrive FLAIR.md): TTY only, never with --quiet, OVERDRIVE_FLAIR=0 off ──
@@ -133,7 +133,7 @@ function main(): number {
   const start = Date.now();
   const art = flair(parsed.quiet);
   art.banner();
-  const db = new Database(parsed.db);
+  const db = openDbSecure(parsed.db);
   try {
     db.pragma('journal_mode = WAL');
     db.pragma('busy_timeout = 15000');

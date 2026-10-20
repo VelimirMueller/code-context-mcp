@@ -24,6 +24,7 @@ import { indexDirectory, migrateUnresolvedRoots } from './indexer.js';
 import { LATEST_SCHEMA_VERSION, peekSchemaVersion } from './schema-version.js';
 import { checkDistFreshness } from './dist-freshness.js';
 import { log as slog, errorClass, logToolExceptions } from '../sessionlog.js';
+import { openDbSecure } from '../secure-file.js';
 import { FreshnessGuard, freshnessNotice, type FreshRow } from './freshness.js';
 import {
   instrumentTools,
@@ -76,7 +77,7 @@ const sprint = toolSelection.toolsets.some((t) => t === 'scrum' || t === 'fun' |
 
 let db: Database.Database;
 try {
-  db = new Database(resolvedDbPath);
+  db = openDbSecure(resolvedDbPath);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   // The reindex CLI and the dashboard write the same file; wait for their
@@ -786,7 +787,11 @@ server.tool(
 // ─── Tool: execute (escape hatch) ────────────────────────────────────────────
 server.tool(
   'execute',
-  'Run an INSERT, UPDATE, or DELETE against the context database',
+  'Run an INSERT, UPDATE, or DELETE against the context database. Refused: writes to gate columns ' +
+    '(status of tickets/sprints/milestones/epics, tickets.qa_verified/verified_by/deleted_at, ' +
+    'sprints.deleted_at/archived_at, milestones/epics.archived_at, projects.name/repo, github_* of tickets/milestones/projects), ' +
+    'REPLACE, and DELETE on tickets/sprints/milestones/epics/projects. Use update_ticket, ' +
+    'update_sprint/advance_sprint, update_milestone, update_epic, set_project or sync_github instead.',
   {
     sql: z
       .string()

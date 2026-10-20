@@ -10,6 +10,8 @@
  *                `<os tmpdir>/bench-live-<run_id>-*` directory
  *   --out        write the corrected run JSON to <out>/<run_id>.json
  *                (never over the input file); without it, print only
+ *   --score-prose  score the full prose (the pre-#261 behaviour) instead of
+ *                only the answer block, for comparison
  *
  * Scope: answer-type checkers only — `answer` (L1), `importers` (L4) and
  * `dead-exports` (L6). L4/L6 compute their expected answer from the PRISTINE
@@ -78,6 +80,8 @@ export interface RescoreOpts {
   artefactDir: string;
   /** Pristine source root (contains src/) for L4/L6; null = none available. */
   srcRoot: string | null;
+  /** Score the full prose (the pre-#261 behaviour) instead of only the answer block. */
+  scoreProse?: boolean;
 }
 
 const rate = (rs: SessionResult[]): number =>
@@ -134,6 +138,7 @@ export async function rescoreRun(input: RunJson, opts: RescoreOpts): Promise<Res
         task,
         opts.srcRoot ?? opts.artefactDir,
         finalAnswer(eventsFile, agent),
+        { scoreProse: opts.scoreProse },
       );
       if (check.pass !== r.success) {
         changes.push({
@@ -209,8 +214,13 @@ function findArtefactDir(runId: string): string | null {
   return hits[0] ?? null;
 }
 
-function parseArgs(argv: string[]): { run: string; artefacts?: string; out?: string } {
-  const out: { run?: string; artefacts?: string; out?: string } = {};
+function parseArgs(argv: string[]): {
+  run: string;
+  artefacts?: string;
+  out?: string;
+  scoreProse?: boolean;
+} {
+  const out: { run?: string; artefacts?: string; out?: string; scoreProse?: boolean } = {};
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const next = (): string => {
@@ -221,10 +231,11 @@ function parseArgs(argv: string[]): { run: string; artefacts?: string; out?: str
     if (a === '--run') out.run = next();
     else if (a === '--artefacts') out.artefacts = next();
     else if (a === '--out') out.out = next();
+    else if (a === '--score-prose') out.scoreProse = true;
     else throw new Error(`bench:rescore: unknown argument ${a}`);
   }
   if (!out.run) throw new Error('bench:rescore: --run <run.json> is required');
-  return out as { run: string; artefacts?: string; out?: string };
+  return out as { run: string; artefacts?: string; out?: string; scoreProse?: boolean };
 }
 
 async function main(): Promise<void> {
@@ -244,8 +255,11 @@ async function main(): Promise<void> {
     console.log(
       `source:    ${srcRoot ? `git ${commit?.slice(0, 12)}${input.git?.dirty ? ' (run was DIRTY — source may differ)' : ''}` : 'unavailable — L4/L6 keep their recorded result'}`,
     );
+    console.log(
+      `scoring:   ${args.scoreProse ? 'full prose (--score-prose, the pre-#261 behaviour)' : 'answer block only (default)'}`,
+    );
 
-    const report = await rescoreRun(input, { artefactDir, srcRoot });
+    const report = await rescoreRun(input, { artefactDir, srcRoot, scoreProse: args.scoreProse });
 
     console.log('\nsuccess per arm (old → new):');
     for (const r of report.rates) {

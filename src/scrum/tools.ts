@@ -1,7 +1,15 @@
 import type Database from 'better-sqlite3';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { existsSync } from 'node:fs';
+import http from 'node:http';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
-import { dashboardTokenRoot, resolveDashboardToken } from '../dashboard/auth.js';
+import {
+  dashboardTokenRoot,
+  resolveDashboardToken,
+  readDashboardPort,
+  dashboardProof,
+} from '../dashboard/auth.js';
 import { formatModelRouting, KNOWN_AGENT_MODELS, modelToTier } from './agent-model.js';
 import {
   buildCommitContract,
@@ -34,8 +42,10 @@ import {
   TYPE_LABELS,
   unknownProject,
 } from './github-sync.js';
-import { log as slog } from '../sessionlog.js';
+import { log as slog, errorClass } from '../sessionlog.js';
 import { checkDistFreshness } from '../server/dist-freshness.js';
+import { writeFileSecure } from '../secure-file.js';
+import { resolveFileInsideAllowedRoots } from '../server/indexer.js';
 import {
   transitionSprint,
   promoteTicketDiscoveries,
@@ -70,17 +80,15 @@ import {
 // Moved to the index side (#179); re-exported for existing callers.
 export { checkDistFreshness };
 
-const DASHBOARD_PORT = process.env.DASHBOARD_PORT || '3333';
-
-/** Resolve the actual dashboard port from DB (written by dashboard on startup) */
-function resolveDashboardPort(db: Database.Database): string {
-  try {
-    const row = db.prepare("SELECT content FROM skills WHERE name = '_dashboard_port'").get() as
-      | { content: string }
-      | undefined;
-    if (row?.content) return row.content;
-  } catch {}
-  return DASHBOARD_PORT;
+/**
+ * Port a notify call may target (#246): from the 0600 port file the dashboard
+ * writes beside the db at startup — never from the `_dashboard_port` db row,
+ * which any db writer (execute, import, restore) can change to redirect the
+ * bearer token to a listener it controls. A missing file means the dashboard
+ * is not running: the caller returns null and sends nothing (no token).
+ */
+function resolveDashboardPort(): string | null {
+  return readDashboardPort(dashboardTokenRoot(dashboardDbPath));
 }
 
 /** Bearer header so MCP→dashboard notify calls authenticate against /api/* (#15b). */
@@ -96,9 +104,139 @@ export function setDashboardDbPath(dbPath: string | null): void {
   cachedDashboardToken = null;
 }
 
-function dashboardAuthHeaders(): Record<string, string> {
+function dashboardToken(): string {
   cachedDashboardToken ??= resolveDashboardToken(dashboardTokenRoot(dashboardDbPath));
-  return { Authorization: `Bearer ${cachedDashboardToken}` };
+  return cachedDashboardToken;
+}
+
+// ─── Listener verification (#246, TM-05) ────────────────────────────────────
+// Before any Authorization header leaves this process, the client sends a fresh
+// 16-byte nonce to GET /health (no auth) on 127.0.0.1 only: the listener must
+// answer JSON with server === 'code-context-dashboard' and the HMAC-SHA256
+// proof of (nonce + "\n" + "code-context-dashboard") under OUR token. A port
+// taken over by another process cannot compute the proof and never sees the
+// token. Every authenticated notify is preceded by its own challenge (there is
+// no cache); the two requests share one keep-alive http.Agent so the proof and
+// the token travel on the same socket where possible. Failures stay silent
+// apart from one WARN per process.
+
+const DASHBOARD_AGENT = new http.Agent({ keepAlive: true, maxSockets: 1 });
+
+interface DashboardResponse {
+  status: number;
+  ok: boolean;
+  json: unknown;
+}
+
+function dashboardRequest(
+  port: string,
+  urlPath: string,
+  opts: {
+    method?: string;
+    headers?: Record<string, string>;
+    body?: string;
+    signal?: AbortSignal;
+    timeoutMs?: number;
+  } = {},
+): Promise<DashboardResponse> {
+  return new Promise((resolve, reject) => {
+    const req = http.request(
+      {
+        host: '127.0.0.1',
+        port: Number(port),
+        path: urlPath,
+        method: opts.method ?? 'GET',
+        headers: opts.headers,
+        agent: DASHBOARD_AGENT,
+        signal: opts.signal,
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk: Buffer) => chunks.push(chunk));
+        res.on('end', () => {
+          const raw = Buffer.concat(chunks).toString('utf8');
+          let json: unknown = null;
+          try {
+            json = JSON.parse(raw);
+          } catch {
+            json = null;
+          }
+          const status = res.statusCode ?? 0;
+          resolve({ status, ok: status >= 200 && status < 300, json });
+        });
+      },
+    );
+    if (!opts.signal)
+      req.setTimeout(opts.timeoutMs ?? 1500, () => req.destroy(new Error('timeout')));
+    req.on('error', reject);
+    if (opts.body !== undefined) req.write(opts.body);
+    req.end();
+  });
+}
+
+function proofMatches(expectedHex: string, actualHex: string): boolean {
+  const expected = Buffer.from(expectedHex, 'hex');
+  const actual = Buffer.from(actualHex, 'hex');
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
+}
+
+let listenerWarned = false;
+
+function warnListenerRejected(port: string, reason: string): void {
+  if (listenerWarned) return;
+  listenerWarned = true;
+  slog(
+    'WARN',
+    `dashboard-notify: token not sent — 127.0.0.1:${port} failed verification (${reason}) (#246)`,
+  );
+}
+
+async function listenerVerified(port: string, token: string): Promise<boolean> {
+  const nonce = randomBytes(16).toString('hex');
+  let ok = false;
+  let reason = 'unreachable';
+  try {
+    const health = await dashboardRequest(port, `/health?nonce=${nonce}`, { timeoutMs: 1500 });
+    if (!health.ok) {
+      reason = `health status ${health.status}`;
+    } else {
+      const body = health.json as { server?: unknown; proof?: unknown };
+      if (body.server !== 'code-context-dashboard') reason = 'wrong server';
+      else if (typeof body.proof !== 'string') reason = 'missing proof';
+      else if (!proofMatches(dashboardProof(token, nonce), body.proof)) reason = 'proof mismatch';
+      else ok = true;
+    }
+  } catch (e) {
+    reason = errorClass(e);
+  }
+  if (!ok) warnListenerRejected(port, reason);
+  return ok;
+}
+
+/**
+ * Authenticated dashboard request (#246): 127.0.0.1 only, and only after the
+ * listener proved it holds the same token via the challenge. Resolves null when
+ * the request was not sent; network errors on a verified listener reject as
+ * usual. The challenge and the request share DASHBOARD_AGENT, so the proof and
+ * the token travel on the same keep-alive socket where possible.
+ */
+async function verifiedDashboardFetch(
+  port: string,
+  urlPath: string,
+  init: RequestInit = {},
+): Promise<DashboardResponse | null> {
+  if (!(await listenerVerified(port, dashboardToken()))) return null;
+  const token = dashboardToken();
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+    ...((init.headers ?? {}) as Record<string, string>),
+  };
+  return dashboardRequest(port, urlPath, {
+    method: init.method,
+    headers,
+    body: typeof init.body === 'string' ? init.body : undefined,
+    signal: init.signal ?? undefined,
+  });
 }
 
 interface DashboardEvent {
@@ -118,20 +256,20 @@ interface DashboardEvent {
 }
 
 /** Fire-and-forget HTTP POST to dashboard so SSE clients refresh instantly. */
-export function notifyDashboard(db: Database.Database, event?: DashboardEvent): void {
-  const port = resolveDashboardPort(db);
+export function notifyDashboard(_db: Database.Database, event?: DashboardEvent): void {
   try {
+    const port = resolveDashboardPort();
+    if (!port) return; // no port file → no dashboard → never send the token
     if (event) {
       // Send typed event directly to dashboard SSE
-      fetch(`http://localhost:${port}/api/notify/event`, {
+      verifiedDashboardFetch(port, '/api/notify/event', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...dashboardAuthHeaders() },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(event),
       }).catch(() => {});
     } else {
-      fetch(`http://localhost:${port}/api/notify`, {
+      verifiedDashboardFetch(port, '/api/notify', {
         method: 'POST',
-        headers: dashboardAuthHeaders(),
       }).catch(() => {});
     }
   } catch {}
@@ -3609,13 +3747,14 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
 
   server.tool(
     'export_to_file',
-    'Export database to a JSON file on disk',
+    'Export database to a JSON file on disk. Path must stay inside the allowed roots (as index_directory); an existing file is replaced only with overwrite: true',
     {
       output_path: z.string().optional().describe('File path (default: ./code-context-dump.json)'),
+      overwrite: z.boolean().optional().describe('Replace an existing file (default: refuse)'),
     },
-    async ({ output_path }) => {
+    async ({ output_path, overwrite }) => {
       try {
-        const filePath = output_path || './code-context-dump.json';
+        const filePath = resolveFileInsideAllowedRoots(output_path || './code-context-dump.json');
 
         const allTables = [
           'agents',
@@ -3648,9 +3787,22 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
           tables: dump,
         };
 
-        const fs = await import('fs');
         const json = JSON.stringify(output, null, 2);
-        fs.writeFileSync(filePath, json);
+
+        if (existsSync(filePath) && !overwrite) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Error: File exists: ${filePath}. Pass overwrite: true to replace it.`,
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        // The dump holds the full db content: 0600, whatever the umask is (#248).
+        writeFileSecure(filePath, json);
 
         const sizeMB = (Buffer.byteLength(json) / 1024 / 1024).toFixed(2);
         const tableCount = Object.keys(dump).filter((k) => dump[k].length > 0).length;
@@ -3675,22 +3827,23 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
 
   server.tool(
     'import_from_file',
-    'Restore database from a JSON dump file on disk. Same rules as restore_database: never replaces an existing row, on_conflict "abort" (default) or "skip", optional dry_run.',
+    'Restore database from a JSON dump file on disk. Path must stay inside the allowed roots (as index_directory). Same rules as restore_database: never replaces an existing row, on_conflict "abort" (default) or "skip", optional dry_run.',
     {
       input_path: z.string().describe('Path to the JSON dump file'),
       ...restoreOptionsShape,
     },
     async ({ input_path, on_conflict, dry_run }) => {
       try {
+        const inputPath = resolveFileInsideAllowedRoots(input_path);
         const fs = await import('fs');
-        if (!fs.existsSync(input_path)) {
+        if (!fs.existsSync(inputPath)) {
           return {
-            content: [{ type: 'text' as const, text: `Error: File not found: ${input_path}` }],
+            content: [{ type: 'text' as const, text: `Error: File not found: ${inputPath}` }],
             isError: true,
           };
         }
 
-        const json = fs.readFileSync(input_path, 'utf-8');
+        const json = fs.readFileSync(inputPath, 'utf-8');
         const dump = JSON.parse(json) as DatabaseDump;
 
         if (!dump.version || !dump.tables) {
@@ -3699,7 +3852,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
             isError: true,
           };
         }
-        return restoreResult(db, dump, `# Restore from ${input_path}`, {
+        return restoreResult(db, dump, `# Restore from ${inputPath}`, {
           onConflict: on_conflict,
           dryRun: dry_run,
         });
@@ -5698,17 +5851,18 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     },
     async ({ step, title, description, fields, hints }) => {
       try {
-        // Check if dashboard is running (resolve actual port from DB)
-        const dashPort = resolveDashboardPort(db);
+        // Check if dashboard is running (port from the file beside the db, #246)
+        const dashPort = resolveDashboardPort();
         let dashboardUp = false;
-        try {
-          const resp = await fetch(`http://localhost:${dashPort}/api/bridge/status`, {
-            signal: AbortSignal.timeout(500),
-            headers: dashboardAuthHeaders(),
-          });
-          dashboardUp = resp.ok;
-        } catch {
-          /* dashboard not running */
+        if (dashPort) {
+          try {
+            const resp = await verifiedDashboardFetch(dashPort, '/api/bridge/status', {
+              signal: AbortSignal.timeout(500),
+            });
+            dashboardUp = !!resp && resp.ok;
+          } catch {
+            /* dashboard not running */
+          }
         }
 
         if (!dashboardUp) {
@@ -5897,18 +6051,20 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     },
     async ({ text, line_type, step }) => {
       try {
-        const port = resolveDashboardPort(db);
-        try {
-          await fetch(`http://localhost:${port}/api/claude-output`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...dashboardAuthHeaders() },
-            body: JSON.stringify({
-              text: text.slice(0, 5000),
-              lineType: line_type || 'text',
-              step: step || undefined,
-            }),
-          }).catch(() => {});
-        } catch {}
+        const port = resolveDashboardPort();
+        if (port) {
+          try {
+            await verifiedDashboardFetch(port, '/api/claude-output', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                text: text.slice(0, 5000),
+                lineType: line_type || 'text',
+                step: step || undefined,
+              }),
+            }).catch(() => {});
+          } catch {}
+        }
         return {
           content: [
             {
@@ -5937,19 +6093,21 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     },
     async ({ name, status, title, description }) => {
       try {
-        const port = resolveDashboardPort(db);
-        try {
-          await fetch(`http://localhost:${port}/api/claude-step`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...dashboardAuthHeaders() },
-            body: JSON.stringify({
-              name,
-              status,
-              title: title || undefined,
-              description: description || undefined,
-            }),
-          }).catch(() => {});
-        } catch {}
+        const port = resolveDashboardPort();
+        if (port) {
+          try {
+            await verifiedDashboardFetch(port, '/api/claude-step', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name,
+                status,
+                title: title || undefined,
+                description: description || undefined,
+              }),
+            }).catch(() => {});
+          } catch {}
+        }
         return { content: [{ type: 'text' as const, text: `Step '${name}' status: ${status}` }] };
       } catch (e) {
         return {

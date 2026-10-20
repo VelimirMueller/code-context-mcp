@@ -32,7 +32,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "node scripts/compile-skills.mjs && tsc && cp src/dashboard/dashboard.html dist/dashboard/ && node -e \"require('fs').rmSync('dist/dashboard/assets',{recursive:true,force:true})\" && cd src/dashboard/app && npx vite build",
+    "build": "node scripts/compile-skills.mjs && tsc && cp src/dashboard/dashboard.html dist/dashboard/ && node -e \"require('fs').rmSync('dist/dashboard/assets',{recursive:true,force:true})\" && cd src/dashboard/app && npx vite build && node ../../../scripts/check-dist-token.mjs",
     "start": "node dist/server/index.js",
     "dev": "tsx src/dashboard/dashboard.ts",
     "dashboard": "tsx src/dashboard/dashboard.ts",
@@ -58,6 +58,7 @@
     "lint": "eslint .",
     "typecheck:dashboard": "tsc --noEmit -p src/dashboard/app",
     "check:dashboard-reachable": "node scripts/check-dashboard-reachable.mjs",
+    "check:dist-token": "node scripts/check-dist-token.mjs",
     "lint:fix": "eslint . --fix",
     "format": "prettier --check .",
     "format:fix": "prettier --write .",

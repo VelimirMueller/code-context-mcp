@@ -205,6 +205,9 @@ describe('restore_database / import_from_file tools', () => {
     const { db, tools, sprintId, ticketId } = setup();
     const before = ticket(db, ticketId);
     const dir = mkdtempSync(path.join(tmpdir(), 'cc-restore-'));
+    // The dump file must sit inside the allowed roots (#250)
+    const savedRoots = process.env.CODE_CONTEXT_ALLOWED_ROOTS;
+    process.env.CODE_CONTEXT_ALLOWED_ROOTS = dir;
     try {
       const file = path.join(dir, 'dump.json');
       writeFileSync(file, JSON.stringify(clashingDump(db, ticketId, sprintId)));
@@ -220,6 +223,8 @@ describe('restore_database / import_from_file tools', () => {
       expect(text(dry)).toContain('tickets: 1 inserted, 0 unchanged, 1 clash');
       expect(count(db, 'tickets')).toBe(1);
     } finally {
+      if (savedRoots === undefined) delete process.env.CODE_CONTEXT_ALLOWED_ROOTS;
+      else process.env.CODE_CONTEXT_ALLOWED_ROOTS = savedRoots;
       rmSync(dir, { recursive: true, force: true });
     }
   });

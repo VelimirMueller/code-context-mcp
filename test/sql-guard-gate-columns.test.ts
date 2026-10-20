@@ -115,8 +115,8 @@ describe('execute gate columns: UPDATE (#181)', () => {
     allowed("UPDATE tickets SET title = 'status', notes = 'qa_verified = 1' WHERE status = 'DONE'");
     allowed("UPDATE tickets SET assigned_to = 'dev' WHERE github_issue IS NULL");
     allowed("UPDATE sprints SET goal = 'g' WHERE status = 'planning'");
-    allowed("UPDATE milestones SET status = 'active' WHERE id = 1");
-    allowed("UPDATE projects SET repo = 'o/r' WHERE id = 1");
+    allowed("UPDATE milestones SET description = 'd' WHERE status = 'active'");
+    allowed("UPDATE projects SET updated_at = datetime('now') WHERE repo = 'o/r'");
   });
 
   it('allows a status column on a table without gates (the bridge statement)', () => {
@@ -241,10 +241,16 @@ describe('execute gate columns: keywords that SQLite also reads as names (#181)'
         'deleted_at',
       ],
       sprints: ['status', 'deleted_at', 'archived_at'],
+      milestones: ['status', 'archived_at', 'github_milestone'],
+      epics: ['status', 'archived_at'],
+      projects: ['name', 'repo', 'github_assignee', 'github_project_number'],
     };
     const free: Record<string, readonly string[]> = {
       tickets: ['title', 'notes', 'assigned_to', 'description'],
       sprints: ['goal', 'name'],
+      milestones: ['description', 'target_date', 'progress'],
+      epics: ['description', 'color', 'priority'],
+      projects: ['updated_at'],
     };
     const exprs = [
       "'x'",
@@ -264,7 +270,7 @@ describe('execute gate columns: keywords that SQLite also reads as names (#181)'
     const db = scrumDb();
     try {
       for (let k = 0; k < 50; k++) {
-        const table = pick(['tickets', 'sprints'] as const);
+        const table = pick(['tickets', 'sprints', 'milestones', 'epics', 'projects'] as const);
         const tableRef = pick([table, `main.${table}`, `"${table}"`, `[${table}]`]);
         const alias = pick(['', ' AS t']);
         const items: string[] = [];
@@ -349,7 +355,7 @@ describe('execute gate columns: DELETE and statement shapes (#181)', () => {
 
   it('allows DELETE on tables without a delete gate', () => {
     allowed('DELETE FROM tags WHERE id = 1');
-    allowed('DELETE FROM milestones WHERE id = 1');
+    allowed('DELETE FROM decisions WHERE id = 1');
   });
 
   it('rejects CTE-prefixed writes, stacked statements and comments before the gate', () => {
@@ -443,6 +449,93 @@ describe('execute gate columns: runWriteStatement on the real schema (#181)', ()
   });
 });
 
+describe('execute gate columns: archive preconditions, sync targets and deletes (#263)', () => {
+  it('refuses milestones.status and epics.status (the archive check reads them)', () => {
+    const m = denied("UPDATE milestones SET status = 'completed' WHERE id = 1");
+    expect(m).toContain('milestones.status');
+    expect(m).toContain('update_milestone');
+    const e = denied("UPDATE epics SET status = 'completed' WHERE id = 1");
+    expect(e).toContain('epics.status');
+    expect(e).toContain('update_epic');
+    denied('UPDATE milestones AS m SET "Status" = \'completed\'');
+    denied("UPDATE epics SET (description, status) = ('d', 'completed')");
+    denied("INSERT INTO milestones (name, status) VALUES ('m', 'completed')");
+    denied(
+      "INSERT INTO epics (id, name) VALUES (1, 'e') ON CONFLICT(id) DO UPDATE SET status = 'completed'",
+    );
+  });
+
+  it('refuses projects.repo and projects.name, the columns sync_github resolves its target from', () => {
+    const repo = denied("UPDATE projects SET repo = 'evil/repo' WHERE id = 1");
+    expect(repo).toContain('projects.repo');
+    expect(repo).toContain('set_project');
+    const name = denied("UPDATE projects SET name = 'other' WHERE id = 1");
+    expect(name).toContain('projects.name');
+    expect(name).toContain('set_project');
+    for (const col of [
+      'github_project_owner',
+      'github_project_number',
+      'github_assignee',
+      'github_project_id',
+    ]) {
+      expect(denied(`UPDATE projects SET ${col} = 'x' WHERE id = 1`)).toContain(`projects.${col}`);
+    }
+    denied("INSERT INTO projects (name, repo) VALUES ('p2', 'evil/repo')");
+    denied("UPDATE main.[projects] SET 'repo' = 'evil/repo'");
+  });
+
+  it('refuses DELETE on projects, milestones and epics with the tool to use', () => {
+    expect(denied('DELETE FROM projects WHERE id = 1')).toContain('set_project');
+    expect(denied('DELETE FROM milestones WHERE id = 1')).toContain('update_milestone');
+    expect(denied('DELETE FROM epics WHERE id = 1')).toContain('update_epic');
+    denied('DELETE FROM main."Milestones"');
+    denied('DELETE FROM [epics] WHERE 1');
+  });
+
+  it('still allows the free columns of milestones, epics and projects', () => {
+    allowed("UPDATE milestones SET description = 'd', target_date = '2026-12-01' WHERE id = 1");
+    allowed("UPDATE epics SET color = '#fff', priority = 2 WHERE status = 'active'");
+    allowed("INSERT INTO epics (name, description) VALUES ('e', 'd')");
+  });
+
+  it('a refused milestone or epic DELETE leaves the ON DELETE SET NULL links of tickets alone', () => {
+    const db = scrumDb();
+    try {
+      db.prepare("INSERT INTO epics (id, name) VALUES (1, 'E1')").run();
+      db.prepare('UPDATE tickets SET milestone_id = 1, epic_id = 1 WHERE id = 1').run();
+      // The cascade the gate prevents: on a copy, a DELETE nulls the ticket links.
+      const probe = scrumDb();
+      try {
+        probe.prepare("INSERT INTO epics (id, name) VALUES (1, 'E1')").run();
+        probe.prepare('UPDATE tickets SET milestone_id = 1, epic_id = 1 WHERE id = 1').run();
+        probe.prepare('DELETE FROM epics WHERE id = 1').run();
+        probe.prepare('DELETE FROM milestones WHERE id = 1').run();
+        expect(ticket(probe).milestone_id).toBeNull();
+        expect(ticket(probe).epic_id).toBeNull();
+      } finally {
+        probe.close();
+      }
+      for (const sql of [
+        'DELETE FROM milestones WHERE id = 1',
+        'DELETE FROM epics WHERE id = 1',
+        'DELETE FROM projects WHERE id = 1',
+        "UPDATE milestones SET status = 'completed' WHERE id = 1",
+        "UPDATE projects SET repo = 'evil/repo' WHERE id = 1",
+      ]) {
+        expect(runWriteStatement(db, sql).ok, sql).toBe(false);
+      }
+      expect(ticket(db).milestone_id).toBe(1);
+      expect(ticket(db).epic_id).toBe(1);
+      const m = db.prepare('SELECT status FROM milestones WHERE id = 1').get() as Row;
+      expect(m.status).toBe('planned');
+      const p = db.prepare('SELECT repo FROM projects WHERE id = 1').get() as Row;
+      expect(p.repo).toBe('o/r');
+    } finally {
+      db.close();
+    }
+  });
+});
+
 describe('execute gate columns over MCP stdio (#181)', () => {
   const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
   const TSX_CLI = path.join(REPO_ROOT, 'node_modules/tsx/dist/cli.mjs');
@@ -455,6 +548,7 @@ describe('execute gate columns over MCP stdio (#181)', () => {
     extraEnv: Record<string, string>,
     body: (
       call: (name: string, args: Record<string, unknown>) => Promise<ToolResult>,
+      client: Client,
     ) => Promise<void>,
   ): Promise<void> {
     const base = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'cca37-')));
@@ -475,6 +569,7 @@ describe('execute gate columns over MCP stdio (#181)', () => {
       );
       await body(
         async (name, args) => (await client.callTool({ name, arguments: args })) as ToolResult,
+        client,
       );
     } finally {
       await client.close();
@@ -493,7 +588,18 @@ describe('execute gate columns over MCP stdio (#181)', () => {
   ])(
     '%s: the execute tool refuses the github bypass with a tool error and leaves the row alone',
     async (_label, entry, extraEnv) => {
-      await withServer(entry, extraEnv, async (call) => {
+      await withServer(entry, extraEnv, async (call, client) => {
+        const { tools } = await client.listTools();
+        const desc = tools.find((t) => t.name === 'execute')?.description ?? '';
+        for (const word of [
+          'milestones',
+          'projects.name/repo',
+          'update_milestone',
+          'set_project',
+        ]) {
+          expect(desc).toContain(word);
+        }
+
         const insert = await call('execute', { sql: "INSERT INTO tickets (title) VALUES ('t')" });
         expect(insert.isError ?? false).toBe(false);
 

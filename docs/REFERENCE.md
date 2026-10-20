@@ -1,6 +1,6 @@
 # code-context-mcp reference
 
-The long version. The [README](../README.md) has the short one.
+The long version. The [README](https://github.com/VelimirMueller/code-context-mcp/blob/main/README.md) has the short one.
 
 ## Architecture, the full picture
 
@@ -169,6 +169,7 @@ Since 2.2, the QA gate also checks **commit discipline**: a ticket can't reach `
 
 - **Answers are checked against the disk.** `search_files`, `find_symbol` and `get_file_context` stat every row they return: a changed file is re-indexed and a deleted one dropped _before_ the answer goes out, and each row carries its `indexed_at`. Per repo, a moved git `HEAD` re-indexes exactly the files `git diff --name-only <indexed>..HEAD` lists and says so in one `⚠ STALE` line; above 500 changed files it warns on every call instead of blocking.
 - **Only your code is indexed.** Git checkouts are listed with `git ls-files` (every `.gitignore`, at any depth), on top of a hard deny: `node_modules`, `vendor`, `dist`, `build`, `.next`, `coverage`, Laravel `storage/`, dot-dirs (`.git`, `.worktrees`), lockfiles, minified bundles, source maps, binaries, files over 512 KB (`CODE_CONTEXT_MAX_FILE_KB`).
+- **Secret-shaped files are never indexed.** On top of the dot rule, `isDeniedFileName` refuses these basenames (case-insensitive): the extensions `.pem .key .p12 .pfx .jks .keystore .asc .gpg .tfstate .tfstate.backup .kdbx .ovpn`, and the names `id_rsa*` `id_dsa*` `id_ecdsa*` `id_ed25519*` `credentials` `credentials.json` `credentials.yml` `credentials.yaml` `secrets.yml` `secrets.yaml` `secrets.json` `service-account*.json` `*-service-account*.json` `terraform.tfvars` `*.tfvars` `token.json` `oauth*.json` `.netrc` `.htpasswd` `.pgpass` `.npmrc` `.pypirc` `.git-credentials` `known_hosts` `authorized_keys`. Set `CODE_CONTEXT_INDEX_ALLOW` (comma-separated basenames or `*.ext` globs) to opt a name back in.
 - **`code-context-reindex`** re-indexes every repo under a root: `[--all | <repo>…] [--root <dir>] [--db <file>] [--prune-missing] [--vacuum]`. `--root` defaults to the current directory. A `.code-context-ignore` file in a repo keeps it out (and purges its rows). Exit 0/1.
 - **Fewer tools in context.** The gamification (`record_mood`, `get_mood_trends`, `generate_vision_animation`) and the dashboard live-output stream (`send_step_progress`, `send_claude_output`, `send_claude_step`) are hidden unless `CODE_CONTEXT_TOOLSETS=fun,stream` (or `all`). No data is removed.
 
