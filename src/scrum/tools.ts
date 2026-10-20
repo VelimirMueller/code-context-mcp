@@ -38,6 +38,7 @@ import {
 } from './github-sync.js';
 import { log as slog } from '../sessionlog.js';
 import { writeFileSecure } from '../secure-file.js';
+import { resolveFileInsideAllowedRoots } from '../server/indexer.js';
 import {
   transitionSprint,
   promoteTicketDiscoveries,
@@ -3643,13 +3644,14 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
 
   server.tool(
     'export_to_file',
-    'Export database to a JSON file on disk',
+    'Export database to a JSON file on disk. Path must stay inside the allowed roots (as index_directory); an existing file is replaced only with overwrite: true',
     {
       output_path: z.string().optional().describe('File path (default: ./code-context-dump.json)'),
+      overwrite: z.boolean().optional().describe('Replace an existing file (default: refuse)'),
     },
-    async ({ output_path }) => {
+    async ({ output_path, overwrite }) => {
       try {
-        const filePath = output_path || './code-context-dump.json';
+        const filePath = resolveFileInsideAllowedRoots(output_path || './code-context-dump.json');
 
         const allTables = [
           'agents',
@@ -3683,6 +3685,19 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         };
 
         const json = JSON.stringify(output, null, 2);
+
+        if (existsSync(filePath) && !overwrite) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Error: File exists: ${filePath}. Pass overwrite: true to replace it.`,
+              },
+            ],
+            isError: true,
+          };
+        }
+
         // The dump holds the full db content: 0600, whatever the umask is (#248).
         writeFileSecure(filePath, json);
 
@@ -3709,22 +3724,23 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
 
   server.tool(
     'import_from_file',
-    'Restore database from a JSON dump file on disk. Same rules as restore_database: never replaces an existing row, on_conflict "abort" (default) or "skip", optional dry_run.',
+    'Restore database from a JSON dump file on disk. Path must stay inside the allowed roots (as index_directory). Same rules as restore_database: never replaces an existing row, on_conflict "abort" (default) or "skip", optional dry_run.',
     {
       input_path: z.string().describe('Path to the JSON dump file'),
       ...restoreOptionsShape,
     },
     async ({ input_path, on_conflict, dry_run }) => {
       try {
+        const inputPath = resolveFileInsideAllowedRoots(input_path);
         const fs = await import('fs');
-        if (!fs.existsSync(input_path)) {
+        if (!fs.existsSync(inputPath)) {
           return {
-            content: [{ type: 'text' as const, text: `Error: File not found: ${input_path}` }],
+            content: [{ type: 'text' as const, text: `Error: File not found: ${inputPath}` }],
             isError: true,
           };
         }
 
-        const json = fs.readFileSync(input_path, 'utf-8');
+        const json = fs.readFileSync(inputPath, 'utf-8');
         const dump = JSON.parse(json) as DatabaseDump;
 
         if (!dump.version || !dump.tables) {
@@ -3733,7 +3749,7 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
             isError: true,
           };
         }
-        return restoreResult(db, dump, `# Restore from ${input_path}`, {
+        return restoreResult(db, dump, `# Restore from ${inputPath}`, {
           onConflict: on_conflict,
           dryRun: dry_run,
         });

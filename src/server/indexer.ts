@@ -1276,6 +1276,63 @@ function allowedIndexRoots(): string[] {
   return roots;
 }
 
+/**
+ * Resolve a file path against the same allowed-roots sandbox as
+ * indexDirectory (#250, TM-10): realpath of the parent dir + basename — so a
+ * target that does not exist yet (the export case) resolves too — and a
+ * symlink as the final component resolves as well (a dangling one is
+ * refused). Returns the resolved path, or throws when the path sits outside
+ * every allowed root or escapes it through a symlink.
+ */
+export function resolveFileInsideAllowedRoots(filePath: string): string {
+  const abs = path.resolve(filePath);
+  const realOf = (p: string): string => {
+    try {
+      return fs.realpathSync(p);
+    } catch {
+      return p;
+    }
+  };
+  let target: string;
+  try {
+    target = path.join(fs.realpathSync(path.dirname(abs)), path.basename(abs));
+  } catch {
+    throw new Error(
+      `Refusing to access '${abs}': parent directory not found. ` +
+        `Allowed roots: ${allowedIndexRoots().join(', ')}.`,
+    );
+  }
+  let isLink = false;
+  try {
+    isLink = fs.lstatSync(target).isSymbolicLink();
+  } catch {
+    // Target does not exist yet — the resolved parent decides.
+  }
+  if (isLink) {
+    try {
+      target = fs.realpathSync(target);
+    } catch {
+      throw new Error(`Refusing to access '${abs}': it is a dangling symlink.`);
+    }
+  }
+  const roots = allowedIndexRoots();
+  // Lexical AND resolved, as in indexDirectory: a symlinked path pointing
+  // outside the sandbox is refused.
+  if (
+    !roots.some(
+      (r) =>
+        (isPathInside(abs, r) || isPathInside(abs, realOf(r))) && isPathInside(target, realOf(r)),
+    )
+  ) {
+    throw new Error(
+      `Refusing to access '${abs}': outside the allowed sandbox. ` +
+        `Allowed roots: ${roots.join(', ')}. Set CODE_CONTEXT_ALLOWED_ROOTS ` +
+        `(comma-separated absolute paths) to permit additional locations.`,
+    );
+  }
+  return target;
+}
+
 interface FileStatements {
   upsertFile: Database.Statement;
   getFileId: Database.Statement;
