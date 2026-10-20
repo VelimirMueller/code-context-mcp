@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import http from 'http';
+import { randomBytes } from 'crypto';
 import { execFileSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
@@ -1485,9 +1486,19 @@ function sendRequestError(
 // beside the db so the MCP server finds the same token from any cwd (#235).
 const DASHBOARD_TOKEN = resolveDashboardToken(dashboardTokenRoot(dbPath));
 
+/** A random, per-response nonce that pairs the CSP script-src with the inline scripts. */
+function makeNonce(): string {
+  return randomBytes(16).toString('base64');
+}
+
+/** CSP for every HTML response: same-origin assets and one nonce'd inline script, nothing else. */
+function cspHeader(nonce: string): string {
+  return `default-src 'self'; script-src 'self' 'nonce-${nonce}'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'`;
+}
+
 /** Inject the dashboard token into served HTML so the same-origin app can read it. */
-function injectToken(html: string): string {
-  const tag = `<script>window.__DASHBOARD_TOKEN__=${JSON.stringify(DASHBOARD_TOKEN)};</script>`;
+function injectToken(html: string, nonce: string): string {
+  const tag = `<script nonce="${nonce}">window.__DASHBOARD_TOKEN__=${JSON.stringify(DASHBOARD_TOKEN)};</script>`;
   return html.includes('</head>') ? html.replace('</head>', `${tag}</head>`) : tag + html;
 }
 
@@ -1525,6 +1536,7 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('Access-Control-Allow-Origin', 'http://localhost:' + PORT);
 
   // Bearer-token auth on all /api/* routes (#15b); page + assets stay public so
@@ -2110,16 +2122,20 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     return;
   }
 
-  // SPA fallback: serve index.html for all non-API routes
+  // SPA fallback: serve index.html for all non-API routes. Every HTML response
+  // gets a CSP that allows same-origin scripts plus one per-response nonce; the
+  // inline token script and the legacy page's inline script carry that nonce.
+  const nonce = makeNonce();
+  res.setHeader('Content-Security-Policy', cspHeader(nonce));
+  res.setHeader('Content-Type', 'text/html');
   try {
     const indexHtml = fs.readFileSync(path.join(distDir, 'index.html'), 'utf-8');
-    res.setHeader('Content-Type', 'text/html');
     res.writeHead(200);
-    res.end(injectToken(indexHtml));
+    res.end(injectToken(indexHtml, nonce));
   } catch {
-    res.setHeader('Content-Type', 'text/html');
+    const page = HTML.replace('<script>', `<script nonce="${nonce}">`);
     res.writeHead(200);
-    res.end(injectToken(HTML));
+    res.end(injectToken(page, nonce));
   }
 }
 
