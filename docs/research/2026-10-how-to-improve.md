@@ -9,7 +9,7 @@
 - The GLM success drop (95.8 % → 87.5 %) is mostly a **measurement error**. 5 of the 6 failed cc sessions gave correct answers that the checker rejected. Corrected success: vanilla 95.8 %, cc 95.8 %, cc-guided 100 %.
 - The Opus gain is small for four reasons: Opus checks every tool result again with Grep, Opus vanilla already uses few tokens, n = 1–2 per task, and Claude Code puts a ToolSearch round trip in front of the tools.
 - Real sessions use the sprint process, not the code index: **91 % of 896 code-context calls** in the last 30 days were sprint tools. 54 of 85 sprint tools were never called.
-- The #183 v2 run (Opus, NestJS, both profiles) is **in progress, results pending** (see [v2 run](#the-183-v2-run)).
+- The #183 v2 runs (Opus, NestJS, both profiles) are in: default INCONCLUSIVE (NV −8.3 %), `code` INVALID (treatment 9/12) — see [v2 runs](#the-183-v2-runs). Neither shows a gain.
 
 ## Method
 
@@ -135,17 +135,21 @@ Claude Code transcripts, 2026-09-21 → 2026-10-19. Transcripts older than 30 da
 | 7    | Split the index from the sprint process, and keep the sprint process first-class. Hide the 54 never-called sprint tools behind optional toolsets.                                                                         | Real use is 91 % sprint tools. A sprint profile of ~31 tools instead of 85 cuts its definitions by about two thirds.                                         | L    | yes                 | #179       |
 | 8    | Freeze profiles, tool names and answer formats in the contract tests.                                                                                                                                                     | 2.12.0 cut `code` from 11 to 6 tools in a minor release, so old runs cannot be compared.                                                                     | M    | yes (policy)        | #180       |
 
-## The #183 v2 run
+## The #183 v2 runs
 
-- **Status: in progress, results pending.** Started 2026-10-19 16:56 on this Mac under `caffeinate -i`.
-- Harness: overdrive bench 0.2.1, `run.sh --weekly --model claude-opus-5-5`, NestJS v12.1.1 fixture, PREREGISTRATION v2.
-- Run 1, default profile: log `~/.claude/.local_ai_setup_logs/bench-v2-opus-default-20261019.log`.
-- Run 2, `code` profile (`BENCH_CC_TOOLSETS=code`), queued after run 1: log `~/.claude/.local_ai_setup_logs/bench-v2-opus-code-20261019.log`.
-- Results: `~/.claude/.local_ai_setup_logs/bench/runs/<run_id>.json`. Transcripts: `bench/last-default/` and `bench/last-code/`.
-- Treatment check: in the first cc session the server connected (97 tools listed), and the model made 1 `ToolSearch` and 7 code-context calls.
-- Harness change for this run (bench 0.2.1): the `BENCH_CC_TOOLSETS` env sets the server's `CODE_CONTEXT_TOOLSETS` for the cc arm and is recorded as `config.cc_toolsets`. `who_imports` and `exports_in` were added to the allowlist of both arms. Without that, every call to them would have been denied.
+Both runs are published on `bench-results` (`data/runs/`). Harness: overdrive bench 0.2.1, `run.sh --weekly --model claude-opus-5-5`, NestJS v12.1.1 fixture, PREREGISTRATION v2, n = 3 pairs each, judges DeepSeek v4 pro + GLM 5.3.
 
-## How to update this doc when the v2 run lands
+| Run               | Profile            | Verdict                    | NV [95 % CI]         | Treatment        | Tokens Δ              | Time Δ                 |
+| ----------------- | ------------------ | -------------------------- | -------------------- | ---------------- | --------------------- | ---------------------- |
+| `20261019-165611` | default (97 tools) | INCONCLUSIVE               | −8.3 % [−24.6, +1.8] | 12/12 (62 calls) | +15.3 % [+1.8, +31.1] | +14.2 % [+11.7, +16.2] |
+| `20261020-101641` | `code` (6 tools)   | INVALID (< 80 % treatment) | −9.7 % [−27.3, +1.1] | 9/12 (79 calls)  | +17.2 % [+1.6, +38.4] | +11.4 % [−2.5, +34.6]  |
+
+- Quality is flat in both runs (accuracy 1.000 vs 1.000); the whole NV is cost: Opus spends about 15 % more tokens and time with the server than without, in both profiles.
+- The `code` run did not lower the token Δ, so finding 2 (definition overhead) is not the main cost for Opus on this fixture; finding 3 holds: Opus re-checks tool results with Grep and the `ToolSearch` round trip stays.
+- Three of twelve `code` sessions never called the server at all. With 6 tools the model has less reason to look for them, which is why the run is INVALID rather than a cleaner negative.
+- Ranking after the runs: recommendation 5 (tell the model when to use the tools) moves above 2 and 3 — the two runs show adoption and over-use, not definition overhead, as the lever. Recommendation 1 stays first; #261 tracks the checker fix.
+
+## How to update this doc when a new run lands
 
 1. Read both run files: `verdict`, `valid`, `treatment_received_rate`, `nv`, and `criteria[].delta` for `tokens` and `time`.
 2. Replace the v2 section above with a 2-row table (default, `code`): verdict, NV with CI, treatment rate, token Δ, time Δ.
