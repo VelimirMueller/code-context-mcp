@@ -11,8 +11,8 @@
 // cross-origin attacker cannot read that injected token (same-origin policy)
 // nor call /api/* without it.
 
-import { createHash, randomBytes } from 'node:crypto';
-import { existsSync, readFileSync, writeFileSync, mkdirSync, chmodSync } from 'node:fs';
+import { createHmac, randomBytes } from 'node:crypto';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, chmodSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import type http from 'node:http';
 
@@ -50,13 +50,15 @@ export function resolveDashboardToken(root: string = process.cwd()): string {
   return token;
 }
 
-// ─── Port file + listener proof (#246, TM-05) ────────────────────────────────
+// ─── Port file + challenge-response listener proof (#246, TM-05) ────────────
 // The port a client may send the bearer token to comes from a 0600 file beside
 // the db (written by the dashboard at startup), never from the `_dashboard_port`
 // db row: any db writer (execute, import, restore) can change that row and
 // redirect the token to a listener it controls. Before any token leaves, the
-// client also checks /health: the dashboard answers with its identity and a
-// token fingerprint, so a wrong listener never sees the Authorization header.
+// client sends a fresh nonce on /health and checks the HMAC-SHA256 proof the
+// dashboard answers with, so a wrong listener never sees the Authorization
+// header. The dashboard removes the port file on clean shutdown, so a client
+// never trusts a stale port.
 
 /** File the dashboard writes its actual port to at startup (beside the token). */
 export function dashboardPortFile(root: string = process.cwd()): string {
@@ -86,12 +88,24 @@ export function readDashboardPort(root: string = process.cwd()): string | null {
 }
 
 /**
- * First 8 hex chars of sha256(token) — the listener publishes this on /health
- * so a client can prove it talks to the dashboard that holds the same token.
- * The prefix reveals nothing usable about the token itself.
+ * HMAC-SHA256 proof for a challenge nonce (#246, TM-05). The client sends a
+ * fresh 16-byte nonce on /health; the dashboard answers with this proof, so a
+ * listener that cannot recompute it (it does not hold the token) never sees
+ * the bearer token. The message mixes the client nonce with a fixed domain
+ * string, so a captured proof never matches a new challenge.
  */
-export function tokenFingerprint(token: string): string {
-  return createHash('sha256').update(token).digest('hex').slice(0, 8);
+export function dashboardProof(token: string, nonce: string): string {
+  return createHmac('sha256', token).update(`${nonce}\ncode-context-dashboard`).digest('hex');
+}
+
+/** Remove the port file so a client treats the dashboard as gone (never a stale port). */
+export function removeDashboardPort(root: string = process.cwd()): void {
+  try {
+    const file = dashboardPortFile(root);
+    if (existsSync(file)) rmSync(file);
+  } catch {
+    /* best effort — a missing file already reads as "no dashboard" */
+  }
 }
 
 /** Token from the Authorization: Bearer header, falling back to ?token= (EventSource). */

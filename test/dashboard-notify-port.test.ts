@@ -5,11 +5,15 @@
  * 1. The notify port comes from `.code-context/dashboard.port` (0600, beside
  *    the db) — rewriting the `_dashboard_port` skills row through the db does
  *    not change where the token is sent.
- * 2. A listener on the configured port whose /health answers the wrong
- *    fingerprint never receives the Authorization header.
- * 3. A listener with the correct fingerprint (server + sha256 prefix of the
- *    token) receives the authenticated notify — and the verification is
- *    cached for 60 s, so a second notify skips the /health probe.
+ * 2. Before any token is sent the client challenges the listener with a fresh
+ *    16-byte nonce on /health; only a listener that answers the HMAC-SHA256
+ *    proof of that nonce under the shared token ever receives the header. A
+ *    listener that replays a captured /health value, or that cannot compute
+ *    the HMAC, never does.
+ * 3. There is no verification cache: every authenticated notify is preceded
+ *    by its own challenge.
+ * 4. On clean shutdown the dashboard removes the port file, so the client
+ *    treats it as "no dashboard".
  *
  * All requests go to 127.0.0.1 only; the Host header the listener sees proves it.
  */
@@ -17,7 +21,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { mkdtempSync, rmSync, statSync } from 'node:fs';
+import { mkdtempSync, rmSync, statSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -31,14 +35,14 @@ import {
   writeDashboardPort,
   readDashboardPort,
   dashboardPortFile,
-  tokenFingerprint,
+  dashboardProof,
 } from '../src/dashboard/auth.js';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const ENV = 'CODE_CONTEXT_DASHBOARD_TOKEN';
 const TOKEN = 'notify-test-token-246';
-const FINGERPRINT = tokenFingerprint(TOKEN);
+const SERVER_NAME = 'code-context-dashboard';
 
 interface Captured {
   method: string;
@@ -53,10 +57,15 @@ interface Listener {
   close(): Promise<void>;
 }
 
-/** A tiny capturing dashboard: /health answers `health`, everything else 200 ok. */
-async function startListener(health: Record<string, unknown>): Promise<Listener> {
+/**
+ * A tiny capturing dashboard. `health(url)` builds the /health answer (it sees
+ * the request URL, so it can compute a proof from the challenge nonce); every
+ * other path answers 200 ok.
+ */
+async function startListener(health: (url: URL) => Record<string, unknown>): Promise<Listener> {
   const requests: Captured[] = [];
   const server = http.createServer((req, res) => {
+    const url = new URL(req.url ?? '/', 'http://127.0.0.1');
     req.on('end', () => {
       requests.push({
         method: req.method ?? '',
@@ -64,9 +73,9 @@ async function startListener(health: Record<string, unknown>): Promise<Listener>
         host: req.headers.host,
         authorization: req.headers.authorization,
       });
-      if (req.url === '/health') {
+      if (url.pathname === '/health') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(health));
+        res.end(JSON.stringify(health(url)));
       } else {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end('{"ok":true}');
@@ -79,7 +88,11 @@ async function startListener(health: Record<string, unknown>): Promise<Listener>
   return {
     port: (server.address() as AddressInfo).port,
     requests,
-    close: () => new Promise((resolve) => server.close(() => resolve())),
+    close: () =>
+      new Promise<void>((resolve) => {
+        server.close(() => resolve());
+        server.closeIdleConnections();
+      }),
   };
 }
 
@@ -120,16 +133,26 @@ afterAll(async () => {
   for (const r of roots) rmSync(r, { recursive: true, force: true });
 });
 
+/** A listener that holds the token and computes the correct HMAC proof per nonce. */
+const goodHealth = (url: URL) => ({
+  server: SERVER_NAME,
+  proof: dashboardProof(TOKEN, url.searchParams.get('nonce') ?? ''),
+});
+
+/** A listener that replays a proof captured once from a real /health answer. */
+const CAPTURED_PROOF = dashboardProof(TOKEN, 'deadbeefdeadbeefdeadbeefdeadbeef');
+const replayHealth = () => ({ server: SERVER_NAME, proof: CAPTURED_PROOF });
+
+/** A listener that holds a different token, so its HMAC proof never matches. */
+const wrongHealth = (url: URL) => ({
+  server: SERVER_NAME,
+  proof: dashboardProof('attacker-token', url.searchParams.get('nonce') ?? ''),
+});
+
 describe('dashboard notify port + listener verification (#246)', () => {
   it('ignores the `_dashboard_port` db row and uses the port file beside the db', async () => {
-    const fileListener = await startListener({
-      server: 'code-context-dashboard',
-      token_fingerprint: FINGERPRINT,
-    });
-    const rowListener = await startListener({
-      server: 'code-context-dashboard',
-      token_fingerprint: FINGERPRINT, // correct too: proves the choice is the file, not the row
-    });
+    const fileListener = await startListener(goodHealth);
+    const rowListener = await startListener(goodHealth); // correct too: proves the choice is the file
     listeners.push(fileListener, rowListener);
 
     const db = pointClientAt(fileListener.port);
@@ -151,38 +174,50 @@ describe('dashboard notify port + listener verification (#246)', () => {
     const post = fileListener.requests.find((r) => r.method === 'POST')!;
     expect(post.host).toBe(`127.0.0.1:${fileListener.port}`);
     // The row's listener saw nothing but (at most) its own probe.
-    expect(rowListener.requests.filter((r) => r.url !== '/health')).toEqual([]);
+    expect(rowListener.requests.filter((r) => !r.url.startsWith('/health'))).toEqual([]);
     expect(rowListener.requests.some((r) => r.authorization)).toBe(false);
   });
 
-  it('never sends the Authorization header to a listener with the wrong fingerprint', async () => {
-    const wrongListener = await startListener({
-      server: 'code-context-dashboard',
-      token_fingerprint: tokenFingerprint('attacker-token'), // holds a different token
-    });
+  it('never sends the Authorization header to a listener that replays a captured proof', async () => {
+    const replayListener = await startListener(replayHealth);
+    listeners.push(replayListener);
+
+    const db = pointClientAt(replayListener.port);
+    notifyDashboard(db, { type: 'ticket_created', entityType: 'ticket', entityId: 1 });
+
+    // The client must challenge /health (without auth) and then stop: a static
+    // proof can never match the fresh nonce it sent.
+    expect(
+      await waitFor(() => replayListener.requests.some((r) => r.url.startsWith('/health'))),
+    ).toBe(true);
+    await new Promise((r) => setTimeout(r, 500));
+    expect(replayListener.requests.some((r) => r.method === 'POST')).toBe(false);
+    expect(replayListener.requests.some((r) => r.authorization)).toBe(false);
+  });
+
+  it('never sends the Authorization header to a listener that cannot compute the HMAC', async () => {
+    const wrongListener = await startListener(wrongHealth);
     listeners.push(wrongListener);
 
     const db = pointClientAt(wrongListener.port);
     notifyDashboard(db, { type: 'ticket_created', entityType: 'ticket', entityId: 1 });
 
-    // The client must probe /health (without auth) and then stop.
-    expect(await waitFor(() => wrongListener.requests.some((r) => r.url === '/health'))).toBe(true);
+    expect(
+      await waitFor(() => wrongListener.requests.some((r) => r.url.startsWith('/health'))),
+    ).toBe(true);
     await new Promise((r) => setTimeout(r, 500));
     expect(wrongListener.requests.some((r) => r.method === 'POST')).toBe(false);
     expect(wrongListener.requests.some((r) => r.authorization)).toBe(false);
   });
 
-  it('sends the authenticated notify to a verified listener and caches the check for 60 s', async () => {
-    const goodListener = await startListener({
-      server: 'code-context-dashboard',
-      token_fingerprint: FINGERPRINT,
-    });
+  it('sends the authenticated notify to a verified listener and re-challenges every notify', async () => {
+    const goodListener = await startListener(goodHealth);
     listeners.push(goodListener);
 
     const db = pointClientAt(goodListener.port);
     notifyDashboard(db);
     // First notify must land before the second is issued: the second then runs
-    // entirely on the cached verification (no second /health probe).
+    // its own challenge (there is no cache).
     const firstLanded = () =>
       goodListener.requests.some((r) => r.method === 'POST' && r.url === '/api/notify');
     expect(await waitFor(firstLanded)).toBe(true);
@@ -195,8 +230,8 @@ describe('dashboard notify port + listener verification (#246)', () => {
       expect(r.authorization).toBe(`Bearer ${TOKEN}`);
       expect(r.host).toBe(`127.0.0.1:${goodListener.port}`);
     }
-    // Second notify reused the cached verification: exactly one /health probe.
-    expect(goodListener.requests.filter((r) => r.url === '/health')).toHaveLength(1);
+    // No cache: every notify is preceded by its own /health challenge.
+    expect(goodListener.requests.filter((r) => r.url.startsWith('/health'))).toHaveLength(2);
   });
 });
 
@@ -249,13 +284,23 @@ describe('dashboard /health + port file (spawned dashboard, #246)', () => {
     proc?.kill('SIGKILL');
   });
 
-  it('answers /health without auth with the server identity and the token fingerprint', async () => {
-    const res = await fetch(`${BASE}/health`);
+  it('answers /health without auth with the server identity and a valid proof for the nonce', async () => {
+    const nonce = '0123456789abcdef0123456789abcdef';
+    const res = await fetch(`${BASE}/health?nonce=${nonce}`);
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
-      server: 'code-context-dashboard',
-      token_fingerprint: FINGERPRINT,
+      server: SERVER_NAME,
+      proof: dashboardProof(TOKEN, nonce),
     });
+  });
+
+  it('never publishes a static hash: /health without a nonce has no proof field', async () => {
+    const res = await fetch(`${BASE}/health`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.server).toBe(SERVER_NAME);
+    expect(body).not.toHaveProperty('proof');
+    expect(body).not.toHaveProperty('token_fingerprint');
   });
 
   it('writes the 0600 port file beside the db, and still the row for the UI', () => {
@@ -272,5 +317,13 @@ describe('dashboard /health + port file (spawned dashboard, #246)', () => {
     } finally {
       db.close();
     }
+  });
+
+  it('removes the port file on clean shutdown', async () => {
+    const file = dashboardPortFile(tmpRoot);
+    expect(existsSync(file)).toBe(true);
+    proc.kill('SIGTERM');
+    expect(await waitFor(() => !existsSync(file), 5000)).toBe(true);
+    expect(readDashboardPort(tmpRoot)).toBeNull();
   });
 });

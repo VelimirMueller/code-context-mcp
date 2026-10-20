@@ -2,12 +2,14 @@ import type Database from 'better-sqlite3';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import http from 'node:http';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import {
   dashboardTokenRoot,
   resolveDashboardToken,
   readDashboardPort,
-  tokenFingerprint,
+  dashboardProof,
 } from '../dashboard/auth.js';
 import { formatModelRouting, KNOWN_AGENT_MODELS, modelToTier } from './agent-model.js';
 import {
@@ -75,16 +77,15 @@ import {
   type TicketRow,
 } from './rows.js';
 
-const DASHBOARD_PORT = process.env.DASHBOARD_PORT || '3333';
-
 /**
  * Port a notify call may target (#246): from the 0600 port file the dashboard
  * writes beside the db at startup — never from the `_dashboard_port` db row,
  * which any db writer (execute, import, restore) can change to redirect the
- * bearer token to a listener it controls. Env fallback keeps dev setups.
+ * bearer token to a listener it controls. A missing file means the dashboard
+ * is not running: the caller returns null and sends nothing (no token).
  */
-function resolveDashboardPort(): string {
-  return readDashboardPort(dashboardTokenRoot(dashboardDbPath)) ?? DASHBOARD_PORT;
+function resolveDashboardPort(): string | null {
+  return readDashboardPort(dashboardTokenRoot(dashboardDbPath));
 }
 
 /** Bearer header so MCP→dashboard notify calls authenticate against /api/* (#15b). */
@@ -105,21 +106,77 @@ function dashboardToken(): string {
   return cachedDashboardToken;
 }
 
-function dashboardAuthHeaders(): Record<string, string> {
-  return { Authorization: `Bearer ${dashboardToken()}` };
-}
-
 // ─── Listener verification (#246, TM-05) ────────────────────────────────────
-// Before any Authorization header leaves this process, GET /health (no auth)
-// on 127.0.0.1 only: the listener must answer JSON with
-// server === 'code-context-dashboard' and the fingerprint of OUR token. A
-// port taken over by another process fails the check and never sees the
-// token. The result is cached per (port, token) for 60 s; failures are silent
+// Before any Authorization header leaves this process, the client sends a fresh
+// 16-byte nonce to GET /health (no auth) on 127.0.0.1 only: the listener must
+// answer JSON with server === 'code-context-dashboard' and the HMAC-SHA256
+// proof of (nonce + "\n" + "code-context-dashboard") under OUR token. A port
+// taken over by another process cannot compute the proof and never sees the
+// token. Every authenticated notify is preceded by its own challenge (there is
+// no cache); the two requests share one keep-alive http.Agent so the proof and
+// the token travel on the same socket where possible. Failures stay silent
 // apart from one WARN per process.
 
-const VERIFY_TTL_MS = 60_000;
-let verifiedListener: { port: string; fingerprint: string; ok: boolean; expiresAt: number } | null =
-  null;
+const DASHBOARD_AGENT = new http.Agent({ keepAlive: true, maxSockets: 1 });
+
+interface DashboardResponse {
+  status: number;
+  ok: boolean;
+  json: unknown;
+}
+
+function dashboardRequest(
+  port: string,
+  urlPath: string,
+  opts: {
+    method?: string;
+    headers?: Record<string, string>;
+    body?: string;
+    signal?: AbortSignal;
+    timeoutMs?: number;
+  } = {},
+): Promise<DashboardResponse> {
+  return new Promise((resolve, reject) => {
+    const req = http.request(
+      {
+        host: '127.0.0.1',
+        port: Number(port),
+        path: urlPath,
+        method: opts.method ?? 'GET',
+        headers: opts.headers,
+        agent: DASHBOARD_AGENT,
+        signal: opts.signal,
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk: Buffer) => chunks.push(chunk));
+        res.on('end', () => {
+          const raw = Buffer.concat(chunks).toString('utf8');
+          let json: unknown = null;
+          try {
+            json = JSON.parse(raw);
+          } catch {
+            json = null;
+          }
+          const status = res.statusCode ?? 0;
+          resolve({ status, ok: status >= 200 && status < 300, json });
+        });
+      },
+    );
+    if (!opts.signal)
+      req.setTimeout(opts.timeoutMs ?? 1500, () => req.destroy(new Error('timeout')));
+    req.on('error', reject);
+    if (opts.body !== undefined) req.write(opts.body);
+    req.end();
+  });
+}
+
+function proofMatches(expectedHex: string, actualHex: string): boolean {
+  const expected = Buffer.from(expectedHex, 'hex');
+  const actual = Buffer.from(actualHex, 'hex');
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
+}
+
 let listenerWarned = false;
 
 function warnListenerRejected(port: string, reason: string): void {
@@ -132,50 +189,51 @@ function warnListenerRejected(port: string, reason: string): void {
 }
 
 async function listenerVerified(port: string, token: string): Promise<boolean> {
-  const fingerprint = tokenFingerprint(token);
-  const cached = verifiedListener;
-  if (
-    cached &&
-    cached.port === port &&
-    cached.fingerprint === fingerprint &&
-    cached.expiresAt > Date.now()
-  ) {
-    return cached.ok;
-  }
+  const nonce = randomBytes(16).toString('hex');
   let ok = false;
   let reason = 'unreachable';
   try {
-    const resp = await fetch(`http://127.0.0.1:${port}/health`, {
-      signal: AbortSignal.timeout(1500),
-    });
-    if (!resp.ok) {
-      reason = `health status ${resp.status}`;
+    const health = await dashboardRequest(port, `/health?nonce=${nonce}`, { timeoutMs: 1500 });
+    if (!health.ok) {
+      reason = `health status ${health.status}`;
     } else {
-      const body = (await resp.json()) as { server?: unknown; token_fingerprint?: unknown };
+      const body = health.json as { server?: unknown; proof?: unknown };
       if (body.server !== 'code-context-dashboard') reason = 'wrong server';
-      else if (body.token_fingerprint !== fingerprint) reason = 'token fingerprint mismatch';
+      else if (typeof body.proof !== 'string') reason = 'missing proof';
+      else if (!proofMatches(dashboardProof(token, nonce), body.proof)) reason = 'proof mismatch';
       else ok = true;
     }
   } catch (e) {
     reason = errorClass(e);
   }
-  verifiedListener = { port, fingerprint, ok, expiresAt: Date.now() + VERIFY_TTL_MS };
   if (!ok) warnListenerRejected(port, reason);
   return ok;
 }
 
 /**
  * Authenticated dashboard request (#246): 127.0.0.1 only, and only after the
- * listener proved it holds the same token. Resolves null when the request was
- * not sent; network errors on a verified listener reject as usual.
+ * listener proved it holds the same token via the challenge. Resolves null when
+ * the request was not sent; network errors on a verified listener reject as
+ * usual. The challenge and the request share DASHBOARD_AGENT, so the proof and
+ * the token travel on the same keep-alive socket where possible.
  */
 async function verifiedDashboardFetch(
   port: string,
   urlPath: string,
-  init?: RequestInit,
-): Promise<Response | null> {
+  init: RequestInit = {},
+): Promise<DashboardResponse | null> {
   if (!(await listenerVerified(port, dashboardToken()))) return null;
-  return fetch(`http://127.0.0.1:${port}${urlPath}`, init);
+  const token = dashboardToken();
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+    ...((init.headers ?? {}) as Record<string, string>),
+  };
+  return dashboardRequest(port, urlPath, {
+    method: init.method,
+    headers,
+    body: typeof init.body === 'string' ? init.body : undefined,
+    signal: init.signal ?? undefined,
+  });
 }
 
 interface DashboardEvent {
@@ -198,17 +256,17 @@ interface DashboardEvent {
 export function notifyDashboard(_db: Database.Database, event?: DashboardEvent): void {
   try {
     const port = resolveDashboardPort();
+    if (!port) return; // no port file → no dashboard → never send the token
     if (event) {
       // Send typed event directly to dashboard SSE
       verifiedDashboardFetch(port, '/api/notify/event', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...dashboardAuthHeaders() },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(event),
       }).catch(() => {});
     } else {
       verifiedDashboardFetch(port, '/api/notify', {
         method: 'POST',
-        headers: dashboardAuthHeaders(),
       }).catch(() => {});
     }
   } catch {}
@@ -5828,14 +5886,15 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
         // Check if dashboard is running (port from the file beside the db, #246)
         const dashPort = resolveDashboardPort();
         let dashboardUp = false;
-        try {
-          const resp = await verifiedDashboardFetch(dashPort, '/api/bridge/status', {
-            signal: AbortSignal.timeout(500),
-            headers: dashboardAuthHeaders(),
-          });
-          dashboardUp = !!resp && resp.ok;
-        } catch {
-          /* dashboard not running */
+        if (dashPort) {
+          try {
+            const resp = await verifiedDashboardFetch(dashPort, '/api/bridge/status', {
+              signal: AbortSignal.timeout(500),
+            });
+            dashboardUp = !!resp && resp.ok;
+          } catch {
+            /* dashboard not running */
+          }
         }
 
         if (!dashboardUp) {
@@ -6025,17 +6084,19 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     async ({ text, line_type, step }) => {
       try {
         const port = resolveDashboardPort();
-        try {
-          await verifiedDashboardFetch(port, '/api/claude-output', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...dashboardAuthHeaders() },
-            body: JSON.stringify({
-              text: text.slice(0, 5000),
-              lineType: line_type || 'text',
-              step: step || undefined,
-            }),
-          }).catch(() => {});
-        } catch {}
+        if (port) {
+          try {
+            await verifiedDashboardFetch(port, '/api/claude-output', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                text: text.slice(0, 5000),
+                lineType: line_type || 'text',
+                step: step || undefined,
+              }),
+            }).catch(() => {});
+          } catch {}
+        }
         return {
           content: [
             {
@@ -6065,18 +6126,20 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
     async ({ name, status, title, description }) => {
       try {
         const port = resolveDashboardPort();
-        try {
-          await verifiedDashboardFetch(port, '/api/claude-step', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...dashboardAuthHeaders() },
-            body: JSON.stringify({
-              name,
-              status,
-              title: title || undefined,
-              description: description || undefined,
-            }),
-          }).catch(() => {});
-        } catch {}
+        if (port) {
+          try {
+            await verifiedDashboardFetch(port, '/api/claude-step', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name,
+                status,
+                title: title || undefined,
+                description: description || undefined,
+              }),
+            }).catch(() => {});
+          } catch {}
+        }
         return { content: [{ type: 'text' as const, text: `Step '${name}' status: ${status}` }] };
       } catch (e) {
         return {
