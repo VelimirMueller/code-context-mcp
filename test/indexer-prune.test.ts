@@ -146,3 +146,65 @@ describe('Indexer prune: deleted files and directories leave the index', () => {
     expect(filePaths()).toEqual(before);
   });
 });
+
+describe('Indexer prune: secret-shaped files', () => {
+  let root: string;
+  let db: Database.Database;
+
+  const write = (rel: string, content: string): string => {
+    const full = path.join(root, rel);
+    mkdirSync(path.dirname(full), { recursive: true });
+    writeFileSync(full, content);
+    return full;
+  };
+
+  const filePaths = () =>
+    (db.prepare('SELECT path FROM files ORDER BY path').all() as { path: string }[]).map(
+      (r) => r.path,
+    );
+
+  beforeEach(() => {
+    root = realpathSync(mkdtempSync(path.join(tmpdir(), 'cc-secret-')));
+    process.env.CODE_CONTEXT_ALLOWED_ROOTS = root;
+    db = createTestDb();
+  });
+
+  afterEach(() => {
+    delete process.env.CODE_CONTEXT_ALLOWED_ROOTS;
+    delete process.env.CODE_CONTEXT_INDEX_ALLOW;
+    db.close();
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('never indexes secret-shaped files', () => {
+    const rsa = write('id_rsa', '-----BEGIN RSA PRIVATE KEY-----\nsecret\n');
+    const pem = write('app.pem', '-----BEGIN CERTIFICATE-----\nsecret\n');
+    write('a.ts', 'export const a = 1;\n');
+
+    const stats = indexDirectory(db, root);
+
+    expect(stats.files).toBe(1);
+    expect(filePaths()).not.toContain(rsa);
+    expect(filePaths()).not.toContain(pem);
+  });
+
+  it('drops rows for files the policy now refuses on reindex', () => {
+    const rsa = write('id_rsa', '-----BEGIN RSA PRIVATE KEY-----\nsecret\n');
+    const pem = write('app.pem', '-----BEGIN CERTIFICATE-----\nsecret\n');
+    write('a.ts', 'export const a = 1;\n');
+
+    // Permissive stub: opt the two secret-shaped files back in, index them.
+    process.env.CODE_CONTEXT_INDEX_ALLOW = 'id_rsa,*.pem';
+    indexDirectory(db, root);
+    expect(filePaths()).toContain(rsa);
+    expect(filePaths()).toContain(pem);
+
+    // The stub is gone: the next index refuses both and prunes their rows.
+    delete process.env.CODE_CONTEXT_INDEX_ALLOW;
+    const stats = indexDirectory(db, root);
+
+    expect(stats.prunedFiles).toBe(2);
+    expect(filePaths()).not.toContain(rsa);
+    expect(filePaths()).not.toContain(pem);
+  });
+});

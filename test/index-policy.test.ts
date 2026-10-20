@@ -97,3 +97,94 @@ describe('index policy: hard default deny', () => {
     expect(looksBinary(Buffer.from('plain text'))).toBe(false);
   });
 });
+
+describe('index policy: secret-shaped files', () => {
+  afterEach(() => {
+    delete process.env.CODE_CONTEXT_INDEX_ALLOW;
+  });
+
+  it('denies secret extensions, including the multi-dot tfstate backup', () => {
+    for (const n of [
+      'app.pem',
+      'server.key',
+      'keystore.p12',
+      'cert.pfx',
+      'trust.jks',
+      'ca.keystore',
+      'key.asc',
+      'key.gpg',
+      'terraform.tfstate',
+      'terraform.tfstate.backup',
+      'vault.kdbx',
+      'vpn.ovpn',
+    ]) {
+      expect(isDeniedFileName(n), n).toBe(true);
+    }
+    for (const n of ['app.pom', 'server.py', 'terraform.tf', 'data.kdb', 'notes.txt']) {
+      expect(isDeniedFileName(n), n).toBe(false);
+    }
+  });
+
+  it('denies secret basenames: ssh keys, credentials, secrets, service accounts, tfvars, oauth', () => {
+    for (const n of [
+      'id_rsa',
+      'id_rsa.pub',
+      'id_dsa',
+      'id_ecdsa',
+      'id_ed25519',
+      'id_rsa_old',
+      'credentials',
+      'credentials.json',
+      'credentials.yml',
+      'credentials.yaml',
+      'secrets.yml',
+      'secrets.yaml',
+      'secrets.json',
+      'service-account.json',
+      'service-account-prod.json',
+      'my-service-account-prod.json',
+      'terraform.tfvars',
+      'staging.tfvars',
+      'token.json',
+      'oauth.json',
+      'oauth-token.json',
+      'known_hosts',
+      'authorized_keys',
+    ]) {
+      expect(isDeniedFileName(n), n).toBe(true);
+    }
+    for (const n of [
+      'id.rsa',
+      'credential.json',
+      'secret.yml',
+      'account.json',
+      'oauth.py',
+      'token.ts',
+    ]) {
+      expect(isDeniedFileName(n), n).toBe(false);
+    }
+  });
+
+  it('matches case-insensitively', () => {
+    for (const n of ['ID_RSA', 'App.PEM', 'Credentials.JSON', 'Terraform.TFSTATE.BACKUP']) {
+      expect(isDeniedFileName(n), n).toBe(true);
+    }
+  });
+
+  it('CODE_CONTEXT_INDEX_ALLOW opts a name back in (basename or *.ext glob)', () => {
+    process.env.CODE_CONTEXT_INDEX_ALLOW = '*.pem, id_rsa, credentials.json';
+    for (const n of ['app.pem', 'id_rsa', 'credentials.json']) {
+      expect(isDeniedFileName(n), n).toBe(false);
+    }
+    for (const n of ['server.key', 'id_dsa', 'secrets.json', 'known_hosts']) {
+      expect(isDeniedFileName(n), n).toBe(true);
+    }
+  });
+
+  it('CODE_CONTEXT_INDEX_ALLOW never opts a dotfile back in', () => {
+    process.env.CODE_CONTEXT_INDEX_ALLOW = '.env, .netrc, *.pem';
+    for (const n of ['.env', '.netrc', '.npmrc']) {
+      expect(isDeniedFileName(n), n).toBe(true);
+    }
+  });
+});

@@ -102,6 +102,100 @@ export const LOCKFILE_NAMES: ReadonlySet<string> = new Set([
 
 export const SKIP_FILE_NAMES: ReadonlySet<string> = new Set(['.DS_Store', 'Thumbs.db', '.gitkeep']);
 
+/**
+ * Secret-shaped files the indexer refuses outright (threat model TM-09). Their
+ * full content would otherwise land in `context.db` and be returned by
+ * search_files, get_file_context and /api/file/:id — copying secrets into a
+ * second file with weaker protection and into agent context. Matched on the
+ * basename, case-insensitive. `CODE_CONTEXT_INDEX_ALLOW` opts a name back in.
+ *
+ * Extensions:  .pem .key .p12 .pfx .jks .keystore .asc .gpg .tfstate
+ *              .tfstate.backup .kdbx .ovpn
+ * Names:       id_rsa* id_dsa* id_ecdsa* id_ed25519*
+ *              credentials credentials.json credentials.yml credentials.yaml
+ *              secrets.yml secrets.yaml secrets.json
+ *              service-account*.json *-service-account*.json
+ *              terraform.tfvars *.tfvars token.json oauth*.json
+ *              .netrc .htpasswd .pgpass .npmrc .pypirc .git-credentials
+ *              known_hosts authorized_keys
+ *
+ * The dot-prefixed names above are already caught by the historic dot rule in
+ * isDeniedFileName; they stay in the list so the documented list and the code
+ * do not drift. `.tfstate.backup` is a multi-dot suffix, not an extname.
+ */
+export const SECRET_EXTENSIONS: ReadonlySet<string> = new Set([
+  '.pem',
+  '.key',
+  '.p12',
+  '.pfx',
+  '.jks',
+  '.keystore',
+  '.asc',
+  '.gpg',
+  '.tfstate',
+  '.kdbx',
+  '.ovpn',
+]);
+
+export const SECRET_FILE_NAMES: ReadonlySet<string> = new Set([
+  'credentials',
+  'credentials.json',
+  'credentials.yml',
+  'credentials.yaml',
+  'secrets.yml',
+  'secrets.yaml',
+  'secrets.json',
+  '.netrc',
+  '.htpasswd',
+  '.pgpass',
+  '.npmrc',
+  '.pypirc',
+  '.git-credentials',
+  'known_hosts',
+  'authorized_keys',
+  'terraform.tfvars',
+  'token.json',
+]);
+
+/** Basename prefixes that are secret material whatever follows (`id_rsa.pub`, `id_rsa-…`). */
+const SECRET_NAME_PREFIXES = ['id_rsa', 'id_dsa', 'id_ecdsa', 'id_ed25519'];
+
+/** Multi-dot suffixes `path.extname` would not return (`terraform.tfstate.backup`). */
+const SECRET_SUFFIXES = ['.tfstate.backup'];
+
+/** True when a lowercased basename is secret-shaped (extension, prefix, exact, glob). */
+function isSecretShaped(lower: string): boolean {
+  if (SECRET_EXTENSIONS.has(path.extname(lower))) return true;
+  if (SECRET_SUFFIXES.some((s) => lower.endsWith(s))) return true;
+  if (SECRET_FILE_NAMES.has(lower)) return true;
+  if (SECRET_NAME_PREFIXES.some((p) => lower.startsWith(p))) return true;
+  if (lower.endsWith('.tfvars')) return true;
+  if (lower.startsWith('oauth') && lower.endsWith('.json')) return true;
+  if (
+    lower.endsWith('.json') &&
+    (lower.startsWith('service-account') || lower.includes('-service-account'))
+  )
+    return true;
+  return false;
+}
+
+/** `CODE_CONTEXT_INDEX_ALLOW`: comma-separated basenames or `*.ext` globs that opt a name back in. */
+function allowedByEnv(name: string): boolean {
+  const raw = process.env.CODE_CONTEXT_INDEX_ALLOW;
+  if (!raw || !raw.trim()) return false;
+  const lower = name.toLowerCase();
+  for (const entry of raw.split(',')) {
+    const p = entry.trim().toLowerCase();
+    if (!p) continue;
+    if (p.startsWith('*.')) {
+      if (lower.endsWith(p.slice(1))) return true;
+    } else if (p === lower) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /** Minified bundles and source maps are build output even when committed. */
 const GENERATED_SUFFIXES = [
   '.min.js',
@@ -137,7 +231,9 @@ export function isDeniedFileName(name: string): boolean {
   const lower = name.toLowerCase();
   if (SKIP_FILES_LOWER.has(lower) || LOCKFILES_LOWER.has(lower)) return true;
   if (BINARY_EXTENSIONS.has(path.extname(lower))) return true;
-  return GENERATED_SUFFIXES.some((s) => lower.endsWith(s));
+  if (GENERATED_SUFFIXES.some((s) => lower.endsWith(s))) return true;
+  if (!allowedByEnv(lower) && isSecretShaped(lower)) return true;
+  return false;
 }
 
 const laravelCache = new Map<string, boolean>();
