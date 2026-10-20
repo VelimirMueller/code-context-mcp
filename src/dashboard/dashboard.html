@@ -2151,15 +2151,7 @@
         </div>
       </div>
 
-      <button
-        class="landing-enter"
-        onclick="
-          document.getElementById('landing').classList.add('hidden');
-          setTimeout(() => (document.getElementById('landing').style.display = 'none'), 600);
-        "
-      >
-        Enter Dashboard
-      </button>
+      <button class="landing-enter" id="landing-enter">Enter Dashboard</button>
       <div class="landing-version">v2.0.0 — 28 MCP tools · 9 agents · 14 tables</div>
     </div>
 
@@ -3226,9 +3218,19 @@
         return d.innerHTML;
       }
 
+      function escapeHtml(s) {
+        return String(s)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
       function simpleMarkdown(md) {
         if (!md) return '<div class="empty">No content available.</div>';
-        return md
+        const escaped = escapeHtml(md);
+        return escaped
           .replace(/^### (.+)/gm, '<h3>$1</h3>')
           .replace(/^## (.+)/gm, '<h2>$1</h2>')
           .replace(/^# (.+)/gm, '<h1>$1</h1>')
@@ -3272,7 +3274,7 @@
               const hasRetro = (s.retro_count || 0) > 0;
               const noBlockers = (s.open_blockers || 0) === 0;
               const healthy = allDone && allQa && hasRetro && noBlockers;
-              return `<div class="sprint-card" data-sid="${s.id}" onclick="loadSprintBoard(${s.id},this)">
+              return `<div class="sprint-card" data-sid="${Number(s.id)}">
         <div class="sprint-card-name">${esc(s.name)} ${healthy ? '<span style="color:var(--accent);font-size:11px;">✓ complete</span>' : ''}</div>
         <div class="sprint-card-meta"><span style="${statusCls};font-weight:600;text-transform:uppercase;">${s.status}</span><span>${s.done_count}/${s.ticket_count} tickets</span><span>${s.velocity_completed || 0}/${s.velocity_committed || 0} pts</span></div>
         <div class="sprint-card-bar"><div class="sprint-card-bar-fill" style="width:${pct}%"></div></div>
@@ -3359,7 +3361,7 @@
       <div style="font-size:12px;font-weight:600;color:var(--accent);">${Math.round(doneRatio * 100)}%</div>
     </div>`;
 
-          html += `<div class="pill-tabs"><div class="pill-tab active" onclick="showBoardView('tickets',this)">Implementation</div><div class="pill-tab" onclick="showBoardView('planning',this)">Planning</div><div class="pill-tab" onclick="showBoardView('qa',this)">QA</div><div class="pill-tab" onclick="showBoardView('retro',this)">Retro</div></div>`;
+          html += `<div class="pill-tabs"><div class="pill-tab active" data-view="tickets">Implementation</div><div class="pill-tab" data-view="planning">Planning</div><div class="pill-tab" data-view="qa">QA</div><div class="pill-tab" data-view="retro">Retro</div></div>`;
           html += '<div id="board-view"></div>';
 
           // Store data then render kanban as default view
@@ -3471,7 +3473,7 @@
             h += `<div class="kanban-col"><div class="kanban-col-hdr"><span style="color:${cfg.c}">${cfg.l}</span><span class="kanban-cnt">${ct.length} · ${pts}sp</span></div>`;
             ct.forEach((t) => {
               const hasDetails = t.description || t.acceptance_criteria;
-              h += `<div class="kanban-card" ${hasDetails ? 'onclick="this.querySelector(\'.kc-details\').classList.toggle(\'kc-open\')" style="cursor:pointer;"' : ''}><div class="kanban-card-ref">${esc(t.ticket_ref || '#' + t.id)} <span style="padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;background:${pC[t.priority] || '#6b7280'};color:white;">${esc(t.priority)}</span></div><div class="kanban-card-title">${esc(t.title)}</div><div class="kanban-card-meta"><span>${esc(t.assigned_to || '—')}</span><span>${t.story_points || 0}sp</span>${t.qa_verified ? '<span style="color:var(--accent);">✓QA</span>' : ''}</div>`;
+              h += `<div class="kanban-card" ${hasDetails ? 'data-toggle="kc-details" style="cursor:pointer;"' : ''}><div class="kanban-card-ref">${esc(t.ticket_ref || '#' + t.id)} <span style="padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;background:${pC[t.priority] || '#6b7280'};color:white;">${esc(t.priority)}</span></div><div class="kanban-card-title">${esc(t.title)}</div><div class="kanban-card-meta"><span>${esc(t.assigned_to || '—')}</span><span>${t.story_points || 0}sp</span>${t.qa_verified ? '<span style="color:var(--accent);">✓QA</span>' : ''}</div>`;
               if (hasDetails) {
                 h += `<div class="kc-details" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:12px;color:var(--text2);">`;
                 if (t.description)
@@ -3851,6 +3853,24 @@
           });
         }
       };
+      // CSP (#252): no inline event handlers. One delegated listener covers the
+      // landing button, sprint cards, board view pills and kanban card toggles.
+      document.addEventListener('click', (e) => {
+        const t = e.target instanceof Element ? e.target : null;
+        if (!t) return;
+        if (t.closest('#landing-enter')) {
+          const l = document.getElementById('landing');
+          l.classList.add('hidden');
+          setTimeout(() => (l.style.display = 'none'), 600);
+          return;
+        }
+        const card = t.closest('.sprint-card[data-sid]');
+        if (card) return loadSprintBoard(Number(card.dataset.sid), card);
+        const pill = t.closest('.pill-tab[data-view]');
+        if (pill) return showBoardView(pill.dataset.view, pill);
+        const kc = t.closest('.kanban-card[data-toggle]');
+        if (kc) kc.querySelector('.kc-details').classList.toggle('kc-open');
+      });
     </script>
   </body>
 </html>
