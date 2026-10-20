@@ -1,6 +1,6 @@
 # code-context-mcp reference
 
-The long version. The [README](../README.md) has the short one.
+The long version. The [README](https://github.com/VelimirMueller/code-context-mcp/blob/main/README.md) has the short one.
 
 ## Architecture, the full picture
 
