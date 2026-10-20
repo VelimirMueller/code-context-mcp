@@ -53,6 +53,7 @@ function logRejected(
 import {
   validateEnum,
   validateColor,
+  badRequest,
   ALLOWED_AGENT_MODELS,
   DEFAULT_AGENT_MODEL,
 } from './handlers/validation.js';
@@ -80,6 +81,12 @@ import {
   restoreTables,
   type RestoreSummary,
 } from '../scrum/restore.js';
+import {
+  FORWARDED_BRIDGE_ACTIONS,
+  UI_ONLY_BRIDGE_ACTIONS,
+  checkForwardedBridgeAction,
+  isForwardedBridgeAction,
+} from '../bridge/actions.js';
 
 // Read version from package.json
 const PKG_VERSION = (() => {
@@ -795,20 +802,12 @@ function apiBridgeActions(status: string) {
     .all(status);
 }
 
-// Ceremony actions (run_kickoff, run_retro, run_review) remain in this allow list so the
-// dashboard UI can queue them. However, the terminal bridge hook (src/bridge/hook.ts) filters
-// them out — ceremonies are UI-only and never forwarded to the CLI.
-const ALLOWED_BRIDGE_ACTIONS = [
-  'advance_sprint',
-  'assign_ticket',
-  'update_ticket',
-  'create_ticket',
-  'run_retro',
-  'run_review',
-  'run_kickoff',
-  'plan_sprint',
-  'custom',
-  'request_input',
+// The hook (src/bridge/hook.ts) forwards only FORWARDED_BRIDGE_ACTIONS to the agent, each
+// against its strict schema; run_retro, run_review and request_input are UI-only. There is
+// no free-form action (`custom` was removed in 3.0.0, #244).
+const ALLOWED_BRIDGE_ACTIONS: readonly string[] = [
+  ...FORWARDED_BRIDGE_ACTIONS,
+  ...UI_ONLY_BRIDGE_ACTIONS,
 ];
 
 function apiCreateBridgeAction(body: z.infer<typeof BridgeActionBody>) {
@@ -817,6 +816,10 @@ function apiCreateBridgeAction(body: z.infer<typeof BridgeActionBody>) {
       new Error(`unknown action. Allowed: ${ALLOWED_BRIDGE_ACTIONS.join(', ')}`),
       { status: 400 },
     );
+  }
+  if (isForwardedBridgeAction(body.action)) {
+    const check = checkForwardedBridgeAction(body);
+    if (!check.ok) throw badRequest(check.error);
   }
   const result = writeDb
     .prepare(
