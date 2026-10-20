@@ -797,7 +797,11 @@ server.tool(
 // ─── Tool: execute (escape hatch) ────────────────────────────────────────────
 server.tool(
   'execute',
-  'Run an INSERT, UPDATE, or DELETE against the context database',
+  'Run an INSERT, UPDATE, or DELETE against the context database. Refused: writes to gate columns ' +
+    '(status of tickets/sprints/milestones/epics, tickets.qa_verified/verified_by/deleted_at, ' +
+    'sprints.deleted_at/archived_at, milestones/epics.archived_at, projects.name/repo, github_* of tickets/milestones/projects), ' +
+    'REPLACE, and DELETE on tickets/sprints/milestones/epics/projects. Use update_ticket, ' +
+    'update_sprint/advance_sprint, update_milestone, update_epic, set_project or sync_github instead.',
   {
     sql: z
       .string()
