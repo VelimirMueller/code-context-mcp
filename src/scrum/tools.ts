@@ -37,6 +37,7 @@ import {
   unknownProject,
 } from './github-sync.js';
 import { log as slog } from '../sessionlog.js';
+import { writeFileSecure } from '../secure-file.js';
 import {
   transitionSprint,
   promoteTicketDiscoveries,
@@ -3681,9 +3682,9 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
           tables: dump,
         };
 
-        const fs = await import('fs');
         const json = JSON.stringify(output, null, 2);
-        fs.writeFileSync(filePath, json);
+        // The dump holds the full db content: 0600, whatever the umask is (#248).
+        writeFileSecure(filePath, json);
 
         const sizeMB = (Buffer.byteLength(json) / 1024 / 1024).toFixed(2);
         const tableCount = Object.keys(dump).filter((k) => dump[k].length > 0).length;

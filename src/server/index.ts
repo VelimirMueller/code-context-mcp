@@ -19,6 +19,7 @@ import { checkDistFreshness, registerScrumTools, setDashboardDbPath } from '../s
 import { seedDefaults } from '../scrum/defaults.js';
 import { syncSkillsFromUpstream } from '../scrum/skill-sync.js';
 import { log as slog, errorClass, logToolExceptions } from '../sessionlog.js';
+import { openDbSecure } from '../secure-file.js';
 import { FreshnessGuard, freshnessNotice, type FreshRow } from './freshness.js';
 import { instrumentTools, toolFilter, serverInstructions, showTimestamps } from './tool-wrap.js';
 import { formatIndexSummary } from './index-summary.js';
@@ -51,7 +52,7 @@ if (!isFreshDb) {
 let db: Database.Database;
 let preMigrationVersion: number;
 try {
-  db = new Database(resolvedDbPath);
+  db = openDbSecure(resolvedDbPath);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   // The reindex CLI and the dashboard write the same file; wait for their

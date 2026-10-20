@@ -28,6 +28,7 @@ import { makeWatchIgnorePredicate, WATCH_DIR_WARN_THRESHOLD } from '../shared/ig
 import { codeHandlers, sprintHandlers, benchHandlers, planningHandlers } from './handlers/index.js';
 import { gitArgs } from '../server/git.js';
 import { log as slog, errorClass, logThrottled } from '../sessionlog.js';
+import { openDbSecure } from '../secure-file.js';
 
 /** Rejected-request breadcrumb, at most one per status+path per minute (anyone local can trigger these). */
 function logRejected(
@@ -121,7 +122,7 @@ if (!isFreshDb) {
 
 let writeDb: Database.Database;
 try {
-  writeDb = new Database(dbPath);
+  writeDb = openDbSecure(dbPath);
   writeDb.pragma('journal_mode = WAL');
   writeDb.pragma('foreign_keys = ON');
 
