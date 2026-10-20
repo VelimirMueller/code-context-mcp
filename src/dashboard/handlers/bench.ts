@@ -32,6 +32,7 @@
 import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { gitArgs } from '../../server/git.js';
 
 export const BENCH_DIR_ENV = 'CODE_CONTEXT_BENCH_DIR';
 export const BENCH_PRIVATE_DIRS_ENV = 'CODE_CONTEXT_BENCH_PRIVATE_DIRS';
@@ -90,7 +91,7 @@ function runGit(cwd: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile(
       'git',
-      args,
+      gitArgs(args),
       {
         cwd,
         timeout: GIT_TIMEOUT_MS,

@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3';
 import { execFileSync } from 'node:child_process';
 import { getEnabledSkillSets, SKILL_SETS, type SkillSetDef } from './skill-sets.js';
+import { gitArgs } from '../server/git.js';
 
 /** Read one skill's full content by name. Returns null if the skill is absent or has no content. */
 export function getSkillContent(db: Database.Database, name: string): string | null {
@@ -254,7 +255,7 @@ export function checkCommitFormat(
   });
 
   const git = (args: string[]): string =>
-    execFileSync('git', args, {
+    execFileSync('git', gitArgs(args), {
       cwd,
       timeout,
       encoding: 'utf-8',

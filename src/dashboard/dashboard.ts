@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import http from 'http';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -26,6 +26,7 @@ import {
 } from './auth.js';
 import { makeWatchIgnorePredicate, WATCH_DIR_WARN_THRESHOLD } from '../shared/ignore.js';
 import { codeHandlers, sprintHandlers, benchHandlers, planningHandlers } from './handlers/index.js';
+import { gitArgs } from '../server/git.js';
 import { log as slog, errorClass, logThrottled } from '../sessionlog.js';
 
 /** Rejected-request breadcrumb, at most one per status+path per minute (anyone local can trigger these). */
@@ -742,7 +743,9 @@ function apiHealth() {
   try {
     // Try to get git commit hash
     try {
-      buildHash = execSync('git rev-parse --short HEAD', { encoding: 'utf-8' }).trim();
+      buildHash = execFileSync('git', gitArgs(['rev-parse', '--short', 'HEAD']), {
+        encoding: 'utf-8',
+      }).trim();
     } catch {
       // Fallback to package.json version
       const pkgPath = path.resolve(process.cwd(), 'package.json');
