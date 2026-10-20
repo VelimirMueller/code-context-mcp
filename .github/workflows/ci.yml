@@ -37,6 +37,8 @@ jobs:
       - run: npm test
       - run: npm run test:frontend
       - run: npm run build
+      # Dist assets must not carry the dashboard token (#247).
+      - run: npm run check:dist-token
 
   lint:
     runs-on: ubuntu-latest
