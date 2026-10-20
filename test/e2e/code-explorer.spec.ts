@@ -1,5 +1,4 @@
-import { test, expect } from '@playwright/test';
-import { openApp } from './helpers';
+import { test, expect, openApp } from './helpers';
 
 /**
  * E2E tests for the Code Explorer page.

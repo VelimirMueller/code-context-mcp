@@ -3,8 +3,8 @@
 //
 // `vite build` used to inline VITE_DASHBOARD_TOKEN into the assets because the
 // dashboard wrote it to app/.env.local; npm 2.13.0 published a test token that
-// way. token.ts reads the env var only behind import.meta.env.DEV now, so a
-// production build drops it — this script holds that line. It scans every file
+// way. The app reads no token at all since #243 (the browser uses an HttpOnly
+// cookie) — this script holds that line. It scans every file
 // under dist/dashboard/assets for:
 //   - the current dashboard token: CODE_CONTEXT_DASHBOARD_TOKEN, or
 //     .code-context/dashboard.token beside the db (VITE_DASHBOARD_DB or
@@ -12,8 +12,7 @@
 //     src/dashboard/auth.ts, but an existing file only; nothing is generated);
 //   - a 64-hex string within 200 chars of __DASHBOARD_TOKEN__ or
 //     VITE_DASHBOARD_TOKEN — the shape an inlined token leaves behind. The
-//     markers alone are fine: the production code reads
-//     window.__DASHBOARD_TOKEN__, so the name appears without a value.
+//     markers alone are fine: a name without a value leaks nothing.
 //
 // Usage: node scripts/check-dist-token.mjs [assetsDir]
 // Exit 0 when the assets are clean, 1 when a token leaked, 2 on a setup error.

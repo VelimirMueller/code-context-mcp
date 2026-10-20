@@ -21,9 +21,19 @@ import { seedDefaults } from '../scrum/defaults.js';
 import {
   dashboardTokenRoot,
   resolveDashboardToken,
-  isAuthorized,
+  authenticate,
+  isPublicPath,
   isAllowedHost,
   isAllowedOrigin,
+  isAllowedCookieRequest,
+  sessionCookieHeader,
+  clearSessionCookieHeader,
+  sessionCookieName,
+  readCookie,
+  Sessions,
+  LaunchCodes,
+  LAUNCH_PATH,
+  LAUNCH_CODE_TTL_MS,
   dashboardProof,
   writeDashboardPort,
   removeDashboardPort,
@@ -53,6 +63,7 @@ function logRejected(
 import {
   validateEnum,
   validateColor,
+  badRequest,
   ALLOWED_AGENT_MODELS,
   DEFAULT_AGENT_MODEL,
 } from './handlers/validation.js';
@@ -80,6 +91,12 @@ import {
   restoreTables,
   type RestoreSummary,
 } from '../scrum/restore.js';
+import {
+  FORWARDED_BRIDGE_ACTIONS,
+  UI_ONLY_BRIDGE_ACTIONS,
+  checkForwardedBridgeAction,
+  isForwardedBridgeAction,
+} from '../bridge/actions.js';
 
 // Read version from package.json
 const PKG_VERSION = (() => {
@@ -795,20 +812,12 @@ function apiBridgeActions(status: string) {
     .all(status);
 }
 
-// Ceremony actions (run_kickoff, run_retro, run_review) remain in this allow list so the
-// dashboard UI can queue them. However, the terminal bridge hook (src/bridge/hook.ts) filters
-// them out — ceremonies are UI-only and never forwarded to the CLI.
-const ALLOWED_BRIDGE_ACTIONS = [
-  'advance_sprint',
-  'assign_ticket',
-  'update_ticket',
-  'create_ticket',
-  'run_retro',
-  'run_review',
-  'run_kickoff',
-  'plan_sprint',
-  'custom',
-  'request_input',
+// The hook (src/bridge/hook.ts) forwards only FORWARDED_BRIDGE_ACTIONS to the agent, each
+// against its strict schema; run_retro, run_review and request_input are UI-only. There is
+// no free-form action (`custom` was removed in 3.0.0, #244).
+const ALLOWED_BRIDGE_ACTIONS: readonly string[] = [
+  ...FORWARDED_BRIDGE_ACTIONS,
+  ...UI_ONLY_BRIDGE_ACTIONS,
 ];
 
 function apiCreateBridgeAction(body: z.infer<typeof BridgeActionBody>) {
@@ -817,6 +826,10 @@ function apiCreateBridgeAction(body: z.infer<typeof BridgeActionBody>) {
       new Error(`unknown action. Allowed: ${ALLOWED_BRIDGE_ACTIONS.join(', ')}`),
       { status: 400 },
     );
+  }
+  if (isForwardedBridgeAction(body.action)) {
+    const check = checkForwardedBridgeAction(body);
+    if (!check.ok) throw badRequest(check.error);
   }
   const result = writeDb
     .prepare(
@@ -1504,10 +1517,22 @@ function cspHeader(nonce: string): string {
   return `default-src 'self'; script-src 'self' 'nonce-${nonce}'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'`;
 }
 
-/** Inject the dashboard token into served HTML so the same-origin app can read it. */
-function injectToken(html: string, nonce: string): string {
-  const tag = `<script nonce="${nonce}">window.__DASHBOARD_TOKEN__=${JSON.stringify(DASHBOARD_TOKEN)};</script>`;
-  return html.includes('</head>') ? html.replace('</head>', `${tag}</head>`) : tag + html;
+// Browser login (#243): the page never carries the token. A bearer holder
+// mints a single-use launch URL; opening it starts a random, 12 h session.
+const launchCodes = new LaunchCodes();
+const sessions = new Sessions();
+
+function mintLaunchUrl(port: number): { url: string; expiresAt: string } {
+  const { code, expiresAt } = launchCodes.mint();
+  return {
+    url: `http://localhost:${port}${LAUNCH_PATH}?code=${code}`,
+    expiresAt: new Date(expiresAt).toISOString(),
+  };
+}
+
+/** Page for a browser without a session: how to log in, no token, no script. */
+function loginPage(reason: string): string {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Code Context dashboard</title></head><body style="font-family:system-ui,sans-serif;max-width:36rem;margin:4rem auto;padding:0 1rem;line-height:1.5"><h1>Code Context dashboard</h1><p>${reason}</p><p>To open the dashboard, run <code>/ccui</code> in Claude Code, or open the launch URL the dashboard prints at startup. A launch URL works once and expires after ${LAUNCH_CODE_TTL_MS / 60_000} minutes.</p></body></html>`;
 }
 
 const server = http.createServer((req, res) => {
@@ -1568,13 +1593,80 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('Access-Control-Allow-Origin', 'http://localhost:' + PORT);
 
-  // Bearer-token auth on all /api/* routes (#15b); page + assets stay public so
-  // the browser can load the app and read the injected token.
-  if (!isAuthorized(req, url, DASHBOARD_TOKEN)) {
-    // Path only — never the query string (EventSource sends ?token=).
+  // Auth (#15b, #243): the bearer header (MCP server, hooks, scripts) or the
+  // browser session cookie; only /health, /assets/* and the launch URL are public.
+  const listenPort = req.socket.localPort ?? PORT;
+  const authMethod = isPublicPath(url.pathname)
+    ? null
+    : authenticate(req, DASHBOARD_TOKEN, { sessions, port: listenPort });
+  if (!isPublicPath(url.pathname) && !authMethod) {
+    // Path only — never the query string.
     logRejected(401, 'missing-or-invalid-token', req.method, url.pathname);
-    res.writeHead(401, { 'Content-Type': 'application/json' });
-    res.end('{"error":"unauthorized: missing or invalid dashboard token"}');
+    if (url.pathname.startsWith('/api/')) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(
+        url.searchParams.has('token')
+          ? '{"error":"unauthorized: ?token= is no longer accepted; send the Authorization header or open the dashboard launch URL"}'
+          : '{"error":"unauthorized: missing or invalid dashboard token"}',
+      );
+    } else {
+      res.writeHead(401, {
+        'Content-Type': 'text/html',
+        'Content-Security-Policy': cspHeader(makeNonce()),
+      });
+      res.end(loginPage('This browser is not logged in.'));
+    }
+    return;
+  }
+  // CSRF (#243): a cookie rides along from any localhost port, so cookie-authed
+  // requests must come from the dashboard origin itself.
+  if (authMethod === 'cookie' && !isAllowedCookieRequest(req.method, req.headers)) {
+    logRejected(403, 'cookie-cross-origin', req.method, url.pathname);
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end('{"error":"forbidden: cookie request from another origin"}');
+    return;
+  }
+
+  // One-time launch URL (#243): burn the code, set the session cookie, go to /.
+  if (url.pathname === LAUNCH_PATH && req.method === 'GET') {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!launchCodes.consume(url.searchParams.get('code'))) {
+      logRejected(401, 'launch-code-invalid', req.method, url.pathname);
+      res.writeHead(401, {
+        'Content-Type': 'text/html',
+        'Content-Security-Policy': cspHeader(makeNonce()),
+      });
+      res.end(loginPage('This launch link has expired or was already used.'));
+      return;
+    }
+    const { id } = sessions.create();
+    res.writeHead(303, { Location: '/', 'Set-Cookie': sessionCookieHeader(listenPort, id) });
+    res.end();
+    return;
+  }
+
+  // Logout: end this browser's session and clear its cookie.
+  if (url.pathname === '/api/auth/logout' && req.method === 'POST') {
+    sessions.end(readCookie(req, sessionCookieName(listenPort)));
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Set-Cookie': clearSessionCookieHeader(listenPort),
+    });
+    res.end('{"ok":true}');
+    return;
+  }
+
+  // Mint a launch URL — bearer only, so /ccui and scripts can open a browser session.
+  if (url.pathname === '/api/auth/launch' && req.method === 'POST') {
+    res.setHeader('Cache-Control', 'no-store');
+    if (authMethod !== 'bearer') {
+      logRejected(403, 'launch-needs-bearer', req.method, url.pathname);
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end('{"error":"forbidden: minting a launch URL needs the bearer token"}');
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(mintLaunchUrl(listenPort)));
     return;
   }
 
@@ -2154,18 +2246,18 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
 
   // SPA fallback: serve index.html for all non-API routes. Every HTML response
   // gets a CSP that allows same-origin scripts plus one per-response nonce; the
-  // inline token script and the legacy page's inline script carry that nonce.
+  // legacy page's inline script carries that nonce. No token in the page (#243).
   const nonce = makeNonce();
   res.setHeader('Content-Security-Policy', cspHeader(nonce));
   res.setHeader('Content-Type', 'text/html');
   try {
     const indexHtml = fs.readFileSync(path.join(distDir, 'index.html'), 'utf-8');
     res.writeHead(200);
-    res.end(injectToken(indexHtml, nonce));
+    res.end(indexHtml);
   } catch {
     const page = HTML.replace('<script>', `<script nonce="${nonce}">`);
     res.writeHead(200);
-    res.end(injectToken(page, nonce));
+    res.end(page);
   }
 }
 
@@ -2203,6 +2295,8 @@ function startServer(port: number, maxRetries = 10): void {
       fs.chmodSync(envLocalPath, 0o600); // writeFileSync mode applies to creation only
     } catch {}
     console.log(`VLM Code Context | AI Virtual IT Department — http://localhost:${port}`);
+    // Single use, expires after LAUNCH_CODE_TTL_MS; /ccui mints a fresh one (#243).
+    console.log(`Open the dashboard (one-time link): ${mintLaunchUrl(port).url}`);
     slog(
       'INFO',
       `dashboard: started version=${PKG_VERSION} port=${port} db=${path.basename(dbPath)}`,

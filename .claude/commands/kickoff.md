@@ -2,6 +2,21 @@
 
 Run the complete scrum lifecycle from product vision through sprint rest. Use native question UI for every structured choice, render server-built cards verbatim, enforce all QA gates and the planning gate.
 
+## Step 0a — Check the Tool Profile
+
+The sprint tools are opt-in since 3.0.0: the `code-context` entry serves the `code` profile (6 reading tools). Kickoff needs the `code-context-sprint` entry, or the `full` profile (toolsets `code`, `code-admin`, `scrum`).
+
+- If `health` is in your tool list, call `health()` and read `profile` and `toolsets`.
+- Stop here when `health` is not listed, or `toolsets` lacks `scrum` or `code-admin`. Tell the user, then wait:
+
+```yaml
+sprint_tools: off # profile: <from health; code when health is not listed>
+fix: use the code-context-sprint entry (dist/server/sprint.js), or CODE_CONTEXT_PROFILE=full
+where: .mcp.json → mcpServers["code-context"].args / .env
+or: npx code-context-mcp setup . --profile full # installs code-context-sprint
+then: restart the AI client, run /kickoff again
+```
+
 ## Step 0 — Load Context (2 calls)
 
 ```
@@ -13,13 +28,13 @@ That's it. `get_resume_state()` returns vision, sprints, discoveries, milestones
 
 ### Phase context — load with `load_phase_context()` when entering each phase
 
-| Phase | Call |
-|-------|------|
-| Phase 2 | `load_phase_context({ phase: "discovery" })` |
-| Phase 4 | `load_phase_context({ phase: "epics" })` |
+| Phase      | Call                                                                           |
+| ---------- | ------------------------------------------------------------------------------ |
+| Phase 2    | `load_phase_context({ phase: "discovery" })`                                   |
+| Phase 4    | `load_phase_context({ phase: "epics" })`                                       |
 | Phase 5+5b | `load_phase_context({ phase: "tickets" })` — includes the planning-gate blocks |
-| Phase 7 | `load_phase_context({ phase: "implementation", sprint_id, ticket_id })` |
-| Phase 8 | `load_phase_context({ phase: "retro", sprint_id })` |
+| Phase 7    | `load_phase_context({ phase: "implementation", sprint_id, ticket_id })`        |
+| Phase 8    | `load_phase_context({ phase: "retro", sprint_id })`                            |
 
 ### Display summary
 
@@ -28,12 +43,12 @@ Render the resume state as a phase banner + yaml data card:
 ## ◈ Context Loaded
 
 ```yaml
-vision:      set                  # from get_resume_state()
-sprints:     21 completed · none active
+vision: set # from get_resume_state()
+sprints: 21 completed · none active
 discoveries: 9 active
-milestone:   "#21 Process 2.0"    # [active] 40%
-skill_sets:  fe ✓ · la ✗ · wf ✗   # "(defaults — not configured yet)" → Phase 1b will ask
-next_phase:  tickets
+milestone: '#21 Process 2.0' # [active] 40%
+skill_sets: fe ✓ · la ✗ · wf ✗ # "(defaults — not configured yet)" → Phase 1b will ask
+next_phase: tickets
 ```
 
 ---
@@ -49,10 +64,11 @@ next_phase:  tickets
 Priority order for asking the user anything:
 
 1. **Dashboard wizard** — if the dashboard is up, `request_user_input` (it returns `fallback: true` when down; then descend).
-2. **AskUserQuestion tool** — for every *enumerable* choice: discovery type, backlog confirmation, gate triage resolutions, phase-advance confirmations, archive decisions. Use `multiSelect` where choices aren't exclusive. Mark your recommended option "(Recommended)" and put it first.
+2. **AskUserQuestion tool** — for every _enumerable_ choice: discovery type, backlog confirmation, gate triage resolutions, phase-advance confirmations, archive decisions. Use `multiSelect` where choices aren't exclusive. Mark your recommended option "(Recommended)" and put it first.
 3. **Plain text question** — only for genuinely free-form input: vision, sprint goal, epic descriptions, retro reflections.
 
 **Rules:**
+
 - One decision point at a time. Wait for the answer before proceeding.
 - Lists longer than 4 options: show a ```yaml summary card of ALL items first, then batch AskUserQuestion calls (≤4 options each, ≤4 questions per call); spill the remainder into a follow-up call or conversational handling.
 - Never batch unrelated decisions into one question. Never assume answers.
@@ -77,9 +93,9 @@ Announce the resume point as a banner + yaml card:
 ## ◈ Resuming Project
 
 ```yaml
-vision:    set          # ✓
-discovery: 2 active     # ✓
-milestone: none yet     # ← picking up here
+vision: set # ✓
+discovery: 2 active # ✓
+milestone: none yet # ← picking up here
 ```
 
 ---
@@ -150,9 +166,9 @@ Collect tickets (free text or proposals), auto-generate a QA verification ticket
 ## ◈ Confirm Backlog
 
 ```yaml
-tickets:  10            # 5 feature + 5 QA
-points:   24            # target was 19 (avg velocity)
-epics:    "Loop Gates (4) · Cockpit (6)"
+tickets: 10 # 5 feature + 5 QA
+points: 24 # target was 19 (avg velocity)
+epics: 'Loop Gates (4) · Cockpit (6)'
 ```
 
 Then **AskUserQuestion**: confirm / adjust points / add more / remove some.
@@ -258,4 +274,5 @@ Close with the sprint-complete card (from step above) plus a one-line pointer: `
 10. **Link everything** — tickets→epics, epics→milestones, discoveries→tickets.
 11. **Archive on close** — discoveries, epics, milestones all get their final status.
 12. **Resume from where you left off** — check existing state before asking redundant questions.
-13. **Surface anomalies.** If retro patterns, mood trends, or velocity suggest a problem, highlight it.
+13. **Full profile first.** Step 0a runs before any other call; never work around missing sprint tools.
+14. **Surface anomalies.** If retro patterns, mood trends, or velocity suggest a problem, highlight it.

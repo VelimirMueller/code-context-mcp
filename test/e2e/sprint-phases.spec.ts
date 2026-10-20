@@ -1,5 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
-import { openApp } from './helpers';
+import type { Page } from '@playwright/test';
+import { test, expect, openApp } from './helpers';
 
 /**
  * E2E tests for Sprint 77 — 4-phase sprint display.

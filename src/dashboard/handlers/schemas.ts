@@ -12,6 +12,7 @@
  */
 import { z } from 'zod';
 import { badRequest } from './validation.js';
+import { MAX_BRIDGE_PAYLOAD_BYTES } from '../../bridge/actions.js';
 
 /** Parse `body` with `schema`, or throw a 400 that names each bad field. */
 export function parseBody<S extends z.ZodType>(schema: S, body: unknown): z.infer<S> {
@@ -173,11 +174,20 @@ export const TicketPatchBody = z.record(z.string(), z.unknown(), {
 });
 
 // ─── Bridge / restore / sprint process ─────────────────────────────────────
+// #244: every payload is capped; a forwarded action is also checked against its
+// strict schema (ForwardedBridgeAction in src/bridge/actions.ts) in the handler.
 export const BridgeActionBody = object({
   action: required('action is required'),
   entity_type: optText,
   entity_id: optId,
-  payload: z.unknown().optional(),
+  payload: z
+    .unknown()
+    .optional()
+    .refine(
+      (v) =>
+        v === undefined || Buffer.byteLength(JSON.stringify(v), 'utf8') <= MAX_BRIDGE_PAYLOAD_BYTES,
+      { message: `over ${MAX_BRIDGE_PAYLOAD_BYTES} bytes` },
+    ),
   source: optText,
 });
 export const BridgeRespondBody = object({

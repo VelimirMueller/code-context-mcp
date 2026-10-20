@@ -1,6 +1,6 @@
 {
   "name": "vlm-code-context-mcp",
-  "version": "2.13.0",
+  "version": "3.0.0",
   "description": "AI-powered virtual IT department via MCP — codebase intelligence, 9-agent scrum team, sprint management, and React dashboard in one npm package",
   "type": "module",
   "engines": {
@@ -8,6 +8,9 @@
   },
   "main": "dist/server/index.js",
   "bin": {
+    "code-context": "dist/server/index.js",
+    "code-context-sprint": "dist/server/sprint.js",
+    "vlm-code-context-mcp": "dist/server/index.js",
     "code-context-mcp": "dist/server/setup.js",
     "code-context-dashboard": "dist/dashboard/dashboard.js",
     "code-context-statusline": "dist/server/statusline.js",
@@ -21,6 +24,7 @@
     "!scripts/bench",
     "!scripts/research",
     "!scripts/format-changed.mjs",
+    "!scripts/check-contract-change.mjs",
     "comparison.json",
     "benchmark-results.json",
     "benchmark-stochastic-results.json",
@@ -48,6 +52,9 @@
     "test:all": "vitest run && cd src/dashboard/app && node ../../../node_modules/.bin/vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "contract:test": "vitest run test/contract",
+    "contract:update": "CONTRACT_UPDATE=1 vitest run test/contract",
+    "contract:check": "node scripts/check-contract-change.mjs",
     "lint": "eslint .",
     "typecheck:dashboard": "tsc --noEmit -p src/dashboard/app",
     "check:dashboard-reachable": "node scripts/check-dashboard-reachable.mjs",

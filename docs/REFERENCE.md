@@ -9,8 +9,8 @@ The long version. The [README](https://github.com/VelimirMueller/code-context-mc
      │  search_files · get_file_context · find_symbol · /kickoff · /sprint
      ▼
   ┌────────────────────┐   stat + git diff   ┌────────────────────┐
-  │  MCP server        │ ──────────────────▸ │  your repo         │
-  │  97 tools          │ ◂────────────────── │  git ls-files only │
+  │  code-context      │ ──────────────────▸ │  your repo         │
+  │  6 tools · +sprint │ ◂────────────────── │  git ls-files only │
   │  compact cards     │   re-index changed  └────────────────────┘
   └─────────┬──────────┘
             │  reads · writes
@@ -20,6 +20,45 @@ The long version. The [README](https://github.com/VelimirMueller/code-context-mc
   │  SQLite, WAL mode  │ ◂────────────── │  live-editable     │
   └────────────────────┘   ticket edits  └────────────────────┘
 ```
+
+## Entry points
+
+One npm package, two MCP entry points over the same server code and the same `context.db` (#179). The frozen public surface of both, and how to change it, is in [CONTRACT.md](CONTRACT.md) (#180):
+
+| Bin                   | File                    | Default profile | Tools | Use it for                                     |
+| --------------------- | ----------------------- | --------------- | ----- | ---------------------------------------------- |
+| `code-context`        | `dist/server/index.js`  | `code`          | 6     | Reading code. The frozen tool contract.        |
+| `code-context-sprint` | `dist/server/sprint.js` | `full`          | 97    | The sprint process, `/kickoff`, the dashboard. |
+
+- **`vlm-code-context-mcp`** is an alias of `code-context`, so `npx -y vlm-code-context-mcp ./context.db` starts the index. **`code-context-mcp`** stays the setup command.
+- **A known `CODE_CONTEXT_PROFILE` wins on both entries.** `code-context-sprint` only changes the default: unset, empty or unknown becomes `full`.
+- **`setup` installs the sprint entry** with `CODE_CONTEXT_PROFILE=full` in `env`, because it seeds the sprint process. `--profile code` installs `code-context` instead. The env stays explicit: `health` shows it, and the same `.mcp.json` entry still works when pointed at `index.js`.
+- **Module boundary.** The index code in `src/server` (entry, index/search/graph tools, indexer, policy, gitignore) never imports `src/scrum`, `src/dashboard` or `src/bridge`. A sprint toolset (`scrum`, `fun`, `stream`) loads them through `src/server/sprint-toolsets.ts`. `test/boundary.test.ts` enforces it.
+- **Shared `context.db`, split ownership.** The index entry owns the code-index tables (`files`, `exports`, `dependencies`, `directories`, `changes`, `indexed_repos`) and creates only those. The sprint entry owns the scrum tables and the `schema_versions` stamp: it creates, migrates and seeds them. A database the index created gets its scrum tables, stamped at the latest version, on the first start of the sprint entry. Both entries refuse a database stamped by a newer version.
+
+## Tool profiles
+
+Every listed tool costs model context on every call. Since 3.0.0 the server lists only the code tools unless you turn the sprint process on.
+
+| Profile (`CODE_CONTEXT_PROFILE`) | Toolsets                      | Tools | Tool definitions per call     |
+| -------------------------------- | ----------------------------- | ----- | ----------------------------- |
+| `code` (default, nothing set)    | `code`                        | 6     | about 3,300 chars, 850 tokens |
+| `full` (the 2.x default)         | `code`, `code-admin`, `scrum` | 97    | about 12,300 tokens           |
+| `all`                            | every toolset                 | 103   | a little more than `full`     |
+
+| Toolset      | Tools                                                                                                                      |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `code`       | `find_symbol`, `get_file_context`, `who_imports`, `exports_in`, `search_files`, `query`. Always on.                        |
+| `code-admin` | `index_directory`, `get_changes`, `set_description`, `set_directory_description`, `set_change_reason`, `execute`, `health` |
+| `scrum`      | Every other tool: sprints, tickets, retros, milestones, epics, agents, skills, the dashboard bridge, dump and restore      |
+| `fun`        | `record_mood`, `get_mood_trends`, `generate_vision_animation`                                                              |
+| `stream`     | `send_step_progress`, `send_claude_output`, `send_claude_step`                                                             |
+
+- **Turn the sprint process on:** use the `code-context-sprint` entry, or `CODE_CONTEXT_PROFILE=full` in the server `env`. `npx code-context-mcp setup .` writes both into `.mcp.json` (`--profile code|full|all` picks another one; an existing setting is kept).
+- **Add single toolsets:** `CODE_CONTEXT_TOOLSETS` is a comma list added to the profile, for example `code-admin`, `scrum`, `fun,stream` or `all`. It only adds; it never removes a toolset of the profile. `code` and `default` (2.x spellings) change nothing.
+- **Check what is on:** `health` (toolset `code-admin`) reports `profile` and `toolsets`. `/kickoff` reads it first and stops with the exact setting when the sprint tools are off. Unknown values are ignored, listed under `ignored_settings` and logged as a WARN line.
+- **Flair** (the `● code-context ▸ <tool>` header and the kaomoji footer) is on when the `scrum` toolset is on and off otherwise; `OVERDRIVE_FLAIR=0`/`1` forces it.
+- **The data stays.** A hidden tool is only not listed: the tables, the dashboard and the HTTP API keep working in every profile.
 
 ## Skill sets (server-provided)
 
@@ -79,6 +118,13 @@ Since 2.2, the QA gate also checks **commit discipline**: a ticket can't reach `
 
 ## Release highlights
 
+### Unreleased 3.0.0 — Lean by Default 🪶
+
+- **Breaking: `code` is the default profile.** A server with no setting lists the 6 reading tools (about 850 tokens of definitions) instead of 97 (about 12,300 tokens). Every positive benchmark run used this profile.
+- **The sprint process is opt-in.** `CODE_CONTEXT_PROFILE=full` lists the 2.x default again; `all` lists every tool. `CODE_CONTEXT_TOOLSETS` still adds single toolsets. See [Tool profiles](#tool-profiles).
+- **Setup and `/kickoff` handle it.** `setup` writes `CODE_CONTEXT_PROFILE=full` into `.mcp.json` (or keeps the existing setting; `--profile code` for code reading only). `/kickoff` checks `health` first and names the setting when the sprint tools are off.
+- **Breaking: two entry points.** `code-context` is the code index with a frozen contract; `code-context-sprint` adds the sprint process on the same `context.db`. `setup` installs the sprint entry. See [Entry points](#entry-points).
+
 ### New in 2.13 — PHP in the Index 🐘
 
 - **`find_symbol`, `who_imports`, `exports_in` and `get_file_context` work for PHP repos.** `.php` files get exports with one-line signatures and lines: `class` (incl. `abstract`/`final`/`readonly`), `interface`, `trait`, `enum`, top-level `function` and `const`. `exports.name` is the short name, `exports.description` the namespace-qualified name, so `find_symbol` and `who_imports` take either (`OrderService`, `App\Services\OrderService`).
@@ -100,10 +146,10 @@ Since 2.2, the QA gate also checks **commit discipline**: a ticket can't reach `
 - **Paths an agent can read back.** The index stores every file by its realpath, so a symlinked root (macOS `/var/folders/…` → `/private/var/folders/…`) and its target are one index. `find_symbol`, `get_file_context`, `search_files` and `get_changes` print paths relative to the indexed root that holds the server's working directory (`src/utils/helpers.ts`); files of other repos in a shared database stay absolute. `absolute_paths: true` or `CODE_CONTEXT_ABSOLUTE_PATHS=1` prints absolute paths. Tools take the relative form, the realpath and the symlinked spelling.
 - **Server instructions and compact results.** The server sends short MCP `instructions` (about 370 characters, about 90 tokens): which graph tool answers "who imports X", "where is S defined", "what does this file export or import" and "what does dir D export or leave unused", that results never hold full code (`read` the file; `get_file_context` has signatures and import lines, `snippet: true` short bodies), and that paths are project-relative. Only listed tools are named; the path sentence drops with `CODE_CONTEXT_ABSOLUTE_PATHS=1`.
 
-  | Env var                                                                                                     | Default profile      | `code` profile       |
-  | ----------------------------------------------------------------------------------------------------------- | -------------------- | -------------------- |
-  | `OVERDRIVE_FLAIR` (header `● code-context ▸ <tool> ░▒▓` + `<kaomoji> <ms> ms` footer on text results)       | on; `0` turns it off | off; `1` turns it on |
-  | `CODE_CONTEXT_TIMESTAMPS` (`modified …` / `indexed …` in `find_symbol`, `get_file_context`, `search_files`) | off; `1` turns it on | off; `1` turns it on |
+  | Env var                                                                                                     | 2.x default (now `full`) | `code` profile (now the default) |
+  | ----------------------------------------------------------------------------------------------------------- | ------------------------ | -------------------------------- |
+  | `OVERDRIVE_FLAIR` (header `● code-context ▸ <tool> ░▒▓` + `<kaomoji> <ms> ms` footer on text results)       | on; `0` turns it off     | off; `1` turns it on             |
+  | `CODE_CONTEXT_TIMESTAMPS` (`modified …` / `indexed …` in `find_symbol`, `get_file_context`, `search_files`) | off; `1` turns it on     | off; `1` turns it on             |
 
   The read-time freshness check does not change: a changed or deleted file is re-indexed or dropped before the answer, and the `↻ fresh: …` / `⚠ STALE …` notice still leads the result. `index_directory` prints each directory's file and line counts once.
 

@@ -1,0 +1,2564 @@
+[
+  {
+    "name": "acknowledge_ticket_changes",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "ticket_ids": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        }
+      },
+      "required": [
+        "ticket_ids"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "add_dependency",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "source_ticket_id": {
+          "type": "number"
+        },
+        "target_ticket_id": {
+          "type": "number"
+        },
+        "dependency_type": {
+          "default": "blocks",
+          "type": "string",
+          "enum": [
+            "blocks",
+            "blocked_by",
+            "related"
+          ]
+        }
+      },
+      "required": [
+        "source_ticket_id",
+        "target_ticket_id"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "add_retro_finding",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sprint_id": {
+          "type": "number"
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "went_well",
+            "went_wrong",
+            "try_next"
+          ]
+        },
+        "finding": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "action_owner": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sprint_id",
+        "category",
+        "finding"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "add_tag",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "ticket_id": {
+          "type": "number"
+        },
+        "tag_name": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "ticket_id",
+        "tag_name"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "advance_sprint",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sprint_id": {
+          "type": "number"
+        },
+        "velocity_completed": {
+          "type": "number"
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "text",
+            "card"
+          ]
+        },
+        "acknowledge_open_items": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "sprint_id"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "analyze_retro_patterns",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "create_blocker",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sprint_id": {
+          "type": "number"
+        },
+        "description": {
+          "type": "string"
+        },
+        "ticket_id": {
+          "type": "number"
+        },
+        "reported_by": {
+          "type": "string"
+        },
+        "escalated_to": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sprint_id",
+        "description"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "create_discovery",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sprint_id": {
+          "type": "number"
+        },
+        "finding": {
+          "type": "string"
+        },
+        "resolution_plan": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "architecture",
+            "ux",
+            "performance",
+            "testing",
+            "integration",
+            "general"
+          ]
+        },
+        "priority": {
+          "type": "string",
+          "enum": [
+            "P0",
+            "P1",
+            "P2",
+            "P3"
+          ]
+        },
+        "created_by": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sprint_id",
+        "finding"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "create_epic",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "milestone_id": {
+          "type": "number"
+        },
+        "color": {
+          "default": "#3b82f6",
+          "type": "string"
+        },
+        "priority": {
+          "default": 0,
+          "type": "number",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "project": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "create_milestone",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "target_date": {
+          "type": "string"
+        },
+        "status": {
+          "default": "planned",
+          "type": "string",
+          "enum": [
+            "planned",
+            "active",
+            "completed"
+          ]
+        },
+        "project": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "create_sprint",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "goal": {
+          "type": "string"
+        },
+        "start_date": {
+          "type": "string"
+        },
+        "end_date": {
+          "type": "string"
+        },
+        "milestone_id": {
+          "type": "number"
+        },
+        "project": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "create_ticket",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sprint_id": {
+          "type": "number"
+        },
+        "title": {
+          "type": "string"
+        },
+        "ticket_ref": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "priority": {
+          "default": "P2",
+          "type": "string",
+          "enum": [
+            "P0",
+            "P1",
+            "P2",
+            "P3"
+          ]
+        },
+        "assigned_to": {
+          "type": "string"
+        },
+        "story_points": {
+          "type": "number"
+        },
+        "milestone": {
+          "type": "string"
+        },
+        "milestone_id": {
+          "type": "number"
+        },
+        "epic_id": {
+          "type": "number"
+        },
+        "project": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "feat",
+            "fix",
+            "chore",
+            "infra",
+            "improvement"
+          ]
+        },
+        "origin": {
+          "type": "string",
+          "enum": [
+            "ai",
+            "human"
+          ]
+        },
+        "agents": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "role": {
+                "type": "string"
+              },
+              "model": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "lead": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "role"
+            ]
+          }
+        }
+      },
+      "required": [
+        "sprint_id",
+        "title"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "dump_database",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "tables": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "execute",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sql": {
+          "type": "string"
+        },
+        "params": {
+          "type": "array",
+          "items": {}
+        }
+      },
+      "required": [
+        "sql"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "export_sprint_report",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sprint_id": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "sprint_id"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "export_to_file",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "output_path": {
+          "type": "string"
+        },
+        "overwrite": {
+          "type": "boolean"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "exports_in",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dir": {
+          "type": "string"
+        },
+        "unused": {
+          "type": "boolean"
+        },
+        "absolute_paths": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "dir"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "find_symbol",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "absolute_paths": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "generate_vision_animation",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "output_path": {
+          "type": "string"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "get_agent",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "role"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "get_audit_trail",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "entity_type": {
+          "type": "string",
+          "enum": [
+            "ticket",
+            "sprint",
+            "epic",
+            "milestone",
+            "agent",
+            "blocker",
+            "bug"
+          ]
+        },
+        "entity_id": {
+          "type": "number"
+        },
+        "limit": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "entity_type",
+        "entity_id"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "get_backlog",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "get_burndown",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sprint_id": {
+          "type": "number"
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "text",
+            "card"
+          ]
+        },
+        "verbose": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "sprint_id"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "get_changes",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "file_path": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "number"
+        },
+        "absolute_paths": {
+          "type": "boolean"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "get_dependency_graph",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "ticket_id": {
+          "type": "number"
+        },
+        "sprint_id": {
+          "type": "number"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "get_discovery_coverage",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sprint_id": {
+          "type": "number"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "get_file_context",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "snippet": {
+          "type": "boolean"
+        },
+        "include_changes": {
+          "type": "boolean"
+        },
+        "change_limit": {
+          "type": "number"
+        },
+        "absolute_paths": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "get_mood_trends",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "number"
+        },
+        "last_n_sprints": {
+          "type": "number"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "get_onboarding_status",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "get_project_status",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "get_resume_state",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "get_skill",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "get_sprint",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sprint_id": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "sprint_id"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "get_sprint_config",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "get_sprint_instructions",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "section": {
+          "type": "string",
+          "enum": [
+            "lifecycle",
+            "tickets",
+            "retro",
+            "roles",
+            "checklist",
+            "pitfalls"
+          ]
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "get_sprint_playbook",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sprint_id": {
+          "type": "number"
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "text",
+            "card"
+          ]
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "get_sprint_summary",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "last_n": {
+          "type": "number"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "get_ticket",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "ticket_id": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "ticket_id"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "get_time_report",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sprint_id": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "sprint_id"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "get_token_usage",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sprint_id": {
+          "type": "number"
+        },
+        "ticket_id": {
+          "type": "number"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "get_user_response",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "action_id": {
+          "type": "number"
+        },
+        "timeout_ms": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "action_id"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "get_velocity_trends",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "last_n_sprints": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "handle_run_kickoff",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "handle_run_retro",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sprint_id": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "sprint_id"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "handle_run_review",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sprint_id": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "sprint_id"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "health",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "import_from_file",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "input_path": {
+          "type": "string"
+        },
+        "on_conflict": {
+          "type": "string",
+          "enum": [
+            "abort",
+            "skip"
+          ]
+        },
+        "dry_run": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "input_path"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "index_directory",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "freshness_check": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "link_discovery_to_ticket",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "discovery_id": {
+          "type": "number"
+        },
+        "ticket_id": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "discovery_id",
+        "ticket_id"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "link_ticket_to_epic",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "ticket_id": {
+          "type": "number"
+        },
+        "epic_id": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "ticket_id",
+        "epic_id"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "link_ticket_to_milestone",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "ticket_id": {
+          "type": "number"
+        },
+        "milestone_id": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "ticket_id",
+        "milestone_id"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "list_agents",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "list_decisions",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "category": {
+          "type": "string"
+        },
+        "limit": {
+          "default": 20,
+          "type": "number"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "list_discoveries",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sprint_id": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "discovered",
+            "planned",
+            "implemented",
+            "dropped"
+          ]
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "architecture",
+            "ux",
+            "performance",
+            "testing",
+            "integration",
+            "general"
+          ]
+        },
+        "verbose": {
+          "type": "boolean"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "list_epics",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string"
+        },
+        "milestone_id": {
+          "type": "number"
+        },
+        "compact": {
+          "type": "boolean"
+        },
+        "include_archived": {
+          "type": "boolean"
+        },
+        "project": {
+          "type": "string"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "list_milestones",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "planned",
+            "active",
+            "completed"
+          ]
+        },
+        "include_archived": {
+          "type": "boolean"
+        },
+        "compact": {
+          "type": "boolean"
+        },
+        "project": {
+          "type": "string"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "list_recent_events",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "entity_type": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "number"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "list_retro_findings",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sprint_id": {
+          "type": "number"
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "went_well",
+            "went_wrong",
+            "try_next"
+          ]
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "list_sprints",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "preparation",
+            "kickoff",
+            "planning",
+            "implementation",
+            "qa",
+            "refactoring",
+            "retro",
+            "review",
+            "closed",
+            "rest",
+            "done"
+          ]
+        },
+        "compact": {
+          "type": "boolean"
+        },
+        "last_n": {
+          "type": "number"
+        },
+        "project": {
+          "type": "string"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "list_tags",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "list_tickets",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sprint_id": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "TODO",
+            "IN_PROGRESS",
+            "DONE",
+            "BLOCKED",
+            "PARTIAL",
+            "NOT_DONE"
+          ]
+        },
+        "assigned_to": {
+          "type": "string"
+        },
+        "project": {
+          "type": "string"
+        },
+        "compact": {
+          "type": "boolean"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "load_phase_context",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "phase": {
+          "type": "string",
+          "enum": [
+            "discovery",
+            "epics",
+            "tickets",
+            "implementation",
+            "retro"
+          ]
+        },
+        "sprint_id": {
+          "type": "number"
+        },
+        "ticket_id": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "phase"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "log_bug",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sprint_id": {
+          "type": "number"
+        },
+        "severity": {
+          "type": "string",
+          "enum": [
+            "CRITICAL",
+            "HIGH",
+            "MEDIUM",
+            "LOW"
+          ]
+        },
+        "description": {
+          "type": "string"
+        },
+        "ticket_id": {
+          "type": "number"
+        },
+        "steps_to_reproduce": {
+          "type": "string"
+        },
+        "expected": {
+          "type": "string"
+        },
+        "actual": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sprint_id",
+        "severity",
+        "description"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "log_decision",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "rationale": {
+          "type": "string"
+        },
+        "alternatives": {
+          "type": "string"
+        },
+        "outcome": {
+          "type": "string"
+        },
+        "category": {
+          "default": "technical",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "log_event",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "entity_type": {
+          "type": "string",
+          "enum": [
+            "ticket",
+            "sprint",
+            "epic",
+            "milestone",
+            "agent",
+            "blocker",
+            "bug"
+          ]
+        },
+        "entity_id": {
+          "type": "number"
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "created",
+            "updated",
+            "deleted",
+            "status_changed"
+          ]
+        },
+        "field_name": {
+          "type": "string"
+        },
+        "old_value": {
+          "type": "string"
+        },
+        "new_value": {
+          "type": "string"
+        },
+        "actor": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "entity_type",
+        "entity_id",
+        "action"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "log_time",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "ticket_id": {
+          "type": "number"
+        },
+        "estimated_hours": {
+          "type": "number"
+        },
+        "actual_hours": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "ticket_id"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "log_token_usage",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sprint_id": {
+          "type": "number"
+        },
+        "ticket_id": {
+          "type": "number"
+        },
+        "input_tokens": {
+          "type": "number"
+        },
+        "output_tokens": {
+          "type": "number"
+        },
+        "tool_calls": {
+          "type": "number"
+        },
+        "duration_sec": {
+          "type": "number"
+        },
+        "label": {
+          "type": "string"
+        },
+        "session_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "input_tokens",
+        "output_tokens"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "plan_sprint",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "goal": {
+          "type": "string"
+        },
+        "ticket_ids": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "velocity_committed": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "ticket_ids"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "query",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sql": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sql"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "record_mood",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "number"
+        },
+        "sprint_id": {
+          "type": "number"
+        },
+        "mood": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "workload_points": {
+          "type": "number"
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "agent_id",
+        "sprint_id",
+        "mood"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "remove_dependency",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "source_ticket_id": {
+          "type": "number"
+        },
+        "target_ticket_id": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "source_ticket_id",
+        "target_ticket_id"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "remove_tag",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "ticket_id": {
+          "type": "number"
+        },
+        "tag_name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "ticket_id",
+        "tag_name"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "request_user_input",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "step": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "text",
+                  "textarea",
+                  "select",
+                  "number"
+                ]
+              },
+              "placeholder": {
+                "type": "string"
+              },
+              "options": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "required": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "name",
+              "label",
+              "type"
+            ]
+          }
+        },
+        "hints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "step",
+        "title",
+        "description",
+        "fields"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "reset_agents",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "reset_skills",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "reset_sprint_process",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "resolve_blocker",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "blocker_id": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "blocker_id"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "restore_database",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dump_json": {
+          "type": "string"
+        },
+        "on_conflict": {
+          "type": "string",
+          "enum": [
+            "abort",
+            "skip"
+          ]
+        },
+        "dry_run": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "dump_json"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "run_onboarding",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project_path": {
+          "type": "string"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "search_files",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        },
+        "absolute_paths": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "search_scrum",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "send_claude_output",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "line_type": {
+          "default": "text",
+          "type": "string",
+          "enum": [
+            "text",
+            "tool_call",
+            "tool_result",
+            "thinking",
+            "error",
+            "step",
+            "system"
+          ]
+        },
+        "step": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "send_claude_step",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "in_progress",
+            "completed",
+            "error"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "status"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "send_step_progress",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "step": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "current": {
+          "type": "number"
+        },
+        "total": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "in_progress",
+            "completed",
+            "error"
+          ]
+        },
+        "error": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "step",
+        "title",
+        "current",
+        "total",
+        "status"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "set_change_reason",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "number"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "reason"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "set_description",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "description"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "set_directory_description",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "description"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "set_project",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "repo": {
+          "type": "string"
+        },
+        "github_project_number": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "github_project_owner": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "github_assignee": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "force": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "snapshot_sprint_metrics",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sprint_id": {
+          "type": "number"
+        },
+        "date": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sprint_id"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "start_sprint",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "goal": {
+          "type": "string"
+        },
+        "milestone_id": {
+          "type": "number"
+        },
+        "epic_id": {
+          "type": "number"
+        },
+        "velocity": {
+          "type": "number"
+        },
+        "start_date": {
+          "type": "string"
+        },
+        "end_date": {
+          "type": "string"
+        },
+        "tickets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "priority": {
+                "type": "string",
+                "enum": [
+                  "P0",
+                  "P1",
+                  "P2",
+                  "P3"
+                ]
+              },
+              "assigned_to": {
+                "type": "string"
+              },
+              "story_points": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "title"
+            ]
+          }
+        },
+        "acknowledge_open_items": {
+          "type": "boolean"
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "text",
+            "card"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "goal",
+        "tickets"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "sync_github",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string"
+        },
+        "dry_run": {
+          "type": "boolean"
+        },
+        "offline": {
+          "type": "boolean"
+        },
+        "max_writes": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "adopt": {
+          "maxItems": 500,
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "adopt_milestones": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "milestone_id": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "github_milestone": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "milestone_id",
+              "github_milestone"
+            ]
+          }
+        }
+      },
+      "required": [
+        "project"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "sync_scrum_data",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "triage_retro_finding",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "finding_id": {
+          "type": "number"
+        },
+        "resolution": {
+          "type": "string",
+          "enum": [
+            "adopt",
+            "drop",
+            "defer"
+          ]
+        },
+        "ticket_id": {
+          "type": "number"
+        },
+        "dropped_reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "finding_id",
+        "resolution"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "update_agent",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "tools": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "system_prompt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "department": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "role"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "update_discovery",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "discovery_id": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "discovered",
+            "planned",
+            "implemented",
+            "dropped"
+          ]
+        },
+        "priority": {
+          "type": "string",
+          "enum": [
+            "P0",
+            "P1",
+            "P2",
+            "P3"
+          ]
+        },
+        "drop_reason": {
+          "type": "string"
+        },
+        "resolution_plan": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "discovery_id"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "update_epic",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "epic_id": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        },
+        "priority": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "archived": {
+          "type": "boolean"
+        },
+        "force": {
+          "type": "boolean"
+        },
+        "project": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "epic_id"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "update_milestone",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "milestone_id": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "planned",
+            "active",
+            "completed"
+          ]
+        },
+        "description": {
+          "type": "string"
+        },
+        "progress": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "target_date": {
+          "type": "string"
+        },
+        "archived": {
+          "type": "boolean"
+        },
+        "force": {
+          "type": "boolean"
+        },
+        "project": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "github_milestone": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "milestone_id"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "update_skill_sets",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "frontend": {
+          "type": "boolean"
+        },
+        "landing": {
+          "type": "boolean"
+        },
+        "workflow": {
+          "type": "boolean"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "update_sprint",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sprint_id": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "preparation",
+            "kickoff",
+            "planning",
+            "implementation",
+            "qa",
+            "refactoring",
+            "retro",
+            "review",
+            "closed",
+            "rest",
+            "done"
+          ]
+        },
+        "goal": {
+          "type": "string"
+        },
+        "velocity_committed": {
+          "type": "number"
+        },
+        "velocity_completed": {
+          "type": "number"
+        },
+        "milestone_id": {
+          "type": "number"
+        },
+        "project": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "sprint_id"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "update_sprint_config",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "content"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "update_ticket",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "ticket_id": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "TODO",
+            "IN_PROGRESS",
+            "DONE",
+            "BLOCKED",
+            "PARTIAL",
+            "NOT_DONE"
+          ]
+        },
+        "assigned_to": {
+          "type": "string"
+        },
+        "qa_verified": {
+          "type": "boolean"
+        },
+        "verified_by": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "string"
+        },
+        "milestone_id": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "epic_id": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "actual_hours": {
+          "type": "number"
+        },
+        "agents": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "role": {
+                "type": "string"
+              },
+              "model": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "lead": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "role"
+            ]
+          }
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "text",
+            "card"
+          ]
+        },
+        "project": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "type": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "feat",
+                "fix",
+                "chore",
+                "infra",
+                "improvement"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "origin": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "ai",
+                "human"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "github_issue": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "ticket_id"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "update_vision",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "content"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "who_imports",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "type": "string"
+        },
+        "absolute_paths": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "target"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  }
+]

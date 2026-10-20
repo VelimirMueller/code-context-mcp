@@ -4,7 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    # release/** too: a major lands on its release branch first (#179).
+    branches: [main, 'release/**']
+    # labeled/unlabeled: the contract gate reads the `contract-change-approved`
+    # label (#180), so adding or removing it re-runs the checks.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 # Read-only token for every job; no job writes to the repository.
 permissions:
@@ -69,6 +73,28 @@ jobs:
             ''|0000000000000000000000000000000000000000) base="HEAD~1" ;;
           esac
           npm run format:changed -- "$base"
+
+  # The public contract (#180, docs/CONTRACT.md): the snapshots in
+  # test/contract/snapshots/ must match the code, and a PR that changes one
+  # needs a major version bump in package.json or the label
+  # `contract-change-approved` (scripts/check-contract-change.mjs).
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # the gate diffs the snapshots against the base commit
+      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci
+      - name: Contract tests (snapshots match the code)
+        run: npm run contract:test
+      - name: Contract gate (a changed snapshot needs a major bump or approval)
+        # Base commit and labels come from $GITHUB_EVENT_PATH.
+        run: npm run contract:check
 
   e2e:
     runs-on: ubuntu-latest

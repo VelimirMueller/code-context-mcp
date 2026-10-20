@@ -18,10 +18,19 @@ Security: see the [threat model](security/threat-model.md) for the dashboard, th
 - SQLite database stores all metadata
 - MCP tools expose read/write operations to AI agents
 
+### Two entry points (since 3.0.0, #179)
+
+One package, one server, two bins over the same `context.db`:
+
+- **`code-context`** (`src/server/index.ts`, alias bin `vlm-code-context-mcp`): the code index. Default profile `code`, 6 tools; the tool contract is frozen. It creates and owns the code-index tables only (`src/server/schema.ts`).
+- **`code-context-sprint`** (`src/server/sprint.ts`): sets `CODE_CONTEXT_PROFILE=full` when no known profile is set, then loads `index.ts`. 97 tools. It is what `setup` installs.
+- **The seam:** `index.ts` loads `src/server/sprint-toolsets.ts` with a dynamic import only when a sprint toolset (`scrum`, `fun`, `stream`) is on. That file creates, migrates and seeds the scrum tables and registers the scrum tools (`src/scrum`, which reaches the dashboard bridge). No other index file imports `src/scrum`, `src/dashboard` or `src/bridge`; `test/boundary.test.ts` walks the imports and fails otherwise. Allowed besides the two sprint files: `setup.ts` and `sync-github-cli.ts`, the sprint process CLIs.
+- **Shared helpers moved to the index side:** `schema-version.ts` (`LATEST_SCHEMA_VERSION`, `peekSchemaVersion`: the downgrade guard of both entries) and `dist-freshness.ts` (`checkDistFreshness`, reported by `health`). `src/scrum` re-exports both.
+
 ### Scrum System (src/scrum/)
 
 - Scrum tables: agents, sprints, tickets, subtasks, retro_findings, blockers, bugs, skills, milestones, epics, discoveries, projects and more (table count: see the README)
-- Scrum MCP tools for the full sprint lifecycle, code-context tools in src/server/; `CODE_CONTEXT_TOOLSETS` picks the profile (default, `code`, `all`; tool counts: see the README)
+- The `scrum`, `fun` and `stream` toolsets (src/scrum/tools.ts and src/scrum/tools/), registered through src/server/sprint-toolsets.ts; the code-context tools live in src/server/index.ts (`code` + `code-admin`). `CODE_CONTEXT_PROFILE` picks the profile (default `code`, `full`, `all`; tool counts: see the README)
 - All data lives in SQLite (context.db) — no file-based storage
 
 ### Dashboard (src/dashboard/)

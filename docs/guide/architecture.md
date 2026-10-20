@@ -33,14 +33,14 @@ The scrum and agent-team system: 83 MCP tools (sprints, tickets, epics, mileston
 
 #### `src/dashboard/` — Web dashboard
 
-HTTP server, API endpoints, bearer-token auth, and the dashboard UI. The live UI is a React SPA (`app/`) served from `dist/dashboard/index.html`; `dashboard.html` is a single-file fallback only.
+HTTP server, API endpoints, bearer-token and session-cookie auth, and the dashboard UI. The live UI is a React SPA (`app/`) served from `dist/dashboard/index.html`; `dashboard.html` is a single-file fallback only.
 
-| File             | Lines |  Size | Description                                                                                                                                                                                                                                            |
-| ---------------- | ----: | ----: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `dashboard.ts`   | 2,105 | 100KB | HTTP server for the dashboard on port 3333. Serves the built SPA from `dist/dashboard/` (with `index.html` as the SPA fallback route), exposes JSON `/api/*` endpoints, and includes SSE for live updates. All `/api/*` routes require a bearer token. |
-| `auth.ts`        |    68 |   4KB | Dashboard auth. Generates a bearer token on first run, persists it to `.code-context/dashboard.token` beside the `context.db`, and verifies it on `/api/*` requests.                                                                                   |
-| `dashboard.html` | 1,654 | 100KB | Single-file dashboard UI used only as a fallback when the built SPA is unavailable.                                                                                                                                                                    |
-| `app/`           |     — |     — | React SPA (Vite + Zustand) — 6 top-level tabs (Dashboard, Planning, Code, Team, Retro, Benchmark) backed by 9 Zustand stores. Built into `dist/dashboard/`.                                                                                            |
+| File             | Lines |  Size | Description                                                                                                                                                                                                                                                                            |
+| ---------------- | ----: | ----: | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dashboard.ts`   | 2,105 | 100KB | HTTP server for the dashboard on port 3333. Serves the built SPA from `dist/dashboard/` (with `index.html` as the SPA fallback route), exposes JSON `/api/*` endpoints, and includes SSE for live updates. The page and `/api/*` need the bearer header or the browser session cookie. |
+| `auth.ts`        |    68 |   4KB | Dashboard auth. Generates a bearer token on first run, persists it to `.code-context/dashboard.token` beside the `context.db`, verifies it on the page and `/api/*`, and runs the one-time launch URL that sets the browser session cookie (#243).                                     |
+| `dashboard.html` | 1,654 | 100KB | Single-file dashboard UI used only as a fallback when the built SPA is unavailable.                                                                                                                                                                                                    |
+| `app/`           |     — |     — | React SPA (Vite + Zustand) — 6 top-level tabs (Dashboard, Planning, Code, Team, Retro, Benchmark) backed by 9 Zustand stores. Built into `dist/dashboard/`.                                                                                                                            |
 
 #### `src/bridge/` — Claude Code bridge
 

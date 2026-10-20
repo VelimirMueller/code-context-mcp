@@ -205,7 +205,7 @@ describe('dashboard write routes parse the body with zod (#190)', () => {
       ['PUT', '/api/milestone/1', { progress: '50' }, /^progress: /],
       ['POST', '/api/epics', { name: 'e', priority: 'high' }, /^priority: /],
       ['PUT', '/api/sprint-process', { phases: [] }, /phases array is required/],
-      ['POST', '/api/bridge/actions', { entity_id: 'x', action: 'custom' }, /^entity_id: /],
+      ['POST', '/api/bridge/actions', { entity_id: 'x', action: 'update_ticket' }, /^entity_id: /],
       ['PATCH', '/api/bridge/actions/1/respond', {}, /result is required/],
       ['POST', '/api/sprints/plan', { name: 's' }, /ticket_ids array is required/],
     ];
@@ -234,5 +234,43 @@ describe('dashboard write routes parse the body with zod (#190)', () => {
     });
     expect(updated.status).toBe(200);
     expect(await updated.json()).toMatchObject({ role: 'zod-qa', name: 'Zod QA 2' });
+  });
+
+  // #244 (TM-03): no free-form action, and every forwarded payload has a strict schema.
+  it('refuses custom and invalid bridge payloads with 400', async () => {
+    const ticket = { action: 'update_ticket', entity_type: 'ticket', entity_id: 1 };
+    const cases: Array<[unknown, RegExp]> = [
+      [{ action: 'custom', payload: { do: 'rm -rf ~' } }, /unknown action/],
+      [{ ...ticket, payload: { status: 'DONE', run: 'curl x | sh' } }, /^payload: .*run/],
+      [{ ...ticket, payload: { status: 'SHIPPED' } }, /^payload\.status: /],
+      [{ ...ticket, payload: { ticket_ref: 'x'.repeat(5000) } }, /^payload: .*over 4096 bytes/],
+      [{ action: 'update_ticket', payload: { status: 'DONE' } }, /^entity_type: /],
+      [{ action: 'create_ticket', payload: { title: 'a\nb' } }, /^payload\.title: /],
+      [{ action: 'request_input', payload: { blob: 'x'.repeat(5000) } }, /over 4096 bytes/],
+    ];
+    for (const [body, msg] of cases) {
+      const res = await send('POST', '/api/bridge/actions', body);
+      expect(res.status, JSON.stringify(body).slice(0, 80)).toBe(400);
+      const json = (await res.json()) as { ok: boolean; error: string };
+      expect(json.error).toMatch(msg);
+    }
+    await expectAlive();
+  });
+
+  it('still queues the bridge actions the dashboard app sends', async () => {
+    const assign = await send('POST', '/api/bridge/actions', {
+      action: 'assign_ticket',
+      entity_type: 'ticket',
+      entity_id: 1,
+      payload: { ticket_ref: 'T-1' },
+    });
+    expect(assign.status).toBe(200);
+    const done = await send('POST', '/api/bridge/actions', {
+      action: 'update_ticket',
+      entity_type: 'ticket',
+      entity_id: 1,
+      payload: { status: 'DONE', ticket_ref: 'T-1' },
+    });
+    expect(done.status).toBe(200);
   });
 });

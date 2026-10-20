@@ -2,6 +2,7 @@ import { defineConfig } from '@playwright/test';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { E2E_TOKEN } from './test/e2e/helpers';
 
 // The e2e specs drive the built dashboard (npm run build) against a seeded
 // throwaway database (test/e2e/serve.mjs). Never 3333 and never a reused
@@ -9,7 +10,6 @@ import path from 'node:path';
 // Override the port with E2E_PORT; a busy port fails the run.
 const PORT = Number(process.env.E2E_PORT ?? 4317);
 const DB = path.join(mkdtempSync(path.join(tmpdir(), 'cc-e2e-')), 'context.db');
-const TOKEN = 'e2e-token-0123456789abcdef0123456789';
 
 export default defineConfig({
   testDir: './test/e2e',
@@ -19,14 +19,14 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${PORT}`,
     headless: true,
-    // /api/* needs the dashboard token; the page gets it injected, API specs send it.
-    extraHTTPHeaders: { Authorization: `Bearer ${TOKEN}` },
+    // No extra headers (#243): the browser logs in through the launch URL
+    // (openApp), the `request` fixture in helpers.ts sends the bearer token.
   },
   webServer: {
     command: `node test/e2e/serve.mjs "${DB}" ${PORT}`,
     url: `http://localhost:${PORT}/health`,
     reuseExistingServer: false,
     timeout: 30_000,
-    env: { CODE_CONTEXT_DASHBOARD_TOKEN: TOKEN },
+    env: { CODE_CONTEXT_DASHBOARD_TOKEN: E2E_TOKEN },
   },
 });

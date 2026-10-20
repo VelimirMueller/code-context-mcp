@@ -539,54 +539,100 @@ describe('execute gate columns: archive preconditions, sync targets and deletes 
 describe('execute gate columns over MCP stdio (#181)', () => {
   const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
   const TSX_CLI = path.join(REPO_ROOT, 'node_modules/tsx/dist/cli.mjs');
-  const SERVER_ENTRY = path.join(REPO_ROOT, 'src/server/index.ts');
   type ToolResult = { isError?: boolean; content: { text: string }[] };
   const text = (r: ToolResult): string => r.content.map((c) => c.text).join('\n');
 
-  it('the execute tool refuses the github bypass with a tool error and leaves the row alone', async () => {
+  /** Start one entry over stdio in a temp dir, run `body`, clean up. */
+  async function withServer(
+    entry: string,
+    extraEnv: Record<string, string>,
+    body: (
+      call: (name: string, args: Record<string, unknown>) => Promise<ToolResult>,
+      client: Client,
+    ) => Promise<void>,
+  ): Promise<void> {
     const base = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'cca37-')));
     const env = { ...(process.env as Record<string, string>), CODE_CONTEXT_ALLOWED_ROOTS: base };
+    delete env.CODE_CONTEXT_PROFILE;
+    delete env.CODE_CONTEXT_TOOLSETS;
+    Object.assign(env, extraEnv);
     const client = new Client({ name: 'cca37-test', version: '0.0.0' });
     try {
       await client.connect(
         new StdioClientTransport({
           command: process.execPath,
-          args: [TSX_CLI, SERVER_ENTRY, path.join(base, 'context.db')],
+          args: [TSX_CLI, path.join(REPO_ROOT, entry), path.join(base, 'context.db')],
           cwd: base,
           env,
           stderr: 'ignore',
         }),
       );
-      const call = async (name: string, args: Record<string, unknown>): Promise<ToolResult> =>
-        (await client.callTool({ name, arguments: args })) as ToolResult;
-
-      const { tools } = await client.listTools();
-      const desc = tools.find((t) => t.name === 'execute')?.description ?? '';
-      for (const word of ['milestones', 'projects.name/repo', 'update_milestone', 'set_project']) {
-        expect(desc).toContain(word);
-      }
-
-      const insert = await call('execute', { sql: "INSERT INTO tickets (title) VALUES ('t')" });
-      expect(insert.isError ?? false).toBe(false);
-
-      const bypass = await call('execute', {
-        sql: 'UPDATE tickets SET github_issue = ? WHERE title = ?',
-        params: [7, 't'],
-      });
-      expect(bypass.isError).toBe(true);
-      expect(text(bypass)).toContain('tickets.github_issue');
-      expect(text(bypass)).toContain('sync_github');
-
-      const done = await call('execute', { sql: "UPDATE tickets SET status = 'DONE'" });
-      expect(done.isError).toBe(true);
-      expect(text(done)).toContain('update_ticket');
-
-      const row = await call('query', { sql: 'SELECT status, github_issue FROM tickets' });
-      expect(text(row)).toContain('TODO');
-      expect(text(row)).not.toMatch(/\b7\b/);
+      await body(
+        async (name, args) => (await client.callTool({ name, arguments: args })) as ToolResult,
+        client,
+      );
     } finally {
       await client.close();
       fs.rmSync(base, { recursive: true, force: true });
     }
+  }
+
+  // #179: both entry points register the same execute tool, so both keep the guard.
+  it.each([
+    ['code-context-sprint', 'src/server/sprint.ts', {}],
+    [
+      'code-context with CODE_CONTEXT_PROFILE=full',
+      'src/server/index.ts',
+      { CODE_CONTEXT_PROFILE: 'full' },
+    ],
+  ])(
+    '%s: the execute tool refuses the github bypass with a tool error and leaves the row alone',
+    async (_label, entry, extraEnv) => {
+      await withServer(entry, extraEnv, async (call, client) => {
+        const { tools } = await client.listTools();
+        const desc = tools.find((t) => t.name === 'execute')?.description ?? '';
+        for (const word of [
+          'milestones',
+          'projects.name/repo',
+          'update_milestone',
+          'set_project',
+        ]) {
+          expect(desc).toContain(word);
+        }
+
+        const insert = await call('execute', { sql: "INSERT INTO tickets (title) VALUES ('t')" });
+        expect(insert.isError ?? false).toBe(false);
+
+        const bypass = await call('execute', {
+          sql: 'UPDATE tickets SET github_issue = ? WHERE title = ?',
+          params: [7, 't'],
+        });
+        expect(bypass.isError).toBe(true);
+        expect(text(bypass)).toContain('tickets.github_issue');
+        expect(text(bypass)).toContain('sync_github');
+
+        const done = await call('execute', { sql: "UPDATE tickets SET status = 'DONE'" });
+        expect(done.isError).toBe(true);
+        expect(text(done)).toContain('update_ticket');
+
+        const row = await call('query', { sql: 'SELECT status, github_issue FROM tickets' });
+        expect(text(row)).toContain('TODO');
+        expect(text(row)).not.toMatch(/\b7\b/);
+      });
+    },
+    30_000,
+  );
+
+  it('code-context with code-admin only: the guard refuses before SQLite sees the statement', async () => {
+    await withServer(
+      'src/server/index.ts',
+      { CODE_CONTEXT_TOOLSETS: 'code,code-admin' },
+      async (call) => {
+        const bypass = await call('execute', { sql: "UPDATE tickets SET status = 'DONE'" });
+        expect(bypass.isError).toBe(true);
+        expect(text(bypass)).toContain('tickets.status');
+        expect(text(bypass)).not.toContain('no such table');
+      },
+    );
   }, 30_000);
 });
