@@ -43,7 +43,17 @@ describe('parseEventStream', () => {
     expect(u.mcpToolCalls).toBe(1); // code-context_find_symbol
     expect(CODE_CONTEXT_TOOLS).toContain('find_symbol');
     expect(CODE_CONTEXT_TOOLS).toContain('search_files');
-    expect(CODE_CONTEXT_TOOLS).toContain('index_directory');
+    expect(CODE_CONTEXT_TOOLS).toContain('who_imports');
+    expect(CODE_CONTEXT_TOOLS).toContain('exports_in');
+  });
+
+  it('counts the whole code profile, including who_imports and exports_in', () => {
+    const u = parseEventStream([
+      '{"type":"tool","part":{"id":"w1","type":"tool","tool":"code-context_who_imports"}}',
+      '{"type":"tool","part":{"id":"w2","type":"tool","tool":"code-context_exports_in"}}',
+      '{"type":"tool","part":{"id":"w3","type":"tool","tool":"code-context_query"}}',
+    ]);
+    expect(u.mcpToolCalls).toBe(3);
   });
 
   it('does not count lookalike or bare tool names from other servers', () => {

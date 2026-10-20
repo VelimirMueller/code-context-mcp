@@ -40,6 +40,46 @@ export function normaliseAnswer(answer: string): string {
     .trim();
 }
 
+/** A marker line the model may put before its answer list. */
+const ANSWER_MARKER_RE = /^(?:Answer|Result|Final answer):\s*/i;
+
+/**
+ * The answer block the answer checkers score (CCA-07, #261): the LAST fenced
+ * code block in the model's final message, or the text after the last line
+ * matching `^(Answer|Result|Final answer):`. Falls back to the whole message
+ * when neither is present (the answer is then prose or plain lines). Names a
+ * session mentions in explanation prose around the block never count.
+ */
+export function answerBlock(finalAnswer: string): string {
+  const lines = finalAnswer.split('\n');
+  let fence = false;
+  let body: string[] = [];
+  let lastBlock: string | null = null;
+  let markerAt = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!fence && ANSWER_MARKER_RE.test(line)) markerAt = i;
+    if (/^\s*```/.test(line)) {
+      if (fence) {
+        lastBlock = body.join('\n');
+        body = [];
+      }
+      fence = !fence;
+    } else if (fence) {
+      body.push(line);
+    }
+  }
+  if (fence && body.length > 0) lastBlock = body.join('\n'); // unterminated fence
+  if (lastBlock !== null) return lastBlock;
+  if (markerAt >= 0) {
+    const trailing = lines[markerAt].replace(ANSWER_MARKER_RE, '');
+    const rest = lines.slice(markerAt + 1);
+    return (trailing ? [trailing, ...rest] : rest).join('\n');
+  }
+  return finalAnswer;
+}
+
 function checkAnswer(task: LiveTask, finalAnswer: string): CheckResult {
   const norm = normaliseAnswer(finalAnswer);
   if (!norm) return { pass: false, detail: 'empty final answer' };
@@ -633,31 +673,38 @@ function checkSuiteSymbols(task: LiveTask, finalAnswer: string): CheckResult {
   return compareSets(expected, named, maxExtra, 'names');
 }
 
+export interface CheckerOptions {
+  /** Score the full prose (the pre-#261 behaviour) instead of only the answer block. */
+  scoreProse?: boolean;
+}
+
 export async function runChecker(
   task: LiveTask,
   workspaceDir: string,
   finalAnswer: string,
+  opts: CheckerOptions = {},
 ): Promise<CheckResult> {
+  const answer = opts.scoreProse ? finalAnswer : answerBlock(finalAnswer);
   switch (task.checker.type) {
     case 'answer':
-      return checkAnswer(task, finalAnswer);
+      return checkAnswer(task, answer);
     case 'symbol':
       return checkSymbol(task, workspaceDir);
     case 'tests':
       return checkTests(task, workspaceDir);
     case 'importers':
-      return checkImporters(task, workspaceDir, finalAnswer);
+      return checkImporters(task, workspaceDir, answer);
     case 'rename':
       return checkRename(task, workspaceDir);
     case 'dead-exports':
-      return checkDeadExports(task, workspaceDir, finalAnswer);
+      return checkDeadExports(task, workspaceDir, answer);
     case 'pinned-paths':
-      return checkPinnedPaths(task, finalAnswer);
+      return checkPinnedPaths(task, answer);
     case 'pinned-exports':
-      return checkPinnedExports(task, finalAnswer);
+      return checkPinnedExports(task, answer);
     case 'path-set':
-      return checkSuitePaths(task, finalAnswer);
+      return checkSuitePaths(task, answer);
     case 'symbol-set':
-      return checkSuiteSymbols(task, finalAnswer);
+      return checkSuiteSymbols(task, answer);
   }
 }
