@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { withToken } from '@/lib/token';
 
 interface StepProgressData {
   step: string;
@@ -20,7 +19,19 @@ export interface ClaudeOutputChunk {
 }
 
 type SSEEvent = {
-  type: 'file_changed' | 'sprint_updated' | 'ticket_updated' | 'agent_status' | 'updated' | 'ping' | 'bridge_action' | 'input_requested' | 'response_ready' | 'step_progress' | 'claude_output' | 'claude_step';
+  type:
+    | 'file_changed'
+    | 'sprint_updated'
+    | 'ticket_updated'
+    | 'agent_status'
+    | 'updated'
+    | 'ping'
+    | 'bridge_action'
+    | 'input_requested'
+    | 'response_ready'
+    | 'step_progress'
+    | 'claude_output'
+    | 'claude_step';
   entityType?: string;
   entityId?: number | string;
   change?: unknown;
@@ -60,7 +71,8 @@ export function useEventSource({
 
     esRef.current?.close();
     setConnectionState('reconnecting');
-    const es = new EventSource(withToken(url));
+    // Same-origin: the browser sends the HttpOnly session cookie (#243).
+    const es = new EventSource(url);
     esRef.current = es;
 
     es.onopen = () => {

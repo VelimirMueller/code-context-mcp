@@ -5,8 +5,8 @@
  * vision/milestone text before it adds any tags, so an agent-written
  * `<img src=x onerror=…>` renders as text, not as a script; (2) every HTML
  * response carries a `Content-Security-Policy` whose `script-src` names one
- * per-response nonce, and the inline `window.__DASHBOARD_TOKEN__` script the
- * server injects carries that same nonce.
+ * per-response nonce, every inline script carries that same nonce, and no
+ * page carries the dashboard token (#243).
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { JSDOM } from 'jsdom';
@@ -159,8 +159,8 @@ afterAll(() => {
 });
 
 describe('dashboard HTML responses send a CSP with a matching nonce', () => {
-  it('GET / carries the CSP header, and the inline token script carries its nonce', async () => {
-    const res = await request('GET', '/', { Host: LOCAL_HOST });
+  it('GET / carries the CSP header, every inline script carries its nonce, no token', async () => {
+    const res = await request('GET', '/', { Host: LOCAL_HOST, Authorization: `Bearer ${TOKEN}` });
     expect(res.status).toBe(200);
     const csp = res.headers['content-security-policy'];
     expect(csp).toContain("default-src 'self'");
@@ -170,7 +170,16 @@ describe('dashboard HTML responses send a CSP with a matching nonce', () => {
     const m = /script-src 'self' 'nonce-([^']+)'/.exec(String(csp));
     expect(m).toBeTruthy();
     const nonce = m![1];
-    expect(res.body).toContain(`<script nonce="${nonce}">window.__DASHBOARD_TOKEN__=`);
+    for (const [, n] of res.body.matchAll(/<script nonce="([^"]+)"/g)) expect(n).toBe(nonce);
+    expect(res.body).not.toContain('__DASHBOARD_TOKEN__');
+    expect(res.body).not.toContain(TOKEN);
+  });
+
+  it('the login page for a browser without a session also carries the CSP (#243)', async () => {
+    const res = await request('GET', '/', { Host: LOCAL_HOST });
+    expect(res.status).toBe(401);
+    expect(res.headers['content-security-policy']).toContain("default-src 'self'");
+    expect(res.body).not.toContain(TOKEN);
   });
 
   it('sends nosniff and no-referrer on the HTML response', async () => {

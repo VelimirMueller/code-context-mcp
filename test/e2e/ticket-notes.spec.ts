@@ -1,5 +1,4 @@
-import { test, expect } from '@playwright/test';
-import { createOwnSprint, openApp } from './helpers';
+import { test, expect, createOwnSprint, openApp } from './helpers';
 
 /**
  * #197: notes typed in the ticket editor are saved and survive a reload.

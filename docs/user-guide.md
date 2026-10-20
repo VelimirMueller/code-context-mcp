@@ -31,7 +31,8 @@ npx code-context-mcp setup .
 # 3. Start the dashboard
 npx code-context-dashboard ./context.db
 
-# Dashboard opens at http://localhost:3333
+# It prints a one-time launch URL (http://localhost:3333/auth/launch?code=…); open it,
+# or run /ccui in Claude Code
 ```
 
 That's it! Your codebase is now indexed and ready for AI-assisted development.
@@ -130,7 +131,7 @@ The dashboard provides a live view of your project's scrum process. Open it with
 npx code-context-dashboard ./context.db
 ```
 
-Navigate to `http://localhost:3333`
+Open the one-time launch URL the dashboard prints at startup, or run `/ccui` in Claude Code. The launch URL logs the browser in with an `HttpOnly` cookie and works once; plain `http://localhost:3333` shows only a short login page. For a fresh URL, run `node node_modules/vlm-code-context-mcp/scripts/dashboard-launch-url.mjs ./context.db`.
 
 ### Dashboard Tabs
 

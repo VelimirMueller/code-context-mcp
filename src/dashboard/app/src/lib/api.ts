@@ -1,5 +1,3 @@
-import { getDashboardToken } from './token';
-
 const inflight = new Map<string, Promise<unknown>>();
 
 const TIMEOUT_MS = 10_000;
@@ -42,13 +40,12 @@ export async function api<T>(path: string, options?: RequestInit): Promise<T> {
     const existing = inflight.get(key);
     if (existing) return existing as Promise<T>;
   }
-  const token = getDashboardToken();
+  // Auth rides on the HttpOnly session cookie (#243); in dev the Vite proxy adds the bearer header.
   const init: RequestInit = {
     ...options,
     headers: {
       'Content-Type': 'application/json',
       ...(options?.headers as Record<string, string> | undefined),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   };
   const promise = (async () => {
@@ -72,7 +69,10 @@ export async function api<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const get = <T>(path: string) => api<T>(path);
-export const post = <T>(path: string, body: unknown) => api<T>(path, { method: 'POST', body: JSON.stringify(body) });
-export const put = <T>(path: string, body: unknown) => api<T>(path, { method: 'PUT', body: JSON.stringify(body) });
-export const patch = <T>(path: string, body: unknown) => api<T>(path, { method: 'PATCH', body: JSON.stringify(body) });
+export const post = <T>(path: string, body: unknown) =>
+  api<T>(path, { method: 'POST', body: JSON.stringify(body) });
+export const put = <T>(path: string, body: unknown) =>
+  api<T>(path, { method: 'PUT', body: JSON.stringify(body) });
+export const patch = <T>(path: string, body: unknown) =>
+  api<T>(path, { method: 'PATCH', body: JSON.stringify(body) });
 export const del = <T>(path: string) => api<T>(path, { method: 'DELETE' });

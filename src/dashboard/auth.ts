@@ -6,10 +6,10 @@
 // directory of the context.db in use (#235): the dashboard and the MCP server
 // start from different cwds, but they always open the same database.
 //
-// Only /api/* is protected — the HTML page and /assets/* stay public so the
-// browser can load the app and read the token injected into the page. A
-// cross-origin attacker cannot read that injected token (same-origin policy)
-// nor call /api/* without it.
+// The browser never sees the token (#243, TM-01/TM-02): it logs in once
+// through a single-use launch URL and then sends an HttpOnly session cookie.
+// Only /health, /assets/* and /auth/launch are public; the page and /api/*
+// need the bearer header or the cookie.
 
 import { createHmac, randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, chmodSync, rmSync } from 'node:fs';
@@ -108,20 +108,19 @@ export function removeDashboardPort(root: string = process.cwd()): void {
   }
 }
 
-/** Token from the Authorization: Bearer header, falling back to ?token= (EventSource). */
-export function extractRequestToken(req: AuthHeaders, url: URL): string | null {
+/** Token from the Authorization: Bearer header. `?token=` is not read (#243). */
+export function extractRequestToken(req: AuthHeaders): string | null {
   const auth = req.headers['authorization'];
   if (typeof auth === 'string' && auth.startsWith('Bearer ')) {
     const t = auth.slice('Bearer '.length).trim();
     if (t) return t;
   }
-  const q = url.searchParams.get('token');
-  return q && q.trim() ? q.trim() : null;
+  return null;
 }
 
-/** Only /api/* is protected; the page, SPA routes, and assets are public. */
+/** Public: the health probe, the static assets and the launch URL. Everything else needs auth. */
 export function isPublicPath(pathname: string): boolean {
-  return !pathname.startsWith('/api/');
+  return pathname === '/health' || pathname === LAUNCH_PATH || pathname.startsWith('/assets/');
 }
 
 /** Length-checked, constant-time-ish comparison to avoid timing leaks. */
@@ -132,17 +131,109 @@ export function tokensMatch(a: string | null, b: string | null): boolean {
   return diff === 0;
 }
 
+/** How a request proved itself: the bearer header (MCP server, hooks, scripts) or the browser cookie. */
+export type AuthMethod = 'bearer' | 'cookie';
+
+export function authenticate(req: AuthHeaders, expected: string): AuthMethod | null {
+  if (tokensMatch(extractRequestToken(req), expected)) return 'bearer';
+  if (tokensMatch(readCookie(req, SESSION_COOKIE), dashboardSessionValue(expected))) {
+    return 'cookie';
+  }
+  return null;
+}
+
 export function isAuthorized(req: AuthHeaders, url: URL, expected: string): boolean {
   if (isPublicPath(url.pathname)) return true;
-  return tokensMatch(extractRequestToken(req, url), expected);
+  return authenticate(req, expected) !== null;
+}
+
+// ─── Browser session: one-time launch URL + HttpOnly cookie (#243) ──────────
+// A launch code is random, single use and expires after LAUNCH_CODE_TTL_MS.
+// Only a bearer holder can mint one (POST /api/auth/launch; the dashboard also
+// prints one at startup). GET /auth/launch?code= burns the code, sets the
+// cookie and redirects to /. The cookie value is an HMAC of the token, so it
+// survives a dashboard restart, is useless as a bearer token, and changes when
+// the token rotates. Cookies are not port-scoped: a page on another localhost
+// port is same-site, so cookie-authed writes must also pass
+// isAllowedCookieRequest (exact dashboard Origin).
+
+export const SESSION_COOKIE = 'cc_dashboard_session';
+export const LAUNCH_PATH = '/auth/launch';
+export const LAUNCH_CODE_TTL_MS = 5 * 60_000;
+const MAX_OPEN_LAUNCH_CODES = 32;
+
+/** Cookie value for a token: HMAC, so the cookie never equals the bearer token. */
+export function dashboardSessionValue(token: string): string {
+  return createHmac('sha256', token).update('code-context-dashboard-session').digest('hex');
+}
+
+/** Set-Cookie header for the browser session. No Max-Age: it ends with the browser session. */
+export function sessionCookieHeader(token: string): string {
+  return `${SESSION_COOKIE}=${dashboardSessionValue(token)}; HttpOnly; SameSite=Strict; Path=/`;
+}
+
+/** Value of one cookie from the Cookie header, or null. */
+export function readCookie(req: AuthHeaders, name: string): string | null {
+  const header = req.headers['cookie'];
+  if (typeof header !== 'string') return null;
+  for (const part of header.split(';')) {
+    const eq = part.indexOf('=');
+    if (eq > 0 && part.slice(0, eq).trim() === name) return part.slice(eq + 1).trim() || null;
+  }
+  return null;
+}
+
+/** Single-use, short-lived launch codes, held in memory only. */
+export class LaunchCodes {
+  private codes = new Map<string, number>();
+
+  constructor(private ttlMs = LAUNCH_CODE_TTL_MS) {}
+
+  mint(now = Date.now()): { code: string; expiresAt: number } {
+    for (const [c, exp] of this.codes) if (exp <= now) this.codes.delete(c);
+    // Bounded: the oldest open code goes first.
+    while (this.codes.size >= MAX_OPEN_LAUNCH_CODES) {
+      this.codes.delete(this.codes.keys().next().value as string);
+    }
+    const code = randomBytes(32).toString('hex');
+    const expiresAt = now + this.ttlMs;
+    this.codes.set(code, expiresAt);
+    return { code, expiresAt };
+  }
+
+  /** True once per valid code; the code is gone afterwards either way. */
+  consume(code: string | null, now = Date.now()): boolean {
+    if (!code) return false;
+    const exp = this.codes.get(code);
+    if (exp === undefined) return false;
+    this.codes.delete(code);
+    return exp > now;
+  }
+}
+
+/**
+ * CSRF guard for cookie-authed requests. SameSite=Strict does not separate
+ * ports, so a page on another localhost port still sends the cookie: a write
+ * must carry the exact dashboard Origin, and a fetch the browser marks as
+ * cross-site or same-site (Sec-Fetch-Site) is refused for every method.
+ */
+export function isAllowedCookieRequest(
+  method: string | undefined,
+  headers: http.IncomingHttpHeaders,
+): boolean {
+  const site = headers['sec-fetch-site'];
+  if (site === 'cross-site' || site === 'same-site') return false;
+  if (['GET', 'HEAD', 'OPTIONS'].includes(method ?? 'GET')) return true;
+  const origin = headers['origin'];
+  return typeof origin === 'string' && origin === `http://${String(headers['host']).toLowerCase()}`;
 }
 
 // ─── DNS-rebinding guard ─────────────────────────────────────────────────────
-// The token alone does not stop DNS rebinding: a hostile page whose hostname
-// re-resolves to 127.0.0.1 becomes "same-origin" with the dashboard, can GET /
-// and read the injected token, then call /api/* (incl. /api/bridge/actions,
-// which the PreToolUse hook feeds into the agent). The browser still sends the
-// attacker's hostname in Host, so allowlisting loopback names closes it.
+// Auth alone does not stop DNS rebinding: a hostile page whose hostname
+// re-resolves to 127.0.0.1 becomes "same-origin" with the dashboard and can
+// probe every route, incl. the public ones (/auth/launch, /health). The
+// browser still sends the attacker's hostname in Host, so allowlisting
+// loopback names closes it.
 
 const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]']);
 
