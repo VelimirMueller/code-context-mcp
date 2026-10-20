@@ -20,7 +20,8 @@ import { fileURLToPath } from 'node:url';
 import { createTestDb } from './helpers/db.js';
 import { initScrumSchema, runMigrations } from '../src/scrum/schema.js';
 import { archiveEntity, unarchiveEntity } from '../src/scrum/archive.js';
-import { registerScrumTools } from '../src/scrum/tools.js';
+import { registerScrumTools, setDashboardDbPath } from '../src/scrum/tools.js';
+import { writeDashboardPort } from '../src/dashboard/auth.js';
 import { freePort } from './helpers/free-port.js';
 
 // MCP tools resolve a bearer token for their dashboard notify call — never let that
@@ -38,12 +39,18 @@ class FakeServer {
   }
 }
 
+// Point notifyDashboard at a closed port so tests never reach a running
+// dashboard. #246: the notify port comes from the 0600 file beside the db, so
+// the shield is that file — the `_dashboard_port` db row is read by nothing.
+const NOTIFY_ROOT = mkdtempSync(path.join(tmpdir(), 'cc-notify-'));
+writeDashboardPort(NOTIFY_ROOT, 9);
+setDashboardDbPath(path.join(NOTIFY_ROOT, 'context.db'));
+afterAll(() => rmSync(NOTIFY_ROOT, { recursive: true, force: true }));
+
 function memDb(): Database.Database {
   const db = createTestDb();
   initScrumSchema(db);
   runMigrations(db);
-  // Point notifyDashboard at a closed port so tests never reach a running dashboard.
-  db.prepare("INSERT INTO skills (name, content) VALUES ('_dashboard_port', '9')").run();
   return db;
 }
 

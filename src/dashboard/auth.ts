@@ -11,8 +11,8 @@
 // cross-origin attacker cannot read that injected token (same-origin policy)
 // nor call /api/* without it.
 
-import { randomBytes } from 'node:crypto';
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { createHash, randomBytes } from 'node:crypto';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, chmodSync } from 'node:fs';
 import path from 'node:path';
 import type http from 'node:http';
 
@@ -20,6 +20,7 @@ export type AuthHeaders = { headers: http.IncomingHttpHeaders };
 
 const TOKEN_DIR = '.code-context';
 const TOKEN_FILE = 'dashboard.token';
+const PORT_FILE = 'dashboard.port';
 
 /**
  * Directory that holds the persisted token: the directory of the db file when
@@ -47,6 +48,50 @@ export function resolveDashboardToken(root: string = process.cwd()): string {
   const gitignore = path.join(dir, '.gitignore');
   if (!existsSync(gitignore)) writeFileSync(gitignore, '*\n'); // never commit the secret
   return token;
+}
+
+// ─── Port file + listener proof (#246, TM-05) ────────────────────────────────
+// The port a client may send the bearer token to comes from a 0600 file beside
+// the db (written by the dashboard at startup), never from the `_dashboard_port`
+// db row: any db writer (execute, import, restore) can change that row and
+// redirect the token to a listener it controls. Before any token leaves, the
+// client also checks /health: the dashboard answers with its identity and a
+// token fingerprint, so a wrong listener never sees the Authorization header.
+
+/** File the dashboard writes its actual port to at startup (beside the token). */
+export function dashboardPortFile(root: string = process.cwd()): string {
+  return path.join(root, TOKEN_DIR, PORT_FILE);
+}
+
+/** The dashboard persists its listening port here (mode 0600, like the token). */
+export function writeDashboardPort(root: string, port: number | string): void {
+  mkdirSync(path.join(root, TOKEN_DIR), { recursive: true });
+  const file = dashboardPortFile(root);
+  writeFileSync(file, `${port}\n`, { mode: 0o600 });
+  try {
+    chmodSync(file, 0o600); // umask-independent, like secure-file.ts
+  } catch {
+    // Windows: modes are meaningless there.
+  }
+}
+
+/** Port the dashboard last started on, or null when it never wrote the file. */
+export function readDashboardPort(root: string = process.cwd()): string | null {
+  try {
+    const raw = readFileSync(dashboardPortFile(root), 'utf-8').trim();
+    return /^\d{1,5}$/.test(raw) ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * First 8 hex chars of sha256(token) — the listener publishes this on /health
+ * so a client can prove it talks to the dashboard that holds the same token.
+ * The prefix reveals nothing usable about the token itself.
+ */
+export function tokenFingerprint(token: string): string {
+  return createHash('sha256').update(token).digest('hex').slice(0, 8);
 }
 
 /** Token from the Authorization: Bearer header, falling back to ?token= (EventSource). */

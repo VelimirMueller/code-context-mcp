@@ -24,6 +24,8 @@ import {
   isAuthorized,
   isAllowedHost,
   isAllowedOrigin,
+  tokenFingerprint,
+  writeDashboardPort,
 } from './auth.js';
 import { makeWatchIgnorePredicate, WATCH_DIR_WARN_THRESHOLD } from '../shared/ignore.js';
 import { codeHandlers, sprintHandlers, benchHandlers, planningHandlers } from './handlers/index.js';
@@ -772,6 +774,11 @@ function apiHealth() {
   }
 
   return {
+    // Listener proof (#246): a notify client matches the fingerprint against
+    // its own token before it sends the Authorization header. Public on
+    // purpose — the sha256 prefix reveals nothing usable about the token.
+    server: 'code-context-dashboard',
+    token_fingerprint: tokenFingerprint(DASHBOARD_TOKEN),
     agentCount,
     skillCount,
     buildHash,
@@ -2151,7 +2158,12 @@ function startServer(port: number, maxRetries = 10): void {
     }
   });
   server.listen(port, '127.0.0.1', () => {
-    // Write actual port to DB so MCP tools can find the dashboard
+    // Port file beside the db (0600) — the ONLY port the MCP notify client
+    // trusts (#246): any db writer can change the row below.
+    try {
+      writeDashboardPort(dashboardTokenRoot(dbPath), port);
+    } catch {}
+    // Row kept for the UI (legacy readers); the notify client ignores it (#246)
     try {
       writeDb
         .prepare(
