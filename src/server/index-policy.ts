@@ -15,32 +15,103 @@
  * (via `git ls-files`, see listRepoFiles in indexer.ts) is the other half.
  */
 
-import fs from "node:fs";
-import path from "node:path";
-import { SKIP_DIR_NAMES, isUnderSkippedPath } from "../shared/ignore.js";
+import fs from 'node:fs';
+import path from 'node:path';
+import { SKIP_DIR_NAMES, isUnderSkippedPath } from '../shared/ignore.js';
 
 /** Never content worth searching: media, archives, fonts, binaries, databases. */
 export const BINARY_EXTENSIONS: ReadonlySet<string> = new Set([
-  ".png", ".jpg", ".jpeg", ".gif", ".ico", ".webp", ".avif", ".bmp", ".svg", ".tif", ".tiff", ".heic", ".psd",
-  ".woff", ".woff2", ".ttf", ".eot", ".otf",
-  ".mp3", ".mp4", ".wav", ".ogg", ".webm", ".mov", ".m4a",
-  ".zip", ".tar", ".gz", ".tgz", ".br", ".zst", ".7z", ".rar", ".jar",
-  ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
-  ".exe", ".dll", ".so", ".dylib", ".wasm", ".class", ".o", ".a", ".bin", ".pyc",
-  ".db", ".sqlite", ".sqlite3", ".db-shm", ".db-wal",
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.ico',
+  '.webp',
+  '.avif',
+  '.bmp',
+  '.svg',
+  '.tif',
+  '.tiff',
+  '.heic',
+  '.psd',
+  '.woff',
+  '.woff2',
+  '.ttf',
+  '.eot',
+  '.otf',
+  '.mp3',
+  '.mp4',
+  '.wav',
+  '.ogg',
+  '.webm',
+  '.mov',
+  '.m4a',
+  '.zip',
+  '.tar',
+  '.gz',
+  '.tgz',
+  '.br',
+  '.zst',
+  '.7z',
+  '.rar',
+  '.jar',
+  '.pdf',
+  '.doc',
+  '.docx',
+  '.xls',
+  '.xlsx',
+  '.ppt',
+  '.pptx',
+  '.exe',
+  '.dll',
+  '.so',
+  '.dylib',
+  '.wasm',
+  '.class',
+  '.o',
+  '.a',
+  '.bin',
+  '.pyc',
+  '.db',
+  '.sqlite',
+  '.sqlite3',
+  '.db-shm',
+  '.db-wal',
 ]);
 
 /** Generated lockfiles: huge, machine-written, no symbols anyone searches for. */
 export const LOCKFILE_NAMES: ReadonlySet<string> = new Set([
-  "package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock.yaml", "bun.lockb", "bun.lock",
-  "composer.lock", "Gemfile.lock", "Cargo.lock", "poetry.lock", "Pipfile.lock", "uv.lock",
-  "go.sum", "pubspec.lock", "Podfile.lock", "mix.lock", "flake.lock",
+  'package-lock.json',
+  'npm-shrinkwrap.json',
+  'yarn.lock',
+  'pnpm-lock.yaml',
+  'bun.lockb',
+  'bun.lock',
+  'composer.lock',
+  'Gemfile.lock',
+  'Cargo.lock',
+  'poetry.lock',
+  'Pipfile.lock',
+  'uv.lock',
+  'go.sum',
+  'pubspec.lock',
+  'Podfile.lock',
+  'mix.lock',
+  'flake.lock',
 ]);
 
-export const SKIP_FILE_NAMES: ReadonlySet<string> = new Set([".DS_Store", "Thumbs.db", ".gitkeep"]);
+export const SKIP_FILE_NAMES: ReadonlySet<string> = new Set(['.DS_Store', 'Thumbs.db', '.gitkeep']);
 
 /** Minified bundles and source maps are build output even when committed. */
-const GENERATED_SUFFIXES = [".min.js", ".min.mjs", ".min.css", ".js.map", ".css.map", ".map", ".bundle.js"];
+const GENERATED_SUFFIXES = [
+  '.min.js',
+  '.min.mjs',
+  '.min.css',
+  '.js.map',
+  '.css.map',
+  '.map',
+  '.bundle.js',
+];
 
 const DEFAULT_MAX_FILE_KB = 512;
 
@@ -55,13 +126,14 @@ export function maxFileBytes(): number {
 // Names are compared case-insensitively: APFS is case-insensitive by default,
 // so `Node_Modules/` IS `node_modules/` on disk. Indexer-only, so watcher ⊇
 // indexer (shared/ignore.ts) still holds.
-const lowerSet = (s: Iterable<string>): ReadonlySet<string> => new Set(Array.from(s, (x) => x.toLowerCase()));
+const lowerSet = (s: Iterable<string>): ReadonlySet<string> =>
+  new Set(Array.from(s, (x) => x.toLowerCase()));
 const SKIP_DIRS_LOWER = lowerSet(SKIP_DIR_NAMES);
 const LOCKFILES_LOWER = lowerSet(LOCKFILE_NAMES);
 const SKIP_FILES_LOWER = lowerSet(SKIP_FILE_NAMES);
 
 export function isDeniedFileName(name: string): boolean {
-  if (name.startsWith(".")) return true; // matches the walk's historic dot rule
+  if (name.startsWith('.')) return true; // matches the walk's historic dot rule
   const lower = name.toLowerCase();
   if (SKIP_FILES_LOWER.has(lower) || LOCKFILES_LOWER.has(lower)) return true;
   if (BINARY_EXTENSIONS.has(path.extname(lower))) return true;
@@ -77,12 +149,12 @@ const laravelCache = new Map<string, boolean>();
  * `artisan` file sits next to it. Cached: called once per path segment.
  */
 export function isLaravelStorage(dirPath: string): boolean {
-  if (path.basename(dirPath).toLowerCase() !== "storage") return false;
+  if (path.basename(dirPath).toLowerCase() !== 'storage') return false;
   const parent = path.dirname(dirPath);
   let hit = laravelCache.get(parent);
   if (hit === undefined) {
     try {
-      hit = fs.statSync(path.join(parent, "artisan")).isFile();
+      hit = fs.statSync(path.join(parent, 'artisan')).isFile();
     } catch {
       hit = false;
     }
@@ -96,7 +168,7 @@ export function isLaravelStorage(dirPath: string): boolean {
 export function isDeniedDir(absDir: string): boolean {
   const name = path.basename(absDir);
   return (
-    name.startsWith(".") ||
+    name.startsWith('.') ||
     SKIP_DIRS_LOWER.has(name.toLowerCase()) ||
     isUnderSkippedPath(absDir.toLowerCase()) ||
     isLaravelStorage(absDir)
@@ -115,8 +187,8 @@ export function isDeniedPath(absPath: string, root?: string, sizeBytes?: number)
 
   const base = root ? path.resolve(root) : path.parse(absPath).root;
   const rel = path.relative(base, path.dirname(absPath));
-  if (rel.startsWith("..") || path.isAbsolute(rel)) return false;
-  if (rel === "") return false;
+  if (rel.startsWith('..') || path.isAbsolute(rel)) return false;
+  if (rel === '') return false;
   let cur = base;
   for (const seg of rel.split(path.sep)) {
     cur = path.join(cur, seg);
@@ -136,7 +208,7 @@ export function looksBinary(buf: Buffer): boolean {
 export function isDeniedDirPath(absDir: string, root: string): boolean {
   const base = path.resolve(root);
   const rel = path.relative(base, absDir);
-  if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel)) return false;
+  if (rel === '' || rel.startsWith('..') || path.isAbsolute(rel)) return false;
   let cur = base;
   for (const seg of rel.split(path.sep)) {
     cur = path.join(cur, seg);
@@ -147,12 +219,12 @@ export function isDeniedDirPath(absDir: string, root: string): boolean {
 
 export type Admission =
   | { ok: true; real: string; size: number }
-  | { ok: false; reason: "gone" | "unreadable" | "not-file" | "outside" | "denied" | "too-large" };
+  | { ok: false; reason: 'gone' | 'unreadable' | 'not-file' | 'outside' | 'denied' | 'too-large' };
 
 /** `child` is `parent` or below it (segment-wise; no `/a` vs `/ab` confusion, no `..`). */
 export function isInside(child: string, parent: string): boolean {
   const rel = path.relative(parent, child);
-  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
 }
 
 /**
@@ -172,17 +244,17 @@ export function isInside(child: string, parent: string): boolean {
 export function admitFile(file: string, root: string, realRoot?: string): Admission {
   const abs = path.resolve(file);
   const base = path.resolve(root);
-  if (!isInside(abs, base) || abs === base) return { ok: false, reason: "outside" };
-  if (isDeniedPath(abs, base)) return { ok: false, reason: "denied" };
+  if (!isInside(abs, base) || abs === base) return { ok: false, reason: 'outside' };
+  if (isDeniedPath(abs, base)) return { ok: false, reason: 'denied' };
   let st: fs.Stats;
   try {
     st = fs.lstatSync(abs);
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
-    return { ok: false, reason: code === "ENOENT" || code === "ENOTDIR" ? "gone" : "unreadable" };
+    return { ok: false, reason: code === 'ENOENT' || code === 'ENOTDIR' ? 'gone' : 'unreadable' };
   }
-  if (!st.isFile()) return { ok: false, reason: "not-file" };
-  if (st.size > maxFileBytes()) return { ok: false, reason: "too-large" };
+  if (!st.isFile()) return { ok: false, reason: 'not-file' };
+  if (st.size > maxFileBytes()) return { ok: false, reason: 'too-large' };
   let real: string;
   let rr: string;
   try {
@@ -190,9 +262,9 @@ export function admitFile(file: string, root: string, realRoot?: string): Admiss
     rr = realRoot ?? fs.realpathSync(base);
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
-    return { ok: false, reason: code === "ENOENT" || code === "ENOTDIR" ? "gone" : "unreadable" };
+    return { ok: false, reason: code === 'ENOENT' || code === 'ENOTDIR' ? 'gone' : 'unreadable' };
   }
-  if (!isInside(real, rr)) return { ok: false, reason: "outside" };
-  if (isDeniedPath(real, rr)) return { ok: false, reason: "denied" };
+  if (!isInside(real, rr)) return { ok: false, reason: 'outside' };
+  if (isDeniedPath(real, rr)) return { ok: false, reason: 'denied' };
   return { ok: true, real, size: st.size };
 }
