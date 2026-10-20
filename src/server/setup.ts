@@ -365,8 +365,9 @@ if (fs.existsSync(claudeSettingsPath)) {
 if (!claudeSettings.hooks) claudeSettings.hooks = {};
 if (!claudeSettings.hooks.PreToolUse) claudeSettings.hooks.PreToolUse = [];
 
-// Always write the correct bridge hook (repairs broken configs from older versions)
-const bridgeHookCmd = `node ${hookScript}`;
+// Always write the correct bridge hook (repairs broken configs from older versions).
+// Pass the absolute db path so the hook never has to walk directories for it (#245).
+const bridgeHookCmd = `node ${hookScript} --db ${DB_PATH}`;
 // Remove any existing bridge hook entries (including old flat-format ones)
 claudeSettings.hooks.PreToolUse = claudeSettings.hooks.PreToolUse.filter((entry) => {
   // Remove old flat-format entries: { type: "command", command: "...bridge/hook..." }
