@@ -11,7 +11,6 @@
  * prompt-injection channel, #245). Resolution order:
  *   1. the `CODE_CONTEXT_DB` environment variable,
  *   2. the `--db <path>` argument (setup writes it into the hook command),
- *   3. the `code-context` entry of the project's `.mcp.json`.
  *
  * Install in .claude/settings.json (written by setup):
  * {
@@ -47,37 +46,6 @@ export function dbFromArgs(args: string[]): string | null {
   return null;
 }
 
-/**
- * Read the db path from a `.mcp.json` `code-context` server entry. The db is
- * the server's first positional argument (`node <entry> <db>`), so it is
- * `args[1]` in the entry's `args` array; resolve it relative to the
- * `.mcp.json` directory.
- */
-export function dbFromMcpJson(mcpJsonPath: string): string | null {
-  let raw: string;
-  try {
-    raw = fs.readFileSync(mcpJsonPath, 'utf-8');
-  } catch {
-    return null;
-  }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return null;
-  }
-  if (!parsed || typeof parsed !== 'object') return null;
-  const servers = (parsed as { mcpServers?: unknown }).mcpServers;
-  if (!servers || typeof servers !== 'object') return null;
-  const entry = (servers as Record<string, unknown>)['code-context'];
-  if (!entry || typeof entry !== 'object') return null;
-  const args = (entry as { args?: unknown }).args;
-  if (!Array.isArray(args) || args.length < 2) return null;
-  const dbArg = args[1];
-  if (typeof dbArg !== 'string' || dbArg.length === 0) return null;
-  return path.resolve(path.dirname(mcpJsonPath), dbArg);
-}
-
 export interface ResolveDbOpts {
   args: string[];
   env: NodeJS.ProcessEnv;
@@ -90,7 +58,9 @@ export function resolveDbPath(opts: ResolveDbOpts): string | null {
   if (fromEnv && fromEnv.trim().length > 0) return path.resolve(opts.cwd, fromEnv);
   const fromArgs = dbFromArgs(opts.args);
   if (fromArgs) return path.resolve(opts.cwd, fromArgs);
-  return dbFromMcpJson(path.join(opts.cwd, '.mcp.json'));
+  // No cwd-relative fallback: a planted .mcp.json in a subdirectory would point the
+  // hook at a planted db, the channel #245 closes. Setup writes --db.
+  return null;
 }
 
 export type DbRefusal =

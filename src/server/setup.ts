@@ -367,7 +367,9 @@ if (!claudeSettings.hooks.PreToolUse) claudeSettings.hooks.PreToolUse = [];
 
 // Always write the correct bridge hook (repairs broken configs from older versions).
 // Pass the absolute db path so the hook never has to walk directories for it (#245).
-const bridgeHookCmd = `node ${hookScript} --db ${DB_PATH}`;
+/** Single-quote a path for the hook command (POSIX); a quote inside becomes '\\''. */
+const shQuote = (v: string): string => `'${v.replace(/'/g, `'\\''`)}'`;
+const bridgeHookCmd = `node ${shQuote(hookScript)} --db ${shQuote(DB_PATH)}`;
 // Remove any existing bridge hook entries (including old flat-format ones)
 claudeSettings.hooks.PreToolUse = claudeSettings.hooks.PreToolUse.filter((entry) => {
   // Remove old flat-format entries: { type: "command", command: "...bridge/hook..." }

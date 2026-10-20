@@ -10,13 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { initScrumSchema, runMigrations } from '../src/scrum/schema.js';
-import {
-  resolveDbPath,
-  dbFromArgs,
-  dbFromMcpJson,
-  validateDbPath,
-  runHook,
-} from '../src/bridge/hook.js';
+import { resolveDbPath, dbFromArgs, validateDbPath, runHook } from '../src/bridge/hook.js';
 
 const POSIX = process.platform !== 'win32';
 const itPosix = POSIX ? it : it.skip;
@@ -65,28 +59,6 @@ describe('dbFromArgs', () => {
   });
 });
 
-describe('dbFromMcpJson', () => {
-  it('reads the code-context entry and resolves relative to the .mcp.json dir', () => {
-    const dir = tmpdir();
-    fs.writeFileSync(
-      path.join(dir, '.mcp.json'),
-      JSON.stringify({
-        mcpServers: {
-          'code-context': { command: 'node', args: ['./dist/server/index.js', 'context.db'] },
-        },
-      }),
-    );
-    expect(dbFromMcpJson(path.join(dir, '.mcp.json'))).toBe(path.join(dir, 'context.db'));
-  });
-
-  it('returns null when .mcp.json is missing or has no db arg', () => {
-    const dir = tmpdir();
-    expect(dbFromMcpJson(path.join(dir, '.mcp.json'))).toBeNull();
-    fs.writeFileSync(path.join(dir, '.mcp.json'), JSON.stringify({ mcpServers: {} }));
-    expect(dbFromMcpJson(path.join(dir, '.mcp.json'))).toBeNull();
-  });
-});
-
 describe('resolveDbPath', () => {
   it('prefers CODE_CONTEXT_DB', () => {
     const dir = tmpdir();
@@ -105,17 +77,15 @@ describe('resolveDbPath', () => {
     expect(got).toBe(path.resolve('/abs/context.db'));
   });
 
-  it('falls back to the .mcp.json code-context entry', () => {
-    const dir = tmpdir();
+  it('ignores a cwd-relative .mcp.json (no fallback, #245 follow-up)', () => {
+    const dir = tmpdir('hook-mcp-');
     fs.writeFileSync(
       path.join(dir, '.mcp.json'),
       JSON.stringify({
-        mcpServers: {
-          'code-context': { command: 'node', args: ['./dist/server/index.js', 'context.db'] },
-        },
+        mcpServers: { 'code-context': { command: 'node', args: ['x', 'context.db'] } },
       }),
     );
-    expect(resolveDbPath({ args: [], env: {}, cwd: dir })).toBe(path.join(dir, 'context.db'));
+    expect(resolveDbPath({ args: [], env: {}, cwd: dir })).toBeNull();
   });
 
   it('returns null with no configuration (no directory walk)', () => {
