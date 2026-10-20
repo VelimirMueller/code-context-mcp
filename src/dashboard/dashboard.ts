@@ -24,8 +24,9 @@ import {
   isAuthorized,
   isAllowedHost,
   isAllowedOrigin,
-  tokenFingerprint,
+  dashboardProof,
   writeDashboardPort,
+  removeDashboardPort,
 } from './auth.js';
 import { makeWatchIgnorePredicate, WATCH_DIR_WARN_THRESHOLD } from '../shared/ignore.js';
 import { codeHandlers, sprintHandlers, benchHandlers, planningHandlers } from './handlers/index.js';
@@ -736,7 +737,7 @@ function apiActivity() {
   }
 }
 
-function apiHealth() {
+function apiHealth(nonce?: string) {
   const agentCount = (writeDb.prepare('SELECT COUNT(*) as c FROM agents').get() as any).c;
   const skillCount = (writeDb.prepare('SELECT COUNT(*) as c FROM skills').get() as any).c;
 
@@ -773,17 +774,17 @@ function apiHealth() {
     // Ignore if dist doesn't exist
   }
 
-  return {
-    // Listener proof (#246): a notify client matches the fingerprint against
-    // its own token before it sends the Authorization header. Public on
-    // purpose — the sha256 prefix reveals nothing usable about the token.
+  const health = {
+    // Listener challenge-response (#246): `server` names us, and `proof` is
+    // computed only for a request that carries a nonce. A plain /health
+    // reveals no static hash a rogue listener could replay.
     server: 'code-context-dashboard',
-    token_fingerprint: tokenFingerprint(DASHBOARD_TOKEN),
     agentCount,
     skillCount,
     buildHash,
     lastBuildTime,
   };
+  return nonce ? { ...health, proof: dashboardProof(DASHBOARD_TOKEN, nonce) } : health;
 }
 
 // ─── Bridge API helpers ────────────────────────────────────────────────────
@@ -1521,6 +1522,27 @@ const server = http.createServer((req, res) => {
   });
 });
 
+// ─── Clean shutdown (#246) ────────────────────────────────────────────────────
+// A client treats a missing port file as "no dashboard", so the dashboard must
+// remove `.code-context/dashboard.port` when it stops — otherwise a stale port
+// keeps the MCP notify client pointed at a dead listener (or one another
+// process now holds).
+server.on('close', () => {
+  try {
+    removeDashboardPort(dashboardTokenRoot(dbPath));
+  } catch {}
+});
+
+function shutdown(signal: string): void {
+  slog('INFO', `dashboard: ${signal} — shutting down`);
+  const force = setTimeout(() => process.exit(0), 3000);
+  force.unref();
+  server.close();
+}
+
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+
 async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
   const url = new URL(req.url ?? '/', `http://localhost:${PORT}`);
 
@@ -1657,7 +1679,8 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
   // Health check endpoint (no auth required for monitoring)
   if (url.pathname === '/health' && req.method === 'GET') {
     res.setHeader('Content-Type', 'application/json');
-    const data = apiHealth();
+    const nonce = url.searchParams.get('nonce') ?? undefined;
+    const data = apiHealth(nonce);
     res.writeHead(200);
     res.end(JSON.stringify(data));
     return;
