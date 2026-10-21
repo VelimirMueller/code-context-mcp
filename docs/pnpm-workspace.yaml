@@ -3,6 +3,8 @@
 # installs only this folder.
 
 # Dependencies allowed to run their install scripts. pnpm blocks all others.
+# allowBuilds is the pnpm 11+ key that replaced onlyBuiltDependencies;
+# a clean `pnpm install` lists no ignored builds with it.
 allowBuilds:
   esbuild: true # installs the platform esbuild binary (used by vite)
 
