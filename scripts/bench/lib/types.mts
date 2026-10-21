@@ -4,7 +4,7 @@
  * These scripts live under scripts/bench/ and are excluded from the npm package
  * via the `!scripts/bench` entry in package.json `files`. They are also outside
  * tsconfig `include`, so they are typechecked only incidentally (tsx/esbuild)
- * and kept clean via `npm run lint`.
+ * and kept clean via `pnpm run lint`.
  */
 
 import type { RunVerdict } from './verdict.mts';
@@ -105,7 +105,7 @@ export interface SavedSpread {
  * Agent-run headline. Reading order (CCA-08): success per arm, uncached
  * tokens saved %, cost saved %, uncached tokens per PASS per arm. The
  * CCA-08 fields are optional: run files from before 2026-10-11 lack them
- * until `npm run bench:renormalize` recomputes them from the sessions.
+ * until `pnpm run bench:renormalize` recomputes them from the sessions.
  */
 export interface AgentHeadline {
   success_vanilla_pct: number;

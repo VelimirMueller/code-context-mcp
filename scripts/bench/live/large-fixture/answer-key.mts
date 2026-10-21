@@ -7,7 +7,7 @@
  *
  * The key is pinned in answers.json next to the fixture's sha256. Regenerate
  * after changing generate.mts and review the diff:
- *   npx tsx scripts/bench/live/large-fixture/answer-key.mts --write
+ *   pnpm exec tsx scripts/bench/live/large-fixture/answer-key.mts --write
  * Without --write it recomputes and exits 1 when the pinned key differs.
  */
 import fs from 'node:fs';

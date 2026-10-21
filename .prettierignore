@@ -1,6 +1,8 @@
 dist
 node_modules
 *.db
+# pnpm writes its lockfiles (root and docs/) in its own format.
+pnpm-lock.yaml
 # Vendored or generated content keeps the upstream / generator format.
 vendor/
 # README kit spec: the vm-brand scripts read it in their own one-line-per-panel layout.
@@ -15,7 +17,7 @@ data/
 # Browser test output.
 test-results/
 playwright-report/
-# Contract snapshots are written by npm run contract:update (#180).
+# Contract snapshots are written by pnpm run contract:update (#180).
 test/contract/snapshots/
 # Benchmark run copies written by scripts/bench/snapshot.mjs.
 benchmarks/latest/

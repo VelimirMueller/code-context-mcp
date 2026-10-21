@@ -2,7 +2,7 @@
  * Private suites (CCA-17, #149): run the live bench on code that must not
  * live in this repository.
  *
- *   npm run bench:live -- --suite <dir> --provider <p> [--tasks T1,T2]
+ *   pnpm run bench:live --suite <dir> --provider <p> [--tasks T1,T2]
  *
  * A suite is a directory OUTSIDE this repository with:
  *   <dir>/suite.json    the suite (schema SUITE_SCHEMA, validated by loadSuite)

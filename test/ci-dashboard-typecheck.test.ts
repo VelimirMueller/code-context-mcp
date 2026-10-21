@@ -1,6 +1,6 @@
 /**
  * #213: CI type-checks the dashboard app. The root `tsc --noEmit` does not
- * include src/dashboard/app, so the test job runs `npm run typecheck:dashboard`
+ * include src/dashboard/app, so the test job runs `pnpm run typecheck:dashboard`
  * too, and a type error there fails CI.
  */
 import { describe, it, expect } from 'vitest';
@@ -20,7 +20,7 @@ describe('dashboard type check in CI (#213)', () => {
   it('runs the script in the CI test job', () => {
     const ci = read('.github/workflows/ci.yml');
     const testJob = ci.slice(ci.indexOf('\n  test:'), ci.indexOf('\n  lint:'));
-    expect(testJob).toMatch(/^\s+- run: npm run typecheck:dashboard$/m);
+    expect(testJob).toMatch(/^\s+- run: pnpm run typecheck:dashboard$/m);
     // No `|| true` or continue-on-error: a type error must fail the job.
     expect(testJob).not.toMatch(/typecheck:dashboard.*\|\|/);
     expect(testJob).not.toMatch(/continue-on-error/);

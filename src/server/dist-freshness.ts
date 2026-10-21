@@ -21,7 +21,7 @@ function newestMtime(dir: string, exts: string[], depth = 0): number {
 /**
  * S1 (Sprint 1 try_next, adopted Sprint 23): warn when src is newer than the compiled
  * dist the running server was loaded from — new/changed tools are silently missing
- * until `npm run build` + MCP reconnect. Returns null when fresh or not a dev checkout.
+ * until `pnpm run build` + MCP reconnect. Returns null when fresh or not a dev checkout.
  */
 export function checkDistFreshness(rootDir: string = process.cwd()): string | null {
   try {
@@ -31,7 +31,7 @@ export function checkDistFreshness(rootDir: string = process.cwd()): string | nu
     const srcNewest = newestMtime(srcDir, ['.ts', '.tsx']);
     const distNewest = newestMtime(distDir, ['.js']);
     if (srcNewest > distNewest + 5000) {
-      return '⚠ STALE DIST: src/ is newer than the compiled server — run `npm run build` and reconnect MCP, or new/changed tools stay silently missing.';
+      return '⚠ STALE DIST: src/ is newer than the compiled server — run `pnpm run build` and reconnect MCP, or new/changed tools stay silently missing.';
     }
     return null;
   } catch {

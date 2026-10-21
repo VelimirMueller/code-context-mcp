@@ -2,14 +2,14 @@
  * #180: the public contract (docs/CONTRACT.md), pinned as JSON snapshots in
  * test/contract/snapshots/. A failing test here means the public surface moved.
  *
- * - On purpose: run `npm run contract:update`, commit the snapshots, and follow
+ * - On purpose: run `pnpm run contract:update`, commit the snapshots, and follow
  *   "How to change the contract" in docs/CONTRACT.md (CI needs a major version
  *   bump or the `contract-change-approved` label, scripts/check-contract-change.mjs).
  * - By accident: fix the code, not the snapshot.
  *
  * descriptions.json holds a hash per tool description. A changed description
  * fails here with a readable list, but it is NOT a contract change: the CI
- * gate ignores that file, so a typo fix needs only `npm run contract:update`.
+ * gate ignores that file, so a typo fix needs only `pnpm run contract:update`.
  */
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
@@ -28,11 +28,11 @@ import { LATEST_SCHEMA_VERSION } from '../../src/server/schema-version.js';
 
 const UPDATE = process.env.CONTRACT_UPDATE === '1';
 const HINT =
-  'The public contract changed. On purpose: `npm run contract:update` and see docs/CONTRACT.md "How to change the contract". By accident: fix the code.';
+  'The public contract changed. On purpose: `pnpm run contract:update` and see docs/CONTRACT.md "How to change the contract". By accident: fix the code.';
 
 function read(file: string): unknown {
   const p = path.join(SNAPSHOT_DIR, file);
-  if (!fs.existsSync(p)) throw new Error(`Missing snapshot ${file}: run npm run contract:update`);
+  if (!fs.existsSync(p)) throw new Error(`Missing snapshot ${file}: run pnpm run contract:update`);
   return JSON.parse(fs.readFileSync(p, 'utf-8'));
 }
 
@@ -101,7 +101,7 @@ describe('contract: tools/list per profile (#180)', () => {
     const diff = hashDiff(read('descriptions.json') as Record<string, string>, sorted);
     expect(
       diff,
-      `Tool descriptions changed (not a contract break; run npm run contract:update):\n${diff.join('\n')}`,
+      `Tool descriptions changed (not a contract break; run pnpm run contract:update):\n${diff.join('\n')}`,
     ).toEqual([]);
   }, 60_000);
 });

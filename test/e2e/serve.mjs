@@ -1,5 +1,5 @@
 // Seed a throwaway database, then start the built dashboard on it (Playwright webServer).
-// Usage: node test/e2e/serve.mjs <db-path> <port>. Needs `npm run build` first.
+// Usage: node test/e2e/serve.mjs <db-path> <port>. Needs `pnpm run build` first.
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

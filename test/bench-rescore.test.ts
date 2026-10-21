@@ -1,5 +1,5 @@
 /**
- * CCA-07: `npm run bench:rescore` re-runs the answer checkers on saved event
+ * CCA-07: `pnpm run bench:rescore` re-runs the answer checkers on saved event
  * streams. These tests build a tiny run JSON + artefact dir (opencode JSON
  * events) and check what flips, what is kept and how the aggregate follows.
  * No model, no network.

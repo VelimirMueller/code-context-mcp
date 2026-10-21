@@ -27,7 +27,7 @@
  *
  * The code type-checks under `tsc --strict` (answer-key.mts asserts zero
  * diagnostics). Regenerate the pinned key after any change here:
- *   npx tsx scripts/bench/live/large-fixture/answer-key.mts --write
+ *   pnpm exec tsx scripts/bench/live/large-fixture/answer-key.mts --write
  */
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
@@ -1670,7 +1670,7 @@ export function verifiedLargeFixture(): Map<string, string> {
     if (sha256 !== pinned.sha256 || files.size !== pinned.files) {
       throw new Error(
         `large fixture drifted: generated ${files.size} files sha256 ${sha256}, pinned ${pinned.files} files ${pinned.sha256}. ` +
-          'Regenerate the answer key (npx tsx scripts/bench/live/large-fixture/answer-key.mts --write) and review the diff.',
+          'Regenerate the answer key (pnpm exec tsx scripts/bench/live/large-fixture/answer-key.mts --write) and review the diff.',
       );
     }
     cached = { files, sha256 };

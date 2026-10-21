@@ -3,24 +3,24 @@
 // Walks every vendored skill set (frontend, landing, workflow) and emits one
 // export per set. Pure helpers are exported for tests; main() runs only on
 // direct invocation.
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.resolve(SCRIPT_DIR, "..");
-const VENDOR_ROOT = path.join(REPO_ROOT, "vendor", "skills");
-const OUT_FILE = path.join(REPO_ROOT, "src", "scrum", "frontend-skill-defaults.generated.ts");
-const REGISTRY_FILE = path.join(REPO_ROOT, "src", "scrum", "skill-set-registry.json");
+const REPO_ROOT = path.resolve(SCRIPT_DIR, '..');
+const VENDOR_ROOT = path.join(REPO_ROOT, 'vendor', 'skills');
+const OUT_FILE = path.join(REPO_ROOT, 'src', 'scrum', 'frontend-skill-defaults.generated.ts');
+const REGISTRY_FILE = path.join(REPO_ROOT, 'src', 'scrum', 'skill-set-registry.json');
 
 // Single source of truth shared with src/scrum/skill-sets.ts. This script runs
-// before tsc in `npm run build`, so it cannot import compiled output — it reads
+// before tsc in `pnpm run build`, so it cannot import compiled output — it reads
 // the registry JSON directly with fs. The vendored dir is the last segment of
 // each set's upstreamDir (e.g. "skills/frontend/" -> "frontend"). A parity test
 // in test/skill-sets.test.ts asserts this derivation matches SKILL_SETS so the
 // two readers can never drift.
-export const VENDORED_SETS = JSON.parse(fs.readFileSync(REGISTRY_FILE, "utf-8")).map((s) => ({
-  dir: s.upstreamDir.replace(/\/+$/, "").split("/").pop(),
+export const VENDORED_SETS = JSON.parse(fs.readFileSync(REGISTRY_FILE, 'utf-8')).map((s) => ({
+  dir: s.upstreamDir.replace(/\/+$/, '').split('/').pop(),
   prefix: s.prefix,
   ownerRole: s.ownerRole,
   varName: s.varName,
@@ -43,18 +43,21 @@ export function walkFiles(dir) {
  *   <skill>/<companion> -> <prefix>:<skill>/<companion>     (e.g. ./auth-patterns.md -> fe:set-up-auth/auth-patterns.md)
  *   _shared/<relpath>   -> <prefix>:_shared/<relpath>       (e.g. ../_shared/x.md  -> fe:_shared/x.md)
  */
-export function compileSkills(srcDir, prefix = "fe", ownerRole = "fe-engineer") {
+export function compileSkills(srcDir, prefix = 'fe', ownerRole = 'fe-engineer') {
   const out = [];
   if (!fs.existsSync(srcDir)) return out;
   for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     const dirPath = path.join(srcDir, entry.name);
-    const dirPrefix = entry.name === "_shared" ? `${prefix}:_shared` : `${prefix}:${entry.name}`;
+    const dirPrefix = entry.name === '_shared' ? `${prefix}:_shared` : `${prefix}:${entry.name}`;
     for (const f of walkFiles(dirPath)) {
-      const rel = path.relative(dirPath, f).split(path.sep).join("/");
+      const rel = path.relative(dirPath, f).split(path.sep).join('/');
       // A skill's own SKILL.md collapses to the bare skill name; everything else keeps its relative path.
-      const name = entry.name !== "_shared" && rel === "SKILL.md" ? `${prefix}:${entry.name}` : `${dirPrefix}/${rel}`;
-      out.push({ name, content: fs.readFileSync(f, "utf-8"), owner_role: ownerRole });
+      const name =
+        entry.name !== '_shared' && rel === 'SKILL.md'
+          ? `${prefix}:${entry.name}`
+          : `${dirPrefix}/${rel}`;
+      out.push({ name, content: fs.readFileSync(f, 'utf-8'), owner_role: ownerRole });
     }
   }
   out.sort((a, b) => a.name.localeCompare(b.name));
@@ -67,15 +70,18 @@ const MODULE_HEADER =
   `import type { SkillDefault } from "./defaults.js";\n`;
 
 /** Render a single-export module (kept for tests/back-compat). JSON.stringify yields valid TS for the array literal. */
-export function renderModule(skills, varName = "FRONTEND_SKILL_DEFAULTS") {
+export function renderModule(skills, varName = 'FRONTEND_SKILL_DEFAULTS') {
   return `${MODULE_HEADER}\nexport const ${varName}: SkillDefault[] = ${JSON.stringify(skills, null, 2)};\n`;
 }
 
 /** Render the full module: one export per vendored set. */
 export function renderMultiModule(sets) {
   const exports = sets
-    .map(({ varName, skills }) => `export const ${varName}: SkillDefault[] = ${JSON.stringify(skills, null, 2)};`)
-    .join("\n\n");
+    .map(
+      ({ varName, skills }) =>
+        `export const ${varName}: SkillDefault[] = ${JSON.stringify(skills, null, 2)};`,
+    )
+    .join('\n\n');
   return `${MODULE_HEADER}\n${exports}\n`;
 }
 
@@ -86,7 +92,9 @@ function main() {
   }));
   fs.mkdirSync(path.dirname(OUT_FILE), { recursive: true });
   fs.writeFileSync(OUT_FILE, renderMultiModule(sets));
-  const counts = sets.map((s) => `${s.skills.length} ${s.varName.split("_")[0].toLowerCase()}`).join(", ");
+  const counts = sets
+    .map((s) => `${s.skills.length} ${s.varName.split('_')[0].toLowerCase()}`)
+    .join(', ');
   console.log(`Compiled skill entries (${counts}) → ${path.relative(REPO_ROOT, OUT_FILE)}`);
 }
 

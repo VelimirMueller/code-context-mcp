@@ -49,6 +49,6 @@ const r = spawnSync(
   { stdio: 'inherit', cwd: root },
 );
 if (r.status !== 0) {
-  console.error('format-changed: run `npx prettier --write <file>` on the files above.');
+  console.error('format-changed: run `pnpm exec prettier --write <file>` on the files above.');
 }
 process.exit(r.status ?? 1);

@@ -16,7 +16,7 @@
  * so probe steps read a path that is guaranteed to exist yet lie outside
  * the workspace — only `external_directory: deny` can stop it.
  *
- * L1 is the smallest task — `npm run bench:live -- --tasks L1` runs just it.
+ * L1 is the smallest task — `pnpm run bench:live --tasks L1` runs just it.
  * Named sets: smoke (L1,L2), index (I1–I6), ladder (L1,L3,L4,L6); the
  * default is smoke + index. S1 is the opt-in sandbox probe (not part of DEFAULT_LIVE_TASKS, so it
  * never pollutes benchmark metrics).
@@ -379,11 +379,11 @@ export const SMOKE_TASKS = 'L1,L2';
 /** Index-shaped set on the large fixture (CCA-09): where an import graph can beat grep + read. */
 export const INDEX_TASKS = 'I1,I2,I3,I4,I5,I6';
 
-/** `npm run bench:live` without --tasks: the index-shaped set plus the smoke set. */
+/** `pnpm run bench:live` without --tasks: the index-shaped set plus the smoke set. */
 export const DEFAULT_LIVE_TASKS = `${SMOKE_TASKS},${INDEX_TASKS}`;
 
 /**
- * The size ladder S → XL: `npm run bench:live -- --provider <p> --tasks ladder`.
+ * The size ladder S → XL: `pnpm run bench:live --provider <p> --tasks ladder`.
  * L5 (a rename: grep + edit, the same in every arm) is not in it any more
  * (CCA-09); it stays runnable by id (`--tasks L5`).
  */

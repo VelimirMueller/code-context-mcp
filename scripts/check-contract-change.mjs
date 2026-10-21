@@ -4,7 +4,7 @@
 // A PR that changes a contract snapshot (test/contract/snapshots/, except
 // descriptions.json) passes only when it also bumps the major version in
 // package.json against the base branch, or carries the label
-// `contract-change-approved`. The contract tests themselves (npm run
+// `contract-change-approved`. The contract tests themselves (pnpm run
 // contract:test) make sure the snapshots match the code.
 //
 // Usage:

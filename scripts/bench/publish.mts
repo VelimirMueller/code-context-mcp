@@ -1,5 +1,5 @@
 /**
- * `npm run bench:publish` — commit data/ to the bench-results branch and push.
+ * `pnpm run bench:publish` — commit data/ to the bench-results branch and push.
  *
  * Never operates on the current checkout: it stages only data/ inside a temp
  * git worktree checked out on bench-results, then pushes. The current checkout
@@ -170,7 +170,10 @@ function remoteRunStems(
  * Returns the target dir, or null when nothing was copied. A failure here
  * must not fail the publish: the branch commit and push already happened.
  */
-export function mirrorToDashboard(srcDataDir: string, env: NodeJS.ProcessEnv | undefined): string | null {
+export function mirrorToDashboard(
+  srcDataDir: string,
+  env: NodeJS.ProcessEnv | undefined,
+): string | null {
   const e = env ?? process.env;
   // Opt-in: only a machine that runs the dashboard sets the variable; Actions
   // has no dashboard to feed.
@@ -282,7 +285,14 @@ export function publishPrivateSummary(opts: PrivateSummaryOptions): PrivateSumma
   const files = [file, 'data/private/index.json'];
   const commitMessage = `bench: private summary ${built.slug}`;
   if (opts.dryRun) {
-    return { dryRun: true, slug: built.slug, text: built.text, files, commitMessage, pushed: false };
+    return {
+      dryRun: true,
+      slug: built.slug,
+      text: built.text,
+      files,
+      commitMessage,
+      pushed: false,
+    };
   }
 
   const cwd = opts.repoDir ? path.resolve(opts.repoDir) : toplevel(process.cwd());
@@ -337,7 +347,14 @@ export function publishPrivateSummary(opts: PrivateSummaryOptions): PrivateSumma
     }
     if (staged.length === 0) {
       console.warn('bench:publish: private summary unchanged — nothing to commit');
-      return { dryRun: false, slug: built.slug, text: built.text, files, commitMessage, pushed: false };
+      return {
+        dryRun: false,
+        slug: built.slug,
+        text: built.text,
+        files,
+        commitMessage,
+        pushed: false,
+      };
     }
     run(tmp, commitEnv, ['commit', '-m', commitMessage]);
     let pushed = false;
@@ -467,12 +484,16 @@ if (isMain()) {
     } else if (args[i] === '--runs') {
       const v = args[++i];
       if (!v || !v.trim()) {
-        console.error('bench:publish: --runs needs run ids (e.g. --runs opus-20261012-092421,glm-20261012-101500)');
+        console.error(
+          'bench:publish: --runs needs run ids (e.g. --runs opus-20261012-092421,glm-20261012-101500)',
+        );
         process.exit(1);
       }
-      privateRuns = v.split(',').map((x) => x.trim()).filter(Boolean);
-    }
-    else if (args[i] === '--run') {
+      privateRuns = v
+        .split(',')
+        .map((x) => x.trim())
+        .filter(Boolean);
+    } else if (args[i] === '--run') {
       const v = args[++i];
       if (!v || !v.trim()) {
         console.error('bench:publish: --run needs a run id value (e.g. --run sim-20261010-120000)');
@@ -487,7 +508,9 @@ if (isMain()) {
     }
   }
   if (privateRuns && !privateSuite) {
-    console.error('bench:publish: --runs works with --private-summary only (use --run <id> for public runs)');
+    console.error(
+      'bench:publish: --runs works with --private-summary only (use --run <id> for public runs)',
+    );
     process.exit(1);
   }
   if (privateSuite) {
@@ -516,7 +539,9 @@ if (isMain()) {
             });
             console.log('site: Pages build started (pages.yml on main)');
           } catch {
-            console.warn('site: could not start the Pages build. Run: gh workflow run pages.yml --ref main');
+            console.warn(
+              'site: could not start the Pages build. Run: gh workflow run pages.yml --ref main',
+            );
           }
         }
       }

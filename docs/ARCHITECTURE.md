@@ -139,16 +139,16 @@ Private suites (CCA-19): `CODE_CONTEXT_BENCH_PRIVATE_DIRS` is a path list (`:`, 
 ## Build Pipeline
 
 ```
-npm run build
+pnpm run build
   → node scripts/compile-skills.mjs (compiles vendored skills into generated defaults module)
   → tsc (compiles MCP server to dist/)
   → cp src/dashboard/dashboard.html dist/dashboard/ (copies fallback HTML)
   → vite build (compiles React app to dist/dashboard/)
 
-npm run dashboard:dev
+pnpm run dashboard:dev
   → vite dev server on :5173, proxies /api/* to :3333
 
-npm run dashboard
+pnpm run dashboard
   → tsx src/dashboard/dashboard.ts (full server on :3333)
 ```
 

@@ -44,7 +44,7 @@ That's it! Your codebase is now indexed and ready for AI-assisted development.
 ### Prerequisites
 
 - Node.js 20, 22, or 24
-- npm or yarn
+- npm, pnpm or yarn
 - An AI client that supports MCP (Claude Code, Cline, Continue.dev, etc.)
 
 ### Install via npm
@@ -157,7 +157,7 @@ CODE_CONTEXT_BENCH_PRIVATE_DIRS=~/bench/suite-a:~/bench/suite-b \
 
 - Private runs show a **private** chip with the suite alias, and a filter switches between All, Public and Private.
 - The run detail of a redacted run lists tasks by id; prompts, answers and source names are not in the run file.
-- The dashboard reads these files from disk only and sends them nowhere. Only `npm run bench:publish -- --private-summary <dir>` publishes anything, and only a redacted summary.
+- The dashboard reads these files from disk only and sends them nowhere. Only `pnpm run bench:publish --private-summary <dir>` (in a code-context checkout) publishes anything, and only a redacted summary.
 
 ### Real-Time Updates
 
@@ -434,7 +434,7 @@ await index_directory({ path: '/home/user/my-project' });
 **Solution:**
 
 ```bash
-npm run build
+pnpm run build
 ```
 
 Then restart your AI client.

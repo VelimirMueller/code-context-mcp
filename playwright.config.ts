@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { E2E_TOKEN } from './test/e2e/helpers';
 
-// The e2e specs drive the built dashboard (npm run build) against a seeded
+// The e2e specs drive the built dashboard (pnpm run build) against a seeded
 // throwaway database (test/e2e/serve.mjs). Never 3333 and never a reused
 // server: a developer's real dashboard listens there on their real context.db.
 // Override the port with E2E_PORT; a busy port fails the run.

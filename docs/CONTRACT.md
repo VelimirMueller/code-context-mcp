@@ -126,13 +126,13 @@ Snapshot: `db-layout.json` (tables, `name TYPE` columns and the schema version p
 
 ## How to change the contract
 
-1. **Make the change and run `npm run contract:update`.** It rewrites `test/contract/snapshots/`. Review the diff: it is the contract change.
+1. **Make the change and run `pnpm run contract:update`.** It rewrites `test/contract/snapshots/`. Review the diff: it is the contract change.
 2. **Decide what it is.**
    - **Breaking** (a removed or renamed tool, parameter, bin, env setting, table or column; a new required parameter; a changed default output): bump the **major** version in `package.json` and add a `### Breaking` CHANGELOG entry with a migration note.
    - **Additive** (a new tool, a new optional parameter, a new bin or env setting, a new table or column, a new schema version): no major bump. A maintainer adds the label **`contract-change-approved`** to the PR after review.
    - **Prose only** (a tool or parameter description): only `descriptions.json` changes. The gate ignores that file; no label needed.
 3. **CI checks it.** The `contract` job in `.github/workflows/ci.yml` runs:
-   - `npm run contract:test` (`vitest run test/contract`): the snapshots must match the code. A failing test means the code moved without a snapshot update.
-   - `npm run contract:check` (`scripts/check-contract-change.mjs`): reads the base commit and the labels from the pull request event, lists the snapshot files the PR changes (`git diff <base>...HEAD`, `descriptions.json` left out) and fails unless the PR's `package.json` major is higher than the base branch's, or the PR carries `contract-change-approved`. Adding or removing the label re-runs CI. Locally: `node scripts/check-contract-change.mjs origin/main` (labels from `CONTRACT_LABELS=a,b`).
+   - `pnpm run contract:test` (`vitest run test/contract`): the snapshots must match the code. A failing test means the code moved without a snapshot update.
+   - `pnpm run contract:check` (`scripts/check-contract-change.mjs`): reads the base commit and the labels from the pull request event, lists the snapshot files the PR changes (`git diff <base>...HEAD`, `descriptions.json` left out) and fails unless the PR's `package.json` major is higher than the base branch's, or the PR carries `contract-change-approved`. Adding or removing the label re-runs CI. Locally: `node scripts/check-contract-change.mjs origin/main` (labels from `CONTRACT_LABELS=a,b`).
 
 The sample outputs run against `test/fixtures/sample-project`. A change to that fixture changes `outputs-code.json` without a contract change: say so in the PR and approve it with the label.

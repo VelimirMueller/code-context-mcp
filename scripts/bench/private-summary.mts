@@ -1,7 +1,7 @@
 /**
  * Redacted summary of a private suite (CCA-19, #154).
  *
- *   npm run bench:publish -- --private-summary <suite-dir> [--runs id,id] [--dry-run]
+ *   pnpm run bench:publish --private-summary <suite-dir> [--runs id,id] [--dry-run]
  *
  * A private suite's runs never leave the machine (bench:publish refuses them).
  * This module builds the one thing that may: a `ccc-bench-private-summary/1`
@@ -771,7 +771,7 @@ export function buildPrivateSummary(opts: BuildOptions): BuiltSummary {
   const problems = suiteProblems(raw);
   if (problems.length)
     throw new SummaryRefused(
-      `suite.json is invalid (${problems.length} problem(s); run npm run bench:suite-check)`,
+      `suite.json is invalid (${problems.length} problem(s); run pnpm run bench:suite-check)`,
     );
   const suite = raw as SuiteFile;
   if (suite.schema !== SUITE_SCHEMA) throw new SummaryRefused('suite.json: wrong schema');
