@@ -18,6 +18,7 @@
 
 import Database from "better-sqlite3";
 import fs from "fs";
+import os from "os";
 import path from "path";
 import { pathToFileURL } from "url";
 
@@ -210,18 +211,44 @@ export function buildStatusline(dbPath: string, opts?: { color?: boolean }): str
 
 // ─── Setup integration ───────────────────────────────────────────────────────
 
-export type StatuslineSetupResult = "written" | "kept-existing";
+export type StatuslineSetupResult = "written" | "kept-existing" | "kept-user";
+
+/** Directory of the user-scope Claude Code settings (honours CLAUDE_CONFIG_DIR). */
+function defaultUserConfigDir(): string {
+  return process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
+}
+
+/** True when the JSON file at `file` parses and has its own statusLine key. */
+function hasStatusLine(file: string): boolean {
+  try {
+    return Object.hasOwn(JSON.parse(fs.readFileSync(file, "utf-8")), "statusLine");
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Merge { statusLine: { type: "command", command: "code-context-statusline" } }
  * into <projectDir>/.claude/settings.json. Creates the file/dir when missing,
  * preserves every existing key, and never clobbers an existing statusLine.
+ * Project settings override user settings, so a statusLine in the user's
+ * settings.json or the project's settings.local.json is kept too ("kept-user").
  * Called by the setup "Statusline HUD" step; exported so tests can cover the
  * merge logic without executing the setup script.
  */
-export function applyStatuslineSetting(projectDir: string): StatuslineSetupResult {
+export function applyStatuslineSetting(
+  projectDir: string,
+  userConfigDir: string = defaultUserConfigDir(),
+): StatuslineSetupResult {
   const settingsDir = path.resolve(projectDir, ".claude");
   const settingsPath = path.join(settingsDir, "settings.json");
+
+  if (
+    hasStatusLine(path.join(userConfigDir, "settings.json")) ||
+    hasStatusLine(path.join(settingsDir, "settings.local.json"))
+  ) {
+    return "kept-user";
+  }
 
   let settings: Record<string, unknown> = {};
   if (fs.existsSync(settingsPath)) {

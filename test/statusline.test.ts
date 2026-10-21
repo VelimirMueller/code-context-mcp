@@ -351,6 +351,9 @@ describe("findDb", () => {
 // ── applyStatuslineSetting (setup step merge-safety) ───────────────────────
 
 describe("applyStatuslineSetting", () => {
+  // Isolate from the developer's real ~/.claude/settings.json.
+  const noUserDir = path.join(tmpdir(), "statusline-no-user-config");
+
   it("merges statusLine into existing settings, preserving every key", () => {
     const dir = makeTempDir();
     const settingsPath = path.join(dir, ".claude", "settings.json");
@@ -361,7 +364,7 @@ describe("applyStatuslineSetting", () => {
     };
     fs.writeFileSync(settingsPath, JSON.stringify(existing, null, 2) + "\n");
 
-    expect(applyStatuslineSetting(dir)).toBe("written");
+    expect(applyStatuslineSetting(dir, noUserDir)).toBe("written");
 
     const raw = fs.readFileSync(settingsPath, "utf-8");
     const merged = JSON.parse(raw);
@@ -381,14 +384,46 @@ describe("applyStatuslineSetting", () => {
     );
     const before = fs.readFileSync(settingsPath, "utf-8");
 
-    expect(applyStatuslineSetting(dir)).toBe("kept-existing");
+    expect(applyStatuslineSetting(dir, noUserDir)).toBe("kept-existing");
     expect(fs.readFileSync(settingsPath, "utf-8")).toBe(before);
   });
 
   it("creates .claude/settings.json when missing", () => {
     const dir = makeTempDir();
-    expect(applyStatuslineSetting(dir)).toBe("written");
+    expect(applyStatuslineSetting(dir, noUserDir)).toBe("written");
     const merged = JSON.parse(fs.readFileSync(path.join(dir, ".claude", "settings.json"), "utf-8"));
     expect(merged).toEqual({ statusLine: { type: "command", command: "code-context-statusline" } });
+  });
+
+  it("keeps a user-level statusLine and writes nothing to the project", () => {
+    const dir = makeTempDir();
+    const userDir = makeTempDir();
+    fs.writeFileSync(
+      path.join(userDir, "settings.json"),
+      JSON.stringify({ statusLine: { type: "command", command: "my-user-line" } })
+    );
+
+    expect(applyStatuslineSetting(dir, userDir)).toBe("kept-user");
+    expect(fs.existsSync(path.join(dir, ".claude", "settings.json"))).toBe(false);
+  });
+
+  it("keeps a statusLine from the project's settings.local.json", () => {
+    const dir = makeTempDir();
+    fs.mkdirSync(path.join(dir, ".claude"), { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, ".claude", "settings.local.json"),
+      JSON.stringify({ statusLine: { type: "command", command: "my-local-line" } })
+    );
+
+    expect(applyStatuslineSetting(dir, noUserDir)).toBe("kept-user");
+    expect(fs.existsSync(path.join(dir, ".claude", "settings.json"))).toBe(false);
+  });
+
+  it("ignores an unreadable user settings file", () => {
+    const dir = makeTempDir();
+    const userDir = makeTempDir();
+    fs.writeFileSync(path.join(userDir, "settings.json"), "{ not json");
+
+    expect(applyStatuslineSetting(dir, userDir)).toBe("written");
   });
 });
