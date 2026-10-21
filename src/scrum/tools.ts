@@ -4547,13 +4547,13 @@ export function registerScrumTools(server: McpServer, db: Database.Database): vo
           `## Render Commands`,
           ``,
           `Preview in browser:`,
-          `  pnpm exec remotion preview src/remotion/index.tsx`,
+          `  npx remotion preview src/remotion/index.tsx`,
           ``,
           `Render MP4:`,
-          `  pnpm exec remotion render src/remotion/index.tsx VisionVideo --props=${filePath} --output=vision.mp4`,
+          `  npx remotion render src/remotion/index.tsx VisionVideo --props=${filePath} --output=vision.mp4`,
           ``,
           `Render GIF:`,
-          `  pnpm exec remotion render src/remotion/index.tsx VisionVideo --props=${filePath} --codec=gif --output=vision.gif`,
+          `  npx remotion render src/remotion/index.tsx VisionVideo --props=${filePath} --codec=gif --output=vision.gif`,
         ];
 
         return { content: [{ type: 'text' as const, text: lines.join('\n') }] };
