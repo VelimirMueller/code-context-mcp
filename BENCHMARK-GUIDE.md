@@ -20,33 +20,33 @@ A benchmark runs when a person starts it. Nothing in this repo starts a run from
 
 ```bash
 # Simulated: refreshes the two tracked result files, writes a run JSON into data/
-npm run bench
+pnpm run bench
 
 # Agent: real model, real tokens. Provider picks the model and the key it reads
-npm run bench:live -- --provider glm       # reads ZAI_API_KEY
-npm run bench:live -- --provider deepseek  # reads DEEPSEEK_API_KEY
-npm run bench:live -- --provider opus      # Claude Code headless, reads CLAUDE_CODE_OAUTH_TOKEN
-npm run bench:live -- --provider glm --tasks L1,L2   # narrower task set
-npm run bench:live -- --provider glm --tasks index   # named set: smoke, index, ladder, default
-npm run bench:live -- --provider opus --tasks L1,I1 --arms vanilla,cc --cache-mode cold-warm --repeats 2   # cheap Opus check, below
+pnpm run bench:live --provider glm       # reads ZAI_API_KEY
+pnpm run bench:live --provider deepseek  # reads DEEPSEEK_API_KEY
+pnpm run bench:live --provider opus      # Claude Code headless, reads CLAUDE_CODE_OAUTH_TOKEN
+pnpm run bench:live --provider glm --tasks L1,L2   # narrower task set
+pnpm run bench:live --provider glm --tasks index   # named set: smoke, index, ladder, default
+pnpm run bench:live --provider opus --tasks L1,I1 --arms vanilla,cc --cache-mode cold-warm --repeats 2   # cheap Opus check, below
 
 # Free dry check of the index-shaped tasks: no model, no key (needs the build)
-npm run bench:dry
+pnpm run bench:dry
 
 # Publish: commit data/ to the bench-results branch and push (builds the site)
-npm run bench:publish
+pnpm run bench:publish
 ```
 
 Notes:
 
-- `bench:live` needs `npm run build` first. It refuses to run without the dist server.
+- `bench:live` needs `pnpm run build` first. It refuses to run without the dist server.
 - The key variables hold secret values. The scripts never print them. Run JSON files carry the variable name only.
-- Every `npm run bench` rewrites the two tracked files `benchmark-results.json` and `benchmark-stochastic-results.json`. This is the intended refresh path.
+- Every `pnpm run bench` rewrites the two tracked files `benchmark-results.json` and `benchmark-stochastic-results.json`. This is the intended refresh path.
 
 Where each kind runs:
 
 - **Simulated:** anywhere. In GitHub Actions open the **Benchmark** workflow (`.github/workflows/benchmark.yml`), **Run workflow**, `kind=simulated`. It publishes the run and rebuilds the site.
-- **Agent (glm, deepseek):** locally, by hand. Export the provider key in your shell, run `npm run build`, `npm run bench:live -- --provider <glm|deepseek|opus>`, then `npm run bench:publish`. Publish also starts the Pages build through `gh`; `--no-site` skips that. The provider keys stay on your machine.
+- **Agent (glm, deepseek):** locally, by hand. Export the provider key in your shell, run `pnpm run build`, `pnpm run bench:live --provider <glm|deepseek|opus>`, then `pnpm run bench:publish`. Publish also starts the Pages build through `gh`; `--no-site` skips that. The provider keys stay on your machine.
 - **Agent in Actions:** only when the repository secret `ZAI_API_KEY` or `DEEPSEEK_API_KEY` is set. The repo keeps none by default, so `kind=agent` prints a notice with the local command, ends green and publishes nothing.
 
 ## Arms
@@ -57,7 +57,7 @@ Where each kind runs:
 - Every cc arm runs `CODE_CONTEXT_TOOLSETS=code` (6 tools, about 850 tokens of definitions), for every provider. For opus the variable sits in the generated `--mcp-config` server `env`; a test starts the server the way Claude Code does and checks that it lists only these tools.
 - `--arms` picks the arms (default `vanilla,cc,cc-guided`). `vanilla` and `cc` are required.
 - Task prompts are neutral: they name no tools, only that bash is disabled. Runs before 2026-10-11 told every arm to use the built-in file tools; they are not comparable.
-- Run the ladder with 3 repeats: `npm run bench:live -- --provider <p> --tasks ladder --repeats 3 --timeout 900`.
+- Run the ladder with 3 repeats: `pnpm run bench:live --provider <p> --tasks ladder --repeats 3 --timeout 900`.
 - **Cost** comes from the agent CLI: opencode's step cost (DeepSeek), Claude Code's `total_cost_usd` from the final `result` event (Opus, list price, prompt caching on as in real use). GLM's coding plan is a subscription, so its cost is `null`.
 - **Opus before CCA-10 (#125) overstates the overhead.** The 2.9.0 Opus runs had prompt caching off and the full 93-tool server: 65 % of L6 input was tool definitions (cc $1.04 vs vanilla $0.24, 0 MCP calls). Real sessions read that prefix from cache at 0.1× input. Do not compare those runs with newer ones.
 - **Ratios:** the site shows `cc = N× vanilla` for uncached tokens and cost. Below 1× is a saving. See [Metrics](#metrics).
@@ -71,7 +71,7 @@ Three fixtures, three task groups. `--tasks` takes ids, set names, or both (`--t
 | `smoke`  | L1, L2            | `test/fixtures/sample-project` (10 files)       | The harness works end to end: one lookup, one edit.       |
 | `index`  | I1–I6             | generated large fixture (683 files, 597k chars) | Questions an import graph answers and grep answers badly. |
 | `ladder` | L1, L3, L4, L6    | sample project, then a copy of this repo's src/ | Size ladder S → XL.                                       |
-| default  | `smoke` + `index` |                                                 | What `npm run bench:live` runs without `--tasks`.         |
+| default  | `smoke` + `index` |                                                 | What `pnpm run bench:live` runs without `--tasks`.        |
 
 - **L5 left the ladder (2026-10-11, CCA-09).** It is a rename: grep plus edits, the same work in every arm, so it cannot show an index. It still runs by id: `--tasks L5`. S1 (sandbox probe) also runs by id only.
 
@@ -83,7 +83,7 @@ Three fixtures, three task groups. `--tasks` takes ids, set names, or both (`--t
 - **Why generated, not a vendored open-source repo:** the answers must be exact and fixed, the git repo must not grow by megabytes, and unit tests must run offline. The generator (`scripts/bench/live/large-fixture/generate.mts`) is seeded; it writes the same bytes on every machine in about 70 ms. No third-party code is in it, so the repo's licence covers it. The cost: the code is plausible but repetitive.
 - **Pinned:** `large-fixture/answers.json` holds the file count, the sha256 of the tree, and every answer. The workspace preparation refuses a tree whose hash differs.
 - **Independent answers:** `large-fixture/answer-key.mts` computes the answers with the TypeScript compiler API (its parser, `ts.resolveModuleName` with Bundler resolution, and the checker's alias resolution through barrels). It never uses code-context's parser, resolver or index.
-- **Change the generator:** run `npx tsx scripts/bench/live/large-fixture/answer-key.mts --write`, review the `answers.json` diff, commit both. A unit test fails when you forget.
+- **Change the generator:** run `pnpm exec tsx scripts/bench/live/large-fixture/answer-key.mts --write`, review the `answers.json` diff, commit both. A unit test fails when you forget.
 
 ### The index-shaped tasks
 
@@ -99,7 +99,7 @@ Prompts name no tools. Each defines its terms, because "imports" and "unused" ar
 | I6  | Files that depend on `src/loyalty/utils/points-math.ts` in 1 or 2 hops     | 16 files    | an import cycle back into the target; "via re-export" files are 3 hops                                                | all, ≤ 1 extra        |
 
 - **What grep costs here** (measured 2026-10-11): grepping each task's key string and reading every hit is 5k–27k characters (I2 27k, I3 23k, I4 19k, I1 17k, I5 12k, I6 5k), plus the turns to chase barrels and hops. The matching graph-tool output is 0.25k–3.6k characters. The traps decide correctness more than the reading cost decides tokens; expect the arms to differ mostly in success rate and turns.
-- **Dry check** (`npm run bench:dry`, free): builds a real cc workspace per I-task with the same preparation path as a live run, starts `dist/server/index.js` over stdio in it, calls `who_imports`, `exports_in` or `find_symbol`, and compares the result with the pinned answers and the task's checker. It proves that the server can answer each task; it says nothing about whether a model will.
+- **Dry check** (`pnpm run bench:dry`, free): builds a real cc workspace per I-task with the same preparation path as a live run, starts `dist/server/index.js` over stdio in it, calls `who_imports`, `exports_in` or `find_symbol`, and compares the result with the pinned answers and the task's checker. It proves that the server can answer each task; it says nothing about whether a model will.
 
 ## Fresh sessions
 
@@ -132,8 +132,8 @@ Every agent session starts with nothing to read from. Vanilla and cc never share
 
 ```bash
 rig quota            # exit 1 = the 5h/7d window is hot: wait
-npm run build
-npm run bench:live -- --provider opus --tasks L1,I1 --arms vanilla,cc \
+pnpm run build
+pnpm run bench:live --provider opus --tasks L1,I1 --arms vanilla,cc \
   --cache-mode cold-warm --repeats 2 --timeout 600
 ```
 
@@ -141,21 +141,21 @@ npm run bench:live -- --provider opus --tasks L1,I1 --arms vanilla,cc \
 - **Rough cost at list price:** about $1–4 for the whole run. L1 (10-file fixture, about 3 calls) about $0.05–0.20 per session; I1 (683-file fixture, 10–30 calls) about $0.20–1.00 per cold session and less warm. Cold sessions pay the cache write (1.25× input) of the prefix; warm sessions read it at 0.1×. The CLI's `total_cost_usd` per session is in the console line and the run JSON.
 - **Quota:** the token from `claude setup-token` uses your Claude plan. 8 short sessions, about 10–25 minutes wall time.
 - **Read:** the console line per session shows `input+cache_read c+cache_write w→output` and `1st call cache`. Compare `cost_usd` and uncached tokens of cc vs vanilla, cold vs warm (`aggregate.by_phase`), and `mcp` calls of the cc arm.
-- The run writes into `data/` like any run. Publish is a separate step (`npm run bench:publish`); use `--data-dir <dir>` to keep the result out of `data/`.
+- The run writes into `data/` like any run. Publish is a separate step (`pnpm run bench:publish`); use `--data-dir <dir>` to keep the result out of `data/`.
 
 ## Metrics
 
 The headline of an agent run (since CCA-08) reads in this order: success per arm, uncached tokens saved, cost saved, uncached tokens per PASS per arm.
 
-| Field | Definition |
-|---|---|
-| `success_<arm>_pct` | Passing sessions / sessions of the arm, × 100. |
-| uncached tokens | `input + output + cache_write` per session: the tokens no cache served. |
-| `uncached_saved_pct` | `(vanilla − cc) / vanilla × 100` on uncached tokens, summed over all sessions. `guided_uncached_saved_pct` is the same for cc-guided. |
-| `uncached_saved_spread` | `{ min, max, repeats }`: the same saved % computed per repeat (repeat k of every task, both arms), min and max over repeats. `null` with one repeat. |
-| `cost_saved_pct` | `(vanilla − cc) / vanilla × 100` on the USD the agent CLI reports. `null` when any session of either arm has no cost (GLM coding plan). |
-| `uncached_per_pass` | Uncached tokens of all sessions of an arm / its passing sessions. `null` when no session passed. Failed sessions count in the numerator: an arm that fails more is not cheaper. |
-| `tokens_saved_pct` | Demoted. Saved % on `total = input + cache_read + output`. Kept for old consumers. |
+| Field                   | Definition                                                                                                                                                                      |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `success_<arm>_pct`     | Passing sessions / sessions of the arm, × 100.                                                                                                                                  |
+| uncached tokens         | `input + output + cache_write` per session: the tokens no cache served.                                                                                                         |
+| `uncached_saved_pct`    | `(vanilla − cc) / vanilla × 100` on uncached tokens, summed over all sessions. `guided_uncached_saved_pct` is the same for cc-guided.                                           |
+| `uncached_saved_spread` | `{ min, max, repeats }`: the same saved % computed per repeat (repeat k of every task, both arms), min and max over repeats. `null` with one repeat.                            |
+| `cost_saved_pct`        | `(vanilla − cc) / vanilla × 100` on the USD the agent CLI reports. `null` when any session of either arm has no cost (GLM coding plan).                                         |
+| `uncached_per_pass`     | Uncached tokens of all sessions of an arm / its passing sessions. `null` when no session passed. Failed sessions count in the numerator: an arm that fails more is not cheaper. |
+| `tokens_saved_pct`      | Demoted. Saved % on `total = input + cache_read + output`. Kept for old consumers.                                                                                              |
 
 `aggregate` also carries:
 
@@ -173,7 +173,7 @@ Old run files keep their recorded fields. `data/index.json` derives the uncached
 
 ```bash
 # Recompute aggregate + headline from the recorded sessions. No API calls.
-npm run bench:renormalize -- --out <dir> data/runs/glm-*.json data/runs/dsk-*.json
+pnpm run bench:renormalize --out <dir> data/runs/glm-*.json data/runs/dsk-*.json
 ```
 
 - Session facts (tokens, success, cost, calls) stay as recorded; only derived fields change. `--out` never writes over an input file.
@@ -188,11 +188,11 @@ Every agent run gets a rule-based verdict (CCA-20): `headline.verdict` in the ru
 
 Each code-context arm (cc, cc-guided) is compared with vanilla:
 
-| Verdict | When |
-|---|---|
-| SUBOPTIMAL | The success rate drops by more than 5 percentage points, OR the uncached-token spread is below 0 in every repeat (`max < 0`), OR, with fewer than 3 repeats, `uncached_saved_pct <= -10` (the tokens increase by 10 % or more), OR the mean wall time is more than 25 % slower. |
-| BENEFICIAL | Not SUBOPTIMAL, AND the success rate does not drop by more than 5 pp, AND the uncached tokens decrease in every repeat (`spread.min > 0`; with fewer than 3 repeats: `uncached_saved_pct >= 10`), AND the tasks are not more than 25 % slower, AND `cost_saved_pct` is `null` or `>= 0`. |
-| NO CLEAR EFFECT | Every other case. |
+| Verdict         | When                                                                                                                                                                                                                                                                                     |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SUBOPTIMAL      | The success rate drops by more than 5 percentage points, OR the uncached-token spread is below 0 in every repeat (`max < 0`), OR, with fewer than 3 repeats, `uncached_saved_pct <= -10` (the tokens increase by 10 % or more), OR the mean wall time is more than 25 % slower.          |
+| BENEFICIAL      | Not SUBOPTIMAL, AND the success rate does not drop by more than 5 pp, AND the uncached tokens decrease in every repeat (`spread.min > 0`; with fewer than 3 repeats: `uncached_saved_pct >= 10`), AND the tasks are not more than 25 % slower, AND `cost_saved_pct` is `null` or `>= 0`. |
+| NO CLEAR EFFECT | Every other case.                                                                                                                                                                                                                                                                        |
 
 - "More than" is strict: a drop of exactly 5 pp and exactly 25 % slower still pass. A spread with `min = 0` is not BENEFICIAL; `max = 0` is not SUBOPTIMAL. With fewer than 3 repeats, a saving of exactly 10 % is BENEFICIAL and an increase of exactly 10 % is SUBOPTIMAL; −9.9 % is NO CLEAR EFFECT.
 - Fewer than 3 repeats: the verdict is computed and marked **indicative**.
@@ -279,8 +279,8 @@ For local runs, use throwaway provider keys with spending limits: the checker ex
 A private suite runs the live bench on code that must not enter this repository. The suite is a directory outside the repository; the workspace comes from local git clones at pinned commits. (CCA-17, #149)
 
 ```bash
-npm run bench:suite-check -- ~/bench/my-suite          # free: validate, build one workspace, index it
-npm run bench:live -- --suite ~/bench/my-suite --provider deepseek [--tasks T1,T2]
+pnpm run bench:suite-check ~/bench/my-suite          # free: validate, build one workspace, index it
+pnpm run bench:live --suite ~/bench/my-suite --provider deepseek [--tasks T1,T2]
 ```
 
 **`<dir>/suite.json`** (schema `ccc-bench-suite/1`):
@@ -293,11 +293,20 @@ npm run bench:live -- --suite ~/bench/my-suite --provider deepseek [--tasks T1,T
   "private": true,
   "redact": true,
   "sources": [
-    { "name": "backend", "repo": "/abs/path/to/clone", "commit": "<sha>", "subdir": "optional/folder" }
+    {
+      "name": "backend",
+      "repo": "/abs/path/to/clone",
+      "commit": "<sha>",
+      "subdir": "optional/folder"
+    }
   ],
   "tasks": [
-    { "id": "T1", "size": "L", "prompt": "… The bash tool is disabled in this environment.",
-      "checker": { "type": "path-set", "answer": "t1Paths", "maxExtra": 1 } }
+    {
+      "id": "T1",
+      "size": "L",
+      "prompt": "… The bash tool is disabled in this environment.",
+      "checker": { "type": "path-set", "answer": "t1Paths", "maxExtra": 1 }
+    }
   ]
 }
 ```
@@ -332,19 +341,19 @@ CODE_CONTEXT_BENCH_PRIVATE_DIRS=~/bench/my-suite npx code-context-dashboard ./co
 A private suite can publish one file: a redacted summary under its public alias.
 
 ```bash
-npm run bench:publish -- --private-summary ~/bench/my-suite --dry-run      # print it, publish nothing
-npm run bench:publish -- --private-summary ~/bench/my-suite [--runs id,id] # publish it
+pnpm run bench:publish --private-summary ~/bench/my-suite --dry-run      # print it, publish nothing
+pnpm run bench:publish --private-summary ~/bench/my-suite [--runs id,id] # publish it
 ```
 
 Suite fields for the summary (all optional except `alias`, which the summary needs):
 
-| Field | Meaning |
-|---|---|
-| `alias` | Public display name, e.g. `"Real-world suite A"`. The file is `data/private/<alias-slug>.json`. |
-| `groups` | `{ "<group id>": "<public label>" }`, e.g. `{ "spa": "Single-page app" }`. |
-| `tasks[].group` | Short group id of a task, e.g. `"spa"`, `"php"`, `"cross-repo"`. |
+| Field           | Meaning                                                                                                                                |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `alias`         | Public display name, e.g. `"Real-world suite A"`. The file is `data/private/<alias-slug>.json`.                                        |
+| `groups`        | `{ "<group id>": "<public label>" }`, e.g. `{ "spa": "Single-page app" }`.                                                             |
+| `tasks[].group` | Short group id of a task, e.g. `"spa"`, `"php"`, `"cross-repo"`.                                                                       |
 | `groupByPrefix` | `true`: a task without `group` goes to the group of its id's first letter (`S1` → `S`, mapped through `groups`). Default: group `all`. |
-| `publicTaskIds` | `true`: task ids are not secret. Default `false`: task ids are on the denylist. The summary never lists task ids either way. |
+| `publicTaskIds` | `true`: task ids are not secret. Default `false`: task ids are on the denylist. The summary never lists task ids either way.           |
 
 What the summary holds (schema `ccc-bench-private-summary/1`), and nothing else:
 
@@ -365,7 +374,7 @@ The publish uses the same temp worktree as a run publish, never the current chec
 ## Where the results go
 
 - Run files land in `data/runs/<run_id>.json` (schema `ccc-bench/1`).
-- `npm run bench:publish` commits `data/` to the `bench-results` branch and pushes. The branch holds `data/runs/`, `data/index.json` (all runs, newest first), and `data/latest.json` (the newest run of any kind).
+- `pnpm run bench:publish` commits `data/` to the `bench-results` branch and pushes. The branch holds `data/runs/`, `data/index.json` (all runs, newest first), and `data/latest.json` (the newest run of any kind).
 - `data/private/` holds the redacted private-suite summaries (`--private-summary`), never runs.
 - The Pages site at <https://velimirmueller.github.io/code-context-mcp/> rebuilds after each push. The latest-run table is the headline (see [Page layout](#page-layout-latest-run-table)). The history lists every run. Run files on `bench-results` are append-only: they are never rewritten or deleted.
 
@@ -384,7 +393,7 @@ The dashboard Benchmark page and the site open with one table for the latest run
 
 - `simulated` costs nothing. No model runs.
 - `bench:live` spends real tokens. Each task runs once per arm (vanilla, cc, cc-guided) and repeat. The default set has 8 tasks (smoke + index), so a default run is 24 sessions per repeat. Use `--tasks` to cut it (`--tasks smoke`, `--tasks I3,I4`).
-- `npm run bench:dry` costs nothing: no model runs.
+- `pnpm run bench:dry` costs nothing: no model runs.
 - Single-repeat agent numbers show a direction, not a distribution. Use `--repeats` for more, and expect the cost to scale.
 
 ---
@@ -397,11 +406,11 @@ The sections below describe the simulated benchmark: what it measures, how the t
 
 ```bash
 # Run the benchmark (writes a published run JSON plus data/index.json, data/latest.json)
-npm run bench
+pnpm run bench
 
 # The underlying test suites, verbose
-npx vitest run test/benchmark.test.ts --reporter=verbose
-npx vitest run test/benchmark-stochastic.test.ts --reporter=verbose
+pnpm exec vitest run test/benchmark.test.ts --reporter=verbose
+pnpm exec vitest run test/benchmark-stochastic.test.ts --reporter=verbose
 ```
 
 ---
@@ -646,7 +655,7 @@ The benchmark report and JSON output include methodology disclaimers. When citin
 | Categories              | 1 (implementation)           | 6                             |
 | Session isolation       | Same session (contaminated)  | Self-contained functions      |
 | Token counting          | Hand-estimated from sessions | Automated regex estimation    |
-| Reproducibility         | Cannot reproduce             | `npm test` — deterministic    |
+| Reproducibility         | Cannot reproduce             | `pnpm test` — deterministic   |
 | What it compares        | Old format vs new format     | MCP tools vs raw file reads   |
 | Methodology documented  | No                           | Yes (in test + this guide)    |
 | Machine-readable output | comparison.json (manual)     | benchmark-results.json (auto) |
@@ -662,7 +671,7 @@ The deterministic benchmark (above) uses 10 hand-crafted tasks. A valid concern:
 The stochastic benchmark eliminates this by randomizing everything:
 
 ```bash
-npx vitest run test/benchmark-stochastic.test.ts --reporter=verbose
+pnpm exec vitest run test/benchmark-stochastic.test.ts --reporter=verbose
 ```
 
 ### How it works
@@ -743,4 +752,4 @@ Full debate transcript in `GEMMA-VS-OPUS-DEBATE.md`.
 ---
 
 _Generated 2026-04-16. On-demand runs since 2026-10-10._
-_Deterministic + stochastic, published run: `npm run bench`_
+_Deterministic + stochastic, published run: `pnpm run bench`_

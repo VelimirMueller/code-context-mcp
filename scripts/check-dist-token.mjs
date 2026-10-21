@@ -86,7 +86,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     ? path.resolve(process.argv[2])
     : path.join(root, 'dist/dashboard/assets');
   if (!existsSync(assetsDir)) {
-    console.error(`No dist assets at ${assetsDir} — run npm run build first.`);
+    console.error(`No dist assets at ${assetsDir} — run pnpm run build first.`);
     process.exit(2);
   }
   const token = currentToken();

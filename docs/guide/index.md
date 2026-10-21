@@ -62,9 +62,11 @@ Setup installs Claude commands into `.claude/commands/`:
 
 ## Installation
 
+From a clone of this repository (pnpm 12, see `packageManager`):
+
 ```bash
-npm install
-npm run build
+pnpm install
+pnpm run build
 ```
 
 ## Setup
@@ -91,7 +93,7 @@ Restart your AI client afterward to load the MCP tools.
 The server starts automatically when your AI client reads `.mcp.json`. You can also start it manually:
 
 ```bash
-npm start
+pnpm start
 ```
 
 ## Dashboard
@@ -99,7 +101,7 @@ npm start
 View the indexed data and the scrum board in a browser:
 
 ```bash
-npm run dashboard
+pnpm run dashboard
 ```
 
 Open [http://localhost:3333](http://localhost:3333). The dashboard is a React SPA served from `dist/dashboard/index.html` (`dashboard.html` is a fallback only), with six tabs: **Dashboard**, **Planning**, **Code**, **Team**, **Retro**, and **Benchmark** (the Kanban board is a sub-tab of Dashboard).

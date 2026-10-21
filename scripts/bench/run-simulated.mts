@@ -1,5 +1,5 @@
 /**
- * `npm run bench` — run the two simulated benchmark tests, then fold their
+ * `pnpm run bench` — run the two simulated benchmark tests, then fold their
  * tracked result documents into one `kind: "simulated"` run under data/.
  *
  * Outputs (git-ignored `/data/`):
@@ -67,8 +67,9 @@ function main(): void {
 
   try {
     execFileSync(
-      'npx',
+      'pnpm',
       [
+        'exec',
         'vitest',
         'run',
         path.join('test', 'benchmark.test.ts'),

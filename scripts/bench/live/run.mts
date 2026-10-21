@@ -1,7 +1,7 @@
 /**
- * `npm run bench:live` — real agent benchmark (PLAN.md task 8).
+ * `pnpm run bench:live` — real agent benchmark (PLAN.md task 8).
  *
- * CLI: npm run bench:live -- --provider glm|deepseek|opus [--tasks L1,L2,L3]
+ * CLI: pnpm run bench:live --provider glm|deepseek|opus [--tasks L1,L2,L3]
  *      [--repeats 1] [--timeout 300] [--data-dir <dir>] [--cache-mode cold|cold-warm]
  *      [--arms vanilla,cc,cc-guided] [--suite <dir>]
  *
@@ -50,9 +50,9 @@
  *
  * Emits the run JSON (kind agent-<provider>) into <data-dir>/runs/ and
  * rebuilds index.json + latest.json there. Publish goes through the same
- * `npm run bench:publish` — this script never pushes.
+ * `pnpm run bench:publish` — this script never pushes.
  *
- * Costs real tokens. Requires `npm run build` first (dist server for the cc arm).
+ * Costs real tokens. Requires `pnpm run build` first (dist server for the cc arm).
  */
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -451,7 +451,7 @@ async function main(): Promise<void> {
   stripProviderKeys();
   if (!fs.existsSync(DIST_SERVER)) {
     fail(
-      'dist/server/index.js is missing — run `npm run build` first (the cc arm serves the MCP server from dist).',
+      'dist/server/index.js is missing — run `pnpm run build` first (the cc arm serves the MCP server from dist).',
     );
   }
 
@@ -796,7 +796,7 @@ async function main(): Promise<void> {
   console.log(
     `latest: ${path.relative(process.cwd(), path.join(args.dataDir, 'latest.json'))} (${run.run_id})`,
   );
-  console.log('publish with: npm run bench:publish');
+  console.log('publish with: pnpm run bench:publish');
 }
 
 main().catch((e: Error) => fail(e.message));

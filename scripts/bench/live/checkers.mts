@@ -159,7 +159,7 @@ async function checkTests(task: LiveTask, workspaceDir: string): Promise<CheckRe
 
   const vitestBin = path.join(repoRoot, 'node_modules', 'vitest', 'vitest.mjs');
   if (!fs.existsSync(vitestBin)) {
-    return { pass: false, detail: 'vitest not installed in the repo (npm ci first)' };
+    return { pass: false, detail: 'vitest not installed in the repo (pnpm install first)' };
   }
 
   // Config containment (security audit 2026-10-10): vitest runs with a

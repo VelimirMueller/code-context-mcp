@@ -20,8 +20,8 @@ Thank you for your interest in contributing! This guide covers everything you ne
 
 ## Prerequisites
 
-- **Node.js** 20, 22, or 24 (all three are tested in CI)
-- **npm** (ships with Node.js)
+- **Node.js** 22 or newer (CI tests 22, 24 and the current LTS)
+- **pnpm** 12 (`packageManager` pins `pnpm@12.10.1`; `corepack enable` picks it up)
 - **Git**
 
 No API keys or cloud accounts are required. Everything runs locally with SQLite.
@@ -33,27 +33,27 @@ No API keys or cloud accounts are required. Everything runs locally with SQLite.
 git clone https://github.com/VelimirMueller/mcp-server.git
 cd mcp-server
 
-# Install dependencies
-npm install
+# Install dependencies (lockfile: pnpm-lock.yaml)
+pnpm install
 
 # Build the project
-npm run build
+pnpm run build
 
 # Run the test suite
-npm test
+pnpm test
 ```
 
 After building, you can start the MCP server and dashboard:
 
 ```bash
 # Start the MCP server
-npm start
+pnpm start
 
 # Start the dashboard (production mode, serves on :3333)
-npm run dashboard
+pnpm run dashboard
 
 # Start the dashboard in dev mode (Vite HMR on :5173)
-npm run dashboard:dev
+pnpm run dashboard:dev
 ```
 
 ## Project Architecture
@@ -144,13 +144,13 @@ All state lives in SQLite (`context.db`). The database is the single source of t
 
 ### Build Commands
 
-| Command                   | Description                                                        |
-| ------------------------- | ------------------------------------------------------------------ |
-| `npm run build`           | Full build: `tsc` (server) + `vite build` (dashboard)              |
-| `npm run dashboard`       | Run dashboard server on `:3333` (uses `tsx` for live TS execution) |
-| `npm run dashboard:dev`   | Vite dev server on `:5173` with HMR                                |
-| `npm run dashboard:build` | Build only the dashboard frontend                                  |
-| `npm start`               | Run the compiled MCP server (`dist/server/index.js`)               |
+| Command                    | Description                                                        |
+| -------------------------- | ------------------------------------------------------------------ |
+| `pnpm run build`           | Full build: `tsc` (server) + `vite build` (dashboard)              |
+| `pnpm run dashboard`       | Run dashboard server on `:3333` (uses `tsx` for live TS execution) |
+| `pnpm run dashboard:dev`   | Vite dev server on `:5173` with HMR                                |
+| `pnpm run dashboard:build` | Build only the dashboard frontend                                  |
+| `pnpm start`               | Run the compiled MCP server (`dist/server/index.js`)               |
 
 ### Typical Development Loop
 
@@ -159,27 +159,27 @@ All state lives in SQLite (`context.db`). The database is the single source of t
 ```bash
 # 1. Make changes in src/server/ or src/scrum/
 # 2. Run tests
-npm test
+pnpm test
 # 3. Build to verify compilation
-npm run build
+pnpm run build
 ```
 
 **For dashboard changes:**
 
 ```bash
 # 1. Start the dev server (in one terminal)
-npm run dashboard:dev
+pnpm run dashboard:dev
 # 2. Make changes in src/dashboard/app/src/
 # 3. Vite HMR reloads automatically
 # 4. Run frontend tests
-npm run test:frontend
+pnpm run test:frontend
 ```
 
 **For full-stack changes:**
 
 ```bash
 # Run all tests (backend + frontend)
-npm run test:all
+pnpm run test:all
 ```
 
 ## Code Style
@@ -196,10 +196,10 @@ The project uses Prettier with these settings:
 
 ```bash
 # Check formatting
-npm run format
+pnpm run format
 
 # Auto-fix formatting
-npm run format:fix
+pnpm run format:fix
 ```
 
 ### Linting (ESLint)
@@ -213,10 +213,10 @@ ESLint is configured with `typescript-eslint` recommended rules plus project-spe
 
 ```bash
 # Run linter
-npm run lint
+pnpm run lint
 
 # Auto-fix lint issues
-npm run lint:fix
+pnpm run lint:fix
 ```
 
 ### TypeScript
@@ -241,11 +241,11 @@ If a commit fails the hook, fix the issues before re-committing.
 
 ### Test Structure
 
-| Type                | Location                      | Runner                   | Command                 |
-| ------------------- | ----------------------------- | ------------------------ | ----------------------- |
-| Unit / Integration  | `test/*.test.ts`              | Vitest                   | `npm test`              |
-| Frontend components | `src/dashboard/app/src/test/` | Vitest + Testing Library | `npm run test:frontend` |
-| End-to-end          | `test/e2e/*.spec.ts`          | Playwright               | `npx playwright test`   |
+| Type                | Location                      | Runner                   | Command                     |
+| ------------------- | ----------------------------- | ------------------------ | --------------------------- |
+| Unit / Integration  | `test/*.test.ts`              | Vitest                   | `pnpm test`                 |
+| Frontend components | `src/dashboard/app/src/test/` | Vitest + Testing Library | `pnpm run test:frontend`    |
+| End-to-end          | `test/e2e/*.spec.ts`          | Playwright               | `pnpm exec playwright test` |
 
 ### Writing Backend Tests
 
@@ -294,9 +294,9 @@ describe('MyComponent', () => {
 End-to-end tests require a built project and use Playwright:
 
 ```bash
-npm run build
-npx playwright install  # First time only
-npx playwright test
+pnpm run build
+pnpm exec playwright install  # First time only
+pnpm exec playwright test
 ```
 
 The Playwright config automatically starts the dashboard server on `:3333`.
@@ -304,7 +304,7 @@ The Playwright config automatically starts the dashboard server on `:3333`.
 ### Test Coverage
 
 ```bash
-npm run test:coverage
+pnpm run test:coverage
 ```
 
 Coverage is reported via V8 in both `text` and `lcov` formats, covering all files in `src/`.
@@ -350,15 +350,15 @@ API endpoints are defined in `src/dashboard/dashboard.ts`. Follow the existing p
 3. **Run the full check suite** before pushing:
 
    ```bash
-   npx tsc --noEmit          # Type check
-   npm run lint               # Lint
-   npm run format             # Format check
-   npm run test:all           # All tests (backend + frontend)
-   npm run build              # Build verification
+   pnpm exec tsc --noEmit   # Type check
+   pnpm run lint            # Lint
+   pnpm run format          # Format check
+   pnpm run test:all        # All tests (backend + frontend)
+   pnpm run build           # Build verification
    ```
 
 4. **Push** your branch and open a pull request against `main`.
-5. **CI will run** automatically — tests on Node 20, 22, and 24, plus agent/skill count validation.
+5. **CI will run** automatically — tests on Node 22, 24 and the current LTS, plus agent/skill count validation.
 6. **Address review feedback** if any.
 
 ### PR Guidelines
@@ -374,17 +374,22 @@ API endpoints are defined in `src/dashboard/dashboard.ts`. Follow the existing p
 
 The CI workflow (`.github/workflows/ci.yml`) runs:
 
-1. **Type check**: `npx tsc --noEmit`
-2. **Tests**: `npm test` on Node 20, 22, and 24
-3. **Build**: `npm run build`
+1. **Type check**: `pnpm exec tsc --noEmit`
+2. **Tests**: `pnpm test` on Node 22, 24 and the current LTS
+3. **Build**: `pnpm run build`
 4. **Validate counts**: Ensures `defaults.ts` has exactly 7 agents and 5 skills
 
-### On Version Tag (`v*`)
+### Publishing
 
-The publish workflow (`.github/workflows/publish.yml`) runs:
+There is no publish workflow. A maintainer publishes by hand from a clean `main`:
 
-1. Install, build, and test
-2. Publish to npm with provenance
+```bash
+pnpm install --frozen-lockfile
+pnpm pack --dry-run   # check the file list
+pnpm publish
+```
+
+`pnpm publish` runs `prepublishOnly` (`pnpm run build`) and publishes `vlm-code-context-mcp` to the npm registry.
 
 ## Key Conventions
 

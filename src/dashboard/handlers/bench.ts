@@ -48,7 +48,7 @@ const GIT_CACHE_MS = 5 * 60 * 1000;
 
 export const EMPTY_MESSAGE =
   `No benchmark runs found. Set ${BENCH_DIR_ENV} to a dir with index.json + runs/ ` +
-  "(e.g. a code-context checkout's data/ after `npm run bench` / `npm run bench:live`), " +
+  "(e.g. a code-context checkout's data/ after `pnpm run bench` / `pnpm run bench:live`), " +
   'or copy that data/ dir to <project>/bench/ next to context.db. ' +
   `In a code-context checkout, \`git fetch origin bench-results\` enables the git fallback.`;
 

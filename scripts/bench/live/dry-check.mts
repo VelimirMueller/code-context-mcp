@@ -10,7 +10,7 @@
  * (computed independently by the TypeScript compiler API). The rendered
  * answer also goes through the task's real checker.
  *
- *   npm run build && npx tsx scripts/bench/live/dry-check.mts [--verbose]
+ *   pnpm run build && pnpm exec tsx scripts/bench/live/dry-check.mts [--verbose]
  *
  * No provider key, no network, no agent CLI. Exit 1 when any task disagrees.
  */
@@ -132,7 +132,7 @@ function expectedFor(task: LiveTask): string[] {
 
 async function main(): Promise<void> {
   if (!fs.existsSync(DIST_SERVER)) {
-    console.error('dist/server/index.js is missing — run `npm run build` first.');
+    console.error('dist/server/index.js is missing — run `pnpm run build` first.');
     process.exit(1);
   }
   // Same allowance bench:live sets: the indexer only indexes allowed roots.

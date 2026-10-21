@@ -26,7 +26,7 @@ function devDashboardToken(): string {
     if (token) return token;
   }
   console.warn(
-    `[vite] No dashboard token at ${file}; start the dashboard first (npm run dashboard) or /api answers 401.`,
+    `[vite] No dashboard token at ${file}; start the dashboard first (pnpm run dashboard) or /api answers 401.`,
   );
   return '';
 }

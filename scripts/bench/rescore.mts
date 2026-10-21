@@ -1,11 +1,11 @@
 /**
- * `npm run bench:rescore` — re-run the deterministic checkers on the saved
+ * `pnpm run bench:rescore` — re-run the deterministic checkers on the saved
  * final answers of a live run (CCA-07). Zero API calls: it reads the run JSON
  * and the runner's artefact dir (one `<arm>-<task>[-rN].jsonl` event stream
  * per session), parses each stream for the final answer, and checks it again
  * with the CURRENT task definitions and checkers.
  *
- * CLI: npm run bench:rescore -- --run <run.json> [--artefacts <dir>] [--out <dir>]
+ * CLI: pnpm run bench:rescore --run <run.json> [--artefacts <dir>] [--out <dir>]
  *   --artefacts  the run's artefact dir; default: the newest
  *                `<os tmpdir>/bench-live-<run_id>-*` directory
  *   --out        write the corrected run JSON to <out>/<run_id>.json

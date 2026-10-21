@@ -1,0 +1,9 @@
+# Single-package repo: no workspace packages. This file holds pnpm settings.
+# docs/ is a separate pnpm project with its own lockfile (docs/pnpm-workspace.yaml).
+
+# Dependencies allowed to run their install scripts. pnpm blocks all others.
+# allowBuilds is the pnpm 11+ key that replaced onlyBuiltDependencies;
+# a clean `pnpm install` lists no ignored builds with it.
+allowBuilds:
+  better-sqlite3: true # compiles or downloads the native SQLite binding
+  esbuild: true # installs the platform esbuild binary (used by vite and tsx)

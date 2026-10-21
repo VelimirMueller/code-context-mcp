@@ -1,0 +1,14 @@
+# docs/ is its own pnpm project with its own lockfile, separate from the root
+# package: the root install stays free of VitePress, and the CI docs job
+# installs only this folder.
+
+# Dependencies allowed to run their install scripts. pnpm blocks all others.
+# allowBuilds is the pnpm 11+ key that replaced onlyBuiltDependencies;
+# a clean `pnpm install` lists no ignored builds with it.
+allowBuilds:
+  esbuild: true # installs the platform esbuild binary (used by vite)
+
+# Security floor for VitePress 1.x, which still asks for vite 5 / esbuild 0.21.
+overrides:
+  vite: ^6.4.3
+  esbuild: ^0.25.0

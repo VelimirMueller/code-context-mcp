@@ -1,7 +1,7 @@
 # Import-graph accuracy against the TypeScript compiler (CCA-38, #182)
 
 Date: 2026-10-19. Script: `scripts/research/import-graph-accuracy.mts`
-(`npm run research:import-accuracy` runs it on this repo).
+(`pnpm run research:import-accuracy` runs it on this repo).
 
 ## Result
 

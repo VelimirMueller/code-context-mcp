@@ -1,5 +1,5 @@
 /**
- * `npm run bench:suite-check -- <dir> [--no-index] [--keep]` — free check of
+ * `pnpm run bench:suite-check <dir> [--no-index] [--keep]` — free check of
  * a suite (CCA-17): no provider key, no agent CLI, no model call.
  *
  * 1. loads and validates <dir>/suite.json + answers.json (loadSuite),
@@ -109,7 +109,7 @@ if (isMain) {
   const args = process.argv.slice(2);
   const dir = args.find((a) => !a.startsWith('--'));
   if (!dir) {
-    console.error('usage: npm run bench:suite-check -- <suite dir> [--no-index] [--keep]');
+    console.error('usage: pnpm run bench:suite-check <suite dir> [--no-index] [--keep]');
     process.exit(1);
   }
   try {

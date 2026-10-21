@@ -37,7 +37,7 @@ What it is:
 - A React + Vite + Zustand dashboard on :3333 with SSE live updates from a WAL watcher.
 - 5 CLI bins: code-context-mcp, code-context-dashboard, code-context-statusline,
   code-context-reindex, code-context-sync-github. Slash commands ship in .claude/commands.
-- Node.js 24 LTS, TypeScript strict, Vitest. Tests: npm test. Lint: npm run lint.
+- Node.js 24 LTS, TypeScript strict, Vitest. Tests: pnpm test. Lint: pnpm run lint.
 
 How to work on it:
 - The core pattern for every agent: search_files -> get_file_context -> only then Read.

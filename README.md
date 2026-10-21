@@ -193,13 +193,13 @@ Read("src/auth.ts")                  → only now read the actual code
 
 ```bash
 # Simulated (no model, no cost)
-npm run bench
+pnpm run bench
 
 # Agent (real model, real tokens; needs ZAI_API_KEY or DEEPSEEK_API_KEY)
-npm run bench:live -- --provider glm
+pnpm run bench:live --provider glm
 
 # Publish the run to the bench-results branch (rebuilds the site)
-npm run bench:publish
+pnpm run bench:publish
 ```
 
 </details>
@@ -327,15 +327,21 @@ CODE_CONTEXT_SKILLS_AUTOSYNC=1 # sync skills from upstream at boot
 ```
 
 ```bash
+# Contributors use pnpm (pnpm-lock.yaml); install once
+pnpm install
+
 # MCP server
-npm run dev
+pnpm run dev
 
 # Dashboard (Vite dev server with HMR)
-npm run dashboard:dev
+pnpm run dashboard:dev
 
 # Tests
-npm test          # backend
-npm run test:all  # backend + frontend
+pnpm test          # backend
+pnpm run test:all  # backend + frontend
+
+# Maintainers: publish to the npm registry (runs prepublishOnly = pnpm run build)
+pnpm publish
 ```
 
 </details>

@@ -1,5 +1,5 @@
 /**
- * `npm run bench:renormalize` — recompute `aggregate` and `headline` of saved
+ * `pnpm run bench:renormalize` — recompute `aggregate` and `headline` of saved
  * agent runs from their session results (CCA-08). Zero API calls, no
  * artefacts needed: every metric derives from `arms.*.results`.
  *
@@ -11,7 +11,7 @@
  * Side effect on pre-2026-10-11 runs: `tokens.*.total` was input + output
  * then; recomputed, it is input + cache_read + output like every newer run.
  *
- * CLI: npm run bench:renormalize -- --out <dir> <run.json> [<run.json> ...]
+ * CLI: pnpm run bench:renormalize --out <dir> <run.json> [<run.json> ...]
  *   --out   write each recomputed run to <out>/<run_id>.json (never over an
  *           input file); without it, print the new headlines only
  * Simulated and legacy runs are skipped (they have no sessions).
