@@ -1,6 +1,6 @@
 {
   "name": "vlm-code-context-mcp",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "AI-powered virtual IT department via MCP — codebase intelligence, 9-agent scrum team, sprint management, and React dashboard in one npm package",
   "type": "module",
   "engines": {

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.1] - 2026-10-22
+
+### Fixed
+
+- **`--version` and `--help` are flags of `code-context` and `code-context-sprint`, not a database path.** `--version` (`-v`) prints the package version and `--help` (`-h`) prints the usage; both exit 0. Any other argument that starts with `-` is refused with exit 64. Before, `code-context --version` created and indexed a SQLite file named `--version` in the current directory. (#284)
+
 ## [3.0.0] - 2026-10-20
 
 ### Breaking
@@ -803,7 +809,8 @@ Patch releases on npm without their own entry; the 0.2.0 and 0.3.0 entries descr
 
 <!-- Tagged versions link to a compare view. Versions without a git tag (tags start at v1.1.5; 1.3.0, 2.6.0 and 2.12.0 have none) link to their version-bump commit. -->
 
-[Unreleased]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.13.0...HEAD
+[Unreleased]: https://github.com/VelimirMueller/code-context-mcp/compare/v3.0.1...HEAD
+[3.0.1]: https://github.com/VelimirMueller/code-context-mcp/compare/v3.0.0...v3.0.1
 [2.13.0]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.11.0...v2.13.0
 [2.12.0]: https://github.com/VelimirMueller/code-context-mcp/commit/e23b7670826929286516cd10a8cf45a7747c4581
 [2.11.0]: https://github.com/VelimirMueller/code-context-mcp/compare/v2.10.0...v2.11.0

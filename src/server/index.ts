@@ -18,7 +18,6 @@ import { QUERY_DESCRIPTION, runBoundedQuery } from './query-output.js';
 import { z } from 'zod';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
 import { initSchema } from './schema.js';
 import { indexDirectory, migrateUnresolvedRoots } from './indexer.js';
 import { LATEST_SCHEMA_VERSION, peekSchemaVersion } from './schema-version.js';
@@ -37,6 +36,7 @@ import { formatIndexSummary } from './index-summary.js';
 import { resolveToolPath, resolveDirPath, pathDisplay, canonicalPath } from './path-resolve.js';
 import { declarationLines, hasSignatureParser, parseStoredImportLines } from './signatures.js';
 import { whoImports, exportsIn } from './graph.js';
+import { resolveEntryArgs, packageVersion } from './entry-args.js';
 
 interface CountRow {
   c: number;
@@ -48,7 +48,8 @@ function errorMessage(e: unknown): string {
 }
 
 // ─── Config ───────────────────────────────────────────────────────────────────
-const DB_PATH = process.argv[2] ?? './context.db';
+// --version, --help and an unknown flag exit here, before any file is opened (#284).
+const DB_PATH = resolveEntryArgs('code-context');
 const resolvedDbPath = path.resolve(DB_PATH);
 const isFreshDb = !fs.existsSync(resolvedDbPath);
 
@@ -112,15 +113,7 @@ try {
   slog('WARN', `server: realpath migration failed error=${errorClass(err)}`);
 }
 
-// src/server/ and dist/server/ both sit two levels below package.json.
-const PKG_VERSION: string = (() => {
-  try {
-    const pkgPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../package.json');
-    return JSON.parse(fs.readFileSync(pkgPath, 'utf-8')).version ?? '0.0.0';
-  } catch {
-    return '0.0.0';
-  }
-})();
+const PKG_VERSION = packageVersion();
 
 // CCA-06 (#121): short `instructions` naming only the listed code tools.
 const hiddenToolFilter = toolFilter(toolSelection);
