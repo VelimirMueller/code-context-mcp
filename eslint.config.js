@@ -40,9 +40,7 @@ export const LEGACY_INLINE_STYLE = [
   'components/organisms/TeamManagementModal.tsx',
   'components/organisms/TicketDetailModal.tsx',
   'pages/Benchmark.tsx',
-  'pages/CodeExplorer.tsx',
   'pages/Dashboard.tsx',
-  'pages/ProjectManagement.tsx',
   'pages/Retro.tsx',
   'pages/Team.tsx',
 ];
