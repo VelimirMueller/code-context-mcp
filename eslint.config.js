@@ -8,11 +8,6 @@ const FRONTEND = 'src/dashboard/frontend/src';
 // file to Tailwind removes it here; a new file never joins the list.
 export const LEGACY_INLINE_STYLE = [
   'App.tsx',
-  'components/atoms/BridgeStatusBadge.tsx',
-  'components/atoms/ClaudeOutputStream.tsx',
-  'components/atoms/ErrorBoundary.tsx',
-  'components/atoms/Toast.tsx',
-  'components/atoms/ToastContainer.tsx',
   'components/molecules/AgentCard.tsx',
   'components/molecules/AlertDialog.tsx',
   'components/molecules/AssignmentChips.tsx',

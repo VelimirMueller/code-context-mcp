@@ -35,26 +35,14 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       }
 
       return (
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            height: '100%',
-            minHeight: 260,
-            gap: 16,
-            padding: 32,
-            textAlign: 'center',
-          }}
-        >
+        <div className="flex h-full min-h-[260px] flex-col items-center justify-center gap-4 p-8 text-center">
           {/* Error icon */}
           <svg
             width="48"
             height="48"
             viewBox="0 0 24 24"
             fill="none"
-            stroke="var(--text3)"
+            stroke="var(--color-fg-3)"
             strokeWidth="1.5"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -64,35 +52,15 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
             <line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
 
-          <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>
-            Something went wrong
-          </div>
+          <div className="text-16 font-semibold text-fg">Something went wrong</div>
 
-          <div style={{ fontSize: 13, color: 'var(--text3)', maxWidth: 360 }}>
+          <div className="max-w-[360px] text-13 text-fg-3">
             Something went wrong. Click to retry.
           </div>
 
           <button
             onClick={this.handleRetry}
-            style={{
-              marginTop: 8,
-              padding: '8px 20px',
-              fontSize: 13,
-              fontWeight: 500,
-              fontFamily: 'var(--font)',
-              color: 'var(--text)',
-              background: 'var(--surface2)',
-              border: '1px solid var(--border)',
-              borderRadius: 6,
-              cursor: 'pointer',
-              transition: 'background 0.15s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'var(--surface3)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'var(--surface2)';
-            }}
+            className="mt-2 cursor-pointer rounded-[6px] border border-line bg-surface-2 px-5 py-2 font-body text-13 font-medium text-fg [transition:background_0.15s] hover:bg-surface-3"
           >
             Retry
           </button>

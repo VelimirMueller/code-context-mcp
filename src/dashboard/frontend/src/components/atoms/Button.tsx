@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
+import { cx } from '@/lib/utils';
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost';
 
@@ -14,44 +15,24 @@ interface ButtonProps {
   'aria-label'?: string;
 }
 
-export function Button({ variant = 'primary', children, style, ...props }: ButtonProps) {
-  const reduceMotion = useReducedMotion();
+const variantClasses: Record<ButtonVariant, string> = {
+  primary: 'rounded-pill border-none bg-pill font-semibold text-pill-fg',
+  secondary: 'rounded-[8px] border border-line-2 bg-surface-3 font-medium text-fg',
+  ghost: 'rounded-[8px] border-none bg-transparent font-medium text-fg-2',
+};
 
-  const baseStyle: React.CSSProperties = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
-    padding: '6px 14px',
-    borderRadius: 8,
-    border: 'none',
-    cursor: 'pointer',
-    fontFamily: 'var(--font)',
-    fontSize: 13,
-    fontWeight: 500,
-    transition: 'background .15s, color .15s',
-    ...(variant === 'primary' && {
-      background: 'var(--pill-bg)',
-      color: 'var(--pill-fg)',
-      borderRadius: 'var(--radius-pill)',
-      fontWeight: 600,
-    }),
-    ...(variant === 'secondary' && {
-      background: 'var(--surface3)',
-      color: 'var(--text)',
-      border: '1px solid var(--border2)',
-    }),
-    ...(variant === 'ghost' && {
-      background: 'transparent',
-      color: 'var(--text2)',
-    }),
-    ...style,
-  };
+export function Button({ variant = 'primary', children, className, ...props }: ButtonProps) {
+  const reduceMotion = useReducedMotion();
 
   return (
     <motion.button
       whileTap={reduceMotion ? undefined : { scale: 0.97 }}
       transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-      style={baseStyle}
+      className={cx(
+        'inline-flex cursor-pointer items-center gap-[6px] px-[14px] py-[6px] font-body text-13 [transition:background_.15s,color_.15s]',
+        variantClasses[variant],
+        className,
+      )}
       {...props}
     >
       {children}

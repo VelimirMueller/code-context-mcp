@@ -1,4 +1,3 @@
-import React from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Toast } from './Toast';
 import { useToastStore } from '@/stores/toastStore';
@@ -10,20 +9,11 @@ export function ToastContainer() {
   return (
     <div
       aria-live="polite"
-      style={{
-        position: 'fixed',
-        bottom: 24,
-        right: 24,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 8,
-        zIndex: 9999,
-        pointerEvents: 'none',
-      }}
+      className="pointer-events-none fixed right-6 bottom-6 z-[9999] flex flex-col gap-2"
     >
       <AnimatePresence>
         {toasts.map((toast) => (
-          <div key={toast.id} style={{ pointerEvents: 'auto' }}>
+          <div key={toast.id} className="pointer-events-auto">
             <Toast
               message={toast.message}
               type={toast.type}

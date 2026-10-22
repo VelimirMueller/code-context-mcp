@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence, useReducedMotion, steps } from 'framer-motion';
+import { cx } from '@/lib/utils';
 
 /** A single line of Claude output */
 export interface ClaudeOutputLine {
@@ -46,15 +47,15 @@ export function makeLineId(): string {
   return `cl-${Date.now()}-${++lineCounter}`;
 }
 
-/** Color map for line types */
+/** Text colour per line type */
 const LINE_COLORS: Record<ClaudeOutputLine['type'], string> = {
-  text: 'var(--text)',
-  tool_call: '#60a5fa',
-  tool_result: '#10b981',
-  thinking: '#a5b4fc',
-  error: '#f87171',
-  step: '#fbbf24',
-  system: 'var(--text3)',
+  text: 'text-fg',
+  tool_call: 'text-blue',
+  tool_result: 'text-green',
+  thinking: 'text-accent-2',
+  error: 'text-red',
+  step: 'text-orange',
+  system: 'text-fg-3',
 };
 
 /** Icons for step statuses */
@@ -117,85 +118,40 @@ export function ClaudeOutputStream({
   const progressPercent = currentStep ? (currentStep.current / currentStep.total) * 100 : 0;
 
   return (
-    <div
-      style={{
-        background: 'var(--surface2)',
-        border: '1px solid var(--border)',
-        borderRadius: 10,
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
+    <div className="flex flex-col overflow-hidden rounded-[10px] border border-line bg-surface-2">
       {/* Header bar with step info and collapse toggle */}
       <div
         onClick={() => setExpanded((e) => !e)}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          padding: '8px 14px',
-          background: 'var(--surface)',
-          borderBottom: expanded ? '1px solid var(--border)' : 'none',
-          cursor: 'pointer',
-          userSelect: 'none',
-        }}
+        className={cx(
+          'flex cursor-pointer items-center gap-[10px] bg-surface px-[14px] py-2 select-none',
+          // Bottom side only: border-line would recolour all four sides.
+          expanded ? 'border-b border-b-line' : '[border-bottom:none]',
+        )}
       >
         {/* Activity indicator */}
         <motion.div
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: '50%',
-            background: isActive ? '#10b981' : lines.length > 0 ? 'var(--text3)' : 'var(--border2)',
-            flexShrink: 0,
-          }}
+          className={cx(
+            'h-2 w-2 shrink-0 rounded-[50%]',
+            isActive ? 'bg-green' : lines.length > 0 ? 'bg-fg-3' : 'bg-line-2',
+          )}
           animate={isActive && !reduceMotion ? { scale: [1, 1.3, 1], opacity: [1, 0.7, 1] } : {}}
           transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut' }}
         />
 
         {/* Step info */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span
-              style={{
-                fontSize: 12,
-                fontWeight: 600,
-                color: 'var(--text)',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="overflow-hidden text-12 font-semibold text-ellipsis whitespace-nowrap text-fg">
               {currentStep?.title || (lines.length > 0 ? 'Claude Output' : 'Waiting for Claude...')}
             </span>
             {stepProgress && (
-              <span
-                style={{
-                  fontSize: 10,
-                  color: 'var(--text3)',
-                  fontFamily: 'var(--mono)',
-                  flexShrink: 0,
-                  background: 'var(--surface2)',
-                  padding: '1px 6px',
-                  borderRadius: 4,
-                }}
-              >
+              <span className="shrink-0 rounded-[4px] bg-surface-2 px-[6px] py-px font-code text-10 text-fg-3">
                 {stepProgress}
               </span>
             )}
           </div>
           {currentStep?.description && (
-            <div
-              style={{
-                fontSize: 10,
-                color: 'var(--text3)',
-                marginTop: 1,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
+            <div className="mt-px overflow-hidden text-10 text-ellipsis whitespace-nowrap text-fg-3">
               {currentStep.description}
             </div>
           )}
@@ -203,27 +159,16 @@ export function ClaudeOutputStream({
 
         {/* Progress bar mini */}
         {currentStep && (
-          <div
-            style={{
-              width: 60,
-              height: 3,
-              background: 'var(--border2)',
-              borderRadius: 2,
-              overflow: 'hidden',
-              flexShrink: 0,
-            }}
-          >
+          <div className="h-[3px] w-[60px] shrink-0 overflow-hidden rounded-[2px] bg-line-2">
             <motion.div
-              style={{
-                height: '100%',
-                background:
-                  currentStep.status === 'error'
-                    ? '#f87171'
-                    : currentStep.status === 'completed'
-                      ? '#10b981'
-                      : '#60a5fa',
-                borderRadius: 2,
-              }}
+              className={cx(
+                'h-full rounded-[2px]',
+                currentStep.status === 'error'
+                  ? 'bg-red'
+                  : currentStep.status === 'completed'
+                    ? 'bg-green'
+                    : 'bg-blue',
+              )}
               initial={{ width: 0 }}
               animate={{ width: `${progressPercent}%` }}
               transition={{ duration: 0.4, ease: 'easeOut' }}
@@ -233,23 +178,14 @@ export function ClaudeOutputStream({
 
         {/* Line count badge */}
         {lines.length > 0 && (
-          <span
-            style={{
-              fontSize: 10,
-              color: 'var(--text3)',
-              fontFamily: 'var(--mono)',
-              flexShrink: 0,
-            }}
-          >
-            {lines.length} lines
-          </span>
+          <span className="shrink-0 font-code text-10 text-fg-3">{lines.length} lines</span>
         )}
 
         {/* Collapse chevron */}
         <motion.span
           animate={{ rotate: expanded ? 180 : 0 }}
           transition={{ duration: reduceMotion ? 0 : 0.2 }}
-          style={{ fontSize: 10, color: 'var(--text3)', flexShrink: 0 }}
+          className="shrink-0 text-10 text-fg-3"
         >
           \u25BC
         </motion.span>
@@ -263,22 +199,16 @@ export function ClaudeOutputStream({
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: reduceMotion ? 0 : 0.2 }}
-            style={{ overflow: 'hidden' }}
+            className="overflow-hidden"
           >
             <div
               ref={scrollRef}
               onScroll={handleScroll}
-              style={{
-                maxHeight,
-                overflowY: 'auto',
-                padding: '10px 14px',
-                fontFamily: 'var(--mono)',
-                fontSize: 12,
-                lineHeight: 1.7,
-              }}
+              className="overflow-y-auto px-[14px] py-[10px] font-code text-12 leading-[1.7]"
+              style={{ maxHeight }}
             >
               {lines.length === 0 ? (
-                <div style={{ color: 'var(--text3)', fontStyle: 'italic' }}>
+                <div className="text-fg-3 italic">
                   {isActive ? 'Connecting...' : 'No output yet'}
                 </div>
               ) : (
@@ -291,29 +221,19 @@ export function ClaudeOutputStream({
                       duration: 0.15,
                       delay: reduceMotion ? 0 : Math.min(i * 0.02, 0.1),
                     }}
-                    style={{
-                      color: LINE_COLORS[line.type],
-                      wordBreak: 'break-word',
-                      whiteSpace: 'pre-wrap',
-                      display: 'flex',
-                      gap: 8,
-                      alignItems: 'baseline',
-                    }}
+                    className={cx(
+                      'flex items-baseline gap-2 [word-break:break-word] whitespace-pre-wrap',
+                      LINE_COLORS[line.type],
+                    )}
                   >
                     {/* Line type indicator */}
                     {line.type === 'tool_call' && (
-                      <span style={{ color: '#60a5fa', flexShrink: 0 }}>&#9654;</span>
+                      <span className="shrink-0 text-blue">&#9654;</span>
                     )}
-                    {line.type === 'error' && (
-                      <span style={{ color: '#f87171', flexShrink: 0 }}>&#x2717;</span>
-                    )}
-                    {line.type === 'step' && (
-                      <span style={{ color: '#fbbf24', flexShrink: 0 }}>&#9656;</span>
-                    )}
+                    {line.type === 'error' && <span className="shrink-0 text-red">&#x2717;</span>}
+                    {line.type === 'step' && <span className="shrink-0 text-orange">&#9656;</span>}
                     {line.type === 'thinking' && (
-                      <span style={{ color: '#a5b4fc', flexShrink: 0, fontStyle: 'italic' }}>
-                        &#8230;
-                      </span>
+                      <span className="shrink-0 text-accent-2 italic">&#8230;</span>
                     )}
                     <span>{line.text}</span>
                   </motion.div>
@@ -325,15 +245,7 @@ export function ClaudeOutputStream({
                 <motion.span
                   animate={reduceMotion ? {} : { opacity: [1, 0] }}
                   transition={{ duration: 0.8, repeat: Infinity, ease: steps(2) }}
-                  style={{
-                    display: 'inline-block',
-                    width: 7,
-                    height: 14,
-                    background: 'var(--text)',
-                    verticalAlign: 'middle',
-                    marginLeft: 2,
-                    borderRadius: 1,
-                  }}
+                  className="ml-[2px] inline-block h-[14px] w-[7px] rounded-[1px] bg-fg align-middle"
                 />
               )}
             </div>
@@ -353,20 +265,7 @@ export function ClaudeOutputStream({
               setUserScrolled(false);
             }
           }}
-          style={{
-            position: 'absolute',
-            bottom: 8,
-            right: 14,
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 6,
-            padding: '3px 8px',
-            fontSize: 10,
-            color: 'var(--text2)',
-            cursor: 'pointer',
-            fontFamily: 'var(--mono)',
-            zIndex: 2,
-          }}
+          className="absolute right-[14px] bottom-2 z-2 cursor-pointer rounded-[6px] border border-line bg-surface px-2 py-[3px] font-code text-10 text-fg-2"
         >
           \u2193 Scroll to bottom
         </motion.button>
