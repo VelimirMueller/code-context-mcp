@@ -25,6 +25,13 @@ describe('dashboard lint rules (#293)', () => {
     expect(errors.filter((m) => m.startsWith('Static style value'))).toHaveLength(2);
   });
 
+  it('blocks static values behind a type cast', async () => {
+    const errors = await lint(
+      "export const A = () => <div style={{ color: 'red', '--c': 'x' } as React.CSSProperties} />;",
+    );
+    expect(errors.filter((m) => m.startsWith('Static style value'))).toHaveLength(1);
+  });
+
   it('blocks hover styles set in a handler', async () => {
     const errors = await lint(
       "export const A = () => <div onMouseEnter={(e) => { e.currentTarget.style.color = 'red'; }} />;",
@@ -41,7 +48,7 @@ describe('dashboard lint rules (#293)', () => {
 
   it('allows runtime values and CSS variables from data', async () => {
     const errors = await lint(
-      'export const A = ({ w, c }: { w: number; c: string }) => <div className="bg-(--c) rounded-card" style={{ width: w, [\'--c\' as string]: c }} />;',
+      'export const A = ({ w, c }: { w: number; c: string }) => <div className="bg-(--c) rounded-card" style={{ width: w, height: `${w}%`, [\'--c\' as string]: c }} />;',
     );
     expect(errors).toEqual([]);
   });

@@ -211,7 +211,14 @@ export default tseslint.config(
         'error',
         {
           selector:
-            "JSXAttribute[name.name='style'] > JSXExpressionContainer > ObjectExpression > Property:not([key.value=/^--/])[value.type=/^(Literal|TemplateLiteral)$/]",
+            // A cast (`{…} as CSSProperties`) must not hide the object; a template with
+            // expressions (`${pct}%`) is a runtime value.
+            ['', 'TSAsExpression > ', 'TSSatisfiesExpression > ']
+              .map(
+                (cast) =>
+                  `JSXAttribute[name.name='style'] > JSXExpressionContainer > ${cast}ObjectExpression > Property:not([key.value=/^--/]):matches([value.type='Literal'], [value.type='TemplateLiteral'][value.expressions.length=0])`,
+              )
+              .join(', '),
           message:
             'Static style value: use a Tailwind utility with a token from src/index.css (#293).',
         },
