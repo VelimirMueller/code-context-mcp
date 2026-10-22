@@ -6,7 +6,7 @@ const FRONTEND = 'src/dashboard/frontend/src';
 
 // #293 ratchet: files that still carry static inline styles. A slice that moves a
 // file to Tailwind removes it here; a new file never joins the list.
-const LEGACY_INLINE_STYLE = [
+export const LEGACY_INLINE_STYLE = [
   'App.tsx',
   'components/atoms/AnimatedNumber.tsx',
   'components/atoms/BridgeStatusBadge.tsx',
@@ -60,7 +60,7 @@ const LEGACY_INLINE_STYLE = [
 // #293: class names the Tailwind config does not know: global classes in src/index.css and
 // names styled only in the legacy dashboard.html (they render unstyled in the Vite app).
 // A slice that removes a name removes it here.
-const LEGACY_CLASSES = [
+export const LEGACY_CLASSES = [
   '^action-count$',
   '^action-icon$',
   '^action-label$',
@@ -218,6 +218,7 @@ export default tseslint.config(
     // #293: the dashboard styles with Tailwind utilities and tokens (src/index.css @theme).
     // `style` keeps only runtime values (widths, positions, framer-motion values) and
     // CSS variables fed from data (`style={{ '--c': epic.color }}` + `bg-(--c)`).
+    // The rule sees literal values only; a constant or a spread still passes, so review those.
     files: [`${FRONTEND}/**/*.tsx`],
     ignores: LEGACY_INLINE_STYLE.map((f) => `${FRONTEND}/${f}`),
     rules: {
