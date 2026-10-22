@@ -26,7 +26,7 @@ src/
   scrum/           # Scrum system — schema, tools, defaults
   bridge/          # Dashboard ↔ Claude bridge
   dashboard/       # Dashboard HTTP server
-    app/           # React SPA (Vite)
+    frontend/      # React SPA (Vite)
       src/
         components/
           atoms/       # Smallest UI primitives (Badge, Button, Skeleton)
@@ -143,9 +143,15 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
 
 ### Styling
 
-- **Inline styles** with `React.CSSProperties` — not CSS modules.
-- CSS custom properties (`var(--surface)`, `var(--border)`, `var(--text2)`) for theming.
-- Tailwind CSS v4 is available and used selectively alongside inline styles.
+The dashboard is moving from inline styles to Tailwind (#293). New and migrated code follows these rules:
+
+- **Tailwind utilities with tokens** — `bg-surface-2 text-fg-3 border border-line rounded-card`. The tokens live in the `@theme` block of `src/index.css`, the only stylesheet.
+- Only house values exist: `--color-*`, `--text-*` and `--radius-*` start from `initial`. Text sizes set `font-size` only (`text-12`, `text-13.5`).
+- `style` holds runtime values only (widths, positions, framer-motion values). Colours from data go through a CSS variable: `style={{ '--c': epic.color }}` + `bg-(--c)`.
+- Hover and state styles use variants (`hover:`, `data-[state=open]:`, `aria-selected:`), never `onMouseEnter` + `e.currentTarget.style`.
+- Join conditional classes with `cx()` from `lib/utils.ts`. Variants are `Record<Variant, string>` maps.
+- ESLint enforces this. Files not yet migrated sit in `LEGACY_INLINE_STYLE` in `eslint.config.js`; old class names sit in `LEGACY_CLASSES`.
+- The old variable names (`var(--surface2)`, `var(--text2)` …) are aliases of the tokens until #293 is complete.
 
 ### Animation
 

@@ -75,7 +75,7 @@ src/
 
   dashboard/       React dashboard
     dashboard.ts     Node.js HTTP server — serves APIs + static files on :3333
-    app/             Vite + React 19 + Tailwind CSS + Zustand + Framer Motion
+    frontend/        Vite + React 19 + Tailwind CSS + Zustand + Framer Motion
       src/
         components/    Atomic Design hierarchy (see below)
         hooks/         Custom React hooks (useSearch, useSprints, useAgents, etc.)

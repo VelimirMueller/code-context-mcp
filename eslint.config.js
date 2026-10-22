@@ -1,5 +1,134 @@
 import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
+import betterTailwind from 'eslint-plugin-better-tailwindcss';
+
+const FRONTEND = 'src/dashboard/frontend/src';
+
+// #293 ratchet: files that still carry static inline styles. A slice that moves a
+// file to Tailwind removes it here; a new file never joins the list.
+export const LEGACY_INLINE_STYLE = [
+  'App.tsx',
+  'components/atoms/AnimatedNumber.tsx',
+  'components/atoms/BridgeStatusBadge.tsx',
+  'components/atoms/ClaudeOutputStream.tsx',
+  'components/atoms/Dot.tsx',
+  'components/atoms/ErrorBoundary.tsx',
+  'components/atoms/Skeleton.tsx',
+  'components/atoms/Stat.tsx',
+  'components/atoms/StatusBadge.tsx',
+  'components/atoms/Toast.tsx',
+  'components/atoms/ToastContainer.tsx',
+  'components/molecules/AgentCard.tsx',
+  'components/molecules/AlertDialog.tsx',
+  'components/molecules/AssignmentChips.tsx',
+  'components/molecules/AssignmentEditor.tsx',
+  'components/molecules/BentoCard.tsx',
+  'components/molecules/Breadcrumb.tsx',
+  'components/molecules/FileItem.tsx',
+  'components/molecules/FolderItem.tsx',
+  'components/molecules/HeroText.tsx',
+  'components/molecules/PhaseGateStepper.tsx',
+  'components/molecules/SearchBar.tsx',
+  'components/molecules/SprintCard.tsx',
+  'components/molecules/StatGroup.tsx',
+  'components/molecules/SubTabBar.tsx',
+  'components/molecules/TabBar.tsx',
+  'components/molecules/TicketCard.tsx',
+  'components/molecules/WizardModal.tsx',
+  'components/organisms/BentoGrid.tsx',
+  'components/organisms/BurndownChart.tsx',
+  'components/organisms/DashboardTour.tsx',
+  'components/organisms/DependencyGraph.tsx',
+  'components/organisms/EpicList.tsx',
+  'components/organisms/FileTree.tsx',
+  'components/organisms/KanbanBoard.tsx',
+  'components/organisms/LandingAnimation.tsx',
+  'components/organisms/SprintCompletionPanel.tsx',
+  'components/organisms/SprintDetail.tsx',
+  'components/organisms/SprintList.tsx',
+  'components/organisms/TeamGrid.tsx',
+  'components/organisms/TeamManagementModal.tsx',
+  'components/organisms/TicketDetailModal.tsx',
+  'pages/Benchmark.tsx',
+  'pages/CodeExplorer.tsx',
+  'pages/Dashboard.tsx',
+  'pages/ProjectManagement.tsx',
+  'pages/Retro.tsx',
+  'pages/Team.tsx',
+];
+
+// #293: class names the Tailwind config does not know: global classes in src/index.css and
+// names styled only in the legacy dashboard.html (they render unstyled in the Vite app).
+// A slice that removes a name removes it here.
+export const LEGACY_CLASSES = [
+  '^action-count$',
+  '^action-icon$',
+  '^action-label$',
+  '^active$',
+  '^app$',
+  '^badge$',
+  '^breadcrumb$',
+  '^breadcrumb-current$',
+  '^breadcrumb-item$',
+  '^breadcrumb-link$',
+  '^breadcrumb-separator$',
+  '^breadcrumb-text$',
+  '^change-event$',
+  '^change-header$',
+  '^change-item$',
+  '^chevron$',
+  '^count$',
+  '^dep-item$',
+  '^dep-path$',
+  '^dep-symbols$',
+  '^detail-desc$',
+  '^detail-meta$',
+  '^detail-section$',
+  '^detail-title$',
+  '^empty$',
+  '^empty-icon$',
+  '^file-item$',
+  '^file-lang-dot$',
+  '^file-name$',
+  '^file-size$',
+  '^folder-count$',
+  '^folder-icon$',
+  '^folder-name$',
+  '^highlight$',
+  '^kbd-hint$',
+  '^logo$',
+  '^logo-icon$',
+  '^logo-sub$',
+  '^logo-text$',
+  '^main$',
+  '^open$',
+  '^page-content$',
+  '^quick-action-btn$',
+  '^quick-actions-bar$',
+  '^quick-actions-breadcrumb$',
+  '^quick-actions-buttons$',
+  '^quick-search$',
+  '^search$',
+  '^search-input$',
+  '^search-wrap$',
+  '^sidebar$',
+  '^sidebar-body$',
+  '^sidebar-head$',
+  '^skeleton$',
+  '^skeleton-bar$',
+  '^stats$',
+  '^status-badge$',
+  '^tab$',
+  '^tabs$',
+  '^top-nav$',
+  '^top-nav-icon$',
+  '^top-nav-item$',
+  '^top-nav-label$',
+  '^topbar$',
+  '^tree-children$',
+  '^tree-folder$',
+  '^tree-folder-head$',
+];
 
 export default tseslint.config(
   eslint.configs.recommended,
@@ -83,6 +212,39 @@ export default tseslint.config(
       'prefer-const': 'warn',
       'no-console': ['warn', { allow: ['warn', 'error'] }],
       'preserve-caught-error': 'off',
+    },
+  },
+  {
+    // #293: the dashboard styles with Tailwind utilities and tokens (src/index.css @theme).
+    // `style` keeps only runtime values (widths, positions, framer-motion values) and
+    // CSS variables fed from data (`style={{ '--c': epic.color }}` + `bg-(--c)`).
+    // The rule sees literal values only; a constant or a spread still passes, so review those.
+    files: [`${FRONTEND}/**/*.tsx`],
+    ignores: LEGACY_INLINE_STYLE.map((f) => `${FRONTEND}/${f}`),
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "JSXAttribute[name.name='style'] > JSXExpressionContainer > ObjectExpression > Property:not([key.value=/^--/])[value.type=/^(Literal|TemplateLiteral)$/]",
+          message:
+            'Static style value: use a Tailwind utility with a token from src/index.css (#293).',
+        },
+        {
+          selector:
+            "AssignmentExpression > MemberExpression.left[object.property.name='style'][object.object.property.name='currentTarget']",
+          message: 'Hover style in a handler: use a `hover:` utility (#293).',
+        },
+      ],
+    },
+  },
+  {
+    files: [`${FRONTEND}/**/*.tsx`],
+    plugins: { 'better-tailwindcss': betterTailwind },
+    settings: { 'better-tailwindcss': { entryPoint: `${FRONTEND}/index.css` } },
+    rules: {
+      // A typo or an old name (`text-text2`) produces no CSS and fails silently.
+      'better-tailwindcss/no-unknown-classes': ['error', { ignore: LEGACY_CLASSES }],
     },
   },
   {
