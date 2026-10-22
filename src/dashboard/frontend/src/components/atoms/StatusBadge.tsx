@@ -1,4 +1,5 @@
-import React from 'react';
+import type { CSSProperties } from 'react';
+import { cx } from '@/lib/utils';
 
 type StatusIcon = '✓' | '✗' | '⚠' | '★' | '●' | '○';
 type StatusVariant = 'solid' | 'outline';
@@ -9,7 +10,7 @@ interface StatusBadgeProps {
   color?: string;
   variant?: StatusVariant;
   className?: string;
-  style?: React.CSSProperties;
+  style?: CSSProperties;
 }
 
 const defaultColors: Record<string, string> = {
@@ -26,34 +27,23 @@ export function StatusBadge({
   label,
   color = 'var(--accent)',
   variant = 'solid',
-  className = '',
+  className,
   style = {},
 }: StatusBadgeProps) {
-  const baseStyle: React.CSSProperties = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 4,
-    padding: '2px 8px',
-    borderRadius: 12,
-    fontSize: 10,
-    fontWeight: 600,
-    whiteSpace: 'nowrap',
-    ...style,
-  };
-
-  const variantStyle: React.CSSProperties =
-    variant === 'solid'
-      ? { background: color, color: 'white', border: 'none' }
-      : { background: 'transparent', color, border: `1px solid ${color}` };
-
   return (
     <span
-      className={`status-badge ${className}`}
-      style={{ ...baseStyle, ...variantStyle }}
+      className={cx(
+        'inline-flex items-center gap-1 rounded-[12px] px-2 py-[2px] text-10 font-semibold whitespace-nowrap',
+        variant === 'solid'
+          ? 'border-none bg-(--c) text-[white]'
+          : 'border border-(--c) bg-transparent text-(--c)',
+        className,
+      )}
+      style={{ ...style, '--c': color } as CSSProperties}
       role="status"
       aria-label={`${label} status`}
     >
-      <span style={{ fontSize: 11, lineHeight: 1 }}>{icon}</span>
+      <span className="text-11 leading-none">{icon}</span>
       <span>{label}</span>
     </span>
   );

@@ -82,6 +82,17 @@
   /* `transition-all` equals the inline `all .2s` the components use today. */
   --default-transition-duration: 200ms;
   --default-transition-timing-function: ease;
+
+  /* Skeleton loading bars. */
+  --animate-shimmer: shimmer 1.5s infinite;
+  @keyframes shimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
 }
 
 /* Old names, kept until the last slice of #293 moves every component to the tokens above. */
@@ -116,13 +127,6 @@
   --mono: var(--font-code);
 }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
 body {
   background-color: var(--bg);
   background-image:
@@ -452,15 +456,6 @@ body {
   color: var(--text3);
   margin-left: auto;
   flex-shrink: 0;
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
 }
 
 /* Vision tab: player fills right half edge-to-edge */

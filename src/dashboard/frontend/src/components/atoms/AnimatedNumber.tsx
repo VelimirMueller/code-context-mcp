@@ -31,7 +31,7 @@ export function AnimatedNumber({ value, duration = 600 }: AnimatedNumberProps) {
   }, [value, duration, shouldReduce, motionValue]);
 
   return (
-    <span ref={spanRef} style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>
+    <span ref={spanRef} className="font-code text-accent">
       0
     </span>
   );
