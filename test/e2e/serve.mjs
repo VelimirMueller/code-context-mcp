@@ -9,6 +9,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gunzipSync } from 'node:zlib';
 import Database from 'better-sqlite3';
 import { initSchema } from '../../dist/server/schema.js';
 import { initScrumSchema, runMigrations } from '../../dist/scrum/schema.js';
@@ -49,7 +50,13 @@ if (visual) {
     path.join(fixtures, 'benchmark-results.json'),
     path.join(dbDir, 'benchmark-results.json'),
   );
-  fs.cpSync(path.join(fixtures, 'bench'), path.join(dbDir, 'bench'), { recursive: true });
+  // origin/bench-results:data at 81b5b46, packed by test/visual/fixtures/make-bench-bundle.mjs.
+  const bench = JSON.parse(gunzipSync(fs.readFileSync(path.join(fixtures, 'bench.json.gz'))));
+  for (const [rel, text] of Object.entries(bench)) {
+    const out = path.join(dbDir, 'bench', rel);
+    fs.mkdirSync(path.dirname(out), { recursive: true });
+    fs.writeFileSync(out, text);
+  }
 } else {
   indexDirectory(db, path.join(root, 'src/server'));
 }

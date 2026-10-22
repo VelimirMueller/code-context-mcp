@@ -260,5 +260,5 @@ export async function styles(page: Page, name: string): Promise<void> {
     frame.remove();
     return lines.join('\n') + '\n';
   });
-  expect(dump).toMatchSnapshot(`${name}.styles.txt`);
+  expect(dump).toMatchSnapshot(`${name}.styles.snap`);
 }
