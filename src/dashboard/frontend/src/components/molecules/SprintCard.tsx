@@ -1,5 +1,7 @@
+import type { CSSProperties } from 'react';
 import { motion } from 'framer-motion';
 import { cardHover, listItemVariants } from '@/lib/motion';
+import { cx } from '@/lib/utils';
 import { getPhaseStyle, getPhaseLabel, mapLegacyPhase } from '@/lib/phases';
 import { useBridgeStore } from '@/stores/bridgeStore';
 import type { Sprint } from '@/types';
@@ -46,33 +48,25 @@ export function SprintCard({
   const velocityMet = velocityPct >= 100;
   const velocityLow = velocityPct < 70 && sprint.velocity_committed > 0;
 
+  const actionBtnClass =
+    'text-9 py-0.5 px-1.5 rounded-[4px] border border-line bg-surface cursor-pointer';
+
   return (
     <motion.div
       variants={listItemVariants}
       whileHover={cardHover}
       layout
       onClick={() => onClick(sprint.id)}
-      style={{
-        padding: '12px 14px',
-        background: selected ? 'var(--surface2)' : 'var(--surface)',
-        border: `1px solid ${selected ? 'var(--accent)' : 'var(--border)'}`,
-        borderRadius: 'var(--radius)',
-        cursor: 'pointer',
-        marginBottom: 6,
-        transition: 'all .2s',
-        borderLeft: selected ? '3px solid var(--accent)' : '3px solid transparent',
-      }}
+      className={cx(
+        'py-3 px-3.5 border rounded-card cursor-pointer mb-1.5 transition-all border-l-[3px]',
+        selected
+          ? 'bg-surface-2 border-accent border-l-accent'
+          : 'bg-surface border-line border-l-transparent',
+      )}
     >
       {/* Status badges row */}
       {showStatusBadges && (
-        <div
-          style={{
-            display: 'flex',
-            gap: 4,
-            marginBottom: 6,
-            flexWrap: 'wrap',
-          }}
-        >
+        <div className="flex gap-1 mb-1.5 flex-wrap">
           {hasRetroFindings && <RetroDoneBadge variant="solid" />}
           {qaVerified && <QaVerifiedBadge variant="solid" />}
           {qaPartial && <QaPendingBadge variant="solid" />}
@@ -81,31 +75,12 @@ export function SprintCard({
         </div>
       )}
 
-      <div
-        style={{
-          fontSize: 13,
-          fontWeight: 600,
-          color: 'var(--text)',
-          marginBottom: 4,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}
-      >
+      <div className="text-13 font-semibold text-fg mb-1 overflow-hidden text-ellipsis whitespace-nowrap">
         {sprint.name}
       </div>
 
-      <div
-        style={{
-          display: 'flex',
-          gap: 8,
-          fontSize: 11,
-          color: 'var(--text3)',
-          marginBottom: 6,
-          flexWrap: 'wrap',
-        }}
-      >
-        <span style={{ color, fontWeight: 700, textTransform: 'uppercase' }}>
+      <div className="flex gap-2 text-11 text-fg-3 mb-1.5 flex-wrap">
+        <span style={{ '--c': color } as CSSProperties} className="text-(--c) font-bold uppercase">
           {getPhaseLabel(sprint.status)}
         </span>
         <span>
@@ -116,15 +91,10 @@ export function SprintCard({
         </span>
         {sprint.velocity_committed > 0 && (
           <span
-            style={{
-              color:
-                velocityPct >= 80
-                  ? 'var(--green)'
-                  : velocityPct >= 50
-                    ? 'var(--orange)'
-                    : 'var(--red)',
-              fontWeight: 600,
-            }}
+            className={cx(
+              'font-semibold',
+              velocityPct >= 80 ? 'text-green' : velocityPct >= 50 ? 'text-orange' : 'text-red',
+            )}
           >
             {velocityPct}%
           </span>
@@ -132,41 +102,22 @@ export function SprintCard({
       </div>
 
       {/* Progress bar */}
-      <div
-        style={{
-          height: 3,
-          background: 'var(--border)',
-          borderRadius: 2,
-          overflow: 'hidden',
-        }}
-      >
+      <div className="h-[3px] bg-line rounded-[2px] overflow-hidden">
         <div
-          style={{
-            height: '100%',
-            width: `${pct}%`,
-            background: 'var(--accent)',
-            transition: 'width .3s',
-          }}
+          style={{ width: `${pct}%` } as CSSProperties}
+          className="h-full bg-accent [transition:width_.3s]"
         />
       </div>
 
       {/* Bridge action buttons */}
       {!['done', 'rest'].includes(mapLegacyPhase(sprint.status)) && (
-        <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
+        <div className="flex gap-1 mt-1.5">
           <button
             onClick={(e) => {
               e.stopPropagation();
               queueAction('advance_sprint', 'sprint', sprint.id, { current_phase: sprint.status });
             }}
-            style={{
-              fontSize: 9,
-              padding: '2px 6px',
-              borderRadius: 4,
-              border: '1px solid var(--border)',
-              background: 'var(--surface)',
-              color: 'var(--blue)',
-              cursor: 'pointer',
-            }}
+            className={cx(actionBtnClass, 'text-blue')}
           >
             Advance
           </button>
@@ -176,15 +127,7 @@ export function SprintCard({
                 e.stopPropagation();
                 queueAction('run_retro', 'sprint', sprint.id);
               }}
-              style={{
-                fontSize: 9,
-                padding: '2px 6px',
-                borderRadius: 4,
-                border: '1px solid var(--border)',
-                background: 'var(--surface)',
-                color: 'var(--text3)',
-                cursor: 'pointer',
-              }}
+              className={cx(actionBtnClass, 'text-fg-3')}
             >
               Run Retro
             </button>
