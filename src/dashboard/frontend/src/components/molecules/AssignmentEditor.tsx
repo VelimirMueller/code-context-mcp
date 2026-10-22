@@ -18,7 +18,12 @@ interface AssignmentEditorProps {
  * makes it lead, removing the lead promotes the first supporter, and
  * starring a chip un-stars every other one.
  */
-export function AssignmentEditor({ roles, value, onChange, disabled = false }: AssignmentEditorProps) {
+export function AssignmentEditor({
+  roles,
+  value,
+  onChange,
+  disabled = false,
+}: AssignmentEditorProps) {
   // Show every known role plus any assigned role the agents list no longer has.
   const allRoles = [...new Set([...roles, ...value.map((a) => a.role)])];
   const assignedByRole = new Map(value.map((a) => [a.role, a]));
@@ -88,7 +93,9 @@ export function AssignmentEditor({ roles, value, onChange, disabled = false }: A
                   disabled={disabled}
                   aria-label={assigned.is_lead ? `${role} is lead` : `Make ${role} lead`}
                   title={assigned.is_lead ? 'Lead agent' : `Make ${role} lead`}
-                  onClick={() => { if (!assigned.is_lead) setLead(role); }}
+                  onClick={() => {
+                    if (!assigned.is_lead) setLead(role);
+                  }}
                   style={{
                     ...innerButtonStyle,
                     color: assigned.is_lead ? 'var(--orange)' : 'var(--text3)',
@@ -155,7 +162,9 @@ export function AssignmentEditor({ roles, value, onChange, disabled = false }: A
                 >
                   <option value="">Agent default</option>
                   {MODEL_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
                   ))}
                   {!knownModel && a.model && <option value={a.model}>{a.model}</option>}
                 </select>

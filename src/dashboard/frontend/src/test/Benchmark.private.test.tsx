@@ -15,8 +15,27 @@ vi.mock('@/lib/api', () => ({
         index: {
           schema: 'ccc-bench-index/1',
           runs: [
-            { run_id: 'opus-20261012-092421', kind: 'agent-opus', date: '2026-10-12', ts: '2026-10-12T09:24:21Z', model: 'claude-opus-4-1', trigger: 'manual', headline: null, private: true, suite: 'Suite A', source_key: 'p0' },
-            { run_id: 'opus-20261012-092421', kind: 'agent-opus', date: '2026-10-11', ts: '2026-10-11T09:24:21Z', model: 'claude-opus-4-1', trigger: 'manual', headline: null },
+            {
+              run_id: 'opus-20261012-092421',
+              kind: 'agent-opus',
+              date: '2026-10-12',
+              ts: '2026-10-12T09:24:21Z',
+              model: 'claude-opus-4-1',
+              trigger: 'manual',
+              headline: null,
+              private: true,
+              suite: 'Suite A',
+              source_key: 'p0',
+            },
+            {
+              run_id: 'opus-20261012-092421',
+              kind: 'agent-opus',
+              date: '2026-10-11',
+              ts: '2026-10-11T09:24:21Z',
+              model: 'claude-opus-4-1',
+              trigger: 'manual',
+              headline: null,
+            },
           ],
         },
         private: [{ key: 'p0', alias: 'Suite A', runs: 1 }],
@@ -26,15 +45,44 @@ vi.mock('@/lib/api', () => ({
       return {
         source: { type: 'dir', label: 'private suite Suite A' },
         run: {
-          run_id: 'opus-20261012-092421', schema: 'ccc-bench/1', kind: 'agent-opus', date: '2026-10-12', ts: '2026-10-12T09:24:21Z', notes: [],
+          run_id: 'opus-20261012-092421',
+          schema: 'ccc-bench/1',
+          kind: 'agent-opus',
+          date: '2026-10-12',
+          ts: '2026-10-12T09:24:21Z',
+          notes: [],
           suite: { id: 's', private: true, redact: true },
           tasks: [{ id: 'S1', size: 'S', prompt_sha256: 'x' }],
-          aggregate: { per_task: [{ task_id: 'S1', vanilla: { success_rate: 1, tokens: { total: 10 }, uncached_tokens: 5, tool_calls: 1, mcp_tool_calls: 0, wall_ms_mean: 1000 } }] },
+          aggregate: {
+            per_task: [
+              {
+                task_id: 'S1',
+                vanilla: {
+                  success_rate: 1,
+                  tokens: { total: 10 },
+                  uncached_tokens: 5,
+                  tool_calls: 1,
+                  mcp_tool_calls: 0,
+                  wall_ms_mean: 1000,
+                },
+              },
+            ],
+          },
         },
       };
     }
     if (path === '/api/bench/run/opus-20261012-092421') {
-      return { source: { type: 'dir', label: 'test' }, run: { run_id: 'opus-20261012-092421', schema: 'ccc-bench/1', kind: 'agent-opus', date: '2026-10-11', ts: '2026-10-11T09:24:21Z', notes: ['public run'] } };
+      return {
+        source: { type: 'dir', label: 'test' },
+        run: {
+          run_id: 'opus-20261012-092421',
+          schema: 'ccc-bench/1',
+          kind: 'agent-opus',
+          date: '2026-10-11',
+          ts: '2026-10-11T09:24:21Z',
+          notes: ['public run'],
+        },
+      };
     }
     throw new Error('not found');
   }),
@@ -77,6 +125,10 @@ describe('Benchmark: private suite runs', () => {
     await waitFor(() => expect(screen.getByText('public run')).toBeTruthy());
     expect(screen.queryByText(/Redacted run/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Private (1)' }));
-    expect(within(screen.getByRole('listbox', { name: 'Benchmark runs' })).getByText('private · Suite A')).toBeTruthy();
+    expect(
+      within(screen.getByRole('listbox', { name: 'Benchmark runs' })).getByText(
+        'private · Suite A',
+      ),
+    ).toBeTruthy();
   });
 });

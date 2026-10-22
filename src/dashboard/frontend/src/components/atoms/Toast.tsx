@@ -15,7 +15,11 @@ export function Toast({ message, type, onClose }: ToastProps) {
     return () => clearTimeout(timer);
   }, [onClose]);
 
-  const colorMap = { success: 'var(--green)', error: 'var(--red)', warning: 'var(--yellow, #fbbf24)' };
+  const colorMap = {
+    success: 'var(--green)',
+    error: 'var(--red)',
+    warning: 'var(--yellow, #fbbf24)',
+  };
   const iconMap = { success: '\u2713', error: '\u2715', warning: '\u26A0' };
   const borderColor = colorMap[type];
   const iconColor = colorMap[type];
@@ -43,9 +47,7 @@ export function Toast({ message, type, onClose }: ToastProps) {
       role="alert"
       aria-live="assertive"
     >
-      <span style={{ color: iconColor, fontSize: 16, lineHeight: 1 }}>
-        {iconMap[type]}
-      </span>
+      <span style={{ color: iconColor, fontSize: 16, lineHeight: 1 }}>{iconMap[type]}</span>
       <span style={{ fontSize: 13, color: 'var(--text)', flex: 1 }}>{message}</span>
     </motion.div>
   );

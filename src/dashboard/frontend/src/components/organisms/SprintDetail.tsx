@@ -13,8 +13,18 @@ import { Badge } from '@/components/atoms/Badge';
 import type { RetroFinding } from '@/types';
 import { hideArchived } from '@/lib/utils';
 
-interface GateInfo { gate: string; passed: boolean; detail: string }
-interface GateStatus { sprint_id: number; phase: string; next_phase: string | null; gates: GateInfo[]; all_passed: boolean }
+interface GateInfo {
+  gate: string;
+  passed: boolean;
+  detail: string;
+}
+interface GateStatus {
+  sprint_id: number;
+  phase: string;
+  next_phase: string | null;
+  gates: GateInfo[];
+  all_passed: boolean;
+}
 
 interface SprintDetailProps {
   onNavigate?: (tab: string) => void;
@@ -93,9 +103,7 @@ export function SprintDetail({ onNavigate }: SprintDetailProps = {}) {
 
   const countByStatus = (status: string) => tickets.filter((t) => t.status === status).length;
   const doneRatio =
-    tickets.length > 0
-      ? tickets.filter((t) => t.status === 'DONE').length / tickets.length
-      : 0;
+    tickets.length > 0 ? tickets.filter((t) => t.status === 'DONE').length / tickets.length : 0;
 
   const phaseStyle = getPhaseStyle(sprintDetail.status);
   const statusColor = phaseStyle.bg;
@@ -106,7 +114,11 @@ export function SprintDetail({ onNavigate }: SprintDetailProps = {}) {
   const handleArchiveToggle = async () => {
     if (!sprintDetail) return;
     const wasArchived = sprintDetail.archived_at !== null;
-    if (wasArchived) { await unarchiveSprint(sprintDetail.id); } else { await archiveSprint(sprintDetail.id); }
+    if (wasArchived) {
+      await unarchiveSprint(sprintDetail.id);
+    } else {
+      await archiveSprint(sprintDetail.id);
+    }
     // Deliberately keep the sprint selected after archiving: the Archived badge +
     // Unarchive button make the action visible and instantly reversible in place.
   };
@@ -126,7 +138,9 @@ export function SprintDetail({ onNavigate }: SprintDetailProps = {}) {
           <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>
             {sprintDetail.name}
           </div>
-          <div style={{ fontSize: 12, color: 'var(--text3)', fontFamily: 'var(--mono)', marginTop: 2 }}>
+          <div
+            style={{ fontSize: 12, color: 'var(--text3)', fontFamily: 'var(--mono)', marginTop: 2 }}
+          >
             {doneCount}/{totalCount} shipped · {donePts}/{totalPts}pt · {velPct}% complete
           </div>
         </div>
@@ -157,7 +171,9 @@ export function SprintDetail({ onNavigate }: SprintDetailProps = {}) {
               const newMilestoneId = val === '' ? null : Number(val);
               setMilestoneUpdating(true);
               try {
-                await patch(`/api/sprint/${sprintDetail.id}/milestone`, { milestone_id: newMilestoneId });
+                await patch(`/api/sprint/${sprintDetail.id}/milestone`, {
+                  milestone_id: newMilestoneId,
+                });
                 if (selectedSprintId) await selectSprint(selectedSprintId);
               } finally {
                 setMilestoneUpdating(false);
@@ -178,7 +194,9 @@ export function SprintDetail({ onNavigate }: SprintDetailProps = {}) {
           >
             <option value="">No milestone</option>
             {hideArchived(milestones, sprintDetail.milestone_id).map((m) => (
-              <option key={m.id} value={m.id}>{m.name}</option>
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
             ))}
           </select>
           <div
@@ -198,7 +216,15 @@ export function SprintDetail({ onNavigate }: SprintDetailProps = {}) {
       </div>
 
       {/* Phase Gate Stepper */}
-      <div style={{ marginBottom: 14, padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}>
+      <div
+        style={{
+          marginBottom: 14,
+          padding: '10px 14px',
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: 8,
+        }}
+      >
         <PhaseGateStepper
           currentPhase={sprintDetail.status}
           sprintId={sprintDetail.id}
@@ -268,9 +294,7 @@ export function SprintDetail({ onNavigate }: SprintDetailProps = {}) {
               marginTop: 6,
             }}
           >
-            <div
-              style={{ height: '100%', width: `${velPct}%`, background: 'var(--accent)' }}
-            />
+            <div style={{ height: '100%', width: `${velPct}%`, background: 'var(--accent)' }} />
           </div>
         </div>
 
@@ -336,22 +360,65 @@ export function SprintDetail({ onNavigate }: SprintDetailProps = {}) {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
           <div>
-            <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase' as const, marginBottom: 2 }}>Committed</div>
-            <div style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--mono)' }}>{sprintDetail.velocity_committed}sp</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase' as const, marginBottom: 2 }}>Completed</div>
-            <div style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--mono)', color: 'var(--green)' }}>{donePts}sp</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase' as const, marginBottom: 2 }}>Team</div>
+            <div
+              style={{
+                fontSize: 10,
+                color: 'var(--text3)',
+                fontWeight: 600,
+                textTransform: 'uppercase' as const,
+                marginBottom: 2,
+              }}
+            >
+              Committed
+            </div>
             <div style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--mono)' }}>
-              {new Set(tickets.map(t => t.assigned_to).filter(Boolean)).size} members
+              {sprintDetail.velocity_committed}sp
+            </div>
+          </div>
+          <div>
+            <div
+              style={{
+                fontSize: 10,
+                color: 'var(--text3)',
+                fontWeight: 600,
+                textTransform: 'uppercase' as const,
+                marginBottom: 2,
+              }}
+            >
+              Completed
+            </div>
+            <div
+              style={{
+                fontSize: 16,
+                fontWeight: 700,
+                fontFamily: 'var(--mono)',
+                color: 'var(--green)',
+              }}
+            >
+              {donePts}sp
+            </div>
+          </div>
+          <div>
+            <div
+              style={{
+                fontSize: 10,
+                color: 'var(--text3)',
+                fontWeight: 600,
+                textTransform: 'uppercase' as const,
+                marginBottom: 2,
+              }}
+            >
+              Team
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--mono)' }}>
+              {new Set(tickets.map((t) => t.assigned_to).filter(Boolean)).size} members
             </div>
           </div>
         </div>
         {(sprintDetail.start_date || sprintDetail.end_date) && (
-          <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>
+          <div
+            style={{ marginTop: 8, fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)' }}
+          >
             {sprintDetail.start_date ?? '?'} → {sprintDetail.end_date ?? '?'}
           </div>
         )}
@@ -362,8 +429,8 @@ export function SprintDetail({ onNavigate }: SprintDetailProps = {}) {
         sprint={sprintDetail}
         tickets={{
           total: tickets.length,
-          done: tickets.filter(t => t.status === 'DONE').length,
-          qaVerified: tickets.filter(t => !!t.qa_verified).length,
+          done: tickets.filter((t) => t.status === 'DONE').length,
+          qaVerified: tickets.filter((t) => !!t.qa_verified).length,
           items: tickets,
         }}
         retroFindings={{ count: retroFindings.length, hasFindings: retroFindings.length > 0 }}
@@ -394,48 +461,169 @@ function RetroInline() {
   ];
 
   return (
-    <div style={{ marginTop: 16, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+    <div
+      style={{
+        marginTop: 16,
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius)',
+        overflow: 'hidden',
+      }}
+    >
       <button
         onClick={() => setExpanded(!expanded)}
         style={{
-          background: 'none', border: 'none', cursor: 'pointer', padding: '14px 16px',
-          display: 'flex', alignItems: 'center', gap: 10, width: '100%', fontFamily: 'var(--font)',
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          padding: '14px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          width: '100%',
+          fontFamily: 'var(--font)',
           transition: 'background .15s',
         }}
-        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg)'; }}
-        onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'var(--bg)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'none';
+        }}
       >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform .2s', flexShrink: 0 }}>
-          <path d="M5 2.5L9.5 7L5 11.5" stroke="var(--text3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          fill="none"
+          style={{
+            transform: expanded ? 'rotate(90deg)' : 'none',
+            transition: 'transform .2s',
+            flexShrink: 0,
+          }}
+        >
+          <path
+            d="M5 2.5L9.5 7L5 11.5"
+            stroke="var(--text3)"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Retro Findings</span>
-        <span style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)', background: 'var(--bg)', padding: '1px 8px', borderRadius: 10 }}>{findings.length}</span>
+        <span
+          style={{
+            fontSize: 11,
+            color: 'var(--text3)',
+            fontFamily: 'var(--mono)',
+            background: 'var(--bg)',
+            padding: '1px 8px',
+            borderRadius: 10,
+          }}
+        >
+          {findings.length}
+        </span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-          {categories.map(({ items, dot, label }) => items.length > 0 && (
-            <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, color: 'var(--text3)' }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: dot, flexShrink: 0 }} />
-              {items.length}
-            </span>
-          ))}
+          {categories.map(
+            ({ items, dot, label }) =>
+              items.length > 0 && (
+                <span
+                  key={label}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 3,
+                    fontSize: 10,
+                    color: 'var(--text3)',
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: '50%',
+                      background: dot,
+                      flexShrink: 0,
+                    }}
+                  />
+                  {items.length}
+                </span>
+              ),
+          )}
         </div>
       </button>
       {expanded && (
-        <div style={{ padding: '0 16px 14px', display: 'flex', flexDirection: 'column' as const, gap: 12 }}>
-          {categories.map(({ items, label, color }) => items.length > 0 && (
-            <div key={label}>
-              <div style={{ fontSize: 11, fontWeight: 600, color, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
-                {label}
-                <span style={{ fontFamily: 'var(--mono)', fontWeight: 400, color: 'var(--text3)' }}>({items.length})</span>
-              </div>
-              {items.map((f: RetroFinding, i: number) => (
-                <div key={f.id ?? i} style={{ padding: '8px 12px', background: 'var(--bg)', borderRadius: 6, fontSize: 12, color: 'var(--text2)', marginBottom: 4, borderLeft: `3px solid ${color}`, lineHeight: 1.5 }}>
-                  {f.finding}
-                  {f.action_owner && <span style={{ fontSize: 10, color: 'var(--text3)', marginLeft: 8, fontFamily: 'var(--mono)' }}>— {f.action_owner}</span>}
+        <div
+          style={{
+            padding: '0 16px 14px',
+            display: 'flex',
+            flexDirection: 'column' as const,
+            gap: 12,
+          }}
+        >
+          {categories.map(
+            ({ items, label, color }) =>
+              items.length > 0 && (
+                <div key={label}>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color,
+                      marginBottom: 8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        background: color,
+                        flexShrink: 0,
+                      }}
+                    />
+                    {label}
+                    <span
+                      style={{ fontFamily: 'var(--mono)', fontWeight: 400, color: 'var(--text3)' }}
+                    >
+                      ({items.length})
+                    </span>
+                  </div>
+                  {items.map((f: RetroFinding, i: number) => (
+                    <div
+                      key={f.id ?? i}
+                      style={{
+                        padding: '8px 12px',
+                        background: 'var(--bg)',
+                        borderRadius: 6,
+                        fontSize: 12,
+                        color: 'var(--text2)',
+                        marginBottom: 4,
+                        borderLeft: `3px solid ${color}`,
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {f.finding}
+                      {f.action_owner && (
+                        <span
+                          style={{
+                            fontSize: 10,
+                            color: 'var(--text3)',
+                            marginLeft: 8,
+                            fontFamily: 'var(--mono)',
+                          }}
+                        >
+                          — {f.action_owner}
+                        </span>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          ))}
+              ),
+          )}
         </div>
       )}
     </div>
@@ -454,36 +642,64 @@ function GateStatusBar({ sprintId, phase }: { sprintId: number; phase: string })
   if (!gateStatus || !gateStatus.gates.length) return null;
 
   const GATE_LABELS: Record<string, string> = {
-    tickets_assigned: "Tickets Assigned",
-    all_tickets_done: "All Tickets Done",
-    qa_verified: "QA Verified",
-    velocity_set: "Velocity Recorded",
-    retro_findings: "Retro Findings",
+    tickets_assigned: 'Tickets Assigned',
+    all_tickets_done: 'All Tickets Done',
+    qa_verified: 'QA Verified',
+    velocity_set: 'Velocity Recorded',
+    retro_findings: 'Retro Findings',
   };
 
   return (
-    <div style={{ marginBottom: 14, padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}>
+    <div
+      style={{
+        marginBottom: 14,
+        padding: '10px 14px',
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        borderRadius: 8,
+      }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: 'var(--text3)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+          }}
+        >
           Gates for {phase} → {gateStatus.next_phase}
         </span>
-        <span style={{
-          fontSize: 10, fontWeight: 700, padding: '1px 8px', borderRadius: 10,
-          background: gateStatus.all_passed ? 'rgba(16,185,129,.15)' : 'rgba(239,68,68,.15)',
-          color: gateStatus.all_passed ? 'var(--green)' : 'var(--red)',
-        }}>
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            padding: '1px 8px',
+            borderRadius: 10,
+            background: gateStatus.all_passed ? 'rgba(16,185,129,.15)' : 'rgba(239,68,68,.15)',
+            color: gateStatus.all_passed ? 'var(--green)' : 'var(--red)',
+          }}
+        >
           {gateStatus.all_passed ? 'READY' : 'BLOCKED'}
         </span>
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {gateStatus.gates.map((g) => (
-          <div key={g.gate} style={{
-            display: 'flex', alignItems: 'center', gap: 4,
-            padding: '3px 10px', borderRadius: 6, fontSize: 11,
-            background: g.passed ? 'rgba(16,185,129,.08)' : 'rgba(239,68,68,.08)',
-            border: `1px solid ${g.passed ? 'rgba(16,185,129,.2)' : 'rgba(239,68,68,.2)'}`,
-            color: g.passed ? 'var(--green)' : 'var(--red)',
-          }}>
+          <div
+            key={g.gate}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              padding: '3px 10px',
+              borderRadius: 6,
+              fontSize: 11,
+              background: g.passed ? 'rgba(16,185,129,.08)' : 'rgba(239,68,68,.08)',
+              border: `1px solid ${g.passed ? 'rgba(16,185,129,.2)' : 'rgba(239,68,68,.2)'}`,
+              color: g.passed ? 'var(--green)' : 'var(--red)',
+            }}
+          >
             <span>{g.passed ? '✓' : '✗'}</span>
             <span style={{ fontWeight: 600 }}>{GATE_LABELS[g.gate] || g.gate}</span>
             <span style={{ fontSize: 10, color: 'var(--text3)' }}>({g.detail})</span>

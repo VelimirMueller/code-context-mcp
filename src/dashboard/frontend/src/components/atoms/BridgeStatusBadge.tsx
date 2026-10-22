@@ -21,20 +21,25 @@ export function BridgeStatusBadge() {
 
   const dotColor = hasWizard
     ? '#f97316'
-    : hasClaimed ? 'var(--blue)' : hasPending ? 'var(--yellow, #eab308)' : 'var(--green, #10b981)';
+    : hasClaimed
+      ? 'var(--blue)'
+      : hasPending
+        ? 'var(--yellow, #eab308)'
+        : 'var(--green, #10b981)';
   const label = hasWizard
     ? `Wizard: ${wizardSteps.length} input${wizardSteps.length > 1 ? 's' : ''} requested`
     : hasClaimed
-    ? `${status.claimed} action${status.claimed > 1 ? 's' : ''} running`
-    : hasPending
-    ? `${status.pending} action${status.pending > 1 ? 's' : ''} queued`
-    : 'Bridge idle';
+      ? `${status.claimed} action${status.claimed > 1 ? 's' : ''} running`
+      : hasPending
+        ? `${status.pending} action${status.pending > 1 ? 's' : ''} queued`
+        : 'Bridge idle';
 
   return (
     <div
-      title={hasWizard
-        ? `Wizard active: ${wizardSteps.length} step(s) waiting for input`
-        : `Bridge: ${status.pending} pending, ${status.claimed} claimed, ${status.completed} completed, ${status.failed} failed`
+      title={
+        hasWizard
+          ? `Wizard active: ${wizardSteps.length} step(s) waiting for input`
+          : `Bridge: ${status.pending} pending, ${status.claimed} claimed, ${status.completed} completed, ${status.failed} failed`
       }
       style={{
         display: 'flex',
@@ -58,7 +63,7 @@ export function BridgeStatusBadge() {
           height: 6,
           borderRadius: '50%',
           background: dotColor,
-          animation: (hasWizard || hasClaimed) ? 'pulse 1s ease-in-out infinite' : undefined,
+          animation: hasWizard || hasClaimed ? 'pulse 1s ease-in-out infinite' : undefined,
         }}
       />
       {label}

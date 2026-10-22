@@ -11,7 +11,10 @@ let runs: Record<string, unknown> = {};
 vi.mock('@/lib/api', () => ({
   get: vi.fn(async (path: string) => {
     if (path === '/api/bench/index') {
-      return { source: { type: 'dir', label: 'test' }, index: { schema: 'ccc-bench-index/1', runs: entries } };
+      return {
+        source: { type: 'dir', label: 'test' },
+        index: { schema: 'ccc-bench-index/1', runs: entries },
+      };
     }
     const m = path.match(/^\/api\/bench\/run\/(.+)$/);
     if (m) return { source: { type: 'dir', label: 'test' }, run: runs[decodeURIComponent(m[1])] };
@@ -39,23 +42,51 @@ const headline = {
 };
 
 function arm(over: Record<string, unknown> = {}) {
-  return { success_rate: 1, tokens: { total: 90000 }, uncached_tokens: 21000, tool_calls: 9, mcp_tool_calls: 0, wall_ms_mean: 8000, ...over };
+  return {
+    success_rate: 1,
+    tokens: { total: 90000 },
+    uncached_tokens: 21000,
+    tool_calls: 9,
+    mcp_tool_calls: 0,
+    wall_ms_mean: 8000,
+    ...over,
+  };
 }
 
 function run(perTask: unknown[]) {
-  return { run_id: ID, schema: 'ccc-bench/1', kind: 'agent-glm', date: '2026-10-11', ts: '2026-10-11T09:06:20Z', notes: [], aggregate: { per_task: perTask } };
+  return {
+    run_id: ID,
+    schema: 'ccc-bench/1',
+    kind: 'agent-glm',
+    date: '2026-10-11',
+    ts: '2026-10-11T09:06:20Z',
+    notes: [],
+    aggregate: { per_task: perTask },
+  };
 }
 
 async function renderPage() {
   vi.resetModules();
   const { Benchmark } = await import('@/pages/Benchmark');
   render(<Benchmark />);
-  await waitFor(() => expect(screen.getByText(/^Per task \(success · uncached tokens/)).toBeTruthy());
+  await waitFor(() =>
+    expect(screen.getByText(/^Per task \(success · uncached tokens/)).toBeTruthy(),
+  );
 }
 
 describe('Benchmark headline: honest metrics (CCA-08)', () => {
   beforeEach(() => {
-    entries = [{ run_id: ID, kind: 'agent-glm', date: '2026-10-11', ts: '2026-10-11T09:06:20Z', model: 'glm-5.3', trigger: 'manual', headline }];
+    entries = [
+      {
+        run_id: ID,
+        kind: 'agent-glm',
+        date: '2026-10-11',
+        ts: '2026-10-11T09:06:20Z',
+        model: 'glm-5.3',
+        trigger: 'manual',
+        headline,
+      },
+    ];
     runs = {
       [ID]: run([
         {
@@ -121,8 +152,24 @@ describe('Benchmark headline: honest metrics (CCA-08)', () => {
   });
 
   it('shows dashes for an index entry built before CCA-08', async () => {
-    entries[0].headline = { success_vanilla_pct: 93.3, success_cc_pct: 93.3, tokens_saved_pct: 6.7, tool_calls_saved_pct: -18.3 };
-    runs[ID] = run([{ task_id: 'L1', vanilla: { success_rate: 1, tokens: { total: 31277 }, tool_calls: 8, mcp_tool_calls: 0, wall_ms_mean: 7900 } }]);
+    entries[0].headline = {
+      success_vanilla_pct: 93.3,
+      success_cc_pct: 93.3,
+      tokens_saved_pct: 6.7,
+      tool_calls_saved_pct: -18.3,
+    };
+    runs[ID] = run([
+      {
+        task_id: 'L1',
+        vanilla: {
+          success_rate: 1,
+          tokens: { total: 31277 },
+          tool_calls: 8,
+          mcp_tool_calls: 0,
+          wall_ms_mean: 7900,
+        },
+      },
+    ]);
     await renderPage();
     const card = screen.getAllByRole('button', { pressed: true })[0];
     const label = within(card).getByText('Uncached saved cc');

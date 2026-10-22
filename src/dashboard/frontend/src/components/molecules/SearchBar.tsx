@@ -12,7 +12,10 @@ export function SearchBar() {
   }, [searchFocused]);
 
   return (
-    <div className="search-wrap" style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, position: 'relative' }}>
+    <div
+      className="search-wrap"
+      style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, position: 'relative' }}
+    >
       <svg
         viewBox="0 0 24 24"
         fill="none"
@@ -32,7 +35,14 @@ export function SearchBar() {
         onChange={(e) => setSearch(e.target.value)}
         onFocus={() => setSearchFocused(true)}
         onBlur={() => setSearchFocused(false)}
-        style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text)', fontSize: 13 }}
+        style={{
+          flex: 1,
+          background: 'transparent',
+          border: 'none',
+          outline: 'none',
+          color: 'var(--text)',
+          fontSize: 13,
+        }}
       />
       <span className="kbd-hint">⌘K</span>
     </div>

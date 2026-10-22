@@ -15,21 +15,24 @@ const tourSteps: TourStep[] = [
   {
     id: 'welcome',
     title: 'Welcome to Code Context MCP! 🎉',
-    description: 'This dashboard helps you manage your project with AI-assisted scrum processes. Let\'s take a quick tour.',
+    description:
+      "This dashboard helps you manage your project with AI-assisted scrum processes. Let's take a quick tour.",
     target: 'body',
     position: 'center',
   },
   {
     id: 'navigation',
     title: 'Navigation Tabs',
-    description: 'Use these tabs to navigate between Sprints, Planning, Code Explorer, Team, and Retro views.',
+    description:
+      'Use these tabs to navigate between Sprints, Planning, Code Explorer, Team, and Retro views.',
     target: '.top-nav',
     position: 'bottom',
   },
   {
     id: 'sprints',
     title: 'Sprint Overview',
-    description: 'View all your sprints here. Track progress, velocity, and ticket status across your entire project.',
+    description:
+      'View all your sprints here. Track progress, velocity, and ticket status across your entire project.',
     target: '.sprint-cards',
     position: 'left',
   },
@@ -43,14 +46,16 @@ const tourSteps: TourStep[] = [
   {
     id: 'team',
     title: 'Your AI Team',
-    description: 'Meet your virtual scrum team! Each agent has a role: developers, QA, DevOps, and more.',
+    description:
+      'Meet your virtual scrum team! Each agent has a role: developers, QA, DevOps, and more.',
     target: '.team-grid',
     position: 'left',
   },
   {
     id: 'ready',
-    title: 'You\'re All Set! 🚀',
-    description: 'Start your first sprint with /kickoff or explore the dashboard. Check the user guide for more details.',
+    title: "You're All Set! 🚀",
+    description:
+      'Start your first sprint with /kickoff or explore the dashboard. Check the user guide for more details.',
     target: 'body',
     position: 'center',
   },
@@ -156,9 +161,7 @@ export function DashboardTour({ onComplete, onDismiss }: DashboardTourProps) {
           style={{
             position: 'absolute',
             left: '50%',
-            top: highlightRect
-              ? highlightRect.bottom + 20
-              : '50%',
+            top: highlightRect ? highlightRect.bottom + 20 : '50%',
             transform: 'translateX(-50%)',
             maxWidth: 400,
             minWidth: 300,
@@ -187,9 +190,7 @@ export function DashboardTour({ onComplete, onDismiss }: DashboardTourProps) {
           </div>
 
           {/* Content */}
-          <h2 style={{ margin: '0 0 12px', fontSize: 20, fontWeight: 600 }}>
-            {step.title}
-          </h2>
+          <h2 style={{ margin: '0 0 12px', fontSize: 20, fontWeight: 600 }}>{step.title}</h2>
           <p style={{ margin: '0 0 20px', fontSize: 14, lineHeight: 1.5, color: 'var(--text2)' }}>
             {step.description}
           </p>

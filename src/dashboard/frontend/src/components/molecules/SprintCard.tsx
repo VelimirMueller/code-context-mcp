@@ -3,7 +3,14 @@ import { cardHover, listItemVariants } from '@/lib/motion';
 import { getPhaseStyle, getPhaseLabel, mapLegacyPhase } from '@/lib/phases';
 import { useBridgeStore } from '@/stores/bridgeStore';
 import type { Sprint } from '@/types';
-import { StatusBadge, RetroDoneBadge, QaVerifiedBadge, QaPendingBadge, VelocityMetBadge, VelocityLowBadge } from '@/components/atoms';
+import {
+  StatusBadge,
+  RetroDoneBadge,
+  QaVerifiedBadge,
+  QaPendingBadge,
+  VelocityMetBadge,
+  VelocityLowBadge,
+} from '@/components/atoms';
 
 interface SprintCardProps {
   sprint: Sprint;
@@ -12,12 +19,15 @@ interface SprintCardProps {
   showStatusBadges?: boolean;
 }
 
-export function SprintCard({ sprint, selected, onClick, showStatusBadges = true }: SprintCardProps) {
+export function SprintCard({
+  sprint,
+  selected,
+  onClick,
+  showStatusBadges = true,
+}: SprintCardProps) {
   const queueAction = useBridgeStore((s) => s.queueAction);
   const pct =
-    sprint.ticket_count > 0
-      ? Math.round((sprint.done_count / sprint.ticket_count) * 100)
-      : 0;
+    sprint.ticket_count > 0 ? Math.round((sprint.done_count / sprint.ticket_count) * 100) : 0;
 
   const velocityPct =
     sprint.velocity_committed > 0
@@ -105,10 +115,17 @@ export function SprintCard({ sprint, selected, onClick, showStatusBadges = true 
           {sprint.velocity_completed ?? 0}/{sprint.velocity_committed ?? 0} pts
         </span>
         {sprint.velocity_committed > 0 && (
-          <span style={{
-            color: velocityPct >= 80 ? 'var(--green)' : velocityPct >= 50 ? 'var(--orange)' : 'var(--red)',
-            fontWeight: 600,
-          }}>
+          <span
+            style={{
+              color:
+                velocityPct >= 80
+                  ? 'var(--green)'
+                  : velocityPct >= 50
+                    ? 'var(--orange)'
+                    : 'var(--red)',
+              fontWeight: 600,
+            }}
+          >
             {velocityPct}%
           </span>
         )}
@@ -137,15 +154,37 @@ export function SprintCard({ sprint, selected, onClick, showStatusBadges = true 
       {!['done', 'rest'].includes(mapLegacyPhase(sprint.status)) && (
         <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
           <button
-            onClick={(e) => { e.stopPropagation(); queueAction('advance_sprint', 'sprint', sprint.id, { current_phase: sprint.status }); }}
-            style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--blue)', cursor: 'pointer' }}
+            onClick={(e) => {
+              e.stopPropagation();
+              queueAction('advance_sprint', 'sprint', sprint.id, { current_phase: sprint.status });
+            }}
+            style={{
+              fontSize: 9,
+              padding: '2px 6px',
+              borderRadius: 4,
+              border: '1px solid var(--border)',
+              background: 'var(--surface)',
+              color: 'var(--blue)',
+              cursor: 'pointer',
+            }}
           >
             Advance
           </button>
           {sprint.status === 'retro' && (
             <button
-              onClick={(e) => { e.stopPropagation(); queueAction('run_retro', 'sprint', sprint.id); }}
-              style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text3)', cursor: 'pointer' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                queueAction('run_retro', 'sprint', sprint.id);
+              }}
+              style={{
+                fontSize: 9,
+                padding: '2px 6px',
+                borderRadius: 4,
+                border: '1px solid var(--border)',
+                background: 'var(--surface)',
+                color: 'var(--text3)',
+                cursor: 'pointer',
+              }}
             >
               Run Retro
             </button>

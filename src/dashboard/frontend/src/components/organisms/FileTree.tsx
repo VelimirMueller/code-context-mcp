@@ -22,7 +22,12 @@ export function FileTree() {
 
   const { rootDir, dirChildren, dirInfoMap, filesByDir } = useMemo(() => {
     if (!directories.length && !files.length) {
-      return { rootDir: '', dirChildren: new Map<string, string[]>(), dirInfoMap: new Map<string, Directory>(), filesByDir: new Map<string, File[]>() };
+      return {
+        rootDir: '',
+        dirChildren: new Map<string, string[]>(),
+        dirInfoMap: new Map<string, Directory>(),
+        filesByDir: new Map<string, File[]>(),
+      };
     }
 
     const rootDir = directories.length
@@ -99,7 +104,9 @@ export function FileTree() {
 
   // Tree mode
   const rootChildDirs = (dirChildren.get(rootDir) ?? []).slice().sort();
-  const rootFiles = (filesByDir.get(rootDir) ?? []).slice().sort((a, b) => a.path.localeCompare(b.path));
+  const rootFiles = (filesByDir.get(rootDir) ?? [])
+    .slice()
+    .sort((a, b) => a.path.localeCompare(b.path));
 
   return (
     <div>

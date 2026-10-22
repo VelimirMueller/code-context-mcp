@@ -62,7 +62,14 @@ export function TeamGrid() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflowY: 'auto' }}>
       {/* Header bar with title and Add button */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 20px 12px' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '0 20px 12px',
+        }}
+      >
         <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Team Members</div>
         <button
           onClick={handleAdd}
@@ -80,8 +87,12 @@ export function TeamGrid() {
             gap: 6,
             transition: 'opacity 0.15s',
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.8'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.opacity = '0.8';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.opacity = '1';
+          }}
         >
           <span style={{ fontSize: 15, lineHeight: 1 }}>+</span> Add Member
         </button>
@@ -99,11 +110,7 @@ export function TeamGrid() {
       {/* Management Modal */}
       <AnimatePresence>
         {modalOpen && (
-          <TeamManagementModal
-            open={modalOpen}
-            agent={editingAgent}
-            onClose={handleClose}
-          />
+          <TeamManagementModal open={modalOpen} agent={editingAgent} onClose={handleClose} />
         )}
       </AnimatePresence>
     </div>
@@ -130,7 +137,10 @@ function GroupedAgentGrid({ agents, onEdit }: GroupedAgentGridProps) {
     for (const key of ['development', 'business', 'quality']) {
       const group = byDept.get(key);
       if (group && group.length > 0) {
-        const display = DEPARTMENT_DISPLAY[key] ?? { label: key.charAt(0).toUpperCase() + key.slice(1), color: 'var(--text3)' };
+        const display = DEPARTMENT_DISPLAY[key] ?? {
+          label: key.charAt(0).toUpperCase() + key.slice(1),
+          color: 'var(--text3)',
+        };
         result.push({ label: display.label, color: display.color, agents: group });
         byDept.delete(key);
       }
@@ -138,7 +148,10 @@ function GroupedAgentGrid({ agents, onEdit }: GroupedAgentGridProps) {
     // Any remaining departments (custom ones added by users)
     for (const [key, group] of byDept) {
       if (group.length > 0) {
-        const display = DEPARTMENT_DISPLAY[key] ?? { label: key.charAt(0).toUpperCase() + key.slice(1), color: 'var(--text3)' };
+        const display = DEPARTMENT_DISPLAY[key] ?? {
+          label: key.charAt(0).toUpperCase() + key.slice(1),
+          color: 'var(--text3)',
+        };
         result.push({ label: display.label, color: display.color, agents: group });
       }
     }
@@ -160,19 +173,70 @@ function GroupedAgentGrid({ agents, onEdit }: GroupedAgentGridProps) {
           <button
             onClick={() => toggle(group.label)}
             style={{
-              display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none',
-              cursor: 'pointer', padding: '8px 0', width: '100%', fontFamily: 'var(--font)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '8px 0',
+              width: '100%',
+              fontFamily: 'var(--font)',
             }}
           >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ transform: collapsed.has(group.label) ? 'none' : 'rotate(90deg)', transition: 'transform .2s', flexShrink: 0 }}>
-              <path d="M4 2L8 6L4 10" stroke={group.color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              style={{
+                transform: collapsed.has(group.label) ? 'none' : 'rotate(90deg)',
+                transition: 'transform .2s',
+                flexShrink: 0,
+              }}
+            >
+              <path
+                d="M4 2L8 6L4 10"
+                stroke={group.color}
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: group.color, flexShrink: 0 }} />
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{group.label}</span>
-            <span style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)', background: 'var(--surface2)', padding: '1px 8px', borderRadius: 10 }}>{group.agents.length}</span>
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: group.color,
+                flexShrink: 0,
+              }}
+            />
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+              {group.label}
+            </span>
+            <span
+              style={{
+                fontSize: 11,
+                color: 'var(--text3)',
+                fontFamily: 'var(--mono)',
+                background: 'var(--surface2)',
+                padding: '1px 8px',
+                borderRadius: 10,
+              }}
+            >
+              {group.agents.length}
+            </span>
           </button>
           {!collapsed.has(group.label) && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12, paddingTop: 4 }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+                gap: 12,
+                paddingTop: 4,
+              }}
+            >
               {group.agents.map((agent) => (
                 <AgentCard key={agent.role} agent={agent} onEdit={onEdit} />
               ))}

@@ -65,7 +65,9 @@ export function DependencyGraph() {
     }
 
     const filteredNodes = visibleNodeIds
-      ? graphData.nodes.filter((n) => visibleNodeIds!.has(n.id) || visibleNodeIds!.has(String(n.id)))
+      ? graphData.nodes.filter(
+          (n) => visibleNodeIds!.has(n.id) || visibleNodeIds!.has(String(n.id)),
+        )
       : graphData.nodes;
     const filteredEdges = visibleNodeIds
       ? graphData.edges.filter(
@@ -153,10 +155,8 @@ export function DependencyGraph() {
     for (const e of edges) {
       const s = idMap[String(e.source)];
       const t = idMap[String(e.target)];
-      const isFromSelected =
-        selectedFileId && String(e.source) === String(selectedFileId);
-      const isToSelected =
-        selectedFileId && String(e.target) === String(selectedFileId);
+      const isFromSelected = selectedFileId && String(e.source) === String(selectedFileId);
+      const isToSelected = selectedFileId && String(e.target) === String(selectedFileId);
       const edgeColor = isFromSelected
         ? 'rgba(16,185,129,.5)'
         : isToSelected

@@ -11,7 +11,10 @@ let runs: Record<string, unknown> = {};
 vi.mock('@/lib/api', () => ({
   get: vi.fn(async (path: string) => {
     if (path === '/api/bench/index') {
-      return { source: { type: 'dir', label: 'test' }, index: { schema: 'ccc-bench-index/1', runs: entries } };
+      return {
+        source: { type: 'dir', label: 'test' },
+        index: { schema: 'ccc-bench-index/1', runs: entries },
+      };
     }
     const m = path.match(/^\/api\/bench\/run\/(.+)$/);
     if (m) return { source: { type: 'dir', label: 'test' }, run: runs[decodeURIComponent(m[1])] };
@@ -47,7 +50,12 @@ const base = {
 
 function runFile(over: Record<string, unknown> = {}) {
   return {
-    run_id: ID, schema: 'ccc-bench/1', kind: 'agent-glm', date: '2026-10-11', ts: '2026-10-11T09:06:20Z', notes: [],
+    run_id: ID,
+    schema: 'ccc-bench/1',
+    kind: 'agent-glm',
+    date: '2026-10-11',
+    ts: '2026-10-11T09:06:20Z',
+    notes: [],
     aggregate: { per_task: [], wall_ms: { vanilla_mean: 10000, cc_mean: 14000 } },
     ...over,
   };
@@ -62,7 +70,17 @@ async function renderPage() {
 
 describe('Benchmark verdict (CCA-20)', () => {
   beforeEach(() => {
-    entries = [{ run_id: ID, kind: 'agent-glm', date: '2026-10-11', ts: '2026-10-11T09:06:20Z', model: 'glm-5.3', trigger: 'manual', headline: { ...base, verdict: stored } }];
+    entries = [
+      {
+        run_id: ID,
+        kind: 'agent-glm',
+        date: '2026-10-11',
+        ts: '2026-10-11T09:06:20Z',
+        model: 'glm-5.3',
+        trigger: 'manual',
+        headline: { ...base, verdict: stored },
+      },
+    ];
     runs = { [ID]: runFile() };
   });
 
@@ -82,14 +100,22 @@ describe('Benchmark verdict (CCA-20)', () => {
     const section = screen.getByRole('region', { name: 'Verdict' });
     const s = within(section);
     expect(s.getByText(stored.sentences[0])).toBeTruthy();
-    expect(s.getAllByRole('listitem').map((li) => li.textContent)).toEqual(stored.sentences.slice(1));
+    expect(s.getAllByRole('listitem').map((li) => li.textContent)).toEqual(
+      stored.sentences.slice(1),
+    );
     // Before the headline / notes grid of the detail.
     const detail = section.parentElement as HTMLElement;
-    expect((detail.textContent ?? '').indexOf('Verdict')).toBeLessThan((detail.textContent ?? '').indexOf('Headline'));
+    expect((detail.textContent ?? '').indexOf('Verdict')).toBeLessThan(
+      (detail.textContent ?? '').indexOf('Headline'),
+    );
   });
 
   it('computes the verdict for an entry without one (red when the tasks are much slower)', async () => {
-    entries[0].headline = { ...base, uncached_saved_spread: { min: 2, max: 9, repeats: 3 }, uncached_saved_pct: 5 };
+    entries[0].headline = {
+      ...base,
+      uncached_saved_spread: { min: 2, max: 9, repeats: 3 },
+      uncached_saved_pct: 5,
+    };
     await renderPage();
     const section = screen.getByRole('region', { name: 'Verdict' });
     await waitFor(() => expect(within(section).getByText('SUBOPTIMAL')).toBeTruthy());
@@ -105,20 +131,49 @@ describe('Benchmark verdict (CCA-20)', () => {
       repeats: 3,
       arm: 'cc',
       arms: { cc: { code: 'HARMFUL', sentences: ['The tasks are more than 25 % slower.'] } },
-      sentences: ['Result: code-context makes the result worse.', 'The tasks are more than 25 % slower.'],
+      sentences: [
+        'Result: code-context makes the result worse.',
+        'The tasks are more than 25 % slower.',
+      ],
     };
     entries[0].headline = { ...base, verdict: legacy };
     await renderPage();
     const section = screen.getByRole('region', { name: 'Verdict' });
     await waitFor(() => expect(within(section).getByText('SUBOPTIMAL')).toBeTruthy());
     expect(within(section).getByText('SUBOPTIMAL').getAttribute('style')).toContain('var(--red)');
-    expect(within(section).getByText('Result: code-context is suboptimal for these tasks.')).toBeTruthy();
+    expect(
+      within(section).getByText('Result: code-context is suboptimal for these tasks.'),
+    ).toBeTruthy();
     expect(section.textContent ?? '').not.toMatch(/harmful|makes the result worse/i);
   });
 
   it('shows no chip for a simulated run', async () => {
-    entries = [{ run_id: 'sim-1', kind: 'simulated', date: '2026-10-10', ts: '2026-10-10T00:00:00Z', model: null, trigger: 'manual', headline: { tokensSavedPct: 10, callsSavedPct: 5, mcpWinsPct: 80, wilcoxonP: 0.01, effectSizeR: 0.5 } }];
-    runs = { 'sim-1': { run_id: 'sim-1', schema: 'ccc-bench/1', kind: 'simulated', date: '2026-10-10', ts: '2026-10-10T00:00:00Z' } };
+    entries = [
+      {
+        run_id: 'sim-1',
+        kind: 'simulated',
+        date: '2026-10-10',
+        ts: '2026-10-10T00:00:00Z',
+        model: null,
+        trigger: 'manual',
+        headline: {
+          tokensSavedPct: 10,
+          callsSavedPct: 5,
+          mcpWinsPct: 80,
+          wilcoxonP: 0.01,
+          effectSizeR: 0.5,
+        },
+      },
+    ];
+    runs = {
+      'sim-1': {
+        run_id: 'sim-1',
+        schema: 'ccc-bench/1',
+        kind: 'simulated',
+        date: '2026-10-10',
+        ts: '2026-10-10T00:00:00Z',
+      },
+    };
     vi.resetModules();
     const { Benchmark } = await import('@/pages/Benchmark');
     render(<Benchmark />);

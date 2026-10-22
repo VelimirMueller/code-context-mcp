@@ -13,12 +13,16 @@ import { useEventSource } from '@/hooks/useEventSource';
 import { useHashRouter } from '@/hooks/useHashRouter';
 import { useKeyboard } from '@/hooks/useKeyboard';
 
-const CodeExplorer = lazy(() => import('@/pages/CodeExplorer').then(m => ({ default: m.CodeExplorer })));
-const Dashboard = lazy(() => import('@/pages/Dashboard').then(m => ({ default: m.Dashboard })));
-const Team = lazy(() => import('@/pages/Team').then(m => ({ default: m.Team })));
-const Retro = lazy(() => import('@/pages/Retro').then(m => ({ default: m.Retro })));
-const ProjectManagement = lazy(() => import('@/pages/ProjectManagement').then(m => ({ default: m.ProjectManagement })));
-const Benchmark = lazy(() => import('@/pages/Benchmark').then(m => ({ default: m.Benchmark })));
+const CodeExplorer = lazy(() =>
+  import('@/pages/CodeExplorer').then((m) => ({ default: m.CodeExplorer })),
+);
+const Dashboard = lazy(() => import('@/pages/Dashboard').then((m) => ({ default: m.Dashboard })));
+const Team = lazy(() => import('@/pages/Team').then((m) => ({ default: m.Team })));
+const Retro = lazy(() => import('@/pages/Retro').then((m) => ({ default: m.Retro })));
+const ProjectManagement = lazy(() =>
+  import('@/pages/ProjectManagement').then((m) => ({ default: m.ProjectManagement })),
+);
+const Benchmark = lazy(() => import('@/pages/Benchmark').then((m) => ({ default: m.Benchmark })));
 import { pageVariants, pageTransition, reducedMotion } from '@/lib/motion';
 import { ToastContainer } from '@/components/atoms/ToastContainer';
 import { BridgeStatusBadge } from '@/components/atoms/BridgeStatusBadge';
@@ -51,19 +55,66 @@ function PageSkeleton() {
     <div style={{ padding: 20, height: '100%' }}>
       <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} style={{ width: 80, height: 32, background: 'var(--surface2)', borderRadius: 6, animation: 'pulse 1.5s ease-in-out infinite' }} />
+          <div
+            key={i}
+            style={{
+              width: 80,
+              height: 32,
+              background: 'var(--surface2)',
+              borderRadius: 6,
+              animation: 'pulse 1.5s ease-in-out infinite',
+            }}
+          />
         ))}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: 16, height: 'calc(100% - 60px)' }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '240px 1fr',
+          gap: 16,
+          height: 'calc(100% - 60px)',
+        }}
+      >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} style={{ height: 56, background: 'var(--surface2)', borderRadius: 8, animation: 'pulse 1.5s ease-in-out infinite' }} />
+            <div
+              key={i}
+              style={{
+                height: 56,
+                background: 'var(--surface2)',
+                borderRadius: 8,
+                animation: 'pulse 1.5s ease-in-out infinite',
+              }}
+            />
           ))}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ height: 24, width: '40%', background: 'var(--surface2)', borderRadius: 6, animation: 'pulse 1.5s ease-in-out infinite' }} />
-          <div style={{ height: 16, width: '70%', background: 'var(--surface2)', borderRadius: 6, animation: 'pulse 1.5s ease-in-out infinite' }} />
-          <div style={{ flex: 1, background: 'var(--surface2)', borderRadius: 8, animation: 'pulse 1.5s ease-in-out infinite' }} />
+          <div
+            style={{
+              height: 24,
+              width: '40%',
+              background: 'var(--surface2)',
+              borderRadius: 6,
+              animation: 'pulse 1.5s ease-in-out infinite',
+            }}
+          />
+          <div
+            style={{
+              height: 16,
+              width: '70%',
+              background: 'var(--surface2)',
+              borderRadius: 6,
+              animation: 'pulse 1.5s ease-in-out infinite',
+            }}
+          />
+          <div
+            style={{
+              flex: 1,
+              background: 'var(--surface2)',
+              borderRadius: 8,
+              animation: 'pulse 1.5s ease-in-out infinite',
+            }}
+          />
         </div>
       </div>
     </div>
@@ -76,9 +127,16 @@ export function App() {
   const prefersReducedMotion = useReducedMotion();
 
   // Map legacy page names to new PageType
-  const normalizedPage: PageType = pageMapping[activePage as keyof typeof pageMapping] || activePage as PageType;
+  const normalizedPage: PageType =
+    pageMapping[activePage as keyof typeof pageMapping] || (activePage as PageType);
 
-  const quickActions: { id: string; label: string; icon: React.ReactNode; count: number; onClick: () => void }[] = [];
+  const quickActions: {
+    id: string;
+    label: string;
+    icon: React.ReactNode;
+    count: number;
+    onClick: () => void;
+  }[] = [];
 
   const breadcrumb = useUIStore((s) => s.breadcrumbTrail);
 
@@ -95,13 +153,11 @@ export function App() {
 
   // Show landing animation once per session
   const [showLanding, setShowLanding] = useState(
-    () => sessionStorage.getItem('landing-played') !== 'true'
+    () => sessionStorage.getItem('landing-played') !== 'true',
   );
 
   // Show tour once per session (after landing completes)
-  const [showTour, setShowTour] = useState(
-    () => localStorage.getItem('tour-completed') !== 'true'
-  );
+  const [showTour, setShowTour] = useState(() => localStorage.getItem('tour-completed') !== 'true');
 
   // SSE: refresh stores on server events
   const refreshFiles = useFileStore((s) => s.refresh);
@@ -152,7 +208,9 @@ export function App() {
       if (event.type === 'input_requested' && event.entityId) {
         fetchBridgeActions('pending').then(() => {
           const actions = useBridgeStore.getState().actions;
-          const action = actions.find(a => a.id === Number(event.entityId) && a.action === 'request_input');
+          const action = actions.find(
+            (a) => a.id === Number(event.entityId) && a.action === 'request_input',
+          );
           if (action) handleInputRequested(action);
         });
       }
@@ -181,9 +239,7 @@ export function App() {
 
   return (
     <div className="app">
-      {showLanding && (
-        <LandingAnimation onComplete={() => setShowLanding(false)} />
-      )}
+      {showLanding && <LandingAnimation onComplete={() => setShowLanding(false)} />}
       {showTour && !showLanding && (
         <DashboardTour
           onComplete={() => {
@@ -220,15 +276,32 @@ export function App() {
               alignItems: 'center',
               gap: 4,
               fontSize: 11,
-              color: connectionState === 'connected' ? 'var(--green, #10b981)' : connectionState === 'reconnecting' ? 'var(--yellow, #fbbf24)' : 'var(--red, #f87171)',
+              color:
+                connectionState === 'connected'
+                  ? 'var(--green, #10b981)'
+                  : connectionState === 'reconnecting'
+                    ? 'var(--yellow, #fbbf24)'
+                    : 'var(--red, #f87171)',
               opacity: connectionState === 'connected' ? 0.6 : 1,
             }}
           >
-            <span style={{
-              width: 6, height: 6, borderRadius: '50%',
-              background: connectionState === 'connected' ? '#10b981' : connectionState === 'reconnecting' ? '#fbbf24' : '#f87171',
-              animation: connectionState === 'reconnecting' ? 'pulse 1.5s ease-in-out infinite' : undefined,
-            }} />
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                background:
+                  connectionState === 'connected'
+                    ? '#10b981'
+                    : connectionState === 'reconnecting'
+                      ? '#fbbf24'
+                      : '#f87171',
+                animation:
+                  connectionState === 'reconnecting'
+                    ? 'pulse 1.5s ease-in-out infinite'
+                    : undefined,
+              }}
+            />
             {connectionState !== 'connected' && connectionState}
           </span>
           <BridgeStatusBadge />
@@ -262,22 +335,42 @@ export function App() {
             style={{ height: '100%' }}
           >
             <Suspense fallback={<PageSkeleton />}>
-              {normalizedPage === 'dashboard' && <ErrorBoundary><Dashboard /></ErrorBoundary>}
-              {normalizedPage === 'planning' && <ErrorBoundary><ProjectManagement /></ErrorBoundary>}
-              {normalizedPage === 'code' && <ErrorBoundary><CodeExplorer /></ErrorBoundary>}
-              {normalizedPage === 'team' && <ErrorBoundary><Team /></ErrorBoundary>}
-              {normalizedPage === 'retro' && <ErrorBoundary><Retro /></ErrorBoundary>}
-              {normalizedPage === 'benchmark' && <ErrorBoundary><Benchmark /></ErrorBoundary>}
+              {normalizedPage === 'dashboard' && (
+                <ErrorBoundary>
+                  <Dashboard />
+                </ErrorBoundary>
+              )}
+              {normalizedPage === 'planning' && (
+                <ErrorBoundary>
+                  <ProjectManagement />
+                </ErrorBoundary>
+              )}
+              {normalizedPage === 'code' && (
+                <ErrorBoundary>
+                  <CodeExplorer />
+                </ErrorBoundary>
+              )}
+              {normalizedPage === 'team' && (
+                <ErrorBoundary>
+                  <Team />
+                </ErrorBoundary>
+              )}
+              {normalizedPage === 'retro' && (
+                <ErrorBoundary>
+                  <Retro />
+                </ErrorBoundary>
+              )}
+              {normalizedPage === 'benchmark' && (
+                <ErrorBoundary>
+                  <Benchmark />
+                </ErrorBoundary>
+              )}
             </Suspense>
           </motion.div>
         </AnimatePresence>
       </main>
       {wizardOpen && wizardSteps.length > 0 && (
-        <WizardModal
-          steps={wizardSteps}
-          onComplete={completeWizard}
-          onDismiss={dismissWizard}
-        />
+        <WizardModal steps={wizardSteps} onComplete={completeWizard} onDismiss={dismissWizard} />
       )}
       <ToastContainer />
     </div>

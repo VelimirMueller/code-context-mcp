@@ -8,7 +8,7 @@ interface LandingAnimationProps {
 // ── Phase 1: Grid lines (SVG) ─────────────────────────────────────────
 const GRID_LINES = [
   // Horizontal lines [x1, y1, x2, y2] in a 400×300 viewBox
-  { id: 'h0', x1: 0, y1: 80,  x2: 400, y2: 80,  delay: 0.00 },
+  { id: 'h0', x1: 0, y1: 80, x2: 400, y2: 80, delay: 0.0 },
   { id: 'h1', x1: 0, y1: 150, x2: 400, y2: 150, delay: 0.06 },
   { id: 'h2', x1: 0, y1: 220, x2: 400, y2: 220, delay: 0.12 },
   // Vertical lines
@@ -19,20 +19,20 @@ const GRID_LINES = [
 
 // ── Phase 2: File nodes (constellation) ──────────────────────────────
 const FILE_NODES = [
-  { id: 'f0', x: 55,  y: 62,  color: 'var(--blue)',   delay: 0.4 },
-  { id: 'f1', x: 155, y: 40,  color: 'var(--purple)', delay: 0.5 },
-  { id: 'f2', x: 260, y: 70,  color: 'var(--green)',  delay: 0.55 },
+  { id: 'f0', x: 55, y: 62, color: 'var(--blue)', delay: 0.4 },
+  { id: 'f1', x: 155, y: 40, color: 'var(--purple)', delay: 0.5 },
+  { id: 'f2', x: 260, y: 70, color: 'var(--green)', delay: 0.55 },
   { id: 'f3', x: 100, y: 130, color: 'var(--accent)', delay: 0.6 },
-  { id: 'f4', x: 310, y: 125, color: 'var(--blue)',   delay: 0.65 },
+  { id: 'f4', x: 310, y: 125, color: 'var(--blue)', delay: 0.65 },
   { id: 'f5', x: 195, y: 155, color: 'var(--purple)', delay: 0.7 },
 ];
 
 // ── Phase 4: Agent circles ────────────────────────────────────────────
 const AGENT_CIRCLES = [
-  { id: 'a0', color: 'var(--accent)',  delay: 1.5 },
-  { id: 'a1', color: 'var(--blue)',    delay: 1.65 },
-  { id: 'a2', color: 'var(--purple)',  delay: 1.8 },
-  { id: 'a3', color: 'var(--orange)',  delay: 1.95 },
+  { id: 'a0', color: 'var(--accent)', delay: 1.5 },
+  { id: 'a1', color: 'var(--blue)', delay: 1.65 },
+  { id: 'a2', color: 'var(--purple)', delay: 1.8 },
+  { id: 'a3', color: 'var(--orange)', delay: 1.95 },
 ];
 
 // ── Phase 5: Labels ───────────────────────────────────────────────────
@@ -124,7 +124,6 @@ export function LandingAnimation({ onComplete }: LandingAnimationProps) {
       >
         {/* ── Central composition (max 400px wide) ── */}
         <div style={{ width: '100%', maxWidth: 400, position: 'relative' }}>
-
           {/* Phase 1: Grid lines SVG */}
           <svg
             viewBox="0 0 400 300"
@@ -135,7 +134,10 @@ export function LandingAnimation({ onComplete }: LandingAnimationProps) {
             {GRID_LINES.map((l) => (
               <motion.line
                 key={l.id}
-                x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2}
+                x1={l.x1}
+                y1={l.y1}
+                x2={l.x2}
+                y2={l.y2}
                 stroke="var(--border2)"
                 strokeWidth={0.75}
                 initial={{ pathLength: 0, opacity: 0 }}
