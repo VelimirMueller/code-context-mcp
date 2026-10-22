@@ -2,10 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # integration/** too: its head must stay green before it goes to main (#293).
+    branches: [main, 'integration/**']
   pull_request:
     # release/** too: a major lands on its release branch first (#179).
-    branches: [main, 'release/**']
+    # integration/** too: slice PRs land on an integration branch first (#293).
+    branches: [main, 'release/**', 'integration/**']
     # labeled/unlabeled: the contract gate reads the `contract-change-approved`
     # label (#180), so adding or removing it re-runs the checks.
     types: [opened, synchronize, reopened, labeled, unlabeled]
