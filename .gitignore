@@ -24,3 +24,9 @@ dist
 .playwright-mcp
 .claude/worktrees/
 test-results/
+
+# code-context index (holds indexed file contents)
+context.db*
+
+# code-context dump (holds all indexed source)
+code-context-dump*.json
