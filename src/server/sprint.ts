@@ -13,6 +13,10 @@
  * (toolsets, flair, instructions) sees the same profile.
  */
 import { PROFILES } from './tool-wrap.js';
+import { resolveEntryArgs } from './entry-args.js';
+
+// Flags exit here with this bin's usage; the index entry then reads the db path again (#284).
+resolveEntryArgs('code-context-sprint');
 
 const asked = process.env.CODE_CONTEXT_PROFILE?.trim().toLowerCase() ?? '';
 if (!Object.prototype.hasOwnProperty.call(PROFILES, asked)) {

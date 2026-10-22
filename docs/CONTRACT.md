@@ -24,7 +24,7 @@ One npm package, one server, one `context.db`. Snapshot: `bins.json`.
 | `code-context-statusline`  | `dist/server/statusline.js`      | The Claude Code statusline. Reads JSON on stdin, prints one line, always exits 0.     |
 
 - **MCP server identity:** name `code-context`, version = the package version. Transport: stdio.
-- **Server argument:** `code-context [db-path]` and `code-context-sprint [db-path]`. Default `./context.db`.
+- **Server argument:** `code-context [db-path]` and `code-context-sprint [db-path]`. Default `./context.db`. `--version`/`-v` and `--help`/`-h` print and exit 0; any other argument that starts with `-` exits 64 and creates no file.
 - **A known `CODE_CONTEXT_PROFILE` wins on both MCP entries.** `code-context-sprint` changes only the default: unset, empty or unknown becomes `full`.
 
 ### CLI flags
