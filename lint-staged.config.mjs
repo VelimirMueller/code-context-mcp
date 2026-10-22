@@ -1,14 +1,14 @@
 // lint-staged: type-check, lint and format staged files. Never a full build.
 // tsc runs once per commit on its project: a file list would ignore tsconfig.json.
 const posix = (f) => f.replace(/\\/g, '/');
-const inApp = (f) => posix(f).includes('/src/dashboard/app/');
+const inApp = (f) => posix(f).includes('/src/dashboard/frontend/');
 const inRemotion = (f) => posix(f).includes('/src/remotion/');
 
 export default {
   'src/**/*.{ts,tsx,mts}': (files) => {
     const cmds = [];
     if (files.some((f) => !inApp(f) && !inRemotion(f))) cmds.push('tsc --noEmit');
-    if (files.some(inApp)) cmds.push('tsc --noEmit -p src/dashboard/app');
+    if (files.some(inApp)) cmds.push('tsc --noEmit -p src/dashboard/frontend');
     return cmds;
   },
   '*.{ts,tsx,js,jsx,mjs,cjs,mts}': [

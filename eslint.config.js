@@ -11,7 +11,7 @@ export default tseslint.config(
       '**/node_modules/',
       '.claude/',
       'docs/',
-      'src/dashboard/app/dist/',
+      'src/dashboard/frontend/dist/',
       '**/*.min.js',
       '**/*.bundle.js',
     ],

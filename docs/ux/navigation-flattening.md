@@ -162,7 +162,7 @@ Top-Level Navigation (Always Visible)
 
 ### 1. Top-Level Navigation Component
 
-**File:** `src/dashboard/app/src/components/molecules/TopNav.tsx` (NEW)
+**File:** `src/dashboard/frontend/src/components/molecules/TopNav.tsx` (NEW)
 
 **Purpose:** Single-level navigation tabs that replace the current page-nav
 
@@ -226,7 +226,7 @@ export function TopNav({ activeTab, onTabChange, badgeCounts }: TopNavProps) {
 
 ### 2. Quick Actions Bar Component
 
-**File:** `src/dashboard/app/src/components/molecules/QuickActionsBar.tsx` (NEW)
+**File:** `src/dashboard/frontend/src/components/molecules/QuickActionsBar.tsx` (NEW)
 
 **Purpose:** Persistent action bar visible on all pages
 
@@ -297,7 +297,7 @@ export function QuickActionsBar({ actions, searchQuery, onSearchChange }: QuickA
 
 ### 3. Breadcrumb Component
 
-**File:** `src/dashboard/app/src/components/molecules/Breadcrumb.tsx` (NEW)
+**File:** `src/dashboard/frontend/src/components/molecules/Breadcrumb.tsx` (NEW)
 
 **Purpose:** Show current location and navigation path
 
@@ -346,7 +346,7 @@ Dashboard > Sprint Board (Active)
 
 ### 4. Dashboard Page (New)
 
-**File:** `src/dashboard/app/src/pages/Dashboard.tsx` (NEW)
+**File:** `src/dashboard/frontend/src/pages/Dashboard.tsx` (NEW)
 
 **Purpose:** Combined Sprint Board + Quick Actions for rapid access to work
 
@@ -378,7 +378,7 @@ Dashboard > Sprint Board (Active)
 
 ### 5. Planning Page (Redesigned)
 
-**File:** `src/dashboard/app/src/pages/Planning.tsx` (MODIFIED)
+**File:** `src/dashboard/frontend/src/pages/Planning.tsx` (MODIFIED)
 
 **Purpose:** Unified planning view with Milestones, Gantt, and Vision visible together
 
@@ -469,7 +469,7 @@ useEffect(() => {
 
 ### UI Store Modifications
 
-**File:** `src/dashboard/app/src/stores/uiStore.ts` (MODIFIED)
+**File:** `src/dashboard/frontend/src/stores/uiStore.ts` (MODIFIED)
 
 **Changes:**
 
@@ -827,7 +827,7 @@ track('journey_complete', { journey: 'find_my_tickets', clicks: 2, time_ms: 3500
 ### Component File Structure
 
 ```
-src/dashboard/app/src/
+src/dashboard/frontend/src/
 ├─ components/
 │  ├─ molecules/
 │  │  ├─ TopNav.tsx (NEW)

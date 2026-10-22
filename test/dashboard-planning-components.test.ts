@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 const APP_SRC = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
-  '../src/dashboard/app/src',
+  '../src/dashboard/frontend/src',
 );
 const REMOVED = [
   'SprintPlanningView',

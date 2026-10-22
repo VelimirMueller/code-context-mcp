@@ -1,5 +1,5 @@
 {
   "private": true,
-  "name": "dashboard-app",
+  "name": "dashboard-frontend",
   "type": "module"
 }

@@ -2290,7 +2290,7 @@ function startServer(port: number, maxRetries = 10): void {
     // next start. Never the token (#247): `vite build` would inline it into
     // the published assets. The dev proxy reads the token file itself.
     try {
-      const envLocalPath = path.join(__dirname, 'app', '.env.local');
+      const envLocalPath = path.join(__dirname, 'frontend', '.env.local');
       fs.writeFileSync(envLocalPath, `VITE_DASHBOARD_PORT=${port}\n`, { mode: 0o600 });
       fs.chmodSync(envLocalPath, 0o600); // writeFileSync mode applies to creation only
     } catch {}
