@@ -390,6 +390,25 @@ body {
   overflow: hidden;
 }
 
+/* Vision tab: player fills right half edge-to-edge */
+.vision-layout {
+  height: 100% !important;
+}
+.vision-player-sticky {
+  height: 100%;
+  border-radius: 0 !important;
+}
+
+/* Mobile: single-column, player hidden */
+@media (max-width: 768px) {
+  .vision-layout {
+    grid-template-columns: 1fr !important;
+  }
+  .vision-layout > :nth-child(2) {
+    display: none;
+  }
+}
+
 /* D-41: headings in the display face. */
 h1,
 h2 {
