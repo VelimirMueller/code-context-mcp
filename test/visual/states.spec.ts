@@ -1,4 +1,4 @@
-import { expect, open, prepare, settle, shot, styles, test } from './visual';
+import { expect, moment, open, prepare, settle, shot, styles, test } from './visual';
 
 // Overlays and interaction states on the seeded db (desktop and narrow).
 // Every test leaves the db as it found it: the projects share one server.
@@ -87,6 +87,33 @@ test('dashboard tour, every step', async ({ page }) => {
   }
 });
 
+test.describe('landing animation', () => {
+  // It skips itself under reduced motion (LandingAnimation.tsx), so this test turns it off.
+  test.use({ contextOptions: { reducedMotion: 'no-preference' } });
+
+  test('landing animation, last frame before it fades', async ({ page }) => {
+    await prepare(page, { landing: true });
+    // All phases have drawn by 3.0 s; the overlay fades at 3.5 s.
+    await moment(page, '#dashboard/board', 'landing', 3_000);
+  });
+});
+
+test('toast after an action', async ({ page }, info) => {
+  await prepare(page);
+  // The answer is stubbed: the toast shows, and the shared db stays as it was.
+  await page.route('**/api/sprints/archive-completed', (route) =>
+    route.fulfill({ json: { archived: 1 } }),
+  );
+  await open(page, '#dashboard/board');
+  await page.getByRole('button', { name: /^Archive all completed/ }).click();
+  await page.getByRole('button', { name: 'Archive', exact: true }).click();
+  await expect(page.getByRole('alert')).toBeVisible();
+  // The toast closes after 5 s on the clock: capture without advancing it.
+  await shot(page, 'toast', { advance: false });
+  if (info.project.name === 'desktop') await styles(page, 'toast');
+});
+
+// The active (selected) nav tab is in every page shot (pages.spec.ts).
 test('nav states: hover, focus', async ({ page }) => {
   await prepare(page);
   await open(page, '#dashboard/board');
