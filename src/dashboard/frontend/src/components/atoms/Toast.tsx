@@ -10,7 +10,10 @@ interface ToastProps {
   onClose: () => void;
 }
 
-/** Border and icon colour per type. */
+/**
+ * Border and icon colour per type. Warning was `var(--yellow, #fbbf24)`;
+ * `--yellow` was never defined, so it always resolved to #fbbf24 = `--color-orange`.
+ */
 const typeClasses: Record<ToastType, { border: string; icon: string }> = {
   success: { border: 'border-green', icon: 'text-green' },
   error: { border: 'border-red', icon: 'text-red' },
