@@ -46,12 +46,31 @@ export async function prepare(
         t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
         return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
       };
-      if (!landing) sessionStorage.setItem('landing-played', 'true');
+      if (landing) sessionStorage.removeItem('landing-played');
+      else sessionStorage.setItem('landing-played', 'true');
       if (!tour) localStorage.setItem('tour-completed', 'true');
     },
     { landing, tour },
   );
   await login(page);
+}
+
+/**
+ * One fixed frame of an animation that plays on load (the landing animation).
+ * The clock stops before the page loads, so the frame depends only on `atMs`.
+ */
+export async function moment(page: Page, hash: string, name: string, atMs: number): Promise<void> {
+  // prepare() logged in on real time: stop the fake clock a little ahead of where it is now.
+  await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1_000);
+  // A new document: the login page already started the animation on real time.
+  await page.goto('about:blank');
+  await page.goto(`/${hash}`);
+  await page.mouse.move(0, 0);
+  await quiet(page);
+  await page.clock.runFor(atMs);
+  await page.evaluate(() => document.fonts.ready);
+  await freezeAnimations(page);
+  await expect(page).toHaveScreenshot(`${name}.png`);
 }
 
 /** Open a route and wait until the page and its fonts are ready. */
@@ -82,10 +101,15 @@ async function quiet(page: Page): Promise<void> {
     )
     .toBe(true);
 }
-export async function settle(page: Page): Promise<void> {
+export async function settle(
+  page: Page,
+  { advance = true }: { advance?: boolean } = {},
+): Promise<void> {
   await quiet(page);
-  await page.clock.runFor(CLOCK_STEP_MS);
-  await quiet(page);
+  if (advance) {
+    await page.clock.runFor(CLOCK_STEP_MS);
+    await quiet(page);
+  }
   await page.evaluate(async () => {
     await document.fonts.ready;
     // Layouts drawn from Math.random (DependencyGraph) may have run a varying
@@ -113,15 +137,18 @@ async function freezeAnimations(page: Page): Promise<void> {
   });
 }
 
-/** Screenshot gate: zero pixels may differ (playwright.visual.config.ts). */
+/**
+ * Screenshot gate: zero pixels may differ (playwright.visual.config.ts).
+ * `advance: false` keeps the clock still, for states that a timer ends (a toast).
+ */
 export async function shot(
   page: Page,
   name: string,
-  { keepPointer = false }: { keepPointer?: boolean } = {},
+  { keepPointer = false, advance = true }: { keepPointer?: boolean; advance?: boolean } = {},
 ): Promise<void> {
   // Park the mouse on the empty top-left corner: a hover left over from a click is no state under test.
   if (!keepPointer) await page.mouse.move(0, 0);
-  await settle(page);
+  await settle(page, { advance });
   await expect(page).toHaveScreenshot(`${name}.png`);
 }
 
