@@ -1,5 +1,3 @@
-[![Vlm Code Context MCP server](https://mcprush.com/badge/vlm-code-context-mcp/card.svg)](https://mcprush.com/to/vlm-code-context-mcp?ref=badge)
-
 <p>
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="assets/banner/hero-v3-light.svg">
@@ -372,6 +370,10 @@ pnpm publish
 <a href="CHANGELOG.md"><picture><source media="(prefers-color-scheme: light)" srcset="assets/readme/links-11-v3-light.svg"><img alt="Changelog (CHANGELOG.md)" src="assets/readme/links-11-v3-dark.svg" width="32%"></picture></a>
 <a href="docs/REFERENCE.md#release-highlights"><picture><source media="(prefers-color-scheme: light)" srcset="assets/readme/links-12-v3-light.svg"><img alt="Release highlights (docs/REFERENCE.md#release-highlights)" src="assets/readme/links-12-v3-dark.svg" width="32%"></picture></a>
 <a href="https://www.npmjs.com/package/vlm-code-context-mcp"><picture><source media="(prefers-color-scheme: light)" srcset="assets/readme/links-1-v3-light.svg"><img alt="npm (https://www.npmjs.com/package/vlm-code-context-mcp)" src="assets/readme/links-1-v3-dark.svg" width="32%"></picture></a>
+</p>
+
+<p align="center">
+<a href="https://mcprush.com/to/vlm-code-context-mcp?ref=badge"><img alt="Vlm Code Context MCP server" src="https://mcprush.com/badge/vlm-code-context-mcp/card.svg"></a>
 </p>
 
 <p>
