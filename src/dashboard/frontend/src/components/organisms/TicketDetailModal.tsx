@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { Ticket, TicketAssignment, Milestone, Epic } from '@/types';
-import { hideArchived } from '@/lib/utils';
+import { cx, hideArchived } from '@/lib/utils';
 import { get } from '@/lib/api';
 import { useSprintStore } from '@/stores/sprintStore';
 import { useAgentStore } from '@/stores/agentStore';
@@ -16,18 +16,18 @@ interface TicketDetailModalProps {
   onTicketUpdate?: (ticketId: number, updates: Partial<Ticket>) => void;
 }
 
-const priorityColor: Record<string, string> = {
-  P0: 'var(--red)',
-  P1: 'var(--orange)',
-  P2: 'var(--blue)',
-  P3: '#6b6b84',
+const priorityBg: Record<string, string> = {
+  P0: 'bg-red',
+  P1: 'bg-orange',
+  P2: 'bg-blue',
+  P3: 'bg-[#6b6b84]',
 };
 
-const statusColor: Record<string, string> = {
-  TODO: 'var(--text3)',
-  IN_PROGRESS: 'var(--blue)',
-  DONE: 'var(--green)',
-  BLOCKED: 'var(--red)',
+const statusText: Record<string, string> = {
+  TODO: 'text-fg-3',
+  IN_PROGRESS: 'text-blue',
+  DONE: 'text-green',
+  BLOCKED: 'text-red',
 };
 
 // Status transitions allowed from the UI. DONE stays process-controlled
@@ -43,17 +43,22 @@ export function deriveAssignments(ticket: Ticket): TicketAssignment[] {
   return [];
 }
 
-const fieldStyle: React.CSSProperties = {
-  width: '100%',
-  background: 'var(--bg)',
-  border: '1px solid var(--border)',
-  borderRadius: 6,
-  color: 'var(--text)',
-  fontSize: 13,
-  padding: '6px 10px',
-  fontFamily: 'var(--font)',
-  outline: 'none',
-};
+// Shared look of every editable field; size, colour and font come from each use.
+const fieldBase = 'w-full rounded-[6px] border border-line bg-bg px-[10px] py-1.5 outline-none';
+const fieldText = 'font-body text-13 text-fg';
+
+// Border, text colour, cursor and opacity of a milestone or epic select by save state.
+const saveSelectClass = (saving: boolean, saved: boolean, error: boolean) =>
+  cx(
+    'w-full rounded-[8px] border bg-bg px-3 py-2 font-body text-13 outline-none transition-all',
+    saving ? 'border-orange' : saved ? 'border-green' : error ? 'border-red' : 'border-line',
+    saving ? 'text-fg-3' : 'text-fg',
+    saving ? 'cursor-wait' : 'cursor-pointer',
+    saving ? 'opacity-60' : 'opacity-100',
+  );
+
+const sectionLabel = 'text-10 font-semibold uppercase text-fg-3';
+const saveNote = 'font-code text-10 font-semibold';
 
 function FieldLabel({
   label,
@@ -65,19 +70,9 @@ function FieldLabel({
   fieldSaved: string | null;
 }) {
   return (
-    <div
-      style={{
-        fontSize: 10,
-        color: 'var(--text3)',
-        fontWeight: 600,
-        textTransform: 'uppercase' as const,
-        marginBottom: 4,
-        display: 'flex',
-        gap: 6,
-      }}
-    >
+    <div className={cx(sectionLabel, 'mb-1 flex gap-1.5')}>
       {label}
-      {fieldSaved === field && <span style={{ color: 'var(--green)' }}>✓</span>}
+      {fieldSaved === field && <span className="text-green">✓</span>}
     </div>
   );
 }
@@ -227,16 +222,7 @@ export function TicketDetailModal({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,.6)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: 20,
-          }}
+          className="fixed inset-0 z-[1000] flex items-center justify-center bg-[rgba(0,0,0,.6)] p-5"
         >
           <motion.div
             key="modal"
@@ -245,74 +231,35 @@ export function TicketDetailModal({
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius)',
-              padding: '24px 28px',
-              width: '100%',
-              maxWidth: 520,
-              maxHeight: '80vh',
-              overflowY: 'auto',
-            }}
+            className="max-h-[80vh] w-full max-w-[520px] overflow-y-auto rounded-card border border-line bg-surface px-7 py-6"
           >
             {/* Header */}
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: 16,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: 'var(--text3)',
-                    fontFamily: 'var(--mono)',
-                  }}
-                >
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="font-code text-12 font-bold text-fg-3">
                   {ticket.ticket_ref ?? `#${ticket.id}`}
                 </span>
                 <span
-                  style={{
-                    padding: '2px 6px',
-                    borderRadius: 4,
-                    fontSize: 10,
-                    fontWeight: 700,
-                    background: priorityColor[editPriority] ?? '#6b6b84',
-                    color: 'white',
-                  }}
+                  className={cx(
+                    'rounded-[4px] px-1.5 py-0.5 text-10 font-bold text-[white]',
+                    priorityBg[editPriority] ?? 'bg-[#6b6b84]',
+                  )}
                 >
                   {editPriority}
                 </span>
+                {/* The old inline background and border (`var(--x)20`) were invalid CSS and never rendered (border computes to style none); only the text colour did. */}
                 <span
-                  style={{
-                    padding: '2px 8px',
-                    borderRadius: 4,
-                    fontSize: 10,
-                    fontWeight: 600,
-                    background: `${statusColor[editStatus] ?? 'var(--text3)'}20`,
-                    color: statusColor[editStatus] ?? 'var(--text3)',
-                    border: `1px solid ${statusColor[editStatus] ?? 'var(--text3)'}40`,
-                  }}
+                  className={cx(
+                    'rounded-[4px] border-none px-2 py-0.5 text-10 font-semibold',
+                    statusText[editStatus] ?? 'text-fg-3',
+                  )}
                 >
                   {editStatus}
                 </span>
               </div>
               <button
                 onClick={onClose}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--text3)',
-                  fontSize: 18,
-                  cursor: 'pointer',
-                  padding: '0 4px',
-                  lineHeight: 1,
-                }}
+                className="cursor-pointer border-none bg-transparent px-1 text-18 leading-none text-fg-3"
               >
                 ✕
               </button>
@@ -339,24 +286,16 @@ export function TicketDetailModal({
                   }
                 }}
                 disabled={fieldSaving === 'title'}
-                style={{ ...fieldStyle, fontSize: 16, fontWeight: 700, marginBottom: 16 }}
+                className={cx(fieldBase, 'mb-4 font-body text-16 font-bold text-fg')}
               />
             ) : (
               <h3
                 onClick={() => setTitleEditing(true)}
                 title="Click to edit title"
-                style={{
-                  fontSize: 16,
-                  fontWeight: 700,
-                  color: 'var(--text)',
-                  margin: '0 0 16px',
-                  cursor: 'text',
-                }}
+                className="mb-4 cursor-text text-16 font-bold text-fg"
               >
                 {editTitle}
-                {fieldSaved === 'title' && (
-                  <span style={{ color: 'var(--green)', fontSize: 12, marginLeft: 6 }}>✓</span>
-                )}
+                {fieldSaved === 'title' && <span className="ml-1.5 text-12 text-green">✓</span>}
               </h3>
             )}
 
@@ -375,40 +314,23 @@ export function TicketDetailModal({
                 }}
                 disabled={fieldSaving === 'description'}
                 rows={4}
-                style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.5, marginBottom: 16 }}
+                className={cx(fieldBase, fieldText, 'mb-4 resize-y leading-[1.5]')}
               />
             ) : (
               <div
                 onClick={() => setDescEditing(true)}
                 title="Click to edit description"
-                style={{
-                  padding: '10px 14px',
-                  background: 'var(--bg)',
-                  borderRadius: 8,
-                  borderLeft: '3px solid var(--accent)',
-                  fontSize: 13,
-                  color: 'var(--text2)',
-                  marginBottom: 16,
-                  lineHeight: 1.5,
-                  cursor: 'text',
-                  whiteSpace: 'pre-wrap' as const,
-                }}
+                className="mb-4 cursor-text whitespace-pre-wrap rounded-[8px] border-l-3 border-l-accent bg-bg px-[14px] py-[10px] text-13 leading-[1.5] text-fg-2"
               >
-                {editDescription || (
-                  <span style={{ color: 'var(--text3)', fontStyle: 'italic' }}>
-                    Add description…
-                  </span>
-                )}
+                {editDescription || <span className="italic text-fg-3">Add description…</span>}
                 {fieldSaved === 'description' && (
-                  <span style={{ color: 'var(--green)', fontSize: 12, marginLeft: 6 }}>✓</span>
+                  <span className="ml-1.5 text-12 text-green">✓</span>
                 )}
               </div>
             )}
 
             {/* Editable fields grid */}
-            <div
-              style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}
-            >
+            <div className="mb-4 grid grid-cols-[1fr_1fr] gap-3">
               {/* Status — DONE is process-controlled and not settable from the UI */}
               <div>
                 <FieldLabel label="Status" field="status" fieldSaved={fieldSaved} />
@@ -420,11 +342,11 @@ export function TicketDetailModal({
                   }}
                   disabled={fieldSaving === 'status'}
                   aria-label="Ticket status"
-                  style={{
-                    ...fieldStyle,
-                    cursor: 'pointer',
-                    color: statusColor[editStatus] ?? 'var(--text)',
-                  }}
+                  className={cx(
+                    fieldBase,
+                    'cursor-pointer font-body text-13',
+                    statusText[editStatus] ?? 'text-fg',
+                  )}
                 >
                   {UI_STATUSES.map((s) => (
                     <option key={s} value={s}>
@@ -453,7 +375,7 @@ export function TicketDetailModal({
                   }}
                   disabled={fieldSaving === 'priority'}
                   aria-label="Ticket priority"
-                  style={{ ...fieldStyle, cursor: 'pointer' }}
+                  className={cx(fieldBase, fieldText, 'cursor-pointer')}
                 >
                   {['P0', 'P1', 'P2', 'P3'].map((p) => (
                     <option key={p} value={p}>
@@ -478,13 +400,13 @@ export function TicketDetailModal({
                   disabled={fieldSaving === 'story_points'}
                   aria-label="Story points"
                   min={0}
-                  style={{ ...fieldStyle, fontFamily: 'var(--mono)' }}
+                  className={cx(fieldBase, 'font-code text-13 text-fg')}
                 />
               </div>
             </div>
 
             {/* Agents — multi-assignment with lead + per-assignment model (D2) */}
-            <div style={{ marginBottom: 16 }}>
+            <div className="mb-4">
               <FieldLabel label="Agents" field="assignments" fieldSaved={fieldSaved} />
               <AssignmentEditor
                 roles={agentRoles}
@@ -495,84 +417,27 @@ export function TicketDetailModal({
             </div>
 
             {/* QA status (read-only) */}
-            <div style={{ display: 'flex', gap: 16, marginBottom: 16, fontSize: 12 }}>
-              <span style={{ color: ticket.qa_verified ? 'var(--green)' : 'var(--text3)' }}>
+            <div className="mb-4 flex gap-4 text-12">
+              <span className={ticket.qa_verified ? 'text-green' : 'text-fg-3'}>
                 {ticket.qa_verified ? '✓ QA Verified' : '✗ Not QA verified'}
               </span>
-              {ticket.verified_by && (
-                <span style={{ color: 'var(--text3)' }}>by {ticket.verified_by}</span>
-              )}
+              {ticket.verified_by && <span className="text-fg-3">by {ticket.verified_by}</span>}
             </div>
 
             {/* Milestone selector */}
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <div
-                  style={{
-                    fontSize: 10,
-                    color: 'var(--text3)',
-                    fontWeight: 600,
-                    textTransform: 'uppercase' as const,
-                  }}
-                >
-                  Milestone
-                </div>
-                {saving && (
-                  <div
-                    style={{
-                      fontSize: 10,
-                      color: 'var(--orange)',
-                      fontWeight: 600,
-                      fontFamily: 'var(--mono)',
-                    }}
-                  >
-                    Saving...
-                  </div>
-                )}
-                {saved && (
-                  <div
-                    style={{
-                      fontSize: 10,
-                      color: 'var(--accent)',
-                      fontWeight: 600,
-                      fontFamily: 'var(--mono)',
-                    }}
-                  >
-                    Saved
-                  </div>
-                )}
-                {error && (
-                  <div
-                    style={{
-                      fontSize: 10,
-                      color: 'var(--red)',
-                      fontWeight: 600,
-                      fontFamily: 'var(--mono)',
-                    }}
-                  >
-                    Failed to save
-                  </div>
-                )}
+            <div className="mb-4">
+              <div className="mb-1.5 flex items-center gap-2">
+                <div className={sectionLabel}>Milestone</div>
+                {saving && <div className={cx(saveNote, 'text-orange')}>Saving...</div>}
+                {saved && <div className={cx(saveNote, 'text-accent')}>Saved</div>}
+                {error && <div className={cx(saveNote, 'text-red')}>Failed to save</div>}
               </div>
-              <div style={{ position: 'relative' }}>
+              <div className="relative">
                 <select
                   value={ticket.milestone_id ?? ''}
                   onChange={handleChange}
                   disabled={saving}
-                  style={{
-                    width: '100%',
-                    background: 'var(--bg)',
-                    border: `1px solid ${saving ? 'var(--orange)' : saved ? 'var(--green)' : error ? 'var(--red)' : 'var(--border)'}`,
-                    borderRadius: 8,
-                    color: saving ? 'var(--text3)' : 'var(--text)',
-                    fontSize: 13,
-                    padding: '8px 12px',
-                    fontFamily: 'var(--font)',
-                    cursor: saving ? 'wait' : 'pointer',
-                    outline: 'none',
-                    opacity: saving ? 0.6 : 1,
-                    transition: 'all .2s',
-                  }}
+                  className={saveSelectClass(saving, saved, error)}
                 >
                   <option value="">None</option>
                   {hideArchived(milestones, ticket.milestone_id).map((m) => (
@@ -585,74 +450,19 @@ export function TicketDetailModal({
             </div>
 
             {/* Epic selector */}
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <div
-                  style={{
-                    fontSize: 10,
-                    color: 'var(--text3)',
-                    fontWeight: 600,
-                    textTransform: 'uppercase' as const,
-                  }}
-                >
-                  Epic
-                </div>
-                {epicSaving && (
-                  <div
-                    style={{
-                      fontSize: 10,
-                      color: 'var(--orange)',
-                      fontWeight: 600,
-                      fontFamily: 'var(--mono)',
-                    }}
-                  >
-                    Saving...
-                  </div>
-                )}
-                {epicSaved && (
-                  <div
-                    style={{
-                      fontSize: 10,
-                      color: 'var(--accent)',
-                      fontWeight: 600,
-                      fontFamily: 'var(--mono)',
-                    }}
-                  >
-                    Saved
-                  </div>
-                )}
-                {epicError && (
-                  <div
-                    style={{
-                      fontSize: 10,
-                      color: 'var(--red)',
-                      fontWeight: 600,
-                      fontFamily: 'var(--mono)',
-                    }}
-                  >
-                    Failed to save
-                  </div>
-                )}
+            <div className="mb-4">
+              <div className="mb-1.5 flex items-center gap-2">
+                <div className={sectionLabel}>Epic</div>
+                {epicSaving && <div className={cx(saveNote, 'text-orange')}>Saving...</div>}
+                {epicSaved && <div className={cx(saveNote, 'text-accent')}>Saved</div>}
+                {epicError && <div className={cx(saveNote, 'text-red')}>Failed to save</div>}
               </div>
-              <div style={{ position: 'relative' }}>
+              <div className="relative">
                 <select
                   value={ticket.epic_id ?? ''}
                   onChange={handleEpicChange}
                   disabled={epicSaving}
-                  style={{
-                    width: '100%',
-                    background: 'var(--bg)',
-                    border: `1px solid ${epicSaving ? 'var(--orange)' : epicSaved ? 'var(--green)' : epicError ? 'var(--red)' : 'var(--border)'}`,
-                    borderRadius: 8,
-                    color: epicSaving ? 'var(--text3)' : 'var(--text)',
-                    fontSize: 13,
-                    padding: '8px 12px',
-                    fontFamily: 'var(--font)',
-                    cursor: epicSaving ? 'wait' : 'pointer',
-                    outline: 'none',
-                    opacity: epicSaving ? 0.6 : 1,
-                    transition: 'all .2s',
-                  }}
+                  className={saveSelectClass(epicSaving, epicSaved, epicError)}
                 >
                   <option value="">None</option>
                   {filteredEpics.map((ep) => (
@@ -667,29 +477,9 @@ export function TicketDetailModal({
 
             {/* Acceptance criteria */}
             {ticket.acceptance_criteria && (
-              <div style={{ marginBottom: 16 }}>
-                <div
-                  style={{
-                    fontSize: 10,
-                    color: 'var(--text3)',
-                    fontWeight: 600,
-                    textTransform: 'uppercase' as const,
-                    marginBottom: 6,
-                  }}
-                >
-                  Acceptance Criteria
-                </div>
-                <div
-                  style={{
-                    padding: '10px 14px',
-                    background: 'var(--bg)',
-                    borderRadius: 8,
-                    fontSize: 12,
-                    color: 'var(--text2)',
-                    lineHeight: 1.6,
-                    whiteSpace: 'pre-wrap' as const,
-                  }}
-                >
+              <div className="mb-4">
+                <div className={cx(sectionLabel, 'mb-1.5')}>Acceptance Criteria</div>
+                <div className="whitespace-pre-wrap rounded-[8px] bg-bg px-[14px] py-[10px] text-12 leading-[1.6] text-fg-2">
                   {ticket.acceptance_criteria}
                 </div>
               </div>
@@ -706,7 +496,7 @@ export function TicketDetailModal({
                 disabled={fieldSaving === 'notes'}
                 placeholder="Add notes for Claude's context…"
                 rows={3}
-                style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.5, fontSize: 12 }}
+                className={cx(fieldBase, 'resize-y font-body text-12 leading-[1.5] text-fg')}
               />
             </div>
           </motion.div>
