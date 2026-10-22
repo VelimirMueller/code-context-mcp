@@ -113,3 +113,8 @@ export function getMoodColor(score: number): string {
   if (score >= 40) return 'var(--orange)';
   return 'var(--red)';
 }
+
+/** Join class names; falsy parts drop out: `cx('px-2', active && 'text-accent')`. */
+export function cx(...parts: (string | false | null | undefined)[]): string {
+  return parts.filter(Boolean).join(' ');
+}

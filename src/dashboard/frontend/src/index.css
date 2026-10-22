@@ -26,38 +26,94 @@
   src: url('./assets/fonts/space-mono-latin-700-normal.woff2') format('woff2');
 }
 
-:root {
-  /* D-41 tokens (@synthwerk/tokens default/dark, Flagship = indigo). One accent per surface. */
-  --bg: #0c0c10;
-  --surface: #131318;
-  --surface2: #18181f;
-  --surface3: #1e1e28;
-  --border: #1c1c28;
-  --border2: #282838;
-  --text: #e4e4e7;
-  --text2: #a1a1aa;
-  --text3: #8a8aa0;
-  --accent: #818cf8;
-  --accent2: #a5b4fc;
-  --accent-glow: rgba(99, 102, 241, 0.12);
-  --accent-fill: #6366f1;
-  --green: #10b981;
-  --green-glow: rgba(16, 185, 129, 0.1);
-  --orange: #fbbf24;
-  --pink: #818cf8;
-  --purple: #a5b4fc;
-  --red: #f87171;
-  --blue: #60a5fa;
-  --blue-glow: rgba(96, 165, 250, 0.1);
+/*
+ * Design tokens (#293): the single source for every colour, size and font.
+ * D-41 tokens (@synthwerk/tokens default/dark, Flagship = indigo). One accent per surface.
+ * `initial` drops the Tailwind defaults, so only house values exist (bg-bg, text-fg-2, rounded-card …).
+ * Fonts get own names: preflight reads --font-sans and --font-mono for html and code/pre.
+ */
+@theme {
+  --color-*: initial;
+  --color-bg: #0c0c10;
+  --color-surface: #131318;
+  --color-surface-2: #18181f;
+  --color-surface-3: #1e1e28;
+  --color-line: #1c1c28;
+  --color-line-2: #282838;
+  --color-fg: #e4e4e7;
+  --color-fg-2: #a1a1aa;
+  --color-fg-3: #8a8aa0;
+  --color-accent: #818cf8;
+  --color-accent-2: #a5b4fc;
+  --color-accent-glow: rgba(99, 102, 241, 0.12);
+  --color-accent-fill: #6366f1;
+  --color-green: #10b981;
+  --color-green-glow: rgba(16, 185, 129, 0.1);
+  --color-orange: #fbbf24;
+  --color-red: #f87171;
+  --color-blue: #60a5fa;
+  --color-blue-glow: rgba(96, 165, 250, 0.1);
   /* The main action is a white pill, as on the website and the benchmark site. */
-  --pill-bg: #fafafa;
-  --pill-fg: #0c0c10;
-  --radius: 14px;
-  --radius-lg: 24px;
+  --color-pill: #fafafa;
+  --color-pill-fg: #0c0c10;
+
+  --radius-*: initial;
+  --radius-card: 14px;
+  --radius-panel: 24px;
   --radius-pill: 9999px;
-  --font: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --display: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --font-body: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-code: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Size only: text inherits the body line-height (1.6), as it does today. */
+  --text-*: initial;
+  --text-9: 9px;
+  --text-10: 10px;
+  --text-11: 11px;
+  --text-12: 12px;
+  --text-13: 13px;
+  --text-13_5: 13.5px;
+  --text-14: 14px;
+  --text-16: 16px;
+  --text-18: 18px;
+  --text-32: 32px;
+
+  /* `transition-all` equals the inline `all .2s` the components use today. */
+  --default-transition-duration: 200ms;
+  --default-transition-timing-function: ease;
+}
+
+/* Old names, kept until the last slice of #293 moves every component to the tokens above. */
+:root {
+  --bg: var(--color-bg);
+  --surface: var(--color-surface);
+  --surface2: var(--color-surface-2);
+  --surface3: var(--color-surface-3);
+  --border: var(--color-line);
+  --border2: var(--color-line-2);
+  --text: var(--color-fg);
+  --text2: var(--color-fg-2);
+  --text3: var(--color-fg-3);
+  --accent: var(--color-accent);
+  --accent2: var(--color-accent-2);
+  --accent-glow: var(--color-accent-glow);
+  --accent-fill: var(--color-accent-fill);
+  --green: var(--color-green);
+  --green-glow: var(--color-green-glow);
+  --orange: var(--color-orange);
+  --pink: var(--color-accent);
+  --purple: var(--color-accent-2);
+  --red: var(--color-red);
+  --blue: var(--color-blue);
+  --blue-glow: var(--color-blue-glow);
+  --pill-bg: var(--color-pill);
+  --pill-fg: var(--color-pill-fg);
+  --radius: var(--radius-card);
+  --radius-lg: var(--radius-panel);
+  --font: var(--font-body);
+  --display: var(--font-display);
+  --mono: var(--font-code);
 }
 
 *,
