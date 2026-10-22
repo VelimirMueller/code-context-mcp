@@ -254,7 +254,7 @@ export function envSettingNames(): string[] {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
       const p = path.join(dir, e.name);
       if (e.isDirectory()) {
-        if (p === path.join(REPO_ROOT, 'src/dashboard/app')) continue;
+        if (p === path.join(REPO_ROOT, 'src/dashboard/frontend')) continue;
         walk(p);
       } else if (/\.(ts|mts|js|mjs)$/.test(e.name)) {
         const src = fs.readFileSync(p, 'utf-8');

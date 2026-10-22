@@ -212,7 +212,7 @@ export const LIVE_TASKS: LiveTask[] = [
     size: 'L',
     fixture: 'src',
     prompt:
-      'Rename the function `getPhaseStyle` (defined in src/dashboard/app/src/lib/phases.ts) to ' +
+      'Rename the function `getPhaseStyle` (defined in src/dashboard/frontend/src/lib/phases.ts) to ' +
       '`phaseStyleFor`. Update the definition and every usage and import anywhere under src/, so ' +
       'the old name no longer appears anywhere under src/ (code, imports and comments). ' +
       'Change nothing else. ' +
@@ -221,7 +221,7 @@ export const LIVE_TASKS: LiveTask[] = [
       type: 'rename',
       from: 'getPhaseStyle',
       to: 'phaseStyleFor',
-      definedIn: 'src/dashboard/app/src/lib/phases.ts',
+      definedIn: 'src/dashboard/frontend/src/lib/phases.ts',
     },
   },
   {

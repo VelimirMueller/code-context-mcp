@@ -4,12 +4,12 @@
 >
 > **Key divergences from this spec (verified against source as of Sprint 20 / v1.2.1):**
 >
-> - **6 tabs shipped, not 5.** The spec assumed five tabs (Dashboard, Code, Planning, Team, Retro). A sixth tab — Benchmark — was added. The `TopNav` type union is `'dashboard' | 'code' | 'planning' | 'team' | 'retro' | 'benchmark'` and all six appear in `navItems` (`src/dashboard/app/src/components/molecules/TopNav.tsx`).
+> - **6 tabs shipped, not 5.** The spec assumed five tabs (Dashboard, Code, Planning, Team, Retro). A sixth tab — Benchmark — was added. The `TopNav` type union is `'dashboard' | 'code' | 'planning' | 'team' | 'retro' | 'benchmark'` and all six appear in `navItems` (`src/dashboard/frontend/src/components/molecules/TopNav.tsx`).
 > - **Nav components are prop-driven, not store-driven.** The spec called for `TopNav` to consume the Zustand store directly. The shipped `TopNav` is a pure presentational component: it receives `activeTab` and `onTabChange` as props, and `App.tsx` is responsible for bridging those to the store. `SubTabBar` falls back to the store only when no `active`/`onChange` props are passed.
 > - **Page files kept their original names.** The spec planned to rename `ProjectManagement.tsx` → `Planning.tsx` and `CodeExplorer.tsx` → `Code.tsx`. The implemented files remain `ProjectManagement.tsx` and `CodeExplorer.tsx`. `App.tsx` maps the `planning` tab to `<ProjectManagement />` and the `code` tab to `<CodeExplorer />` at runtime.
 > - **SVG icons, not emoji.** The spec used emoji glyphs as tab icons. The implementation uses inline SVG paths throughout `TopNav` with an explicit comment: "Clean SVG icons — no emoji rendering inconsistencies."
 > - **Query-param redirects were not built.** The spec described URL redirect rules using query parameters. The shipped `useHashRouter` and the `legacyUrlMap` in `App.tsx` perform hash-path redirects only (e.g. `#sprint` → `#dashboard`). Query-param routing was considered (the code strips `?`-suffixes before lookup) but never implemented as standalone redirect rules.
-> - **SubTabBar is still in use, not deprecated.** The spec listed `SubTabBar.tsx` as a component to be deprecated. It remains at `src/dashboard/app/src/components/molecules/SubTabBar.tsx` and is actively used for within-page sub-navigation on multiple pages.
+> - **SubTabBar is still in use, not deprecated.** The spec listed `SubTabBar.tsx` as a component to be deprecated. It remains at `src/dashboard/frontend/src/components/molecules/SubTabBar.tsx` and is actively used for within-page sub-navigation on multiple pages.
 
 **Repository:** Code Context MCP Dashboard
 **Last Updated:** 2026-03-27

@@ -290,7 +290,7 @@ beforeEach(() => {
 - Local helper functions for creating test entities (`createSprint`, `createTicket`, etc.).
 - Test files named `*.test.ts` in `test/` directory.
 
-### Frontend Tests (`src/dashboard/app/src/test/`)
+### Frontend Tests (`src/dashboard/frontend/src/test/`)
 
 - `@testing-library/react` + `@testing-library/user-event`.
 - `jsdom` environment via Vitest config.
