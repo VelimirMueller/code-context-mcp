@@ -19,7 +19,12 @@ interface QuickActionsBarProps {
   breadcrumbItems?: Array<{ label: string; path?: string }>;
 }
 
-export function QuickActionsBar({ actions, searchQuery, onSearchChange, breadcrumbItems }: QuickActionsBarProps) {
+export function QuickActionsBar({
+  actions,
+  searchQuery,
+  onSearchChange,
+  breadcrumbItems,
+}: QuickActionsBarProps) {
   return (
     <div className="quick-actions-bar">
       <div className="quick-actions-breadcrumb">

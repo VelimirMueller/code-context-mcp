@@ -78,7 +78,13 @@ export function HeroText({ children, subtitle }: HeroTextProps) {
         variants={shouldReduce ? undefined : containerVariants}
         initial="initial"
         animate="animate"
-        style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '0 4px', lineHeight: 1.4 }}
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'baseline',
+          gap: '0 4px',
+          lineHeight: 1.4,
+        }}
       >
         {items.map((item, i) => {
           if (typeof item === 'string') {
@@ -90,7 +96,12 @@ export function HeroText({ children, subtitle }: HeroTextProps) {
               <motion.span
                 key={i}
                 variants={wv}
-                style={{ fontSize: 15, fontWeight: 600, color: 'var(--text2)', fontFamily: 'var(--font)' }}
+                style={{
+                  fontSize: 15,
+                  fontWeight: 600,
+                  color: 'var(--text2)',
+                  fontFamily: 'var(--font)',
+                }}
               >
                 {item}
               </motion.span>
@@ -98,7 +109,11 @@ export function HeroText({ children, subtitle }: HeroTextProps) {
           }
           // Non-string child (e.g. AnimatedNumber) — wrap in motion.span
           return (
-            <motion.span key={i} variants={wv} style={{ display: 'inline-flex', alignItems: 'baseline' }}>
+            <motion.span
+              key={i}
+              variants={wv}
+              style={{ display: 'inline-flex', alignItems: 'baseline' }}
+            >
               {item}
             </motion.span>
           );

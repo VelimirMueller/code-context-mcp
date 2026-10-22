@@ -3,17 +3,25 @@ import { render, screen } from '@testing-library/react';
 
 // Mock framer-motion
 vi.mock('framer-motion', () => ({
-  motion: { div: (p: any) => <div {...filterDom(p)} />, span: (p: any) => <span {...filterDom(p)} /> },
+  motion: {
+    div: (p: any) => <div {...filterDom(p)} />,
+    span: (p: any) => <span {...filterDom(p)} />,
+  },
   useReducedMotion: () => true,
   useMotionValue: () => ({ get: () => 0, set: () => {} }),
   useSpring: () => ({ get: () => 0, set: () => {} }),
-  animate: (_mv: any, target: number, opts: any) => { opts?.onUpdate?.(target); return { stop: () => {} }; },
+  animate: (_mv: any, target: number, opts: any) => {
+    opts?.onUpdate?.(target);
+    return { stop: () => {} };
+  },
 }));
 
 function filterDom(props: Record<string, any>) {
   const skip = ['whileHover', 'layout', 'variants', 'initial', 'animate', 'exit', 'transition'];
   const clean: Record<string, any> = {};
-  for (const [k, v] of Object.entries(props)) { if (!skip.includes(k)) clean[k] = v; }
+  for (const [k, v] of Object.entries(props)) {
+    if (!skip.includes(k)) clean[k] = v;
+  }
   return clean;
 }
 

@@ -130,11 +130,27 @@ const buttonStyle: React.CSSProperties = {
 };
 
 // Progress dots component
-function ProgressDots({ currentIndex, totalSteps, accentColor }: { currentIndex: number; totalSteps: number; accentColor: string }) {
+function ProgressDots({
+  currentIndex,
+  totalSteps,
+  accentColor,
+}: {
+  currentIndex: number;
+  totalSteps: number;
+  accentColor: string;
+}) {
   const reduceMotion = useReducedMotion();
 
   return (
-    <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'center', padding: '8px 0' }}>
+    <div
+      style={{
+        display: 'flex',
+        gap: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '8px 0',
+      }}
+    >
       {Array.from({ length: totalSteps }).map((_, i) => (
         <motion.div
           key={i}
@@ -181,9 +197,9 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
     onEvent: (event) => {
       if (event.type === 'step_progress' && event.stepProgress) {
         const progress = event.stepProgress;
-        const stepIndex = steps.findIndex(s => s.step === progress.step);
+        const stepIndex = steps.findIndex((s) => s.step === progress.step);
         if (stepIndex !== -1) {
-          setStepProgress(prev => ({
+          setStepProgress((prev) => ({
             ...prev,
             [stepIndex]: progress,
           }));
@@ -210,7 +226,9 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
 
   // Escape to dismiss
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onDismiss(); };
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onDismiss();
+    };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [onDismiss]);
@@ -218,7 +236,7 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
   if (!current) return null;
 
   const setValue = (name: string, value: string) => {
-    setValues(prev => ({ ...prev, [name]: value }));
+    setValues((prev) => ({ ...prev, [name]: value }));
   };
 
   const validate = (): boolean => {
@@ -243,7 +261,7 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
         onComplete();
       } else {
         setDirection(1);
-        setCurrentIndex(i => i + 1);
+        setCurrentIndex((i) => i + 1);
       }
     } catch (err) {
       setError((err as Error).message);
@@ -279,7 +297,7 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
     >
       <motion.div
         variants={modalVariants}
-        onClick={e => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
         transition={transition}
         style={{
           background: 'var(--surface)',
@@ -316,14 +334,16 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
               transition={{ duration: 0.2 }}
               style={{ overflow: 'hidden' }}
             >
-              <div style={{
-                padding: '10px 28px',
-                background: `${accentColor}10`,
-                borderBottom: `1px solid ${accentColor}30`,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-              }}>
+              <div
+                style={{
+                  padding: '10px 28px',
+                  background: `${accentColor}10`,
+                  borderBottom: `1px solid ${accentColor}30`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                }}
+              >
                 <motion.div
                   style={{
                     width: 18,
@@ -341,7 +361,8 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                     animate={{ opacity: 1, x: 0 }}
                     style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}
                   >
-                    {stepProgress[currentExecutingStep]?.title || `Step ${currentExecutingStep + 1}`}
+                    {stepProgress[currentExecutingStep]?.title ||
+                      `Step ${currentExecutingStep + 1}`}
                   </motion.div>
                   <motion.div
                     initial={{ opacity: 0 }}
@@ -357,7 +378,8 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                   animate={{ scale: 1 }}
                   style={{ fontSize: 11, color: 'var(--text3)' }}
                 >
-                  {stepProgress[currentExecutingStep]?.current ?? 0} / {stepProgress[currentExecutingStep]?.total ?? steps.length}
+                  {stepProgress[currentExecutingStep]?.current ?? 0} /{' '}
+                  {stepProgress[currentExecutingStep]?.total ?? steps.length}
                 </motion.div>
               </div>
             </motion.div>
@@ -383,21 +405,25 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                 animate={{
                   rotate: 0,
                   scale: 1,
-                  ...(currentExecutingStep === null && !reduceMotion ? {
-                    rotate: [0, -5, 5, -5, 0],
-                    scale: [1, 1.05, 1],
-                  } : {})
+                  ...(currentExecutingStep === null && !reduceMotion
+                    ? {
+                        rotate: [0, -5, 5, -5, 0],
+                        scale: [1, 1.05, 1],
+                      }
+                    : {}),
                 }}
                 transition={{
                   type: 'spring',
                   stiffness: 260,
                   damping: 20,
                   delay: 0.1,
-                  ...(currentExecutingStep === null && !reduceMotion ? {
-                    duration: 0.5,
-                    delay: 0.2,
-                    times: [0, 0.25, 0.5, 0.75, 1],
-                  } : {})
+                  ...(currentExecutingStep === null && !reduceMotion
+                    ? {
+                        duration: 0.5,
+                        delay: 0.2,
+                        times: [0, 0.25, 0.5, 0.75, 1],
+                      }
+                    : {}),
                 }}
                 style={{
                   width: 40,
@@ -468,12 +494,23 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.35 + i * 0.05 }}
-                    style={{ fontSize: 12, color: 'var(--text3)', display: 'flex', gap: 8, alignItems: 'baseline' }}
+                    style={{
+                      fontSize: 12,
+                      color: 'var(--text3)',
+                      display: 'flex',
+                      gap: 8,
+                      alignItems: 'baseline',
+                    }}
                   >
                     {!reduceMotion ? (
                       <motion.span
                         animate={{ x: [0, 4, 0] }}
-                        transition={{ duration: 1.5, repeat: Infinity, repeatDelay: 1, ease: 'easeInOut' }}
+                        transition={{
+                          duration: 1.5,
+                          repeat: Infinity,
+                          repeatDelay: 1,
+                          ease: 'easeInOut',
+                        }}
                         style={{ color: accentColor }}
                       >
                         ▸
@@ -508,7 +545,10 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
             </AnimatePresence>
 
             {/* Form */}
-            <form onSubmit={handleSubmit} style={{ paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <form
+              onSubmit={handleSubmit}
+              style={{ paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}
+            >
               {current.fields.map((field, idx) => (
                 <motion.div
                   key={field.name}
@@ -519,12 +559,20 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                 >
                   <motion.label
                     animate={{ scale: focusedField === field.name ? 1.01 : 1 }}
-                    style={{ fontSize: 12, fontWeight: 600, color: focusedField === field.name ? 'var(--accent)' : 'var(--text2)', originX: 0, transition: 'color 0.2s ease' }}
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: focusedField === field.name ? 'var(--accent)' : 'var(--text2)',
+                      originX: 0,
+                      transition: 'color 0.2s ease',
+                    }}
                   >
                     {field.label}
                     {field.required !== false && (
                       <motion.span
-                        animate={focusedField === field.name ? { scale: [1, 1.2, 1] } : { scale: 1 }}
+                        animate={
+                          focusedField === field.name ? { scale: [1, 1.2, 1] } : { scale: 1 }
+                        }
                         transition={{ duration: 0.3 }}
                         style={{ color: accentColor, marginLeft: 4, display: 'inline-block' }}
                       >
@@ -535,17 +583,24 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                   {field.type === 'textarea' ? (
                     <div style={{ position: 'relative' }}>
                       <motion.textarea
-                        ref={idx === 0 ? firstInputRef as React.RefObject<HTMLTextAreaElement> : undefined}
+                        ref={
+                          idx === 0
+                            ? (firstInputRef as React.RefObject<HTMLTextAreaElement>)
+                            : undefined
+                        }
                         style={{
                           ...inputStyle,
                           resize: 'vertical',
                           minHeight: 100,
                           borderColor: focusedField === field.name ? accentColor : 'var(--border2)',
-                          boxShadow: focusedField === field.name ? `0 0 0 3px rgba(99, 102, 241, 0.1)` : 'none',
+                          boxShadow:
+                            focusedField === field.name
+                              ? `0 0 0 3px rgba(99, 102, 241, 0.1)`
+                              : 'none',
                         }}
                         placeholder={field.placeholder}
                         value={values[field.name] ?? ''}
-                        onChange={e => setValue(field.name, e.target.value)}
+                        onChange={(e) => setValue(field.name, e.target.value)}
                         disabled={submitting}
                         onFocus={() => setFocusedField(field.name)}
                         onBlur={() => setFocusedField(null)}
@@ -573,15 +628,22 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                   ) : field.type === 'select' ? (
                     <div style={{ position: 'relative' }}>
                       <motion.select
-                        ref={idx === 0 ? firstInputRef as React.RefObject<HTMLSelectElement> : undefined}
+                        ref={
+                          idx === 0
+                            ? (firstInputRef as React.RefObject<HTMLSelectElement>)
+                            : undefined
+                        }
                         style={{
                           ...inputStyle,
                           cursor: 'pointer',
                           borderColor: focusedField === field.name ? accentColor : 'var(--border2)',
-                          boxShadow: focusedField === field.name ? `0 0 0 3px rgba(99, 102, 241, 0.1)` : 'none',
+                          boxShadow:
+                            focusedField === field.name
+                              ? `0 0 0 3px rgba(99, 102, 241, 0.1)`
+                              : 'none',
                         }}
                         value={values[field.name] ?? ''}
-                        onChange={e => setValue(field.name, e.target.value)}
+                        onChange={(e) => setValue(field.name, e.target.value)}
                         disabled={submitting}
                         onFocus={() => setFocusedField(field.name)}
                         onBlur={() => setFocusedField(null)}
@@ -589,8 +651,10 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                         transition={{ duration: 0.15 }}
                       >
                         <option value="">Select...</option>
-                        {field.options?.map(opt => (
-                          <option key={opt} value={opt}>{opt}</option>
+                        {field.options?.map((opt) => (
+                          <option key={opt} value={opt}>
+                            {opt}
+                          </option>
                         ))}
                       </motion.select>
                       {!reduceMotion && (
@@ -614,16 +678,23 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                   ) : (
                     <div style={{ position: 'relative' }}>
                       <motion.input
-                        ref={idx === 0 ? firstInputRef as React.RefObject<HTMLInputElement> : undefined}
+                        ref={
+                          idx === 0
+                            ? (firstInputRef as React.RefObject<HTMLInputElement>)
+                            : undefined
+                        }
                         type={field.type}
                         style={{
                           ...inputStyle,
                           borderColor: focusedField === field.name ? accentColor : 'var(--border2)',
-                          boxShadow: focusedField === field.name ? `0 0 0 3px rgba(99, 102, 241, 0.1)` : 'none',
+                          boxShadow:
+                            focusedField === field.name
+                              ? `0 0 0 3px rgba(99, 102, 241, 0.1)`
+                              : 'none',
                         }}
                         placeholder={field.placeholder}
                         value={values[field.name] ?? ''}
-                        onChange={e => setValue(field.name, e.target.value)}
+                        onChange={(e) => setValue(field.name, e.target.value)}
                         disabled={submitting}
                         onFocus={() => setFocusedField(field.name)}
                         onBlur={() => setFocusedField(null)}
@@ -672,9 +743,17 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                     }}
                   >
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                      <circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.5"/>
-                      <line x1="7" y1="4" x2="7" y2="8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                      <circle cx="7" cy="10.5" r="0.75" fill="currentColor"/>
+                      <circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.5" />
+                      <line
+                        x1="7"
+                        y1="4"
+                        x2="7"
+                        y2="8"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                      />
+                      <circle cx="7" cy="10.5" r="0.75" fill="currentColor" />
                     </svg>
                     {error}
                   </motion.div>
@@ -687,7 +766,11 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.5 }}
               >
-                <ProgressDots currentIndex={currentIndex} totalSteps={steps.length} accentColor={accentColor} />
+                <ProgressDots
+                  currentIndex={currentIndex}
+                  totalSteps={steps.length}
+                  accentColor={accentColor}
+                />
               </motion.div>
 
               {/* Actions */}
@@ -723,7 +806,11 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                     alignItems: 'center',
                     gap: 8,
                   }}
-                  whileHover={submitting || reduceMotion ? {} : { scale: 1.02, boxShadow: `0 4px 12px ${accentColor}66` }}
+                  whileHover={
+                    submitting || reduceMotion
+                      ? {}
+                      : { scale: 1.02, boxShadow: `0 4px 12px ${accentColor}66` }
+                  }
                   whileTap={submitting || reduceMotion ? {} : { scale: 0.98 }}
                 >
                   {submitting ? (
@@ -742,7 +829,11 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                       {isLast ? 'Finish' : 'Next'}
                       <motion.span
                         animate={isLast ? { scale: [1, 1.2, 1] } : { x: [0, 4, 0] }}
-                        transition={{ duration: isLast ? 0.5 : 1, repeat: isLast ? 1 : Infinity, repeatDelay: 0.5 }}
+                        transition={{
+                          duration: isLast ? 0.5 : 1,
+                          repeat: isLast ? 1 : Infinity,
+                          repeatDelay: 0.5,
+                        }}
                       >
                         {isLast ? '✓' : '→'}
                       </motion.span>

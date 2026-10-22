@@ -37,7 +37,9 @@ function parseHash(hash: string): ParsedHash {
   const rawPage = parts[0] || 'dashboard';
 
   // Map legacy names to new PageType, or use as-is if already valid
-  const page: PageType = legacyPageMapping[rawPage] || (validPages.includes(rawPage as PageType) ? rawPage as PageType : 'dashboard');
+  const page: PageType =
+    legacyPageMapping[rawPage] ||
+    (validPages.includes(rawPage as PageType) ? (rawPage as PageType) : 'dashboard');
 
   const tab = parts[1] || defaultTabs[page] || 'board';
   const id = parts[2];

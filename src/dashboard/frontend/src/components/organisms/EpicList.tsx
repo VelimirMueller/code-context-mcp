@@ -55,7 +55,15 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function ArchiveButton({ archived, busy, onClick }: { archived: boolean; busy: boolean; onClick: () => void }) {
+function ArchiveButton({
+  archived,
+  busy,
+  onClick,
+}: {
+  archived: boolean;
+  busy: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
       onClick={onClick}
@@ -102,19 +110,24 @@ export function EpicList() {
 
   // Archive / unarchive (POST /api/epic/:id/{archive,unarchive}); the server enforces
   // that only completed epics can be archived.
-  const toggleArchive = useCallback(async (epic: Epic) => {
-    const verb = epic.archived_at ? 'unarchive' : 'archive';
-    setBusyId(epic.id);
-    try {
-      await post(`/api/epic/${epic.id}/${verb}`, {});
-      await fetchEpics();
-      useToastStore.getState().addToast(verb === 'archive' ? 'Epic archived' : 'Epic restored', 'success');
-    } catch (e) {
-      useToastStore.getState().addToast((e as Error).message, 'error');
-    } finally {
-      setBusyId(null);
-    }
-  }, [fetchEpics]);
+  const toggleArchive = useCallback(
+    async (epic: Epic) => {
+      const verb = epic.archived_at ? 'unarchive' : 'archive';
+      setBusyId(epic.id);
+      try {
+        await post(`/api/epic/${epic.id}/${verb}`, {});
+        await fetchEpics();
+        useToastStore
+          .getState()
+          .addToast(verb === 'archive' ? 'Epic archived' : 'Epic restored', 'success');
+      } catch (e) {
+        useToastStore.getState().addToast((e as Error).message, 'error');
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [fetchEpics],
+  );
 
   useEffect(() => {
     fetchEpics();
@@ -142,7 +155,10 @@ export function EpicList() {
       // through to the generic lookup below so no epic is ever dropped.
       for (const m of milestones) {
         const g = byMilestone.get(m.id);
-        if (g) { groups.push({ milestone: m, epics: g }); byMilestone.delete(m.id); }
+        if (g) {
+          groups.push({ milestone: m, epics: g });
+          byMilestone.delete(m.id);
+        }
       }
       for (const [key, g] of byMilestone) {
         if (key !== null) groups.push({ milestone: milestoneLookup.get(key) ?? null, epics: g });
@@ -170,18 +186,22 @@ export function EpicList() {
       <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', margin: 0 }}>
         Epics
         <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text3)', marginLeft: 8 }}>
-          {epics.filter(e => !e.archived_at && e.status !== 'completed').length} active
+          {epics.filter((e) => !e.archived_at && e.status !== 'completed').length} active
         </span>
       </h2>
 
       {activeGroups.length === 0 && (
         <div style={{ padding: 40, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>
-          No epics outside the archive. Run <code style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>/kickoff</code> to create epics.
+          No epics outside the archive. Run{' '}
+          <code style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>/kickoff</code> to create epics.
         </div>
       )}
 
       {activeGroups.map((group, gi) => (
-        <div key={group.milestone?.id ?? `none-${gi}`} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div
+          key={group.milestone?.id ?? `none-${gi}`}
+          style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
+        >
           <div
             style={{
               fontSize: 13,
@@ -196,7 +216,8 @@ export function EpicList() {
           </div>
 
           {group.epics.map((epic) => {
-            const progress = epic.ticket_count > 0 ? Math.round((epic.done_count / epic.ticket_count) * 100) : 0;
+            const progress =
+              epic.ticket_count > 0 ? Math.round((epic.done_count / epic.ticket_count) * 100) : 0;
             const ms = epic.milestone_id ? milestoneLookup.get(epic.milestone_id) : null;
 
             return (
@@ -211,24 +232,40 @@ export function EpicList() {
                 }}
               >
                 <div style={{ width: 5, flexShrink: 0, background: epic.color }} />
-                <div style={{ flex: 1, padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div
+                  style={{
+                    flex: 1,
+                    padding: '12px 16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                  }}
+                >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{epic.name}</span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
+                      {epic.name}
+                    </span>
                     <StatusBadge status={epic.status} />
-                    <span style={{
-                      background: 'var(--surface2)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 10,
-                      padding: '1px 9px',
-                      fontSize: 11,
-                      fontWeight: 600,
-                      fontFamily: 'var(--mono)',
-                      color: 'var(--text3)',
-                    }}>
+                    <span
+                      style={{
+                        background: 'var(--surface2)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 10,
+                        padding: '1px 9px',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        fontFamily: 'var(--mono)',
+                        color: 'var(--text3)',
+                      }}
+                    >
                       {epic.done_count}/{epic.ticket_count} tickets
                     </span>
                     {epic.status === 'completed' && (
-                      <ArchiveButton archived={false} busy={busyId === epic.id} onClick={() => toggleArchive(epic)} />
+                      <ArchiveButton
+                        archived={false}
+                        busy={busyId === epic.id}
+                        onClick={() => toggleArchive(epic)}
+                      />
                     )}
                   </div>
 
@@ -240,12 +277,27 @@ export function EpicList() {
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 2 }}>
                     {ms && (
-                      <span style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)', flexShrink: 0 }}>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          color: 'var(--text3)',
+                          fontFamily: 'var(--mono)',
+                          flexShrink: 0,
+                        }}
+                      >
                         {ms.name}
                       </span>
                     )}
                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ flex: 1, height: 8, borderRadius: 4, background: 'var(--surface3)', overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          flex: 1,
+                          height: 8,
+                          borderRadius: 4,
+                          background: 'var(--surface3)',
+                          overflow: 'hidden',
+                        }}
+                      >
                         <div
                           style={{
                             width: `${progress}%`,
@@ -256,7 +308,15 @@ export function EpicList() {
                           }}
                         />
                       </div>
-                      <span style={{ fontSize: 11, color: 'var(--text2)', fontFamily: 'var(--mono)', fontWeight: 600, flexShrink: 0 }}>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          color: 'var(--text2)',
+                          fontFamily: 'var(--mono)',
+                          fontWeight: 600,
+                          flexShrink: 0,
+                        }}
+                      >
                         {progress}%
                       </span>
                     </div>
@@ -273,37 +333,109 @@ export function EpicList() {
           <button
             onClick={() => setShowArchive(!showArchive)}
             style={{
-              width: '100%', background: 'none', border: '1px solid var(--border2)',
-              borderRadius: 8, color: 'var(--text3)', fontSize: 13, padding: '8px 16px',
-              cursor: 'pointer', fontFamily: 'var(--font)', fontWeight: 500, textAlign: 'center',
+              width: '100%',
+              background: 'none',
+              border: '1px solid var(--border2)',
+              borderRadius: 8,
+              color: 'var(--text3)',
+              fontSize: 13,
+              padding: '8px 16px',
+              cursor: 'pointer',
+              fontFamily: 'var(--font)',
+              fontWeight: 500,
+              textAlign: 'center',
             }}
           >
-            {showArchive ? 'Hide' : 'Show'} Archive ({archivedGroups.reduce((a, g) => a + g.epics.length, 0)} archived epics)
+            {showArchive ? 'Hide' : 'Show'} Archive (
+            {archivedGroups.reduce((a, g) => a + g.epics.length, 0)} archived epics)
           </button>
           {showArchive && (
             <div style={{ marginTop: 12, opacity: 0.7 }}>
               {archivedGroups.map((group, gi) => (
-                <div key={group.milestone?.id ?? `none-${gi}`} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text3)', borderBottom: '1px solid var(--border)', paddingBottom: 6, marginTop: gi > 0 ? 8 : 0 }}>
+                <div
+                  key={group.milestone?.id ?? `none-${gi}`}
+                  style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
+                >
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 700,
+                      color: 'var(--text3)',
+                      borderBottom: '1px solid var(--border)',
+                      paddingBottom: 6,
+                      marginTop: gi > 0 ? 8 : 0,
+                    }}
+                  >
                     {group.milestone ? group.milestone.name : 'No Milestone'}
                   </div>
                   {group.epics.map((epic) => {
-                    const progress = epic.ticket_count > 0 ? Math.round((epic.done_count / epic.ticket_count) * 100) : 0;
+                    const progress =
+                      epic.ticket_count > 0
+                        ? Math.round((epic.done_count / epic.ticket_count) * 100)
+                        : 0;
                     return (
-                      <div key={epic.id} style={{ display: 'flex', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+                      <div
+                        key={epic.id}
+                        style={{
+                          display: 'flex',
+                          background: 'var(--surface)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius)',
+                          overflow: 'hidden',
+                        }}
+                      >
                         <div style={{ width: 5, flexShrink: 0, background: epic.color }} />
                         <div style={{ flex: 1, padding: '12px 16px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text3)' }}>{epic.name}</span>
+                            <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text3)' }}>
+                              {epic.name}
+                            </span>
                             <StatusBadge status={epic.status} />
-                            <span style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>{epic.done_count}/{epic.ticket_count} tickets</span>
-                            <ArchiveButton archived busy={busyId === epic.id} onClick={() => toggleArchive(epic)} />
+                            <span
+                              style={{
+                                fontSize: 11,
+                                color: 'var(--text3)',
+                                fontFamily: 'var(--mono)',
+                              }}
+                            >
+                              {epic.done_count}/{epic.ticket_count} tickets
+                            </span>
+                            <ArchiveButton
+                              archived
+                              busy={busyId === epic.id}
+                              onClick={() => toggleArchive(epic)}
+                            />
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-                            <div style={{ flex: 1, height: 4, background: 'var(--surface3)', borderRadius: 2, overflow: 'hidden' }}>
-                              <div style={{ width: `${progress}%`, height: '100%', background: 'var(--blue)', borderRadius: 2 }} />
+                          <div
+                            style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}
+                          >
+                            <div
+                              style={{
+                                flex: 1,
+                                height: 4,
+                                background: 'var(--surface3)',
+                                borderRadius: 2,
+                                overflow: 'hidden',
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: `${progress}%`,
+                                  height: '100%',
+                                  background: 'var(--blue)',
+                                  borderRadius: 2,
+                                }}
+                              />
                             </div>
-                            <span style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>{progress}%</span>
+                            <span
+                              style={{
+                                fontSize: 11,
+                                color: 'var(--text3)',
+                                fontFamily: 'var(--mono)',
+                              }}
+                            >
+                              {progress}%
+                            </span>
                           </div>
                         </div>
                       </div>

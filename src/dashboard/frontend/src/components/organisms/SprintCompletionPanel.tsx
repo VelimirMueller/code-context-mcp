@@ -21,7 +21,7 @@ interface SprintCompletionPanelProps {
 function getCompletionStatus(
   complete: boolean,
   threshold?: number,
-  value?: string
+  value?: string,
 ): { type: 'done' | 'partial' | 'pending'; color: string } {
   if (complete) {
     return { type: 'done', color: 'var(--green)' };
@@ -31,7 +31,7 @@ function getCompletionStatus(
     if (match) {
       const current = parseInt(match[1], 10);
       const pct = (current / parseInt(match[2], 10)) * 100;
-      if (pct >= (threshold * 100)) {
+      if (pct >= threshold * 100) {
         return { type: 'partial', color: 'var(--orange)' };
       }
     }
@@ -44,7 +44,13 @@ function StatusIcon({ type, color }: { type: 'done' | 'partial' | 'pending'; col
     return (
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
         <circle cx="8" cy="8" r="7" fill={color} />
-        <path d="M5 8L7 10L11 6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <path
+          d="M5 8L7 10L11 6"
+          stroke="white"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </svg>
     );
   }
@@ -52,8 +58,8 @@ function StatusIcon({ type, color }: { type: 'done' | 'partial' | 'pending'; col
     return (
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
         <circle cx="8" cy="8" r="7" fill={color} />
-        <path d="M8 5V8.5" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
-        <circle cx="8" cy="11" r="0.75" fill="white"/>
+        <path d="M8 5V8.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+        <circle cx="8" cy="11" r="0.75" fill="white" />
       </svg>
     );
   }
@@ -188,13 +194,13 @@ export function SprintCompletionPanel({
                     background: isPartial
                       ? 'rgba(245, 158, 11, 0.15)'
                       : item.complete
-                      ? 'rgba(16, 185, 129, 0.15)'
-                      : 'var(--surface3)',
+                        ? 'rgba(16, 185, 129, 0.15)'
+                        : 'var(--surface3)',
                     color: isPartial
                       ? 'var(--orange)'
                       : item.complete
-                      ? 'var(--green)'
-                      : 'var(--text3)',
+                        ? 'var(--green)'
+                        : 'var(--text3)',
                   }}
                 >
                   {item.value}
@@ -276,10 +282,37 @@ export function SprintCompletionPanel({
 
       {/* Inline QA Report */}
       {showQaReport && tickets.items && (
-        <div style={{ marginTop: 12, padding: '12px', borderRadius: 'var(--radius)', background: 'var(--bg)', border: '1px solid var(--border)' }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div
+          style={{
+            marginTop: 12,
+            padding: '12px',
+            borderRadius: 'var(--radius)',
+            background: 'var(--bg)',
+            border: '1px solid var(--border)',
+          }}
+        >
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: 'var(--text)',
+              marginBottom: 10,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
             <span>QA Verification Report</span>
-            <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: qaComplete ? 'var(--green)' : 'var(--red)', background: qaComplete ? 'rgba(16,185,129,.1)' : 'rgba(239,68,68,.1)', padding: '1px 8px', borderRadius: 10 }}>
+            <span
+              style={{
+                fontFamily: 'var(--mono)',
+                fontSize: 11,
+                color: qaComplete ? 'var(--green)' : 'var(--red)',
+                background: qaComplete ? 'rgba(16,185,129,.1)' : 'rgba(239,68,68,.1)',
+                padding: '1px 8px',
+                borderRadius: 10,
+              }}
+            >
               {qaVerified}/{tickets.total} verified
             </span>
           </div>
@@ -299,14 +332,56 @@ export function SprintCompletionPanel({
               >
                 <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
                   {t.qa_verified ? (
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" fill="var(--green)"/><path d="M4.5 7L6 8.5L9.5 5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <circle cx="7" cy="7" r="6" fill="var(--green)" />
+                      <path
+                        d="M4.5 7L6 8.5L9.5 5"
+                        stroke="white"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
                   ) : (
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="var(--red)" strokeWidth="1.5" fill="none"/></svg>
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <circle
+                        cx="7"
+                        cy="7"
+                        r="6"
+                        stroke="var(--red)"
+                        strokeWidth="1.5"
+                        fill="none"
+                      />
+                    </svg>
                   )}
                 </span>
-                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text3)', width: 42, flexShrink: 0 }}>{t.ticket_ref ?? `#${t.id}`}</span>
-                <span style={{ color: 'var(--text2)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</span>
-                {t.verified_by && <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text3)' }}>{t.verified_by}</span>}
+                <span
+                  style={{
+                    fontFamily: 'var(--mono)',
+                    fontSize: 10,
+                    color: 'var(--text3)',
+                    width: 42,
+                    flexShrink: 0,
+                  }}
+                >
+                  {t.ticket_ref ?? `#${t.id}`}
+                </span>
+                <span
+                  style={{
+                    color: 'var(--text2)',
+                    flex: 1,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {t.title}
+                </span>
+                {t.verified_by && (
+                  <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text3)' }}>
+                    {t.verified_by}
+                  </span>
+                )}
               </div>
             ))}
           </div>
@@ -338,7 +413,11 @@ export function SprintCompletionPanel({
             style={{
               width: `${(checklistItems.filter((i) => i.complete).length / checklistItems.length) * 100}%`,
               height: '100%',
-              background: allComplete ? 'var(--green)' : velocityPct >= 50 ? 'var(--orange)' : 'var(--red)',
+              background: allComplete
+                ? 'var(--green)'
+                : velocityPct >= 50
+                  ? 'var(--orange)'
+                  : 'var(--red)',
               borderRadius: 3,
               transition: 'width 0.3s ease',
             }}

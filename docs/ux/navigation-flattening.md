@@ -10,20 +10,17 @@
 > - **6 tabs shipped, not 5.** A sixth tab — **Benchmark** — was added beyond the
 >   five proposed here (Dashboard, Code, Planning, Team, Retro). `TopNav.tsx` lists
 >   `benchmark` as a valid `NavItem` id and `App.tsx` renders `<Benchmark />` for it.
->
 > - **`#planning/*` redirects were never implemented.** The `legacyUrlMap` in
 >   `App.tsx` only handles `#sprint*` and `#explorer*` entries. There are no entries
 >   for `#planning`, `#planning/vision`, `#planning/gantt`, or `#planning/insights`.
->
 > - **Query-parameter redirects were never implemented.** The proposed mappings
 >   `#planning/vision → #planning?tab=vision` and `#planning/gantt →
->   #planning?tab=timeline` (and the entire "Query Parameter Support" section) were
+#planning?tab=timeline` (and the entire "Query Parameter Support" section) were
 >   not built. The `useHashRouter` hook parses only path segments (`#page/tab/id`);
 >   it does not read or write query strings. Query params are stripped before redirect
 >   lookup (`cleanHash = hash.split('?')[0]`) and then discarded.
->
 > - **Actual `legacyUrlMap` (App.tsx):** `#sprint → #dashboard`, `#sprint/board →
->   #dashboard/board`, `#sprint/team → #team`, `#sprint/insights → #retro`,
+#dashboard/board`, `#sprint/team → #team`, `#sprint/insights → #retro`,
 >   `#explorer → #code`, `#explorer/files → #code/files`. The entries for
 >   `#planning*` listed in this doc do not exist in the implementation.
 
@@ -39,6 +36,7 @@
 This document specifies the design for flattening the Code Context MCP dashboard navigation from a nested tab-within-tab structure to a single-level navigation architecture. The goal is to reduce the number of clicks required to access key information from 7 clicks to 2-3 clicks, improving discoverability and reducing cognitive load.
 
 **Key Metrics:**
+
 - Current: 7 clicks to find assigned work (Landing → Sprint → Board → Find active sprint → Scan columns)
 - Target: 2-3 clicks (Landing → My Tickets filter)
 - Navigation depth reduction: 2 levels → 1 level
@@ -150,6 +148,7 @@ Top-Level Navigation (Always Visible)
 ```
 
 **Features:**
+
 - Visible on all pages
 - Count badges for actionable items
 - Quick filters for boards
@@ -196,6 +195,7 @@ export function TopNav({ activeTab, onTabChange, badgeCounts }: TopNavProps) {
 ```
 
 **Specifications:**
+
 - Height: 48px (nav) + 40px (header) = 88px total
 - Background: `var(--surface)`
 - Border: 1px bottom, `var(--border)`
@@ -207,6 +207,7 @@ export function TopNav({ activeTab, onTabChange, badgeCounts }: TopNavProps) {
 - Animation: 0.2s ease-in-out (color, border)
 
 **Accessibility:**
+
 - Keyboard navigation: Arrow Left/Right to navigate tabs
 - Screen reader: `role="tablist"`, `aria-selected` for active tab
 - Focus visible: 2px outline, `var(--accent)`
@@ -214,13 +215,13 @@ export function TopNav({ activeTab, onTabChange, badgeCounts }: TopNavProps) {
 
 **Role-Based Defaults:**
 
-| Role | Default Tab | Rationale |
-|------|-------------|-----------|
-| Developer | Dashboard | Jump to work (Sprint Board + My Tickets) |
-| Tech Lead | Planning | Need to see roadmap, milestones, Gantt |
-| Product Owner | Planning | Need to see vision, milestones, roadmap |
-| QA Engineer | Dashboard | Need to see QA Pending, blockers |
-| Designer | Team | Need to see team mood, capacity |
+| Role          | Default Tab | Rationale                                |
+| ------------- | ----------- | ---------------------------------------- |
+| Developer     | Dashboard   | Jump to work (Sprint Board + My Tickets) |
+| Tech Lead     | Planning    | Need to see roadmap, milestones, Gantt   |
+| Product Owner | Planning    | Need to see vision, milestones, roadmap  |
+| QA Engineer   | Dashboard   | Need to see QA Pending, blockers         |
+| Designer      | Team        | Need to see team mood, capacity          |
 
 ---
 
@@ -263,6 +264,7 @@ export function QuickActionsBar({ actions, searchQuery, onSearchChange }: QuickA
 ```
 
 **Specifications:**
+
 - Height: 40px
 - Background: `var(--bg)`
 - Border: 1px bottom, `var(--border)`
@@ -275,20 +277,22 @@ export function QuickActionsBar({ actions, searchQuery, onSearchChange }: QuickA
 
 **Action Buttons:**
 
-| Action | Icon | Count Source | Highlight | On Click |
-|--------|------|--------------|-----------|----------|
-| My Tickets | 🎯 | Assigned to current user | No | Filter board to my tickets |
-| Blockers | 🚫 | Tickets with BLOCKED status | Yes (if > 0) | Filter board to blocked |
-| QA Pending | ✓ | Tickets not QA verified | No | Filter board to QA pending |
-| New Ticket | + | N/A | No | Open create ticket modal |
-| Search | 🔍 | N/A | No | Focus search input |
+| Action     | Icon | Count Source                | Highlight    | On Click                   |
+| ---------- | ---- | --------------------------- | ------------ | -------------------------- |
+| My Tickets | 🎯   | Assigned to current user    | No           | Filter board to my tickets |
+| Blockers   | 🚫   | Tickets with BLOCKED status | Yes (if > 0) | Filter board to blocked    |
+| QA Pending | ✓    | Tickets not QA verified     | No           | Filter board to QA pending |
+| New Ticket | +    | N/A                         | No           | Open create ticket modal   |
+| Search     | 🔍   | N/A                         | No           | Focus search input         |
 
 **Responsive Behavior:**
+
 - Desktop (≥1024px): Full bar visible
 - Tablet (768-1023px): Collapse breadcrumb, show actions
 - Mobile (<768px): Hamburger menu with action sheet
 
 **Accessibility:**
+
 - Keyboard: Alt+M (My Tickets), Alt+B (Blockers), Alt+Q (QA), Alt+N (New)
 - Screen reader: "My Tickets, 5 assigned" (count announced)
 - Focus management: Return to previous element after action
@@ -306,7 +310,7 @@ export function QuickActionsBar({ actions, searchQuery, onSearchChange }: QuickA
 ```typescript
 interface BreadcrumbItem {
   label: string;
-  path?: string;  // If undefined, item is not clickable (current page)
+  path?: string; // If undefined, item is not clickable (current page)
 }
 
 interface BreadcrumbProps {
@@ -325,6 +329,7 @@ Dashboard > Sprint Board (Active)
 ```
 
 **Specifications:**
+
 - Font: 12px, 500 weight
 - Color: `var(--text3)` (clickable), `var(--text2)` (current)
 - Separator: `>` with spacing
@@ -334,13 +339,13 @@ Dashboard > Sprint Board (Active)
 
 **Breadcrumb Trails by Page:**
 
-| Page | Breadcrumb Trail |
-|------|-----------------|
+| Page      | Breadcrumb Trail                    |
+| --------- | ----------------------------------- |
 | Dashboard | `Dashboard > Sprint Board (Active)` |
-| Code | `Code > File Explorer` |
-| Planning | `Planning > Roadmap` |
-| Team | `Team > Agent Grid` |
-| Retro | `Retro > Insights` |
+| Code      | `Code > File Explorer`              |
+| Planning  | `Planning > Roadmap`                |
+| Team      | `Team > Agent Grid`                 |
+| Retro     | `Retro > Insights`                  |
 
 ---
 
@@ -368,6 +373,7 @@ Dashboard > Sprint Board (Active)
 ```
 
 **Key Features:**
+
 - Auto-select active sprint on load
 - Default filter: "My Tickets" for developers
 - Quick actions visible above board
@@ -399,6 +405,7 @@ Dashboard > Sprint Board (Active)
 ```
 
 **Key Changes:**
+
 - Remove nested tabs, use single-level layout
 - Split view: Milestones (left) + Gantt (right)
 - Vision accessible via top-level tab or inline
@@ -407,11 +414,11 @@ Dashboard > Sprint Board (Active)
 
 **Tab Behavior:**
 
-| Tab | Shows | Focus |
-|-----|-------|-------|
-| Roadmap | Milestones + Gantt (split view) | Overview |
-| Timeline | Gantt only (full width) | Detailed timeline |
-| Vision | Vision editor (full page) | Product vision |
+| Tab      | Shows                           | Focus             |
+| -------- | ------------------------------- | ----------------- |
+| Roadmap  | Milestones + Gantt (split view) | Overview          |
+| Timeline | Gantt only (full width)         | Detailed timeline |
+| Vision   | Vision editor (full page)       | Product vision    |
 
 ---
 
@@ -419,16 +426,16 @@ Dashboard > Sprint Board (Active)
 
 ### Old → New URL Mapping
 
-| Old URL | Old Content | New URL | New Content | Migration |
-|---------|-------------|---------|-------------|-----------|
-| `#explorer` | Code Explorer | `#code` | Code Explorer | Redirect 301 |
-| `#planning` | Milestones tab | `#planning` | Roadmap (Milestones + Gantt) | Redirect 301 |
-| `#planning/vision` | Vision tab | `#planning?tab=vision` | Vision (full page) | Redirect 301 |
-| `#planning/gantt` | Gantt tab | `#planning?tab=timeline` | Timeline (Gantt) | Redirect 301 |
-| `#planning/insights` | Insights tab | `#retro` | Retro Insights | Redirect 301 |
-| `#sprint` | Board tab | `#dashboard` | Sprint Board (filtered) | Redirect 301 |
-| `#sprint/team` | Team tab | `#team` | Team Grid | Redirect 301 |
-| `#sprint/insights` | Insights tab | `#retro` | Retro Insights | Redirect 301 |
+| Old URL              | Old Content    | New URL                  | New Content                  | Migration    |
+| -------------------- | -------------- | ------------------------ | ---------------------------- | ------------ |
+| `#explorer`          | Code Explorer  | `#code`                  | Code Explorer                | Redirect 301 |
+| `#planning`          | Milestones tab | `#planning`              | Roadmap (Milestones + Gantt) | Redirect 301 |
+| `#planning/vision`   | Vision tab     | `#planning?tab=vision`   | Vision (full page)           | Redirect 301 |
+| `#planning/gantt`    | Gantt tab      | `#planning?tab=timeline` | Timeline (Gantt)             | Redirect 301 |
+| `#planning/insights` | Insights tab   | `#retro`                 | Retro Insights               | Redirect 301 |
+| `#sprint`            | Board tab      | `#dashboard`             | Sprint Board (filtered)      | Redirect 301 |
+| `#sprint/team`       | Team tab       | `#team`                  | Team Grid                    | Redirect 301 |
+| `#sprint/insights`   | Insights tab   | `#retro`                 | Retro Insights               | Redirect 301 |
 
 ### Redirect Implementation
 
@@ -485,7 +492,7 @@ export interface UIStore {
 // AFTER
 export interface UIStore {
   activePage: 'dashboard' | 'code' | 'planning' | 'team' | 'retro';
-  activeTab: string;  // For sub-views within pages (e.g., planning?tab=vision)
+  activeTab: string; // For sub-views within pages (e.g., planning?tab=vision)
   quickFilter: 'all' | 'mine' | 'blocked' | 'qa-pending';
   breadcrumbTrail: BreadcrumbItem[];
   // ...
@@ -693,21 +700,21 @@ interface UIStore {
 
 ### Keyboard Shortcuts
 
-| Shortcut | Action | Scope |
-|----------|--------|-------|
-| Alt + D | Go to Dashboard | Global |
-| Alt + C | Go to Code | Global |
-| Alt + P | Go to Planning | Global |
-| Alt + T | Go to Team | Global |
-| Alt + R | Go to Retro | Global |
-| Alt + M | Filter: My Tickets | Dashboard |
-| Alt + B | Filter: Blockers | Dashboard |
-| Alt + Q | Filter: QA Pending | Dashboard |
-| Alt + N | New Ticket | Dashboard |
-| Alt + / | Focus search | Global |
-| Escape | Close modal / clear filter | Global |
-| Arrow Left/Right | Navigate tabs | Navigation |
-| Home/End | First/Last tab | Navigation |
+| Shortcut         | Action                     | Scope      |
+| ---------------- | -------------------------- | ---------- |
+| Alt + D          | Go to Dashboard            | Global     |
+| Alt + C          | Go to Code                 | Global     |
+| Alt + P          | Go to Planning             | Global     |
+| Alt + T          | Go to Team                 | Global     |
+| Alt + R          | Go to Retro                | Global     |
+| Alt + M          | Filter: My Tickets         | Dashboard  |
+| Alt + B          | Filter: Blockers           | Dashboard  |
+| Alt + Q          | Filter: QA Pending         | Dashboard  |
+| Alt + N          | New Ticket                 | Dashboard  |
+| Alt + /          | Focus search               | Global     |
+| Escape           | Close modal / clear filter | Global     |
+| Arrow Left/Right | Navigate tabs              | Navigation |
+| Home/End         | First/Last tab             | Navigation |
 
 ---
 
@@ -733,13 +740,14 @@ const Retro = lazy(() => import('@/pages/Retro'));
 
 ### Bundle Size Impact
 
-| Change | Before | After | Delta |
-|--------|--------|-------|-------|
+| Change     | Before | After  | Delta         |
+| ---------- | ------ | ------ | ------------- |
 | JavaScript | ~450KB | ~420KB | -30KB (-6.7%) |
-| CSS | ~45KB | ~48KB | +3KB (+6.7%) |
-| Total | ~495KB | ~468KB | -27KB (-5.5%) |
+| CSS        | ~45KB  | ~48KB  | +3KB (+6.7%)  |
+| Total      | ~495KB | ~468KB | -27KB (-5.5%) |
 
 **Savings:** Reduced bundle size due to:
+
 - Removed duplicate tab components
 - Consolidated navigation logic
 - Removed nested state management
@@ -779,13 +787,13 @@ track('journey_complete', { journey: 'find_my_tickets', clicks: 2, time_ms: 3500
 
 ### Quantitative Metrics
 
-| Metric | Current | Target | Measurement |
-|--------|---------|--------|-------------|
-| Clicks to find tickets | 7 | 2-3 | User testing |
-| Time to first action | 8s | 3s | Analytics |
-| Tab visibility | 33% | 100% | Heuristic |
-| Navigation depth | 2 levels | 1 level | Architecture |
-| User satisfaction | N/A | 4.5/5 | Survey |
+| Metric                 | Current  | Target  | Measurement  |
+| ---------------------- | -------- | ------- | ------------ |
+| Clicks to find tickets | 7        | 2-3     | User testing |
+| Time to first action   | 8s       | 3s      | Analytics    |
+| Tab visibility         | 33%      | 100%    | Heuristic    |
+| Navigation depth       | 2 levels | 1 level | Architecture |
+| User satisfaction      | N/A      | 4.5/5   | Survey       |
 
 ### Qualitative Metrics
 

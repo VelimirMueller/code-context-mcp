@@ -48,9 +48,7 @@ export function TabBar({ tabs, activeTab, onTabChange }: TabBarProps) {
                   borderRadius: 2,
                 }}
                 transition={
-                  reduceMotion
-                    ? { duration: 0 }
-                    : { type: 'spring', stiffness: 400, damping: 30 }
+                  reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 400, damping: 30 }
                 }
               />
             )}

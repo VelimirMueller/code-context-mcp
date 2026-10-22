@@ -8,7 +8,12 @@ interface SkeletonProps {
   count?: number;
 }
 
-export function Skeleton({ width = '100%', height = 14, className = '', count = 1 }: SkeletonProps) {
+export function Skeleton({
+  width = '100%',
+  height = 14,
+  className = '',
+  count = 1,
+}: SkeletonProps) {
   const reduceMotion = useReducedMotion();
   const bars = Array.from({ length: count });
 
@@ -17,7 +22,8 @@ export function Skeleton({ width = '100%', height = 14, className = '', count = 
         background: 'var(--surface2)',
       }
     : {
-        background: 'linear-gradient(90deg, var(--surface2) 25%, var(--surface3) 50%, var(--surface2) 75%)',
+        background:
+          'linear-gradient(90deg, var(--surface2) 25%, var(--surface3) 50%, var(--surface2) 75%)',
         backgroundSize: '200% 100%',
         animation: 'shimmer 1.5s infinite',
       };

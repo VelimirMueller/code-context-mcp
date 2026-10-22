@@ -62,6 +62,7 @@
 ```
 
 **Key Features:**
+
 - Single-level navigation (5 tabs shown here; **6 tabs shipped** — Benchmark tab not shown in this wireframe)
 - Quick actions with count badges
 - Breadcrumb showing location
@@ -119,6 +120,7 @@
 ```
 
 **Key Features:**
+
 - Split view: Milestones (left) + Gantt (right)
 - No nested tabs — single level
 - Milestone progress percentages
@@ -176,6 +178,7 @@
 ```
 
 **Key Features:**
+
 - Grid view of all agents
 - Mood indicators with color coding
 - Ticket count per agent
@@ -236,6 +239,7 @@
 ```
 
 **Key Features:**
+
 - Hamburger menu for additional actions
 - Stacked layout for small screens
 - Sprint selector as dropdown
@@ -277,6 +281,7 @@
 ```
 
 **Key Features:**
+
 - Bottom sheet modal
 - Large touch targets
 - Count badges

@@ -71,12 +71,20 @@ export interface StochasticReport {
     effectLabel: string;
     significant: boolean;
   };
-  byTemplate: Record<string, { count: number; mcpMean: number; vanillaMean: number; savingsPct: number }>;
+  byTemplate: Record<
+    string,
+    { count: number; mcpMean: number; vanillaMean: number; savingsPct: number }
+  >;
 }
 
 /* ─── Real bench runs (ccc-bench/1, served by /api/bench/*) ─────────────── */
 
-export type BenchKind = 'agent-opus' | 'agent-glm' | 'agent-deepseek' | 'simulated' | 'agent-claude';
+export type BenchKind =
+  | 'agent-opus'
+  | 'agent-glm'
+  | 'agent-deepseek'
+  | 'simulated'
+  | 'agent-claude';
 
 /** Min–max of a per-repeat saved % (CCA-08). */
 export interface SavedSpread {
@@ -323,11 +331,19 @@ export const useBenchmarkStore = create<BenchmarkStore>((set, getState) => ({
         benchRuns: runs,
         benchSource: res.source,
         benchMessage: res.message ?? null,
-        selectedRunId: current && runs.some((r) => runKey(r) === current) ? current : (runs[0] ? runKey(runs[0]) : null),
+        selectedRunId:
+          current && runs.some((r) => runKey(r) === current)
+            ? current
+            : runs[0]
+              ? runKey(runs[0])
+              : null,
       });
       // Version + notes live only in the run files: load the newest run per kind
       // (public and private apart, so both filters have their cards filled).
-      const newest = [...latestPerKind(filterRuns(runs, 'public')), ...latestPerKind(filterRuns(runs, 'private'))];
+      const newest = [
+        ...latestPerKind(filterRuns(runs, 'public')),
+        ...latestPerKind(filterRuns(runs, 'private')),
+      ];
       await Promise.all(newest.map((r) => getState().fetchRun(runKey(r))));
     } catch (e) {
       set({ benchError: (e as Error).message });
@@ -343,7 +359,9 @@ export const useBenchmarkStore = create<BenchmarkStore>((set, getState) => ({
     // Private runs come from the same local server, from their own suite dir.
     const query = entry?.source_key ? `?suite=${encodeURIComponent(entry.source_key)}` : '';
     try {
-      const res = await get<{ run: BenchRun }>(`/api/bench/run/${encodeURIComponent(runId)}${query}`);
+      const res = await get<{ run: BenchRun }>(
+        `/api/bench/run/${encodeURIComponent(runId)}${query}`,
+      );
       set((s) => ({ runDetails: { ...s.runDetails, [key]: res.run } }));
     } catch (e) {
       set((s) => ({ runErrors: { ...s.runErrors, [key]: (e as Error).message } }));
@@ -359,7 +377,7 @@ export const useBenchmarkStore = create<BenchmarkStore>((set, getState) => ({
     const { benchRuns, selectedRunId } = getState();
     const visible = filterRuns(benchRuns, f);
     const keep = visible.some((r) => runKey(r) === selectedRunId);
-    const next = keep ? selectedRunId : (visible[0] ? runKey(visible[0]) : selectedRunId);
+    const next = keep ? selectedRunId : visible[0] ? runKey(visible[0]) : selectedRunId;
     set({ benchFilter: f, selectedRunId: next });
     if (next) void getState().fetchRun(next);
   },

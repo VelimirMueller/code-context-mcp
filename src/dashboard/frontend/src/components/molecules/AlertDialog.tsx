@@ -70,12 +70,8 @@ export function AlertDialog({
           boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
         }}
       >
-        <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>
-          {title}
-        </div>
-        <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.6 }}>
-          {message}
-        </div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{title}</div>
+        <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.6 }}>{message}</div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
           <button
             onClick={onCancel}
@@ -96,8 +92,12 @@ export function AlertDialog({
           <button
             ref={confirmRef}
             onClick={onConfirm}
-            onMouseEnter={(e) => { e.currentTarget.style.background = confirmHoverBg; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = confirmBg; }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = confirmHoverBg;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = confirmBg;
+            }}
             style={{
               background: confirmBg,
               color: '#fff',

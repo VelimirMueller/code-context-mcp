@@ -120,7 +120,16 @@ export function AgentCard({ agent, onEdit }: AgentCardProps) {
               e.currentTarget.style.color = 'var(--text3)';
             }}
           >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
               <path d="m15 5 4 4" />
             </svg>
@@ -139,7 +148,16 @@ export function AgentCard({ agent, onEdit }: AgentCardProps) {
               e.currentTarget.style.color = 'var(--text3)';
             }}
           >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
@@ -245,7 +263,8 @@ export function AgentCard({ agent, onEdit }: AgentCardProps) {
                       padding: '6px 10px',
                       fontSize: 11,
                       color: agent.model === opt.value ? '#fff' : 'var(--text)',
-                      background: agent.model === opt.value ? MODEL_COLORS[opt.value] : 'transparent',
+                      background:
+                        agent.model === opt.value ? MODEL_COLORS[opt.value] : 'transparent',
                       border: 'none',
                       cursor: 'pointer',
                       textAlign: 'left',

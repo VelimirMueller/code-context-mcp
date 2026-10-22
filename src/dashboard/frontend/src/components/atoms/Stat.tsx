@@ -20,7 +20,14 @@ export function Stat({ value, label, mono = true }: StatProps) {
       >
         {value}
       </span>
-      <span style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+      <span
+        style={{
+          fontSize: 10,
+          color: 'var(--text3)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.06em',
+        }}
+      >
         {label}
       </span>
     </div>

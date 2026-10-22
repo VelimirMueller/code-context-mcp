@@ -95,9 +95,7 @@ export function TicketCard({ ticket, onClick, onEdit }: TicketCardProps) {
         ) : (
           <span>{ticket.assigned_to ?? '—'}</span>
         )}
-        <span style={{ fontFamily: 'var(--mono)' }}>
-          {ticket.story_points ?? 0}sp
-        </span>
+        <span style={{ fontFamily: 'var(--mono)' }}>{ticket.story_points ?? 0}sp</span>
       </div>
 
       {ticket.epic_name && (
@@ -130,24 +128,60 @@ export function TicketCard({ ticket, onClick, onEdit }: TicketCardProps) {
           <button
             aria-label="Edit ticket"
             title="Edit ticket"
-            onClick={(e) => { e.stopPropagation(); onEdit(); }}
-            style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text3)', cursor: 'pointer' }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit();
+            }}
+            style={{
+              fontSize: 9,
+              padding: '2px 6px',
+              borderRadius: 4,
+              border: '1px solid var(--border)',
+              background: 'var(--surface)',
+              color: 'var(--text3)',
+              cursor: 'pointer',
+            }}
           >
             ✎ Edit
           </button>
         )}
         {ticket.status === 'TODO' && !ticket.assigned_to && (
           <button
-            onClick={(e) => { e.stopPropagation(); queueAction('assign_ticket', 'ticket', ticket.id, { ticket_ref: ticket.ticket_ref }); }}
-            style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text3)', cursor: 'pointer' }}
+            onClick={(e) => {
+              e.stopPropagation();
+              queueAction('assign_ticket', 'ticket', ticket.id, { ticket_ref: ticket.ticket_ref });
+            }}
+            style={{
+              fontSize: 9,
+              padding: '2px 6px',
+              borderRadius: 4,
+              border: '1px solid var(--border)',
+              background: 'var(--surface)',
+              color: 'var(--text3)',
+              cursor: 'pointer',
+            }}
           >
             Assign
           </button>
         )}
         {ticket.status !== 'DONE' && (
           <button
-            onClick={(e) => { e.stopPropagation(); queueAction('update_ticket', 'ticket', ticket.id, { status: 'DONE', ticket_ref: ticket.ticket_ref }); }}
-            style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--green, #10b981)', cursor: 'pointer' }}
+            onClick={(e) => {
+              e.stopPropagation();
+              queueAction('update_ticket', 'ticket', ticket.id, {
+                status: 'DONE',
+                ticket_ref: ticket.ticket_ref,
+              });
+            }}
+            style={{
+              fontSize: 9,
+              padding: '2px 6px',
+              borderRadius: 4,
+              border: '1px solid var(--border)',
+              background: 'var(--surface)',
+              color: 'var(--green, #10b981)',
+              cursor: 'pointer',
+            }}
           >
             Done
           </button>

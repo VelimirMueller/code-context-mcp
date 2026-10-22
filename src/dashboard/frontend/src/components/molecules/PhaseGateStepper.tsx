@@ -69,7 +69,14 @@ export function PhaseGateStepper({ currentPhase, sprintId, updatedAt }: PhaseGat
           const style = getPhaseStyle(phase);
 
           return (
-            <div key={phase} style={{ display: 'flex', alignItems: 'center', flex: idx < PHASE_ORDER.length - 1 ? 1 : 0 }}>
+            <div
+              key={phase}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                flex: idx < PHASE_ORDER.length - 1 ? 1 : 0,
+              }}
+            >
               {/* Circle */}
               <div
                 style={{
@@ -86,14 +93,27 @@ export function PhaseGateStepper({ currentPhase, sprintId, updatedAt }: PhaseGat
                   ...(isCompleted
                     ? { background: '#10b981', color: 'white', border: '2px solid #10b981' }
                     : isCurrent
-                      ? { background: style.bg, color: 'white', border: `2px solid ${style.border}` }
-                      : { background: 'transparent', color: 'var(--text3)', border: '2px solid var(--border)' }
-                  ),
+                      ? {
+                          background: style.bg,
+                          color: 'white',
+                          border: `2px solid ${style.border}`,
+                        }
+                      : {
+                          background: 'transparent',
+                          color: 'var(--text3)',
+                          border: '2px solid var(--border)',
+                        }),
                 }}
               >
                 {isCompleted ? (
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <path d="M2 6L5 9L10 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path
+                      d="M2 6L5 9L10 3"
+                      stroke="white"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
                   </svg>
                 ) : (
                   <span>{idx + 1}</span>
@@ -124,13 +144,18 @@ export function PhaseGateStepper({ currentPhase, sprintId, updatedAt }: PhaseGat
           const isCurrent = idx === currentIdx;
           const style = getPhaseStyle(phase);
           return (
-            <div key={phase} style={{ flex: idx < PHASE_ORDER.length - 1 ? 1 : 0, textAlign: 'left' }}>
-              <div style={{
-                fontSize: 9,
-                fontWeight: 600,
-                color: isCurrent ? style.bg : isCompleted ? '#10b981' : 'var(--text3)',
-                textTransform: 'uppercase',
-              }}>
+            <div
+              key={phase}
+              style={{ flex: idx < PHASE_ORDER.length - 1 ? 1 : 0, textAlign: 'left' }}
+            >
+              <div
+                style={{
+                  fontSize: 9,
+                  fontWeight: 600,
+                  color: isCurrent ? style.bg : isCompleted ? '#10b981' : 'var(--text3)',
+                  textTransform: 'uppercase',
+                }}
+              >
                 {style.label}
               </div>
             </div>
@@ -162,26 +187,45 @@ export function PhaseGateStepper({ currentPhase, sprintId, updatedAt }: PhaseGat
             }}
           >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <circle cx="6" cy="6" r="5" stroke="white" strokeWidth="1.5"/>
-              <line x1="6" y1="3" x2="6" y2="6.5" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
-              <circle cx="6" cy="8.5" r="0.75" fill="white"/>
+              <circle cx="6" cy="6" r="5" stroke="white" strokeWidth="1.5" />
+              <line
+                x1="6"
+                y1="3"
+                x2="6"
+                y2="6.5"
+                stroke="white"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+              <circle cx="6" cy="8.5" r="0.75" fill="white" />
             </svg>
             {sending ? 'Notifying...' : `Stuck in ${getPhaseStyle(currentPhase).label}`}
           </button>
-          <span style={{ fontSize: 10, color: 'var(--text3)' }}>
-            10+ min in this phase
-          </span>
+          <span style={{ fontSize: 10, color: 'var(--text3)' }}>10+ min in this phase</span>
         </div>
       )}
 
       {/* Stuck confirmation */}
       {stuckSent && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 6, marginTop: 4,
-          fontSize: 11, color: 'var(--text3)', fontStyle: 'italic',
-        }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            marginTop: 4,
+            fontSize: 11,
+            color: 'var(--text3)',
+            fontStyle: 'italic',
+          }}
+        >
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path d="M2 6L5 9L10 3" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path
+              d="M2 6L5 9L10 3"
+              stroke="#10b981"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
           Claude notified — sprint is stuck in {getPhaseStyle(currentPhase).label}
         </div>

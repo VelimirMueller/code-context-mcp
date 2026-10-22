@@ -42,36 +42,56 @@ export interface UIStore {
 
 function defaultTabForPage(page: string): string {
   switch (page) {
-    case 'code':      return 'files';
-    case 'planning':  return 'planning';
-    case 'dashboard': return 'board';
-    case 'team':      return 'grid';
-    case 'retro':     return 'insights';
-    case 'benchmark': return 'overview';
-    default:          return 'board';
+    case 'code':
+      return 'files';
+    case 'planning':
+      return 'planning';
+    case 'dashboard':
+      return 'board';
+    case 'team':
+      return 'grid';
+    case 'retro':
+      return 'insights';
+    case 'benchmark':
+      return 'overview';
+    default:
+      return 'board';
   }
 }
 
 function breadcrumbForPage(page: string): BreadcrumbItem[] {
   switch (page) {
-    case 'dashboard': return [{ label: 'Dashboard' }, { label: 'Sprint Board' }];
-    case 'code':      return [{ label: 'Code' }, { label: 'Explorer' }];
-    case 'planning':  return [{ label: 'Planning' }, { label: 'Vision' }];
-    case 'team':      return [{ label: 'Team' }, { label: 'Overview' }];
-    case 'retro':     return [{ label: 'Retro' }, { label: 'Insights' }];
-    case 'benchmark': return [{ label: 'Benchmark' }, { label: 'Overview' }];
-    default:          return [{ label: 'Dashboard' }];
+    case 'dashboard':
+      return [{ label: 'Dashboard' }, { label: 'Sprint Board' }];
+    case 'code':
+      return [{ label: 'Code' }, { label: 'Explorer' }];
+    case 'planning':
+      return [{ label: 'Planning' }, { label: 'Vision' }];
+    case 'team':
+      return [{ label: 'Team' }, { label: 'Overview' }];
+    case 'retro':
+      return [{ label: 'Retro' }, { label: 'Insights' }];
+    case 'benchmark':
+      return [{ label: 'Benchmark' }, { label: 'Overview' }];
+    default:
+      return [{ label: 'Dashboard' }];
   }
 }
 
 function getDefaultPageForRole(role: UserRole): PageType {
   switch (role) {
-    case 'developer':      return 'dashboard';
-    case 'tech-lead':      return 'planning';
-    case 'product-owner':  return 'planning';
-    case 'qa':             return 'dashboard';
-    case 'designer':       return 'team';
-    default:               return 'dashboard';
+    case 'developer':
+      return 'dashboard';
+    case 'tech-lead':
+      return 'planning';
+    case 'product-owner':
+      return 'planning';
+    case 'qa':
+      return 'dashboard';
+    case 'designer':
+      return 'team';
+    default:
+      return 'dashboard';
   }
 }
 
@@ -96,10 +116,7 @@ export const useUIStore = create<UIStore>()(
 
       // New navigation state
       quickFilter: 'all',
-      breadcrumbTrail: [
-        { label: 'Dashboard' },
-        { label: 'Sprint Board (Active)' },
-      ],
+      breadcrumbTrail: [{ label: 'Dashboard' }, { label: 'Sprint Board (Active)' }],
       userRole: 'developer',
 
       setPage: (page) =>
@@ -110,16 +127,17 @@ export const useUIStore = create<UIStore>()(
           breadcrumbTrail: breadcrumbForPage(page),
         }),
 
-      setTab: (tab) => set((s) => {
-        const trail = [...s.breadcrumbTrail];
-        const tabLabel = tab.charAt(0).toUpperCase() + tab.slice(1);
-        if (trail.length >= 2) {
-          trail[1] = { label: tabLabel };
-        } else {
-          trail.push({ label: tabLabel });
-        }
-        return { activeTab: tab, activeSubTab: null, breadcrumbTrail: trail };
-      }),
+      setTab: (tab) =>
+        set((s) => {
+          const trail = [...s.breadcrumbTrail];
+          const tabLabel = tab.charAt(0).toUpperCase() + tab.slice(1);
+          if (trail.length >= 2) {
+            trail[1] = { label: tabLabel };
+          } else {
+            trail.push({ label: tabLabel });
+          }
+          return { activeTab: tab, activeSubTab: null, breadcrumbTrail: trail };
+        }),
 
       setSubTab: (subTab) => set({ activeSubTab: subTab }),
 

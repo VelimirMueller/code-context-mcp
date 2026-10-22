@@ -36,8 +36,13 @@ function DetailTab() {
 
   if (!selectedFileId && !fileDetail) {
     return (
-      <div className="empty" style={{ padding: '64px 40px', textAlign: 'center', color: 'var(--text3)' }}>
-        <div className="empty-icon" style={{ fontSize: 32, marginBottom: 16, opacity: 0.3 }}>📄</div>
+      <div
+        className="empty"
+        style={{ padding: '64px 40px', textAlign: 'center', color: 'var(--text3)' }}
+      >
+        <div className="empty-icon" style={{ fontSize: 32, marginBottom: 16, opacity: 0.3 }}>
+          📄
+        </div>
         <div>Select a file to view details</div>
       </div>
     );
@@ -72,11 +77,11 @@ function DetailTab() {
           {' · '}
           <span style={{ fontFamily: 'var(--mono)' }}>{fmtSize(d.size_bytes ?? 0)}</span>
         </div>
-        {d.description && (
-          <div className="detail-desc">{d.description}</div>
-        )}
+        {d.description && <div className="detail-desc">{d.description}</div>}
         {d.summary && d.summary !== d.description && (
-          <div className="detail-desc" style={{ marginTop: 4, fontStyle: 'italic' }}>{d.summary}</div>
+          <div className="detail-desc" style={{ marginTop: 4, fontStyle: 'italic' }}>
+            {d.summary}
+          </div>
         )}
       </div>
 
@@ -91,10 +96,23 @@ function DetailTab() {
                 <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                   <Badge text={e.name} variant="pkg" />
                   {e.kind && (
-                    <span style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>{e.kind}</span>
+                    <span
+                      style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--mono)' }}
+                    >
+                      {e.kind}
+                    </span>
                   )}
                   {e.description && (
-                    <span style={{ fontSize: 11, color: 'var(--text2)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        color: 'var(--text2)',
+                        flex: 1,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
                       {e.description}
                     </span>
                   )}
@@ -152,8 +170,13 @@ function ChangesTab() {
 
   if (!selectedFileId) {
     return (
-      <div className="empty" style={{ padding: '64px 40px', textAlign: 'center', color: 'var(--text3)' }}>
-        <div className="empty-icon" style={{ fontSize: 32, marginBottom: 16, opacity: 0.3 }}>🕐</div>
+      <div
+        className="empty"
+        style={{ padding: '64px 40px', textAlign: 'center', color: 'var(--text3)' }}
+      >
+        <div className="empty-icon" style={{ fontSize: 32, marginBottom: 16, opacity: 0.3 }}>
+          🕐
+        </div>
         <div>Select a file to view its change history</div>
       </div>
     );
@@ -169,8 +192,13 @@ function ChangesTab() {
 
   if (!fileChanges || !fileChanges.length) {
     return (
-      <div className="empty" style={{ padding: '48px 40px', textAlign: 'center', color: 'var(--text3)' }}>
-        <div className="empty-icon" style={{ fontSize: 28, marginBottom: 12, opacity: 0.3 }}>📋</div>
+      <div
+        className="empty"
+        style={{ padding: '48px 40px', textAlign: 'center', color: 'var(--text3)' }}
+      >
+        <div className="empty-icon" style={{ fontSize: 28, marginBottom: 12, opacity: 0.3 }}>
+          📋
+        </div>
         <div>No changes recorded</div>
       </div>
     );
@@ -214,9 +242,18 @@ function ChangesTab() {
                 {dateStr} {timeStr}
               </span>
               {lineDiff !== 0 && (
-                <span style={{ marginLeft: 'auto', display: 'flex', gap: 8, fontSize: 11, fontFamily: 'var(--mono)' }}>
+                <span
+                  style={{
+                    marginLeft: 'auto',
+                    display: 'flex',
+                    gap: 8,
+                    fontSize: 11,
+                    fontFamily: 'var(--mono)',
+                  }}
+                >
                   <span style={{ color: lineDiff > 0 ? 'var(--green)' : 'var(--red)' }}>
-                    {lineDiff > 0 ? '+' : ''}{lineDiff} lines
+                    {lineDiff > 0 ? '+' : ''}
+                    {lineDiff} lines
                   </span>
                 </span>
               )}
@@ -227,7 +264,9 @@ function ChangesTab() {
               </div>
             )}
             {change.reason && (
-              <div style={{ marginTop: 4, fontSize: 11, color: 'var(--text3)', fontStyle: 'italic' }}>
+              <div
+                style={{ marginTop: 4, fontSize: 11, color: 'var(--text3)', fontStyle: 'italic' }}
+              >
                 {change.reason}
               </div>
             )}
@@ -270,7 +309,14 @@ export function CodeExplorer() {
       >
         <div className="logo" style={{ flexShrink: 0 }}>
           <div className="logo-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" width="16" height="16">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="white"
+              strokeWidth="2"
+              width="16"
+              height="16"
+            >
               <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
             </svg>
           </div>
@@ -328,7 +374,17 @@ export function CodeExplorer() {
               overflow: 'hidden',
             }}
           >
-            <div className="sidebar-head" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+            <div
+              className="sidebar-head"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '12px 16px',
+                borderBottom: '1px solid var(--border)',
+                flexShrink: 0,
+              }}
+            >
               <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }}>Files</span>
               <span
                 className="count"
@@ -345,7 +401,10 @@ export function CodeExplorer() {
                 {files.length}
               </span>
             </div>
-            <div className="sidebar-body" style={{ flex: 1, overflowY: 'auto', padding: '10px 12px', minHeight: 0 }}>
+            <div
+              className="sidebar-body"
+              style={{ flex: 1, overflowY: 'auto', padding: '10px 12px', minHeight: 0 }}
+            >
               <ErrorBoundary>
                 <FileTree />
               </ErrorBoundary>
@@ -364,11 +423,7 @@ export function CodeExplorer() {
               minWidth: 0,
             }}
           >
-            <TabBar
-              tabs={EXPLORER_TABS}
-              activeTab={explorerTab}
-              onTabChange={setTab}
-            />
+            <TabBar tabs={EXPLORER_TABS} activeTab={explorerTab} onTabChange={setTab} />
 
             <HeroText>
               {'Tracking '}
@@ -380,7 +435,15 @@ export function CodeExplorer() {
               {' exports indexed'}
             </HeroText>
 
-            <div style={{ flex: 1, overflowY: explorerTab === 'graph' ? 'hidden' : 'auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            <div
+              style={{
+                flex: 1,
+                overflowY: explorerTab === 'graph' ? 'hidden' : 'auto',
+                minHeight: 0,
+                display: 'flex',
+                flexDirection: 'column',
+              }}
+            >
               <ErrorBoundary key={explorerTab}>
                 {explorerTab === 'detail' && <DetailTab />}
                 {explorerTab === 'changes' && <ChangesTab />}
@@ -413,33 +476,110 @@ export function CodeExplorer() {
             <AnimatedNumber value={files.length} />
             {' files indexed'}
           </HeroText>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, padding: '0 20px' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+              gap: 12,
+              padding: '0 20px',
+            }}
+          >
             {[
               { label: 'Files', value: files.length },
               { label: 'Directories', value: directories.length },
               { label: 'Exports', value: stats?.exports ?? 0 },
               { label: 'Dependencies', value: stats?.deps ?? 0 },
             ].map((s) => (
-              <div key={s.label} style={{ padding: 16, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, textAlign: 'center' }}>
-                <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 6 }}>{s.label}</div>
-                <div style={{ fontSize: 24, fontWeight: 700, fontFamily: 'var(--mono)', color: 'var(--text)' }}>{s.value}</div>
+              <div
+                key={s.label}
+                style={{
+                  padding: 16,
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  textAlign: 'center',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: 'var(--text3)',
+                    textTransform: 'uppercase',
+                    marginBottom: 6,
+                  }}
+                >
+                  {s.label}
+                </div>
+                <div
+                  style={{
+                    fontSize: 24,
+                    fontWeight: 700,
+                    fontFamily: 'var(--mono)',
+                    color: 'var(--text)',
+                  }}
+                >
+                  {s.value}
+                </div>
               </div>
             ))}
           </div>
           {stats?.extensions && Array.isArray(stats.extensions) && stats.extensions.length > 0 && (
             <div style={{ padding: '20px 20px 0' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>File Types</div>
+              <div
+                style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}
+              >
+                File Types
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {(stats.extensions as { extension: string; c: number }[]).map((ext) => {
                   const pct = files.length > 0 ? (ext.c / files.length) * 100 : 0;
                   const color = langColors[ext.extension] || 'var(--accent)';
                   return (
-                    <div key={ext.extension} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ width: 60, fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--text2)', fontWeight: 600 }}>{ext.extension}</div>
-                      <div style={{ flex: 1, height: 8, background: 'var(--border)', borderRadius: 4, overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 4 }} />
+                    <div
+                      key={ext.extension}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10 }}
+                    >
+                      <div
+                        style={{
+                          width: 60,
+                          fontSize: 12,
+                          fontFamily: 'var(--mono)',
+                          color: 'var(--text2)',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {ext.extension}
                       </div>
-                      <div style={{ width: 40, fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text3)', textAlign: 'right' }}>{ext.c}</div>
+                      <div
+                        style={{
+                          flex: 1,
+                          height: 8,
+                          background: 'var(--border)',
+                          borderRadius: 4,
+                          overflow: 'hidden',
+                        }}
+                      >
+                        <div
+                          style={{
+                            height: '100%',
+                            width: `${pct}%`,
+                            background: color,
+                            borderRadius: 4,
+                          }}
+                        />
+                      </div>
+                      <div
+                        style={{
+                          width: 40,
+                          fontSize: 11,
+                          fontFamily: 'var(--mono)',
+                          color: 'var(--text3)',
+                          textAlign: 'right',
+                        }}
+                      >
+                        {ext.c}
+                      </div>
                     </div>
                   );
                 })}

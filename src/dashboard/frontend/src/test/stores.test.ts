@@ -116,7 +116,21 @@ describe('sprintStore', () => {
   it('getFilteredTickets returns all when filter is all', () => {
     useSprintStore.setState({
       tickets: [
-        { id: 1, ticket_ref: 'T-1', title: 'A', description: null, priority: 'P1', status: 'TODO', assigned_to: null, story_points: 3, milestone: null, qa_verified: 0, verified_by: null, acceptance_criteria: null, notes: null },
+        {
+          id: 1,
+          ticket_ref: 'T-1',
+          title: 'A',
+          description: null,
+          priority: 'P1',
+          status: 'TODO',
+          assigned_to: null,
+          story_points: 3,
+          milestone: null,
+          qa_verified: 0,
+          verified_by: null,
+          acceptance_criteria: null,
+          notes: null,
+        },
       ] as any[],
       ticketFilter: 'all',
     });
@@ -132,7 +146,7 @@ describe('sprintStore', () => {
       ticketFilter: 'blocked',
     });
     const filtered = useSprintStore.getState().getFilteredTickets();
-    expect(filtered.every(t => t.status === 'BLOCKED')).toBe(true);
+    expect(filtered.every((t) => t.status === 'BLOCKED')).toBe(true);
   });
 
   // ─── archive actions (T-220) ─────────────────────────────────────────
@@ -142,7 +156,9 @@ describe('sprintStore', () => {
     await useSprintStore.getState().archiveSprint(7);
 
     const calls = mockFetch.mock.calls;
-    expect(calls.some(([p, i]) => p === '/api/sprint/7/archive' && i?.method === 'POST')).toBe(true);
+    expect(calls.some(([p, i]) => p === '/api/sprint/7/archive' && i?.method === 'POST')).toBe(
+      true,
+    );
     expect(calls.some(([p]) => p === '/api/sprints/grouped')).toBe(true);
     expect(calls.some(([p]) => p === '/api/sprints')).toBe(true);
   });
@@ -159,7 +175,12 @@ describe('sprintStore', () => {
   it('archiveSprint shows an error toast when the post fails', async () => {
     mockFetch.mockImplementation((path: string, init?: RequestInit) => {
       if (path === '/api/sprint/7/archive' && init?.method === 'POST') {
-        return Promise.resolve({ ok: false, status: 400, statusText: 'Bad Request', json: async () => ({}) });
+        return Promise.resolve({
+          ok: false,
+          status: 400,
+          statusText: 'Bad Request',
+          json: async () => ({}),
+        });
       }
       return Promise.resolve({ ok: true, json: async () => ({}) });
     });
@@ -174,7 +195,9 @@ describe('sprintStore', () => {
     await useSprintStore.getState().unarchiveSprint(7);
 
     const calls = mockFetch.mock.calls;
-    expect(calls.some(([p, i]) => p === '/api/sprint/7/unarchive' && i?.method === 'POST')).toBe(true);
+    expect(calls.some(([p, i]) => p === '/api/sprint/7/unarchive' && i?.method === 'POST')).toBe(
+      true,
+    );
     expect(calls.some(([p]) => p === '/api/sprints/grouped')).toBe(true);
     const toasts = useToastStore.getState().toasts;
     expect(toasts).toHaveLength(1);
@@ -185,7 +208,12 @@ describe('sprintStore', () => {
   it('unarchiveSprint shows an error toast when the post fails', async () => {
     mockFetch.mockImplementation((path: string, init?: RequestInit) => {
       if (path === '/api/sprint/7/unarchive' && init?.method === 'POST') {
-        return Promise.resolve({ ok: false, status: 404, statusText: 'Not Found', json: async () => ({}) });
+        return Promise.resolve({
+          ok: false,
+          status: 404,
+          statusText: 'Not Found',
+          json: async () => ({}),
+        });
       }
       return Promise.resolve({ ok: true, json: async () => ({}) });
     });
@@ -200,7 +228,9 @@ describe('sprintStore', () => {
     await useSprintStore.getState().archiveAllCompleted();
 
     const calls = mockFetch.mock.calls;
-    expect(calls.some(([p, i]) => p === '/api/sprints/archive-completed' && i?.method === 'POST')).toBe(true);
+    expect(
+      calls.some(([p, i]) => p === '/api/sprints/archive-completed' && i?.method === 'POST'),
+    ).toBe(true);
     expect(calls.some(([p]) => p === '/api/sprints/grouped')).toBe(true);
     const toasts = useToastStore.getState().toasts;
     expect(toasts).toHaveLength(1);
@@ -211,7 +241,12 @@ describe('sprintStore', () => {
   it('archiveAllCompleted shows an error toast when the post fails', async () => {
     mockFetch.mockImplementation((path: string, init?: RequestInit) => {
       if (path === '/api/sprints/archive-completed' && init?.method === 'POST') {
-        return Promise.resolve({ ok: false, status: 500, statusText: 'Server Error', json: async () => ({}) });
+        return Promise.resolve({
+          ok: false,
+          status: 500,
+          statusText: 'Server Error',
+          json: async () => ({}),
+        });
       }
       return Promise.resolve({ ok: true, json: async () => ({}) });
     });
@@ -285,7 +320,18 @@ describe('planningStore', () => {
   });
 
   it('fetchMilestones populates milestones', async () => {
-    const milestones = [{ id: 1, name: 'M1', description: 'Milestone 1', status: 'active', target_date: null, progress: 50, ticket_count: 10, done_count: 5 }];
+    const milestones = [
+      {
+        id: 1,
+        name: 'M1',
+        description: 'Milestone 1',
+        status: 'active',
+        target_date: null,
+        progress: 50,
+        ticket_count: 10,
+        done_count: 5,
+      },
+    ];
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => milestones });
 
     await usePlanningStore.getState().fetchMilestones();
@@ -294,7 +340,10 @@ describe('planningStore', () => {
   });
 
   it('fetchVision sets vision string', async () => {
-    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ content: '# Vision\nBe great.' }) });
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ content: '# Vision\nBe great.' }),
+    });
 
     await usePlanningStore.getState().fetchVision();
     expect(usePlanningStore.getState().vision).toBe('# Vision\nBe great.');
@@ -305,20 +354,46 @@ describe('planningStore', () => {
   it('archiveMilestone posts to the archive endpoint, refetches milestones and toasts', async () => {
     const { useToastStore } = await import('@/stores/toastStore');
     useToastStore.setState({ toasts: [] });
-    const archived = [{ id: 4, name: 'M4', description: null, status: 'completed', target_date: null, progress: 100, ticket_count: 0, done_count: 0, archived_at: '2026-10-09 10:00:00' }];
+    const archived = [
+      {
+        id: 4,
+        name: 'M4',
+        description: null,
+        status: 'completed',
+        target_date: null,
+        progress: 100,
+        ticket_count: 0,
+        done_count: 0,
+        archived_at: '2026-10-09 10:00:00',
+      },
+    ];
     mockFetch.mockImplementation((path: string, init?: RequestInit) =>
-      Promise.resolve({ ok: true, json: async () => (path === '/api/milestones' ? archived : init?.method === 'POST' ? { ok: true } : {}) }),
+      Promise.resolve({
+        ok: true,
+        json: async () =>
+          path === '/api/milestones' ? archived : init?.method === 'POST' ? { ok: true } : {},
+      }),
     );
     await usePlanningStore.getState().archiveMilestone(4);
-    expect(mockFetch.mock.calls.some(([p, i]) => p === '/api/milestone/4/archive' && i?.method === 'POST')).toBe(true);
+    expect(
+      mockFetch.mock.calls.some(
+        ([p, i]) => p === '/api/milestone/4/archive' && i?.method === 'POST',
+      ),
+    ).toBe(true);
     expect(usePlanningStore.getState().milestones).toEqual(archived);
-    expect(useToastStore.getState().toasts.map((t) => [t.type, t.message])).toEqual([['success', 'Milestone archived']]);
+    expect(useToastStore.getState().toasts.map((t) => [t.type, t.message])).toEqual([
+      ['success', 'Milestone archived'],
+    ]);
   });
 
   it('unarchiveMilestone posts to the unarchive endpoint', async () => {
     mockFetch.mockImplementation(() => Promise.resolve({ ok: true, json: async () => [] }));
     await usePlanningStore.getState().unarchiveMilestone(4);
-    expect(mockFetch.mock.calls.some(([p, i]) => p === '/api/milestone/4/unarchive' && i?.method === 'POST')).toBe(true);
+    expect(
+      mockFetch.mock.calls.some(
+        ([p, i]) => p === '/api/milestone/4/unarchive' && i?.method === 'POST',
+      ),
+    ).toBe(true);
   });
 
   it('archiveMilestone surfaces the server error (e.g. not completed) as an error toast', async () => {
@@ -326,7 +401,12 @@ describe('planningStore', () => {
     useToastStore.setState({ toasts: [] });
     mockFetch.mockImplementation((path: string, init?: RequestInit) =>
       path === '/api/milestone/4/archive' && init?.method === 'POST'
-        ? Promise.resolve({ ok: false, status: 400, statusText: 'Bad Request', json: async () => ({ ok: false, error: 'only completed milestones can be archived' }) })
+        ? Promise.resolve({
+            ok: false,
+            status: 400,
+            statusText: 'Bad Request',
+            json: async () => ({ ok: false, error: 'only completed milestones can be archived' }),
+          })
         : Promise.resolve({ ok: true, json: async () => [] }),
     );
     await usePlanningStore.getState().archiveMilestone(4);
@@ -344,7 +424,13 @@ describe('benchmarkStore bench runs', () => {
   let latestPerKind: typeof import('@/stores/benchmarkStore').latestPerKind;
 
   const entry = (run_id: string, kind: string, date: string) => ({
-    run_id, kind, date, ts: `${date}T00:00:00Z`, model: null, trigger: 'manual', headline: null,
+    run_id,
+    kind,
+    date,
+    ts: `${date}T00:00:00Z`,
+    model: null,
+    trigger: 'manual',
+    headline: null,
   });
   const runs = [
     entry('glm-2', 'agent-glm', '2026-10-11'),
@@ -356,7 +442,13 @@ describe('benchmarkStore bench runs', () => {
     const mod = await import('@/stores/benchmarkStore');
     useBenchmarkStore = mod.useBenchmarkStore;
     latestPerKind = mod.latestPerKind;
-    useBenchmarkStore.setState({ benchRuns: [], runDetails: {}, runErrors: {}, selectedRunId: null, benchMessage: null });
+    useBenchmarkStore.setState({
+      benchRuns: [],
+      runDetails: {},
+      runErrors: {},
+      selectedRunId: null,
+      benchMessage: null,
+    });
     mockFetch.mockReset();
   });
 
@@ -370,7 +462,10 @@ describe('benchmarkStore bench runs', () => {
         ok: true,
         json: async () =>
           path === '/api/bench/index'
-            ? { source: { type: 'dir', label: 'env' }, index: { schema: 'ccc-bench-index/1', runs } }
+            ? {
+                source: { type: 'dir', label: 'env' },
+                index: { schema: 'ccc-bench-index/1', runs },
+              }
             : { run: { run_id: path.split('/').pop(), notes: ['n'] } },
       }),
     );
@@ -383,7 +478,11 @@ describe('benchmarkStore bench runs', () => {
   it('keeps an explicit empty state with the server message', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ source: { type: 'none', label: 'none' }, index: null, message: 'No benchmark runs found.' }),
+      json: async () => ({
+        source: { type: 'none', label: 'none' },
+        index: null,
+        message: 'No benchmark runs found.',
+      }),
     });
     await useBenchmarkStore.getState().fetchBenchIndex();
     const s = useBenchmarkStore.getState();

@@ -23,10 +23,32 @@ vi.mock('@/lib/api', () => ({
 }));
 
 function ms(over: Partial<Milestone> & { id: number }): Milestone {
-  return { name: `Milestone ${over.id}`, description: null, status: 'active', target_date: null, progress: 0, ticket_count: 0, done_count: 0, archived_at: null, ...over };
+  return {
+    name: `Milestone ${over.id}`,
+    description: null,
+    status: 'active',
+    target_date: null,
+    progress: 0,
+    ticket_count: 0,
+    done_count: 0,
+    archived_at: null,
+    ...over,
+  };
 }
 function ep(over: Partial<Epic> & { id: number }): Epic {
-  return { name: `Epic ${over.id}`, description: null, status: 'active', milestone_id: null, color: '#3b82f6', priority: 0, ticket_count: 0, done_count: 0, created_at: '2026-01-01', archived_at: null, ...over };
+  return {
+    name: `Epic ${over.id}`,
+    description: null,
+    status: 'active',
+    milestone_id: null,
+    color: '#3b82f6',
+    priority: 0,
+    ticket_count: 0,
+    done_count: 0,
+    created_at: '2026-01-01',
+    archived_at: null,
+    ...over,
+  };
 }
 
 async function renderPage(milestones: Milestone[], epics: Epic[]) {
@@ -51,7 +73,11 @@ describe('Planning page milestone archive', () => {
 
   it('shows active + completed milestones, hides archived ones until the toggle is opened', async () => {
     await renderPage(
-      [ms({ id: 1, name: 'Live' }), ms({ id: 2, name: 'Finished', status: 'completed' }), ms({ id: 3, name: 'Shelved', status: 'completed', archived_at: '2026-10-01' })],
+      [
+        ms({ id: 1, name: 'Live' }),
+        ms({ id: 2, name: 'Finished', status: 'completed' }),
+        ms({ id: 3, name: 'Shelved', status: 'completed', archived_at: '2026-10-01' }),
+      ],
       [],
     );
     expect(screen.getByText('Live')).toBeTruthy();
@@ -62,7 +88,10 @@ describe('Planning page milestone archive', () => {
   });
 
   it('offers Archive only on completed milestones and calls the store', async () => {
-    await renderPage([ms({ id: 1, name: 'Live' }), ms({ id: 2, name: 'Finished', status: 'completed' })], []);
+    await renderPage(
+      [ms({ id: 1, name: 'Live' }), ms({ id: 2, name: 'Finished', status: 'completed' })],
+      [],
+    );
     const buttons = screen.getAllByRole('button', { name: 'Archive' });
     expect(buttons).toHaveLength(1);
     fireEvent.click(buttons[0]);
@@ -70,7 +99,10 @@ describe('Planning page milestone archive', () => {
   });
 
   it('offers Unarchive inside the archive section', async () => {
-    await renderPage([ms({ id: 3, name: 'Shelved', status: 'completed', archived_at: '2026-10-01' })], []);
+    await renderPage(
+      [ms({ id: 3, name: 'Shelved', status: 'completed', archived_at: '2026-10-01' })],
+      [],
+    );
     fireEvent.click(screen.getByText(/Archived \(1\)/));
     fireEvent.click(screen.getByRole('button', { name: 'Unarchive' }));
     await waitFor(() => expect(unarchiveMilestoneMock).toHaveBeenCalledWith(3));
@@ -81,7 +113,13 @@ describe('EpicList archive', () => {
   beforeEach(() => postMock.mockClear());
 
   it('hides archived epics by default and reveals them behind the toggle', async () => {
-    await renderPage([], [ep({ id: 1, name: 'Ongoing' }), ep({ id: 2, name: 'Old epic', status: 'completed', archived_at: '2026-10-01' })]);
+    await renderPage(
+      [],
+      [
+        ep({ id: 1, name: 'Ongoing' }),
+        ep({ id: 2, name: 'Old epic', status: 'completed', archived_at: '2026-10-01' }),
+      ],
+    );
     expect(screen.getByText('Ongoing')).toBeTruthy();
     expect(screen.queryByText('Old epic')).toBeNull();
     fireEvent.click(screen.getByText(/Show Archive \(1 archived epics\)/));
@@ -89,7 +127,13 @@ describe('EpicList archive', () => {
   });
 
   it('archives a completed epic and unarchives an archived one via the API', async () => {
-    await renderPage([], [ep({ id: 5, name: 'Done epic', status: 'completed' }), ep({ id: 6, name: 'Gone epic', status: 'completed', archived_at: '2026-10-01' })]);
+    await renderPage(
+      [],
+      [
+        ep({ id: 5, name: 'Done epic', status: 'completed' }),
+        ep({ id: 6, name: 'Gone epic', status: 'completed', archived_at: '2026-10-01' }),
+      ],
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Archive' }));
     await waitFor(() => expect(postMock).toHaveBeenCalledWith('/api/epic/5/archive', {}));
     fireEvent.click(screen.getByText(/Show Archive/));

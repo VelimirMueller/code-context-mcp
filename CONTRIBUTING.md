@@ -241,11 +241,11 @@ If a commit fails the hook, fix the issues before re-committing.
 
 ### Test Structure
 
-| Type                | Location                      | Runner                   | Command                     |
-| ------------------- | ----------------------------- | ------------------------ | --------------------------- |
-| Unit / Integration  | `test/*.test.ts`              | Vitest                   | `pnpm test`                 |
+| Type                | Location                           | Runner                   | Command                     |
+| ------------------- | ---------------------------------- | ------------------------ | --------------------------- |
+| Unit / Integration  | `test/*.test.ts`                   | Vitest                   | `pnpm test`                 |
 | Frontend components | `src/dashboard/frontend/src/test/` | Vitest + Testing Library | `pnpm run test:frontend`    |
-| End-to-end          | `test/e2e/*.spec.ts`          | Playwright               | `pnpm exec playwright test` |
+| End-to-end          | `test/e2e/*.spec.ts`               | Playwright               | `pnpm exec playwright test` |
 
 ### Writing Backend Tests
 
