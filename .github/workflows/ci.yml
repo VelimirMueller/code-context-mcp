@@ -3,15 +3,23 @@ name: CI
 on:
   push:
     # develop: every change enters there (branch promotion develop → main).
-    # integration/** too: its head must stay green before it goes to develop (#293).
-    branches: [main, develop, 'integration/**']
+    # No integration/** or release/** here: those branches are PR targets and
+    # their PRs already run CI on the same commit (a push run would double it).
+    branches: [main, develop]
   pull_request:
     # release/** too: a major lands on its release branch first (#179).
     # integration/** too: slice PRs land on an integration branch first (#293).
     branches: [main, develop, 'release/**', 'integration/**']
     # labeled/unlabeled: the contract gate reads the `contract-change-approved`
     # label (#180), so adding or removing it re-runs the checks.
+    # Only the contract job runs on label events; the other jobs skip them.
     types: [opened, synchronize, reopened, labeled, unlabeled]
+
+# A new push to a PR supersedes the old run. Push runs on main/develop are never
+# cancelled: the promotion flow needs a finished result for every SHA.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Read-only token for every job; no job writes to the repository.
 permissions:
@@ -27,6 +35,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    if: ${{ github.event.action != 'labeled' && github.event.action != 'unlabeled' }}
     strategy:
       matrix:
         # 22 = minimum (package.json engines), 24 = recommended LTS.
@@ -53,6 +62,7 @@ jobs:
 
   lint:
     runs-on: ubuntu-latest
+    if: ${{ github.event.action != 'labeled' && github.event.action != 'unlabeled' }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -107,6 +117,7 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
+    if: ${{ github.event.action != 'labeled' && github.event.action != 'unlabeled' }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -125,6 +136,7 @@ jobs:
   validate-counts:
     runs-on: ubuntu-latest
     needs: test
+    if: ${{ github.event.action != 'labeled' && github.event.action != 'unlabeled' }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -169,7 +181,7 @@ jobs:
   # VitePress build; catches dead links (#264). Runs only when the PR touches docs/.
   docs:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: ${{ github.event_name == 'pull_request' && github.event.action != 'labeled' && github.event.action != 'unlabeled' }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
