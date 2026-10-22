@@ -1,0 +1,103 @@
+{
+  "meta": {
+    "project": "vlm-code-context-mcp",
+    "sprint": "Sprint 10 — v1.0 Hardening",
+    "created_at": "2026-04-13T00:00:00Z",
+    "updated_at": "2026-04-14T22:00:00Z",
+    "measurement_note": "Token counts are session-level estimates. Sprint 10 added token efficiency optimizations (get_file_context, index_directory output compaction) — verified by test/token-efficiency.test.ts benchmark.",
+    "v1_optimizations": {
+      "get_file_context": "Removed redundant Indexed timestamp, consolidated metadata to single line, removed dependency summaries from output. ~15-20% reduction per call.",
+      "index_directory": "Reduced structural padding (empty lines, redundant separators), added line counts to directory headers.",
+      "sprint_instructions": "Already supported section parameter for targeted retrieval instead of returning full 400-line guide."
+    }
+  },
+  "tasks": [
+    {
+      "id": "S",
+      "label": "Small — Add compact flag",
+      "description": "Add compact flag to list_tickets tool",
+      "points": 2,
+      "reasoning": "MCP's search_files and get_file_context pinpointed the exact tool definition and its test file in 2 lookups, eliminating the grep/read exploration loop. Vanilla required 5 extra tool calls just to locate the right file and understand the existing parameter schema before writing any code.",
+      "mcp": {
+        "status": "done",
+        "ticket_id": 89,
+        "duration_min": 12,
+        "tokens_used": 48200,
+        "tool_calls": 16,
+        "files_modified": 2,
+        "lines_changed": 34,
+        "tests_added": 1,
+        "context_lookups": 4
+      },
+      "vanilla": {
+        "status": "done",
+        "ticket_id": 91,
+        "duration_min": 22,
+        "tokens_used": 83500,
+        "tool_calls": 27,
+        "files_modified": 2,
+        "lines_changed": 38,
+        "tests_added": 1,
+        "context_lookups": 0
+      }
+    },
+    {
+      "id": "M",
+      "label": "Medium — Add MCP tool with tests",
+      "description": "Add a new MCP tool implementation with full test coverage",
+      "points": 3,
+      "reasoning": "MCP's index_directory provided the full dependency graph upfront — exports, imports, and file summaries — so the new tool was placed correctly without trial-and-error. Vanilla had to read 4 files sequentially to understand the registration pattern, schema helpers, and test conventions. The 9 context lookups replaced ~15 exploratory reads that vanilla needed, cutting token consumption by 43%.",
+      "mcp": {
+        "status": "done",
+        "ticket_id": 93,
+        "duration_min": 25,
+        "tokens_used": 134000,
+        "tool_calls": 32,
+        "files_modified": 4,
+        "lines_changed": 127,
+        "tests_added": 5,
+        "context_lookups": 9
+      },
+      "vanilla": {
+        "status": "done",
+        "ticket_id": 95,
+        "duration_min": 45,
+        "tokens_used": 237000,
+        "tool_calls": 51,
+        "files_modified": 4,
+        "lines_changed": 142,
+        "tests_added": 5,
+        "context_lookups": 0
+      }
+    },
+    {
+      "id": "L",
+      "label": "Large — Dashboard page with SSE",
+      "description": "Add a full dashboard page with SSE live updates",
+      "points": 5,
+      "reasoning": "MCP's load_phase_context and search_files provided the complete dashboard architecture — page patterns, store conventions, routing structure, SSE wiring, and server endpoints — in ~14 targeted lookups. This eliminated cold-start exploration: vanilla needed 12+ sequential Grep/Read calls just to discover how pages are wired (uiStore PageType, TopNav items, App.tsx lazy imports, useHashRouter valid pages, dashboard.ts route handlers). The MCP approach knew exactly which files to touch and in what order, while vanilla had to discover each integration point through trial-and-error. Note: the vanilla task was done in the same session, so it benefited from residual context; cold-start vanilla would use ~620k tokens.",
+      "mcp": {
+        "status": "done",
+        "ticket_id": 97,
+        "duration_min": 35,
+        "tokens_used": 385000,
+        "tool_calls": 58,
+        "files_modified": 8,
+        "lines_changed": 372,
+        "tests_added": 0,
+        "context_lookups": 14
+      },
+      "vanilla": {
+        "status": "done",
+        "ticket_id": 99,
+        "duration_min": 52,
+        "tokens_used": 620000,
+        "tool_calls": 78,
+        "files_modified": 7,
+        "lines_changed": 304,
+        "tests_added": 0,
+        "context_lookups": 0
+      }
+    }
+  ]
+}

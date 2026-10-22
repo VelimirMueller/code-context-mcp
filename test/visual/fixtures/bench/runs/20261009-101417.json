@@ -1,0 +1,2536 @@
+{
+ "schema": "overdrive-bench/2",
+ "run_id": "20261009-101417",
+ "date": "2026-10-09",
+ "ts": "2026-10-09T10:39:07+0200",
+ "kind": "weekly",
+ "trigger": "manual",
+ "fake": false,
+ "model": "opus",
+ "models_seen": [
+  "claude-opus-5-5"
+ ],
+ "claude_code_version": "2.1.295",
+ "code_context_version": "2.6.0",
+ "harness_version": "0.2.0",
+ "fixture": {
+  "tree_sha": "e0ab4d8495e30aa6abf93a0d2db246b95b8c729d",
+  "sha256": "0bbd0aa5a38625ef58198a94fb44032150990d380955b74cdb4cc73d7022f291"
+ },
+ "judges": {
+  "deepseek": "deepseek-v4-pro",
+  "glm": "glm-5.3"
+ },
+ "config": {
+  "repeats": 3,
+  "timeouts_s": {
+   "T1": 1200,
+   "T2": 900,
+   "T3": 600,
+   "T4": 1800,
+   "S5": 900
+  },
+  "parallel": true,
+  "cc_db": "private",
+  "cc_hint": true,
+  "arm_order_seed": 637057486
+ },
+ "duration_ms": 1489497,
+ "n": 3,
+ "prereg": {
+  "version": "v1",
+  "sha256": "f5ac1a150e0a1d7521347602f31bb056b8b84c061cac8eb784dbdf2cfe7a99cc"
+ },
+ "hidden": {
+  "tests_sha256": "0e45608b01be55028356e2c13801673914b9e19c850416ebec430ddf2f2751b5",
+  "answer_key_sha256": "1e50da62d177c4014e479b2ba78e324ec8e6238a2892a25281fb6a7d829f2bcc",
+  "files": {
+   "h1-limiter.hidden.test.ts": "582d259f0acd15c2bbb656d39d352d3fe7f49a29f0fdd43234b9e7036fef2a63",
+   "h2-resolver.hidden.test.ts": "82badce0b5a0ea0bee9371e600ec0cc77f7b567320a22654f5314af8c330d95a",
+   "h3-middleware.hidden.test.ts": "eb1df7999a5ce6e9fdf9ba6415db6f6ab7a9a017c65c77748db8ce3a430ff762",
+   "h4-change.hidden.test.ts": "7f1813f70e4dfb112d52e453406e7de51391d017c737cab3e0ee72777324f7c3",
+   "s5/s5-1.hidden.test.ts": "454439143feefe2226fe0557f578eff17f2703ae5857cddaba0c81de24b6f129",
+   "s5/s5-2.hidden.test.ts": "a8cb1bc221e2fee12b46317f1727a05b5756e31802cf8cc1ca347cb368ed6f46",
+   "s5/s5-3.hidden.test.ts": "d1f79cd62ac5b2c826b0286fa9e335af377bf8dc381798f51a48a3269650eb88",
+   "s5/s5-4.hidden.test.ts": "697a307e475cfbf0743081adf199823a97949dcd0b299008a1dc4a6cc9050398",
+   "s5/s5-5.hidden.test.ts": "0c045451765da0b0ae5e62e1d039dc19d8dc89becdac729890c1c67e1064a3df",
+   "t2-answer-key.json": "1e50da62d177c4014e479b2ba78e324ec8e6238a2892a25281fb6a7d829f2bcc"
+  }
+ },
+ "nv": {
+  "mean": 0.04189261659286033,
+  "lo": -0.02937580019265215,
+  "hi": 0.11547763460259214
+ },
+ "q": {
+  "mean": 0.05780634720324678,
+  "lo": 0.02896743669543976,
+  "hi": 0.0963912416817191
+ },
+ "c": {
+  "mean": 0.03182746122077291,
+  "lo": -0.03817278584174606,
+  "hi": 0.11668647377618384
+ },
+ "criteria": [
+  {
+   "id": "accuracy",
+   "vanilla": 1.0,
+   "cc": 1.0,
+   "delta": {
+    "mean": 0.0,
+    "lo": 0.0,
+    "hi": 0.0
+   },
+   "p_holm": 1.0,
+   "n": 3,
+   "raw_unit": "T1 hidden pass rate",
+   "direction": "higher_better",
+   "weight": 0.3,
+   "wilcoxon": {
+    "W": 0.0,
+    "n_nonzero": 0,
+    "p": 1.0,
+    "p_holm": 1.0,
+    "z": 0.0,
+    "r": 0.0,
+    "method": "none",
+    "alternative": "two-sided"
+   }
+  },
+  {
+   "id": "code_quality",
+   "vanilla": 0.9295205389014146,
+   "cc": 0.9471671846671846,
+   "delta": {
+    "mean": 0.00979243890658224,
+    "lo": -0.24171453806285262,
+    "hi": 0.49371301775147924
+   },
+   "p_holm": 1.0,
+   "n": 3,
+   "raw_unit": "T1 static score (judge share in pairs[].judges)",
+   "direction": "higher_better",
+   "weight": 0.2,
+   "wilcoxon": {
+    "W": 3.0,
+    "n_nonzero": 3,
+    "p": 1.0,
+    "p_holm": 1.0,
+    "z": 0.0,
+    "r": 0.0,
+    "method": "exact",
+    "alternative": "two-sided"
+   }
+  },
+  {
+   "id": "systems",
+   "vanilla": 0.9666666666666667,
+   "cc": 0.9499999999999998,
+   "delta": {
+    "mean": -0.01481481481481487,
+    "lo": -0.050000000000000044,
+    "hi": 0.05555555555555549
+   },
+   "p_holm": 1.0,
+   "n": 3,
+   "raw_unit": "T2 score (0\u20131)",
+   "direction": "higher_better",
+   "weight": 0.15,
+   "wilcoxon": {
+    "W": 3.0,
+    "n_nonzero": 3,
+    "p": 1.0,
+    "p_holm": 1.0,
+    "z": 0.0,
+    "r": 0.0,
+    "method": "exact",
+    "alternative": "two-sided"
+   }
+  },
+  {
+   "id": "stakeholder",
+   "vanilla": 0.16666666666666666,
+   "cc": 0.8333333333333334,
+   "delta": {
+    "mean": 0.6666666666666666,
+    "lo": 0.0,
+    "hi": 1.0
+   },
+   "p_holm": 1.0,
+   "n": 3,
+   "raw_unit": "T3 judge vote share",
+   "direction": "higher_better",
+   "weight": 0.1,
+   "wilcoxon": {
+    "W": 3.0,
+    "n_nonzero": 2,
+    "p": 0.5,
+    "p_holm": 1.0,
+    "z": 1.4142135623730951,
+    "r": 1.0,
+    "method": "exact",
+    "alternative": "two-sided"
+   }
+  },
+  {
+   "id": "control",
+   "vanilla": 1.0,
+   "cc": 1.0,
+   "delta": {
+    "mean": -0.03438634009005643,
+    "lo": -0.13936665617647037,
+    "hi": 0.020594552525693012
+   },
+   "p_holm": 1.0,
+   "n": 3,
+   "raw_unit": "T4 hidden pass rate",
+   "direction": "higher_better",
+   "weight": 0.25,
+   "wilcoxon": {
+    "W": 3.0,
+    "n_nonzero": 3,
+    "p": 1.0,
+    "p_holm": 1.0,
+    "z": 0.0,
+    "r": 0.0,
+    "method": "exact",
+    "alternative": "two-sided"
+   }
+  },
+  {
+   "id": "time",
+   "vanilla": 429981.3333333333,
+   "cc": 457589.0,
+   "delta": {
+    "mean": 0.06306509777636779,
+    "lo": -0.013801366505080749,
+    "hi": 0.11076197957580518
+   },
+   "p_holm": 1.0,
+   "n": 3,
+   "raw_unit": "wall ms per pair (T1\u2013T4)",
+   "direction": "lower_better",
+   "weight": 0.5,
+   "wilcoxon": {
+    "W": 5.0,
+    "n_nonzero": 3,
+    "p": 0.5,
+    "p_holm": 1.0,
+    "z": 1.0690449676496976,
+    "r": 0.6172133998483676,
+    "method": "exact",
+    "alternative": "two-sided"
+   }
+  },
+  {
+   "id": "tokens",
+   "vanilla": 387918.13333333336,
+   "cc": 386766.2,
+   "delta": {
+    "mean": 0.0005898246651780287,
+    "lo": -0.06254420517841137,
+    "hi": 0.12261096797656247
+   },
+   "p_holm": 1.0,
+   "n": 3,
+   "raw_unit": "weighted tokens per pair (T1\u2013T4)",
+   "direction": "lower_better",
+   "weight": 0.5,
+   "wilcoxon": {
+    "W": 3.0,
+    "n_nonzero": 3,
+    "p": 1.0,
+    "p_holm": 1.0,
+    "z": 0.0,
+    "r": 0.0,
+    "method": "exact",
+    "alternative": "two-sided"
+   }
+  }
+ ],
+ "s5": null,
+ "verdict": "INCONCLUSIVE",
+ "verdict_rule": "KEEP if nv.lo > 0; DROP if nv.hi < 0; else INCONCLUSIVE (95 % BC bootstrap CI, n >= 2)",
+ "constants": {
+  "weights": {
+   "accuracy": 0.3,
+   "code_quality": 0.2,
+   "systems": 0.15,
+   "stakeholder": 0.1,
+   "control": 0.25
+  },
+  "cost_weights": {
+   "time": 0.5,
+   "tokens": 0.5
+  },
+  "lambda": 0.5,
+  "cache_read_weight": 0.1,
+  "resamples": 10000,
+  "bootstrap_seed": 637057486,
+  "alpha": 0.05
+ },
+ "stats": {
+  "accuracy": {
+   "mean": 0.0,
+   "ci95": [
+    0.0,
+    0.0
+   ],
+   "values": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "wilcoxon": {
+    "W": 0.0,
+    "n_nonzero": 0,
+    "p": 1.0,
+    "p_holm": 1.0,
+    "z": 0.0,
+    "r": 0.0,
+    "method": "none",
+    "alternative": "two-sided"
+   }
+  },
+  "code_quality": {
+   "mean": 0.00979243890658224,
+   "ci95": [
+    -0.24171453806285262,
+    0.49371301775147924
+   ],
+   "values": [
+    -0.24171453806285265,
+    0.49371301775147924,
+    -0.22262116296887988
+   ],
+   "wilcoxon": {
+    "W": 3.0,
+    "n_nonzero": 3,
+    "p": 1.0,
+    "p_holm": 1.0,
+    "z": 0.0,
+    "r": 0.0,
+    "method": "exact",
+    "alternative": "two-sided"
+   }
+  },
+  "systems": {
+   "mean": -0.01481481481481487,
+   "ci95": [
+    -0.050000000000000044,
+    0.05555555555555549
+   ],
+   "values": [
+    -0.050000000000000044,
+    -0.050000000000000044,
+    0.05555555555555548
+   ],
+   "wilcoxon": {
+    "W": 3.0,
+    "n_nonzero": 3,
+    "p": 1.0,
+    "p_holm": 1.0,
+    "z": 0.0,
+    "r": 0.0,
+    "method": "exact",
+    "alternative": "two-sided"
+   }
+  },
+  "stakeholder": {
+   "mean": 0.6666666666666666,
+   "ci95": [
+    0.0,
+    1.0
+   ],
+   "values": [
+    1.0,
+    0.0,
+    1.0
+   ],
+   "wilcoxon": {
+    "W": 3.0,
+    "n_nonzero": 2,
+    "p": 0.5,
+    "p_holm": 1.0,
+    "z": 1.4142135623730951,
+    "r": 1.0,
+    "method": "exact",
+    "alternative": "two-sided"
+   }
+  },
+  "control": {
+   "mean": -0.03438634009005643,
+   "ci95": [
+    -0.13936665617647037,
+    0.020594552525693012
+   ],
+   "values": [
+    0.015613083380608076,
+    0.020594552525693012,
+    -0.13936665617647037
+   ],
+   "wilcoxon": {
+    "W": 3.0,
+    "n_nonzero": 3,
+    "p": 1.0,
+    "p_holm": 1.0,
+    "z": 0.0,
+    "r": 0.0,
+    "method": "exact",
+    "alternative": "two-sided"
+   }
+  },
+  "cost_time": {
+   "mean": 0.06306509777636779,
+   "ci95": [
+    -0.013801366505080749,
+    0.11076197957580518
+   ],
+   "values": [
+    0.09223468025837894,
+    -0.013801366505080749,
+    0.11076197957580518
+   ],
+   "wilcoxon": {
+    "W": 5.0,
+    "n_nonzero": 3,
+    "p": 0.5,
+    "p_holm": 1.0,
+    "z": 1.0690449676496976,
+    "r": 0.6172133998483676,
+    "method": "exact",
+    "alternative": "two-sided"
+   }
+  },
+  "cost_tokens": {
+   "mean": 0.0005898246651780287,
+   "ci95": [
+    -0.06254420517841137,
+    0.12261096797656247
+   ],
+   "values": [
+    -0.05829728880261701,
+    -0.06254420517841137,
+    0.12261096797656247
+   ],
+   "wilcoxon": {
+    "W": 3.0,
+    "n_nonzero": 3,
+    "p": 1.0,
+    "p_holm": 1.0,
+    "z": 0.0,
+    "r": 0.0,
+    "method": "exact",
+    "alternative": "two-sided"
+   }
+  },
+  "Q": {
+   "mean": 0.05780634720324678,
+   "ci95": [
+    0.02896743669543976,
+    0.0963912416817191
+   ],
+   "values": [
+    0.048060363232581484,
+    0.0963912416817191,
+    0.02896743669543976
+   ]
+  },
+  "C": {
+   "mean": 0.03182746122077291,
+   "ci95": [
+    -0.03817278584174606,
+    0.11668647377618384
+   ],
+   "values": [
+    0.016968695727880966,
+    -0.03817278584174606,
+    0.11668647377618382
+   ]
+  },
+  "NV": {
+   "mean": 0.04189261659286033,
+   "ci95": [
+    -0.02937580019265215,
+    0.11547763460259214
+   ],
+   "values": [
+    0.039576015368641,
+    0.11547763460259214,
+    -0.02937580019265215
+   ],
+   "wilcoxon": {
+    "W": 5.0,
+    "n_nonzero": 3,
+    "p": 0.25,
+    "z": 1.0690449676496976,
+    "r": 0.6172133998483676,
+    "method": "exact",
+    "alternative": "greater"
+   }
+  }
+ },
+ "pairs": [
+  {
+   "rep": 1,
+   "order": {
+    "T1": [
+     "cc",
+     "vanilla"
+    ],
+    "T3": [
+     "vanilla",
+     "cc"
+    ],
+    "T2": [
+     "cc",
+     "vanilla"
+    ],
+    "T4": [
+     "vanilla",
+     "cc"
+    ]
+   },
+   "measures": {
+    "van": {
+     "t1_hidden_rate": 1.0,
+     "t1_static": 0.9143835616438356,
+     "t2_score": 1.0,
+     "t4_hidden_rate": 1.0,
+     "t4_turn2_tokens": 128596.3,
+     "t4_turn2_ms": 148639,
+     "wall_ms": 430066,
+     "tokens": 428567.10000000003
+    },
+    "cc": {
+     "t1_hidden_rate": 1.0,
+     "t1_static": 0.9295357420357421,
+     "t2_score": 0.95,
+     "t4_hidden_rate": 1.0,
+     "t4_turn2_tokens": 111746.6,
+     "t4_turn2_ms": 158832,
+     "wall_ms": 469733,
+     "tokens": 403582.8
+    }
+   },
+   "deltas": {
+    "accuracy": 0.0,
+    "code_quality": -0.24171453806285265,
+    "systems": -0.050000000000000044,
+    "stakeholder": 1.0,
+    "control": 0.015613083380608076,
+    "cost_time": 0.09223468025837894,
+    "cost_tokens": -0.05829728880261701,
+    "Q": 0.048060363232581484,
+    "C": 0.016968695727880966,
+    "NV": 0.039576015368641,
+    "parts": {
+     "static": 0.016570923874294714,
+     "t1_judge": -0.5,
+     "t4_hidden": 0.0,
+     "t4_adapt": 0.031226166761216152
+    }
+   },
+   "vote_share": {
+    "cc": 1.0,
+    "van": 0.0
+   },
+   "judges": {
+    "T1": {
+     "delta": -0.5,
+     "status": "judged",
+     "verdicts": [
+      {
+       "judge": "deepseek",
+       "order": "van-first",
+       "winner": "A",
+       "error": null
+      },
+      {
+       "judge": "deepseek",
+       "order": "cc-first",
+       "winner": "A",
+       "error": null
+      },
+      {
+       "judge": "glm",
+       "order": "van-first",
+       "winner": "A",
+       "error": null
+      },
+      {
+       "judge": "glm",
+       "order": "cc-first",
+       "winner": "B",
+       "error": null
+      }
+     ]
+    },
+    "T3": {
+     "delta": 1.0,
+     "status": "judged",
+     "verdicts": [
+      {
+       "judge": "deepseek",
+       "order": "van-first",
+       "winner": "B",
+       "error": null
+      },
+      {
+       "judge": "deepseek",
+       "order": "cc-first",
+       "winner": "A",
+       "error": null
+      },
+      {
+       "judge": "glm",
+       "order": "van-first",
+       "winner": "B",
+       "error": null
+      },
+      {
+       "judge": "glm",
+       "order": "cc-first",
+       "winner": "A",
+       "error": null
+      }
+     ]
+    }
+   },
+   "tasks": {
+    "T1": {
+     "vanilla": {
+      "turns": [
+       {
+        "ok": true,
+        "tokens": {
+         "input": 36,
+         "output": 17786,
+         "cache_read": 792701,
+         "cache_creation": 61515
+        },
+        "api_ms": 148748,
+        "num_turns": 26,
+        "models": [
+         "claude-opus-5-5"
+        ],
+        "tokens_weighted": 158607.1,
+        "wall_ms": 150835
+       }
+      ],
+      "tokens": {
+       "input": 36,
+       "output": 17786,
+       "cache_read": 792701,
+       "cache_creation": 61515
+      },
+      "tokens_weighted": 158607.1,
+      "tool_calls": {
+       "Edit": 10,
+       "Bash": 8,
+       "Write": 6,
+       "Read": 1
+      },
+      "tool_calls_total": 25,
+      "mcp_calls": 0,
+      "mcp_status": {},
+      "skills_loaded": 0,
+      "model_init": "claude-opus-5-5",
+      "models": [
+       "claude-opus-5-5"
+      ],
+      "peeked_hidden": false,
+      "ok": true,
+      "rc": 0,
+      "timed_out": false,
+      "wall_ms": 151368,
+      "index_ms": 0,
+      "static": {
+       "new_src_files": 8,
+       "new_src_lines": 228,
+       "new_test_files": 3,
+       "lint_errors": 0,
+       "lint_warnings": 0,
+       "functions": 13,
+       "complexity_mean": 6,
+       "complexity_max": 23,
+       "new_tokens": 705,
+       "dup_tokens": 0,
+       "dup_ratio": 0,
+       "coverage_new": 0.9908675799086758,
+       "coverage_lines": {
+        "covered": 217,
+        "executable": 219
+       }
+      },
+      "static_score": 0.9143835616438356,
+      "hidden": {
+       "pass": 22,
+       "fail": 0,
+       "total": 22,
+       "rate": 1.0
+      },
+      "orig_tests": {
+       "pass": 20,
+       "fail": 0,
+       "total": 20,
+       "rate": 1.0
+      },
+      "mcp_calls_other": 0
+     },
+     "cc": {
+      "turns": [
+       {
+        "ok": true,
+        "tokens": {
+         "input": 26,
+         "output": 18743,
+         "cache_read": 560935,
+         "cache_creation": 62378
+        },
+        "api_ms": 157329,
+        "num_turns": 24,
+        "models": [
+         "claude-opus-5-5"
+        ],
+        "tokens_weighted": 137240.5,
+        "wall_ms": 160163
+       }
+      ],
+      "tokens": {
+       "input": 26,
+       "output": 18743,
+       "cache_read": 560935,
+       "cache_creation": 62378
+      },
+      "tokens_weighted": 137240.5,
+      "tool_calls": {
+       "Edit": 9,
+       "Bash": 8,
+       "Write": 6
+      },
+      "tool_calls_total": 23,
+      "mcp_calls": 0,
+      "mcp_status": {
+       "code-context": "connected"
+      },
+      "skills_loaded": 0,
+      "model_init": "claude-opus-5-5",
+      "models": [
+       "claude-opus-5-5"
+      ],
+      "peeked_hidden": false,
+      "ok": true,
+      "rc": 0,
+      "timed_out": false,
+      "wall_ms": 160775,
+      "index_ms": 77,
+      "static": {
+       "new_src_files": 7,
+       "new_src_lines": 213,
+       "new_test_files": 3,
+       "lint_errors": 0,
+       "lint_warnings": 0,
+       "functions": 11,
+       "complexity_mean": 5.363636363636363,
+       "complexity_max": 17,
+       "new_tokens": 575,
+       "dup_tokens": 0,
+       "dup_ratio": 0,
+       "coverage_new": 0.9807692307692307,
+       "coverage_lines": {
+        "covered": 204,
+        "executable": 208
+       }
+      },
+      "static_score": 0.9295357420357421,
+      "hidden": {
+       "pass": 22,
+       "fail": 0,
+       "total": 22,
+       "rate": 1.0
+      },
+      "orig_tests": {
+       "pass": 20,
+       "fail": 0,
+       "total": 20,
+       "rate": 1.0
+      },
+      "mcp_calls_other": 0
+     }
+    },
+    "T3": {
+     "vanilla": {
+      "turns": [
+       {
+        "ok": true,
+        "tokens": {
+         "input": 16,
+         "output": 1981,
+         "cache_read": 241782,
+         "cache_creation": 18887
+        },
+        "api_ms": 22928,
+        "num_turns": 8,
+        "models": [
+         "claude-opus-5-5"
+        ],
+        "tokens_weighted": 45062.2,
+        "wall_ms": 25094
+       }
+      ],
+      "tokens": {
+       "input": 16,
+       "output": 1981,
+       "cache_read": 241782,
+       "cache_creation": 18887
+      },
+      "tokens_weighted": 45062.2,
+      "tool_calls": {
+       "Bash": 6,
+       "Write": 1
+      },
+      "tool_calls_total": 7,
+      "mcp_calls": 0,
+      "mcp_status": {},
+      "skills_loaded": 0,
+      "model_init": "claude-opus-5-5",
+      "models": [
+       "claude-opus-5-5"
+      ],
+      "peeked_hidden": false,
+      "ok": true,
+      "rc": 0,
+      "timed_out": false,
+      "wall_ms": 25611,
+      "index_ms": 0,
+      "update_words": 312,
+      "mcp_calls_other": 0
+     },
+     "cc": {
+      "turns": [
+       {
+        "ok": true,
+        "tokens": {
+         "input": 16,
+         "output": 2697,
+         "cache_read": 241431,
+         "cache_creation": 20732
+        },
+        "api_ms": 32290,
+        "num_turns": 13,
+        "models": [
+         "claude-opus-5-5"
+        ],
+        "tokens_weighted": 47588.100000000006,
+        "wall_ms": 33690
+       }
+      ],
+      "tokens": {
+       "input": 16,
+       "output": 2697,
+       "cache_read": 241431,
+       "cache_creation": 20732
+      },
+      "tokens_weighted": 47588.100000000006,
+      "tool_calls": {
+       "Read": 6,
+       "Bash": 5,
+       "Write": 1
+      },
+      "tool_calls_total": 12,
+      "mcp_calls": 0,
+      "mcp_status": {
+       "code-context": "connected"
+      },
+      "skills_loaded": 0,
+      "model_init": "claude-opus-5-5",
+      "models": [
+       "claude-opus-5-5"
+      ],
+      "peeked_hidden": false,
+      "ok": true,
+      "rc": 0,
+      "timed_out": false,
+      "wall_ms": 34239,
+      "index_ms": 827,
+      "update_words": 283,
+      "mcp_calls_other": 0
+     }
+    },
+    "T2": {
+     "vanilla": {
+      "turns": [
+       {
+        "ok": true,
+        "tokens": {
+         "input": 18,
+         "output": 7729,
+         "cache_read": 286499,
+         "cache_creation": 30299
+        },
+        "api_ms": 73806,
+        "num_turns": 33,
+        "models": [
+         "claude-opus-5-5"
+        ],
+        "tokens_weighted": 66695.9,
+        "wall_ms": 74955
+       }
+      ],
+      "tokens": {
+       "input": 18,
+       "output": 7729,
+       "cache_read": 286499,
+       "cache_creation": 30299
+      },
+      "tokens_weighted": 66695.9,
+      "tool_calls": {
+       "Read": 28,
+       "Bash": 3,
+       "Write": 1
+      },
+      "tool_calls_total": 32,
+      "mcp_calls": 0,
+      "mcp_status": {},
+      "skills_loaded": 0,
+      "model_init": "claude-opus-5-5",
+      "models": [
+       "claude-opus-5-5"
+      ],
+      "peeked_hidden": false,
+      "ok": true,
+      "rc": 0,
+      "timed_out": false,
+      "wall_ms": 75483,
+      "index_ms": 0,
+      "grade": {
+       "points": {
+        "Q1": 1.0,
+        "Q2": 1.0,
+        "Q3": 1.0,
+        "Q4": 1.0,
+        "Q5": 1.0,
+        "Q6": 1.0,
+        "Q7": 1.0,
+        "Q8": 1.0,
+        "Q9": 1.0,
+        "Q10": 1.0
+       },
+       "total": 10.0,
+       "max": 10,
+       "score": 1.0,
+       "sections_found": 10
+      },
+      "mcp_calls_other": 0
+     },
+     "cc": {
+      "turns": [
+       {
+        "ok": true,
+        "tokens": {
+         "input": 22,
+         "output": 8900,
+         "cache_read": 377994,
+         "cache_creation": 29273
+        },
+        "api_ms": 82090,
+        "num_turns": 27,
+        "models": [
+         "claude-opus-5-5"
+        ],
+        "tokens_weighted": 75994.4,
+        "wall_ms": 83796
+       }
+      ],
+      "tokens": {
+       "input": 22,
+       "output": 8900,
+       "cache_read": 377994,
+       "cache_creation": 29273
+      },
+      "tokens_weighted": 75994.4,
+      "tool_calls": {
+       "Read": 18,
+       "Bash": 6,
+       "Write": 2
+      },
+      "tool_calls_total": 26,
+      "mcp_calls": 0,
+      "mcp_status": {
+       "code-context": "connected"
+      },
+      "skills_loaded": 0,
+      "model_init": "claude-opus-5-5",
+      "models": [
+       "claude-opus-5-5"
+      ],
+      "peeked_hidden": false,
+      "ok": true,
+      "rc": 0,
+      "timed_out": false,
+      "wall_ms": 84383,
+      "index_ms": 75,
+      "grade": {
+       "points": {
+        "Q1": 1.0,
+        "Q2": 1.0,
+        "Q3": 0.5,
+        "Q4": 1.0,
+        "Q5": 1.0,
+        "Q6": 1.0,
+        "Q7": 1.0,
+        "Q8": 1.0,
+        "Q9": 1.0,
+        "Q10": 1.0
+       },
+       "total": 9.5,
+       "max": 10,
+       "score": 0.95,
+       "sections_found": 10
+      },
+      "mcp_calls_other": 0
+     }
+    },
+    "T4": {
+     "vanilla": {
+      "turns": [
+       {
+        "ok": true,
+        "tokens": {
+         "input": 8,
+         "output": 2915,
+         "cache_read": 98906,
+         "cache_creation": 16792
+        },
+        "api_ms": 27148,
+        "num_turns": 5,
+        "models": [
+         "claude-opus-5-5"
+        ],
+        "tokens_weighted": 29605.6,
+        "wall_ms": 28386
+       },
+       {
+        "ok": true,
+        "tokens": {
+         "input": 32,
+         "output": 18029,
+         "cache_read": 802463,
+         "cache_creation": 30289
+        },
+        "api_ms": 173703,
+        "num_turns": 35,
+        "models": [
+         "claude-opus-5-5"
+        ],
+        "tokens_weighted": 128596.3,
+        "wall_ms": 148639
+       }
+      ],
+      "tokens": {
+       "input": 40,
+       "output": 20944,
+       "cache_read": 901369,
+       "cache_creation": 47081
+      },
+      "tokens_weighted": 158201.90000000002,
+      "tool_calls": {
+       "Read": 11,
+       "Edit": 11,
+       "Bash": 10,
+       "Write": 6
+      },
+      "tool_calls_total": 38,
+      "mcp_calls": 0,
+      "mcp_status": {},
+      "skills_loaded": 0,
+      "model_init": "claude-opus-5-5",
+      "models": [
+       "claude-opus-5-5"
+      ],
+      "peeked_hidden": false,
+      "ok": true,
+      "rc": 0,
+      "timed_out": false,
+      "wall_ms": 177604,
+      "index_ms": 0,
+      "hidden": {
+       "pass": 11,
+       "fail": 0,
+       "total": 11,
+       "rate": 1.0
+      },
+      "orig_tests": {
+       "pass": 20,
+       "fail": 0,
+       "total": 20,
+       "rate": 1.0
+      },
+      "turn2_tokens": 128596.3,
+      "turn2_ms": 148639,
+      "mcp_calls_other": 0
+     },
+     "cc": {
+      "turns": [
+       {
+        "ok": true,
+        "tokens": {
+         "input": 8,
+         "output": 3229,
+         "cache_read": 102092,
+         "cache_creation": 17567
+        },
+        "api_ms": 29823,
+        "num_turns": 5,
+        "models": [
+         "claude-opus-5-5"
+        ],
+        "tokens_weighted": 31013.2,
+        "wall_ms": 30815
+       },
+       {
+        "ok": true,
+        "tokens": {
+         "input": 22,
+         "output": 20130,
+         "cache_read": 580216,
+         "cache_creation": 33573
+        },
+        "api_ms": 187568,
+        "num_turns": 31,
+        "models": [
+         "claude-opus-5-5"
+        ],
+        "tokens_weighted": 111746.6,
+        "wall_ms": 158832
+       }
+      ],
+      "tokens": {
+       "input": 30,
+       "output": 23359,
+       "cache_read": 682308,
+       "cache_creation": 51140
+      },
+      "tokens_weighted": 142759.8,
+      "tool_calls": {
+       "Read": 10,
+       "Edit": 10,
+       "Bash": 8,
+       "Write": 6
+      },
+      "tool_calls_total": 34,
+      "mcp_calls": 0,
+      "mcp_status": {
+       "code-context": "connected"
+      },
+      "skills_loaded": 0,
+      "model_init": "claude-opus-5-5",
+      "models": [
+       "claude-opus-5-5"
+      ],
+      "peeked_hidden": false,
+      "ok": true,
+      "rc": 0,
+      "timed_out": false,
+      "wall_ms": 190336,
+      "index_ms": 76,
+      "hidden": {
+       "pass": 11,
+       "fail": 0,
+       "total": 11,
+       "rate": 1.0
+      },
+      "orig_tests": {
+       "pass": 20,
+       "fail": 0,
+       "total": 20,
+       "rate": 1.0
+      },
+      "turn2_tokens": 111746.6,
+      "turn2_ms": 158832,
+      "mcp_calls_other": 0
+     }
+    }
+   }
+  },
+  {
+   "rep": 2,
+   "order": {
+    "T1": [
+     "cc",
+     "vanilla"
+    ],
+    "T3": [
+     "vanilla",
+     "cc"
+    ],
+    "T2": [
+     "cc",
+     "vanilla"
+    ],
+    "T4": [
+     "vanilla",
+     "cc"
+    ]
+   },
+   "measures": {
+    "van": {
+     "t1_hidden_rate": 1.0,
+     "t1_static": 0.962962962962963,
+     "t2_score": 1.0,
+     "t4_hidden_rate": 1.0,
+     "t4_turn2_tokens": 107425.0,
+     "t4_turn2_ms": 143438,
+     "wall_ms": 418147,
+     "tokens": 370573.1
+    },
+    "cc": {
+     "t1_hidden_rate": 1.0,
+     "t1_static": 0.9508547008547008,
+     "t2_score": 0.95,
+     "t4_hidden_rate": 1.0,
+     "t4_turn2_tokens": 102299.20000000001,
+     "t4_turn2_ms": 138466,
+     "wall_ms": 412376,
+     "tokens": 347395.9
+    }
+   },
+   "deltas": {
+    "accuracy": 0.0,
+    "code_quality": 0.49371301775147924,
+    "systems": -0.050000000000000044,
+    "stakeholder": 0.0,
+    "control": 0.020594552525693012,
+    "cost_time": -0.013801366505080749,
+    "cost_tokens": -0.06254420517841137,
+    "Q": 0.0963912416817191,
+    "C": -0.03817278584174606,
+    "NV": 0.11547763460259214,
+    "parts": {
+     "static": -0.012573964497041528,
+     "t1_judge": 1.0,
+     "t4_hidden": 0.0,
+     "t4_adapt": 0.041189105051386024
+    }
+   },
+   "vote_share": {
+    "cc": 0.5,
+    "van": 0.5
+   },
+   "judges": {
+    "T1": {
+     "delta": 1.0,
+     "status": "judged",
+     "verdicts": [
+      {
+       "judge": "deepseek",
+       "order": "van-first",
+       "winner": "B",
+       "error": null
+      },
+      {
+       "judge": "deepseek",
+       "order": "cc-first",
+       "winner": "A",
+       "error": null
+      },
+      {
+       "judge": "glm",
+       "order": "van-first",
+       "winner": "B",
+       "error": null
+      },
+      {
+       "judge": "glm",
+       "order": "cc-first",
+       "winner": "A",
+       "error": null
+      }
+     ]
+    },
+    "T3": {
+     "delta": 0.0,
+     "status": "judged",
+     "verdicts": [
+      {
+       "judge": "deepseek",
+       "order": "van-first",
+       "winner": "B",
+       "error": null
+      },
+      {
+       "judge": "deepseek",
+       "order": "cc-first",
+       "winner": "B",
+       "error": null
+      },
+      {
+       "judge": "glm",
+       "order": "van-first",
+       "winner": "B",
+       "error": null
+      },
+      {
+       "judge": "glm",
+       "order": "cc-first",
+       "winner": "B",
+       "error": null
+      }
+     ]
+    }
+   },
+   "tasks": {
+    "T1": {
+     "vanilla": {
+      "turns": [
+       {
+        "ok": true,
+        "tokens": {
+         "input": 26,
+         "output": 12340,
+         "cache_read": 513275,
+         "cache_creation": 32708
+        },
+        "api_ms": 106946,
+        "num_turns": 20,
+        "models": [
+         "claude-opus-5-5"
+        ],
+        "tokens_weighted": 96401.5,
+        "wall_ms": 109275
+       }
+      ],
+      "tokens": {
+       "input": 26,
+       "output": 12340,
+       "cache_read": 513275,
+       "cache_creation": 32708
+      },
+      "tokens_weighted": 96401.5,
+      "tool_calls": {
+       "Bash": 8,
+       "Edit": 7,
+       "Write": 4
+      },
+      "tool_calls_total": 19,
+      "mcp_calls": 0,
+      "mcp_status": {},
+      "skills_loaded": 0,
+      "model_init": "claude-opus-5-5",
+      "models": [
+       "claude-opus-5-5"
+      ],
+      "peeked_hidden": false,
+      "ok": true,
+      "rc": 0,
+      "timed_out": false,
+      "wall_ms": 109804,
+      "index_ms": 0,
+      "static": {
+       "new_src_files": 6,
+       "new_src_lines": 167,
+       "new_test_files": 1,
+       "lint_errors": 0,
+       "lint_warnings": 0,
+       "functions": 9,
+       "complexity_mean": 4.333333333333333,
+       "complexity_max": 9,
+       "new_tokens": 982,
+       "dup_tokens": 0,
+       "dup_ratio": 0,
+       "coverage_new": 1,
+       "coverage_lines": {
+        "covered": 162,
+        "executable": 162
+       }
+      },
+      "static_score": 0.962962962962963,
+      "hidden": {
+       "pass": 22,
+       "fail": 0,
+       "total": 22,
+       "rate": 1.0
+      },
+      "orig_tests": {
+       "pass": 20,
+       "fail": 0,
+       "total": 20,
+       "rate": 1.0
+      },
+      "mcp_calls_other": 0
+     },
+     "cc": {
+      "turns": [
+       {
+        "ok": true,
+        "tokens": {
+         "input": 22,
+         "output": 18352,
+         "cache_read": 459958,
+         "cache_creation": 40271
+        },
+        "api_ms": 139972,
+        "num_turns": 21,
+        "models": [
+         "claude-opus-5-5"
+        ],
+        "tokens_weighted": 104640.8,
+        "wall_ms": 142272
+       }
+      ],
+      "tokens": {
+       "input": 22,
+       "output": 18352,
+       "cache_read": 459958,
+       "cache_creation": 40271
+      },
+      "tokens_weighted": 104640.8,
+      "tool_calls": {
+       "Edit": 8,
+       "Bash": 6,
+       "Write": 6
+      },
+      "tool_calls_total": 20,
+      "mcp_calls": 0,
+      "mcp_status": {
+       "code-context": "connected"
+      },
+      "skills_loaded": 0,
+      "model_init": "claude-opus-5-5",
+      "models": [
+       "claude-opus-5-5"
+      ],
+      "peeked_hidden": false,
+      "ok": true,
+      "rc": 0,
+      "timed_out": false,
+      "wall_ms": 143027,
+      "index_ms": 127,
+      "static": {
+       "new_src_files": 8,
+       "new_src_lines": 207,
+       "new_test_files": 3,
+       "lint_errors": 0,
+       "lint_warnings": 0,
+       "functions": 13,
+       "complexity_mean": 4.769230769230769,
+       "complexity_max": 17,
+       "new_tokens": 652,
+       "dup_tokens": 0,
+       "dup_ratio": 0,
+       "coverage_new": 1,
+       "coverage_lines": {
+        "covered": 201,
+        "executable": 201
+       }
+      },
+      "static_score": 0.9508547008547008,
+      "hidden": {
+       "pass": 22,
+       "fail": 0,
+       "total": 22,
+       "rate": 1.0
+      },
+      "orig_tests": {
+       "pass": 20,
+       "fail": 0,
+       "total": 20,
+       "rate": 1.0
+      },
+      "mcp_calls_other": 0
+     }
+    },
+    "T3": {
+     "cc": {
+      "turns": [
+       {
+        "ok": true,
+        "tokens": {
+         "input": 12,
+         "output": 1763,
+         "cache_read": 169720,
+         "cache_creation": 17996
+        },
+        "api_ms": 20215,
+        "num_turns": 7,
+        "models": [
+         "claude-opus-5-5"
+        ],
+        "tokens_weighted": 36743.0,
+        "wall_ms": 21352
+       }
+      ],
+      "tokens": {
+       "input": 12,
+       "output": 1763,
+       "cache_read": 169720,
+       "cache_creation": 17996
+      },
+      "tokens_weighted": 36743.0,
+      "tool_calls": {
+       "Bash": 5,
+       "Write": 1
+      },
+      "tool_calls_total": 6,
+      "mcp_calls": 0,
+      "mcp_status": {
+       "code-context": "connected"
+      },
+      "skills_loaded": 0,
+      "model_init": "claude-opus-5-5",
+      "models": [
+       "claude-opus-5-5"
+      ],
+      "peeked_hidden": false,
+      "ok": true,
+      "rc": 0,
+      "timed_out": false,
+      "wall_ms": 21970,
+      "index_ms": 129,
+      "update_words": 279,
+      "mcp_calls_other": 0
+     },
+     "vanilla": {
+      "turns": [
+       {
+        "ok": true,
+        "tokens": {
+         "input": 24,
+         "output": 4313,
+         "cache_read": 381989,
+         "cache_creation": 23571
+        },
+        "api_ms": 42072,
+        "num_turns": 19,
+        "models": [
+         "claude-opus-5-5"
+        ],
+        "tokens_weighted": 66106.9,
+        "wall_ms": 43669
+       }
+      ],
+      "tokens": {
+       "input": 24,
+       "output": 4313,
+       "cache_read": 381989,
+       "cache_creation": 23571
+      },
+      "tokens_weighted": 66106.9,
+      "tool_calls": {
+       "Bash": 11,
+       "Read": 3,
+       "Write": 3,
+       "Edit": 1
+      },
+      "tool_calls_total": 18,
+      "mcp_calls": 0,
+      "mcp_status": {},
+      "skills_loaded": 0,
+      "model_init": "claude-opus-5-5",
+      "models": [
+       "claude-opus-5-5"
+      ],
+      "peeked_hidden": false,
+      "ok": true,
+      "rc": 0,
+      "timed_out": false,
+      "wall_ms": 44222,
+      "index_ms": 0,
+      "update_words": 248,
+      "mcp_calls_other": 0
+     }
+    },
+    "T2": {
+     "vanilla": {
+      "turns": [
+       {
+        "ok": true,
+        "tokens": {
+         "input": 14,
+         "output": 7507,
+         "cache_read": 214661,
+         "cache_creation": 29817
+        },
+        "api_ms": 66265,
+        "num_turns": 29,
+        "models": [
+         "claude-opus-5-5"
+        ],
+        "tokens_weighted": 58804.100000000006,
+        "wall_ms": 67407
+       }
+      ],
+      "tokens": {
+       "input": 14,
+       "output": 7507,
+       "cache_read": 214661,
+       "cache_creation": 29817
+      },
+      "tokens_weighted": 58804.100000000006,
+      "tool_calls": {
+       "Read": 24,
+       "Bash": 3,
+       "Write": 1
+      },
+      "tool_calls_total": 28,
+      "mcp_calls": 0,
+      "mcp_status": {},
+      "skills_loaded": 0,
+      "model_init": "claude-opus-5-5",
+      "models": [
+       "claude-opus-5-5"
+      ],
+      "peeked_hidden": false,
+      "ok": true,
+      "rc": 0,
+      "timed_out": false,
+      "wall_ms": 67946,
+      "index_ms": 0,
+      "grade": {
+       "points": {
+        "Q1": 1.0,
+        "Q2": 1.0,
+        "Q3": 1.0,
+        "Q4": 1.0,
+        "Q5": 1.0,
+        "Q6": 1.0,
+        "Q7": 1.0,
+        "Q8": 1.0,
+        "Q9": 1.0,
+        "Q10": 1.0
+       },
+       "total": 10.0,
+       "max": 10,
+       "score": 1.0,
+       "sections_found": 10
+      },
+      "mcp_calls_other": 0
+     },
+     "cc": {
+      "turns": [
+       {
+        "ok": true,
+        "tokens": {
+         "input": 20,
+         "output": 7246,
+         "cache_read": 331912,
+         "cache_creation": 28532
+        },
+        "api_ms": 76048,
+        "num_turns": 31,
+        "models": [
+         "claude-opus-5-5"
+        ],
+        "tokens_weighted": 68989.20000000001,
+        "wall_ms": 77218
+       }
+      ],
+      "tokens": {
+       "input": 20,
+       "output": 7246,
+       "cache_read": 331912,
+       "cache_creation": 28532
+      },
+      "tokens_weighted": 68989.20000000001,
+      "tool_calls": {
+       "Read": 25,
+       "Bash": 4,
+       "Write": 1
+      },
+      "tool_calls_total": 30,
+      "mcp_calls": 0,
+      "mcp_status": {
+       "code-context": "connected"
+      },
+      "skills_loaded": 0,
+      "model_init": "claude-opus-5-5",
+      "models": [
+       "claude-opus-5-5"
+      ],
+      "peeked_hidden": false,
+      "ok": true,
+      "rc": 0,
+      "timed_out": false,
+      "wall_ms": 77769,
+      "index_ms": 126,
+      "grade": {
+       "points": {
+        "Q1": 1.0,
+        "Q2": 1.0,
+        "Q3": 0.5,
+        "Q4": 1.0,
+        "Q5": 1.0,
+        "Q6": 1.0,
+        "Q7": 1.0,
+        "Q8": 1.0,
+        "Q9": 1.0,
+        "Q10": 1.0
+       },
+       "total": 9.5,
+       "max": 10,
+       "score": 0.95,
+       "sections_found": 10
+      },
+      "mcp_calls_other": 0
+     }
+    },
+    "T4": {
+     "cc": {
+      "turns": [
+       {
+        "ok": true,
+        "tokens": {
+         "input": 10,
+         "output": 3050,
+         "cache_read": 137187,
+         "cache_creation": 17945
+        },
+        "api_ms": 29293,
+        "num_turns": 6,
+        "models": [
+         "claude-opus-5-5"
+        ],
+        "tokens_weighted": 34723.7,
+        "wall_ms": 30507
+       },
+       {
+        "ok": true,
+        "tokens": {
+         "input": 24,
+         "output": 17751,
+         "cache_read": 587252,
+         "cache_creation": 25799
+        },
+        "api_ms": 166409,
+        "num_turns": 25,
+        "models": [
+         "claude-opus-5-5"
+        ],
+        "tokens_weighted": 102299.20000000001,
+        "wall_ms": 138466
+       }
+      ],
+      "tokens": {
+       "input": 34,
+       "output": 20801,
+       "cache_read": 724439,
+       "cache_creation": 43744
+      },
+      "tokens_weighted": 137022.90000000002,
+      "tool_calls": {
+       "Edit": 13,
+       "Bash": 9,
+       "Write": 6,
+       "Read": 1
+      },
+      "tool_calls_total": 29,
+      "mcp_calls": 0,
+      "mcp_status": {
+       "code-context": "connected"
+      },
+      "skills_loaded": 0,
+      "model_init": "claude-opus-5-5",
+      "models": [
+       "claude-opus-5-5"
+      ],
+      "peeked_hidden": false,
+      "ok": true,
+      "rc": 0,
+      "timed_out": false,
+      "wall_ms": 169610,
+      "index_ms": 126,
+      "hidden": {
+       "pass": 11,
+       "fail": 0,
+       "total": 11,
+       "rate": 1.0
+      },
+      "orig_tests": {
+       "pass": 20,
+       "fail": 0,
+       "total": 20,
+       "rate": 1.0
+      },
+      "turn2_tokens": 102299.20000000001,
+      "turn2_ms": 138466,
+      "mcp_calls_other": 0
+     },
+     "vanilla": {
+      "turns": [
+       {
+        "ok": true,
+        "tokens": {
+         "input": 12,
+         "output": 5831,
+         "cache_read": 160356,
+         "cache_creation": 19957
+        },
+        "api_ms": 50053,
+        "num_turns": 23,
+        "models": [
+         "claude-opus-5-5"
+        ],
+        "tokens_weighted": 41835.6,
+        "wall_ms": 52201
+       },
+       {
+        "ok": true,
+        "tokens": {
+         "input": 24,
+         "output": 17243,
+         "cache_read": 630820,
+         "cache_creation": 27076
+        },
+        "api_ms": 192044,
+        "num_turns": 28,
+        "models": [
+         "claude-opus-5-5"
+        ],
+        "tokens_weighted": 107425.0,
+        "wall_ms": 143438
+       }
+      ],
+      "tokens": {
+       "input": 36,
+       "output": 23074,
+       "cache_read": 791176,
+       "cache_creation": 47033
+      },
+      "tokens_weighted": 149260.6,
+      "tool_calls": {
+       "Read": 28,
+       "Edit": 10,
+       "Write": 6,
+       "Bash": 5
+      },
+      "tool_calls_total": 49,
+      "mcp_calls": 0,
+      "mcp_status": {},
+      "skills_loaded": 0,
+      "model_init": "claude-opus-5-5",
+      "models": [
+       "claude-opus-5-5"
+      ],
+      "peeked_hidden": false,
+      "ok": true,
+      "rc": 0,
+      "timed_out": false,
+      "wall_ms": 196175,
+      "index_ms": 0,
+      "hidden": {
+       "pass": 11,
+       "fail": 0,
+       "total": 11,
+       "rate": 1.0
+      },
+      "orig_tests": {
+       "pass": 20,
+       "fail": 0,
+       "total": 20,
+       "rate": 1.0
+      },
+      "turn2_tokens": 107425.0,
+      "turn2_ms": 143438,
+      "mcp_calls_other": 0
+     }
+    }
+   }
+  },
+  {
+   "rep": 3,
+   "order": {
+    "T1": [
+     "cc",
+     "vanilla"
+    ],
+    "T3": [
+     "vanilla",
+     "cc"
+    ],
+    "T2": [
+     "cc",
+     "vanilla"
+    ],
+    "T4": [
+     "vanilla",
+     "cc"
+    ]
+   },
+   "measures": {
+    "van": {
+     "t1_hidden_rate": 1.0,
+     "t1_static": 0.911215092097445,
+     "t2_score": 0.9,
+     "t4_hidden_rate": 1.0,
+     "t4_turn2_tokens": 93794.9,
+     "t4_turn2_ms": 123252,
+     "wall_ms": 441731,
+     "tokens": 364614.20000000007
+    },
+    "cc": {
+     "t1_hidden_rate": 1.0,
+     "t1_static": 0.9611111111111111,
+     "t2_score": 0.95,
+     "t4_hidden_rate": 1.0,
+     "t4_turn2_tokens": 115806.0,
+     "t4_turn2_ms": 163037,
+     "wall_ms": 490658,
+     "tokens": 409319.9
+    }
+   },
+   "deltas": {
+    "accuracy": 0.0,
+    "code_quality": -0.22262116296887988,
+    "systems": 0.05555555555555548,
+    "stakeholder": 1.0,
+    "control": -0.13936665617647037,
+    "cost_time": 0.11076197957580518,
+    "cost_tokens": 0.12261096797656247,
+    "Q": 0.02896743669543976,
+    "C": 0.11668647377618382,
+    "NV": -0.02937580019265215,
+    "parts": {
+     "static": 0.05475767406224026,
+     "t1_judge": -0.5,
+     "t4_hidden": 0.0,
+     "t4_adapt": -0.27873331235294074
+    }
+   },
+   "vote_share": {
+    "cc": 1.0,
+    "van": 0.0
+   },
+   "judges": {
+    "T1": {
+     "delta": -0.5,
+     "status": "judged",
+     "verdicts": [
+      {
+       "judge": "deepseek",
+       "order": "van-first",
+       "winner": "A",
+       "error": null
+      },
+      {
+       "judge": "deepseek",
+       "order": "cc-first",
+       "winner": "A",
+       "error": null
+      },
+      {
+       "judge": "glm",
+       "order": "van-first",
+       "winner": "A",
+       "error": null
+      },
+      {
+       "judge": "glm",
+       "order": "cc-first",
+       "winner": "B",
+       "error": null
+      }
+     ]
+    },
+    "T3": {
+     "delta": 1.0,
+     "status": "judged",
+     "verdicts": [
+      {
+       "judge": "deepseek",
+       "order": "van-first",
+       "winner": "B",
+       "error": null
+      },
+      {
+       "judge": "deepseek",
+       "order": "cc-first",
+       "winner": "A",
+       "error": null
+      },
+      {
+       "judge": "glm",
+       "order": "van-first",
+       "winner": "B",
+       "error": null
+      },
+      {
+       "judge": "glm",
+       "order": "cc-first",
+       "winner": "A",
+       "error": null
+      }
+     ]
+    }
+   },
+   "tasks": {
+    "T1": {
+     "vanilla": {
+      "turns": [
+       {
+        "ok": true,
+        "tokens": {
+         "input": 22,
+         "output": 17420,
+         "cache_read": 444880,
+         "cache_creation": 39682
+        },
+        "api_ms": 136011,
+        "num_turns": 24,
+        "models": [
+         "claude-opus-5-5"
+        ],
+        "tokens_weighted": 101612.0,
+        "wall_ms": 138714
+       }
+      ],
+      "tokens": {
+       "input": 22,
+       "output": 17420,
+       "cache_read": 444880,
+       "cache_creation": 39682
+      },
+      "tokens_weighted": 101612.0,
+      "tool_calls": {
+       "Edit": 10,
+       "Bash": 7,
+       "Write": 6
+      },
+      "tool_calls_total": 23,
+      "mcp_calls": 0,
+      "mcp_status": {},
+      "skills_loaded": 0,
+      "model_init": "claude-opus-5-5",
+      "models": [
+       "claude-opus-5-5"
+      ],
+      "peeked_hidden": false,
+      "ok": true,
+      "rc": 0,
+      "timed_out": false,
+      "wall_ms": 139186,
+      "index_ms": 0,
+      "static": {
+       "new_src_files": 8,
+       "new_src_lines": 193,
+       "new_test_files": 3,
+       "lint_errors": 0,
+       "lint_warnings": 0,
+       "functions": 10,
+       "complexity_mean": 6.1,
+       "complexity_max": 20,
+       "new_tokens": 1169,
+       "dup_tokens": 0,
+       "dup_ratio": 0,
+       "coverage_new": 0.9893048128342246,
+       "coverage_lines": {
+        "covered": 185,
+        "executable": 187
+       }
+      },
+      "static_score": 0.911215092097445,
+      "hidden": {
+       "pass": 22,
+       "fail": 0,
+       "total": 22,
+       "rate": 1.0
+      },
+      "orig_tests": {
+       "pass": 20,
+       "fail": 0,
+       "total": 20,
+       "rate": 1.0
+      },
+      "mcp_calls_other": 0
+     },
+     "cc": {
+      "turns": [
+       {
+        "ok": true,
+        "tokens": {
+         "input": 28,
+         "output": 17213,
+         "cache_read": 629356,
+         "cache_creation": 42262
+        },
+        "api_ms": 139470,
+        "num_turns": 26,
+        "models": [
+         "claude-opus-5-5"
+        ],
+        "tokens_weighted": 122438.6,
+        "wall_ms": 142956
+       }
+      ],
+      "tokens": {
+       "input": 28,
+       "output": 17213,
+       "cache_read": 629356,
+       "cache_creation": 42262
+      },
+      "tokens_weighted": 122438.6,
+      "tool_calls": {
+       "Bash": 8,
+       "Edit": 7,
+       "Write": 6,
+       "Read": 4
+      },
+      "tool_calls_total": 25,
+      "mcp_calls": 0,
+      "mcp_status": {
+       "code-context": "connected"
+      },
+      "skills_loaded": 0,
+      "model_init": "claude-opus-5-5",
+      "models": [
+       "claude-opus-5-5"
+      ],
+      "peeked_hidden": false,
+      "ok": true,
+      "rc": 0,
+      "timed_out": false,
+      "wall_ms": 143480,
+      "index_ms": 126,
+      "static": {
+       "new_src_files": 6,
+       "new_src_lines": 179,
+       "new_test_files": 3,
+       "lint_errors": 0,
+       "lint_warnings": 0,
+       "functions": 10,
+       "complexity_mean": 4.4,
+       "complexity_max": 13,
+       "new_tokens": 991,
+       "dup_tokens": 0,
+       "dup_ratio": 0,
+       "coverage_new": 1,
+       "coverage_lines": {
+        "covered": 174,
+        "executable": 174
+       }
+      },
+      "static_score": 0.9611111111111111,
+      "hidden": {
+       "pass": 22,
+       "fail": 0,
+       "total": 22,
+       "rate": 1.0
+      },
+      "orig_tests": {
+       "pass": 20,
+       "fail": 0,
+       "total": 20,
+       "rate": 1.0
+      },
+      "mcp_calls_other": 0
+     }
+    },
+    "T3": {
+     "cc": {
+      "turns": [
+       {
+        "ok": true,
+        "tokens": {
+         "input": 14,
+         "output": 2275,
+         "cache_read": 206841,
+         "cache_creation": 20193
+        },
+        "api_ms": 34434,
+        "num_turns": 9,
+        "models": [
+         "claude-opus-5-5"
+        ],
+        "tokens_weighted": 43166.100000000006,
+        "wall_ms": 35981
+       }
+      ],
+      "tokens": {
+       "input": 14,
+       "output": 2275,
+       "cache_read": 206841,
+       "cache_creation": 20193
+      },
+      "tokens_weighted": 43166.100000000006,
+      "tool_calls": {
+       "Bash": 7,
+       "Write": 1
+      },
+      "tool_calls_total": 8,
+      "mcp_calls": 0,
+      "mcp_status": {
+       "code-context": "connected"
+      },
+      "skills_loaded": 0,
+      "model_init": "claude-opus-5-5",
+      "models": [
+       "claude-opus-5-5"
+      ],
+      "peeked_hidden": false,
+      "ok": true,
+      "rc": 0,
+      "timed_out": false,
+      "wall_ms": 36555,
+      "index_ms": 130,
+      "update_words": 304,
+      "mcp_calls_other": 0
+     },
+     "vanilla": {
+      "turns": [
+       {
+        "ok": true,
+        "tokens": {
+         "input": 20,
+         "output": 3586,
+         "cache_read": 309821,
+         "cache_creation": 19426
+        },
+        "api_ms": 36245,
+        "num_turns": 12,
+        "models": [
+         "claude-opus-5-5"
+        ],
+        "tokens_weighted": 54014.100000000006,
+        "wall_ms": 38148
+       }
+      ],
+      "tokens": {
+       "input": 20,
+       "output": 3586,
+       "cache_read": 309821,
+       "cache_creation": 19426
+      },
+      "tokens_weighted": 54014.100000000006,
+      "tool_calls": {
+       "Bash": 8,
+       "Write": 2,
+       "Edit": 1
+      },
+      "tool_calls_total": 11,
+      "mcp_calls": 0,
+      "mcp_status": {},
+      "skills_loaded": 0,
+      "model_init": "claude-opus-5-5",
+      "models": [
+       "claude-opus-5-5"
+      ],
+      "peeked_hidden": false,
+      "ok": true,
+      "rc": 0,
+      "timed_out": false,
+      "wall_ms": 38711,
+      "index_ms": 0,
+      "update_words": 244,
+      "mcp_calls_other": 0
+     }
+    },
+    "T2": {
+     "vanilla": {
+      "turns": [
+       {
+        "ok": true,
+        "tokens": {
+         "input": 20,
+         "output": 8835,
+         "cache_read": 339412,
+         "cache_creation": 31530
+        },
+        "api_ms": 89776,
+        "num_turns": 29,
+        "models": [
+         "claude-opus-5-5"
+        ],
+        "tokens_weighted": 74326.20000000001,
+        "wall_ms": 90991
+       }
+      ],
+      "tokens": {
+       "input": 20,
+       "output": 8835,
+       "cache_read": 339412,
+       "cache_creation": 31530
+      },
+      "tokens_weighted": 74326.20000000001,
+      "tool_calls": {
+       "Read": 20,
+       "Bash": 6,
+       "Write": 1,
+       "Edit": 1
+      },
+      "tool_calls_total": 28,
+      "mcp_calls": 0,
+      "mcp_status": {},
+      "skills_loaded": 0,
+      "model_init": "claude-opus-5-5",
+      "models": [
+       "claude-opus-5-5"
+      ],
+      "peeked_hidden": false,
+      "ok": true,
+      "rc": 0,
+      "timed_out": false,
+      "wall_ms": 91521,
+      "index_ms": 0,
+      "grade": {
+       "points": {
+        "Q1": 0.5,
+        "Q2": 1.0,
+        "Q3": 0.5,
+        "Q4": 1.0,
+        "Q5": 1.0,
+        "Q6": 1.0,
+        "Q7": 1.0,
+        "Q8": 1.0,
+        "Q9": 1.0,
+        "Q10": 1.0
+       },
+       "total": 9.0,
+       "max": 10,
+       "score": 0.9,
+       "sections_found": 10
+      },
+      "mcp_calls_other": 0
+     },
+     "cc": {
+      "turns": [
+       {
+        "ok": true,
+        "tokens": {
+         "input": 22,
+         "output": 9927,
+         "cache_read": 402964,
+         "cache_creation": 34375
+        },
+        "api_ms": 101474,
+        "num_turns": 35,
+        "models": [
+         "claude-opus-5-5"
+        ],
+        "tokens_weighted": 84620.4,
+        "wall_ms": 102720
+       }
+      ],
+      "tokens": {
+       "input": 22,
+       "output": 9927,
+       "cache_read": 402964,
+       "cache_creation": 34375
+      },
+      "tokens_weighted": 84620.4,
+      "tool_calls": {
+       "Read": 27,
+       "Bash": 5,
+       "Write": 2
+      },
+      "tool_calls_total": 34,
+      "mcp_calls": 0,
+      "mcp_status": {
+       "code-context": "connected"
+      },
+      "skills_loaded": 0,
+      "model_init": "claude-opus-5-5",
+      "models": [
+       "claude-opus-5-5"
+      ],
+      "peeked_hidden": false,
+      "ok": true,
+      "rc": 0,
+      "timed_out": false,
+      "wall_ms": 103287,
+      "index_ms": 126,
+      "grade": {
+       "points": {
+        "Q1": 1.0,
+        "Q2": 1.0,
+        "Q3": 0.5,
+        "Q4": 1.0,
+        "Q5": 1.0,
+        "Q6": 1.0,
+        "Q7": 1.0,
+        "Q8": 1.0,
+        "Q9": 1.0,
+        "Q10": 1.0
+       },
+       "total": 9.5,
+       "max": 10,
+       "score": 0.95,
+       "sections_found": 10
+      },
+      "mcp_calls_other": 0
+     }
+    },
+    "T4": {
+     "vanilla": {
+      "turns": [
+       {
+        "ok": true,
+        "tokens": {
+         "input": 12,
+         "output": 5507,
+         "cache_read": 161190,
+         "cache_creation": 19229
+        },
+        "api_ms": 47448,
+        "num_turns": 22,
+        "models": [
+         "claude-opus-5-5"
+        ],
+        "tokens_weighted": 40867.0,
+        "wall_ms": 48539
+       },
+       {
+        "ok": true,
+        "tokens": {
+         "input": 20,
+         "output": 15510,
+         "cache_read": 504179,
+         "cache_creation": 27847
+        },
+        "api_ms": 169746,
+        "num_turns": 28,
+        "models": [
+         "claude-opus-5-5"
+        ],
+        "tokens_weighted": 93794.9,
+        "wall_ms": 123252
+       }
+      ],
+      "tokens": {
+       "input": 32,
+       "output": 21017,
+       "cache_read": 665369,
+       "cache_creation": 47076
+      },
+      "tokens_weighted": 134661.90000000002,
+      "tool_calls": {
+       "Read": 27,
+       "Edit": 11,
+       "Write": 6,
+       "Bash": 4
+      },
+      "tool_calls_total": 48,
+      "mcp_calls": 0,
+      "mcp_status": {},
+      "skills_loaded": 0,
+      "model_init": "claude-opus-5-5",
+      "models": [
+       "claude-opus-5-5"
+      ],
+      "peeked_hidden": false,
+      "ok": true,
+      "rc": 0,
+      "timed_out": false,
+      "wall_ms": 172313,
+      "index_ms": 0,
+      "hidden": {
+       "pass": 11,
+       "fail": 0,
+       "total": 11,
+       "rate": 1.0
+      },
+      "orig_tests": {
+       "pass": 20,
+       "fail": 0,
+       "total": 20,
+       "rate": 1.0
+      },
+      "turn2_tokens": 93794.9,
+      "turn2_ms": 123252,
+      "mcp_calls_other": 0
+     },
+     "cc": {
+      "turns": [
+       {
+        "ok": true,
+        "tokens": {
+         "input": 12,
+         "output": 5052,
+         "cache_read": 168598,
+         "cache_creation": 21365
+        },
+        "api_ms": 42555,
+        "num_turns": 23,
+        "models": [
+         "claude-opus-5-5"
+        ],
+        "tokens_weighted": 43288.8,
+        "wall_ms": 43604
+       },
+       {
+        "ok": true,
+        "tokens": {
+         "input": 26,
+         "output": 19288,
+         "cache_read": 686930,
+         "cache_creation": 27799
+        },
+        "api_ms": 204542,
+        "num_turns": 28,
+        "models": [
+         "claude-opus-5-5"
+        ],
+        "tokens_weighted": 115806.0,
+        "wall_ms": 163037
+       }
+      ],
+      "tokens": {
+       "input": 38,
+       "output": 24340,
+       "cache_read": 855528,
+       "cache_creation": 49164
+      },
+      "tokens_weighted": 159094.8,
+      "tool_calls": {
+       "Read": 27,
+       "Edit": 12,
+       "Write": 6,
+       "Bash": 4
+      },
+      "tool_calls_total": 49,
+      "mcp_calls": 0,
+      "mcp_status": {
+       "code-context": "connected"
+      },
+      "skills_loaded": 0,
+      "model_init": "claude-opus-5-5",
+      "models": [
+       "claude-opus-5-5"
+      ],
+      "peeked_hidden": false,
+      "ok": true,
+      "rc": 0,
+      "timed_out": false,
+      "wall_ms": 207336,
+      "index_ms": 130,
+      "hidden": {
+       "pass": 11,
+       "fail": 0,
+       "total": 11,
+       "rate": 1.0
+      },
+      "orig_tests": {
+       "pass": 20,
+       "fail": 0,
+       "total": 20,
+       "rate": 1.0
+      },
+      "turn2_tokens": 115806.0,
+      "turn2_ms": 163037,
+      "mcp_calls_other": 0
+     }
+    }
+   }
+  }
+ ],
+ "failures": 0,
+ "treatment": {
+  "cc_sessions": 12,
+  "cc_sessions_with_mcp": 0,
+  "received_rate": 0.0,
+  "mcp_calls_total": 0
+ },
+ "notes": [
+  "cc arm made 0 code-context MCP calls in 12/12 sessions \u2014 treatment not received; ceiling on T1/T4 (both arms 22/22, 11/11)"
+ ]
+}

@@ -1,0 +1,11 @@
+{
+  "schema": "ccc-bench-private-index/1",
+  "summaries": [
+    {
+      "slug": "real-world-suite-a",
+      "alias": "Real-world suite A",
+      "generated": "2026-10-12",
+      "file": "private/real-world-suite-a.json"
+    }
+  ]
+}

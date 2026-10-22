@@ -21,3 +21,5 @@ playwright-report/
 test/contract/snapshots/
 # Benchmark run copies written by scripts/bench/snapshot.mjs.
 benchmarks/latest/
+# Frozen copies for the visual gate (#293); they keep their source format.
+test/visual/fixtures/

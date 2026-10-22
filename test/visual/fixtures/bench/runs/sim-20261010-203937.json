@@ -1,0 +1,327 @@
+{
+  "schema": "ccc-bench/1",
+  "run_id": "sim-20261010-203937",
+  "kind": "simulated",
+  "date": "2026-10-10",
+  "ts": "2026-10-10T20:39:37Z",
+  "trigger": "manual",
+  "duration_ms": 1275,
+  "code_context_version": "2.8.0",
+  "git": {
+    "commit": "95e40b0323e70e18d99819559c3aeda9c0daab94",
+    "branch": "main",
+    "dirty": false
+  },
+  "notes": [],
+  "model": null,
+  "deterministic": {
+    "meta": {
+      "fixture": "test/fixtures/sample-project",
+      "fileCount": 10,
+      "tsFileCount": 5,
+      "exportCount": 19,
+      "depCount": 3,
+      "generatedAt": "2026-10-10T20:39:37.445Z",
+      "methodology": "Simulated agent workflows — MCP tool calls vs raw file reads. Self-contained tasks, no cross-task state. Deterministic (no AI API calls).",
+      "tokenEstimation": "Conservative whitespace+symbol splitting. NOT Claude tokenizer counts. Real API usage may differ."
+    },
+    "tasks": [
+      {
+        "id": "T01",
+        "label": "Single-file lookup",
+        "category": "retrieval",
+        "points": 1,
+        "mcp": {
+          "tokens": 146,
+          "calls": 2,
+          "files": 1
+        },
+        "vanilla": {
+          "tokens": 387,
+          "calls": 2,
+          "files": 1
+        },
+        "tokenSavingsPct": 62.3,
+        "callSavingsPct": 0
+      },
+      {
+        "id": "T02",
+        "label": "Symbol search",
+        "category": "retrieval",
+        "points": 1,
+        "mcp": {
+          "tokens": 29,
+          "calls": 1,
+          "files": 0
+        },
+        "vanilla": {
+          "tokens": 310,
+          "calls": 2,
+          "files": 1
+        },
+        "tokenSavingsPct": 90.6,
+        "callSavingsPct": 50
+      },
+      {
+        "id": "T03",
+        "label": "Dependency tracing",
+        "category": "analysis",
+        "points": 2,
+        "mcp": {
+          "tokens": 102,
+          "calls": 1,
+          "files": 1
+        },
+        "vanilla": {
+          "tokens": 534,
+          "calls": 4,
+          "files": 3
+        },
+        "tokenSavingsPct": 80.9,
+        "callSavingsPct": 75
+      },
+      {
+        "id": "T04",
+        "label": "Codebase reconnaissance",
+        "category": "exploration",
+        "points": 2,
+        "mcp": {
+          "tokens": 170,
+          "calls": 1,
+          "files": 0
+        },
+        "vanilla": {
+          "tokens": 286,
+          "calls": 5,
+          "files": 4
+        },
+        "tokenSavingsPct": 40.6,
+        "callSavingsPct": 80
+      },
+      {
+        "id": "T05",
+        "label": "Add utility function",
+        "category": "implementation",
+        "points": 2,
+        "mcp": {
+          "tokens": 295,
+          "calls": 4,
+          "files": 2
+        },
+        "vanilla": {
+          "tokens": 501,
+          "calls": 5,
+          "files": 2
+        },
+        "tokenSavingsPct": 41.1,
+        "callSavingsPct": 20
+      },
+      {
+        "id": "T06",
+        "label": "Bug hunt — type mismatch",
+        "category": "debugging",
+        "points": 3,
+        "mcp": {
+          "tokens": 342,
+          "calls": 4,
+          "files": 3
+        },
+        "vanilla": {
+          "tokens": 931,
+          "calls": 5,
+          "files": 4
+        },
+        "tokenSavingsPct": 63.3,
+        "callSavingsPct": 20
+      },
+      {
+        "id": "T07",
+        "label": "Add API endpoint",
+        "category": "implementation",
+        "points": 3,
+        "mcp": {
+          "tokens": 614,
+          "calls": 6,
+          "files": 3
+        },
+        "vanilla": {
+          "tokens": 991,
+          "calls": 9,
+          "files": 5
+        },
+        "tokenSavingsPct": 38,
+        "callSavingsPct": 33.3
+      },
+      {
+        "id": "T08",
+        "label": "Cross-file refactor",
+        "category": "refactoring",
+        "points": 5,
+        "mcp": {
+          "tokens": 1028,
+          "calls": 11,
+          "files": 4
+        },
+        "vanilla": {
+          "tokens": 1471,
+          "calls": 12,
+          "files": 9
+        },
+        "tokenSavingsPct": 30.1,
+        "callSavingsPct": 8.3
+      },
+      {
+        "id": "T09",
+        "label": "New feature with tests",
+        "category": "implementation",
+        "points": 5,
+        "mcp": {
+          "tokens": 771,
+          "calls": 8,
+          "files": 4
+        },
+        "vanilla": {
+          "tokens": 1224,
+          "calls": 11,
+          "files": 9
+        },
+        "tokenSavingsPct": 37,
+        "callSavingsPct": 27.3
+      },
+      {
+        "id": "T10",
+        "label": "Full codebase audit",
+        "category": "analysis",
+        "points": 8,
+        "mcp": {
+          "tokens": 831,
+          "calls": 11,
+          "files": 9
+        },
+        "vanilla": {
+          "tokens": 1421,
+          "calls": 13,
+          "files": 10
+        },
+        "tokenSavingsPct": 41.5,
+        "callSavingsPct": 15.4
+      }
+    ],
+    "summary": {
+      "totalMcpTokens": 4328,
+      "totalVanillaTokens": 8056,
+      "totalSavingsPct": 46.3,
+      "totalMcpCalls": 49,
+      "totalVanillaCalls": 68,
+      "callSavingsPct": 27.9,
+      "totalPoints": 32,
+      "taskCount": 10,
+      "categories": {
+        "retrieval": {
+          "mcpTokens": 175,
+          "vanillaTokens": 697,
+          "savingsPct": 74.9
+        },
+        "analysis": {
+          "mcpTokens": 933,
+          "vanillaTokens": 1955,
+          "savingsPct": 52.3
+        },
+        "exploration": {
+          "mcpTokens": 170,
+          "vanillaTokens": 286,
+          "savingsPct": 40.6
+        },
+        "implementation": {
+          "mcpTokens": 1680,
+          "vanillaTokens": 2716,
+          "savingsPct": 38.1
+        },
+        "debugging": {
+          "mcpTokens": 342,
+          "vanillaTokens": 931,
+          "savingsPct": 63.3
+        },
+        "refactoring": {
+          "mcpTokens": 1028,
+          "vanillaTokens": 1471,
+          "savingsPct": 30.1
+        }
+      }
+    }
+  },
+  "stochastic": {
+    "config": {
+      "trials": 200,
+      "seed": 42,
+      "poissonLambda": 1.5,
+      "bootstrapResamples": 2000,
+      "fixtureFiles": 11,
+      "tsFiles": 5
+    },
+    "results": {
+      "mcpWins": 183,
+      "vanillaWins": 17,
+      "ties": 0,
+      "mcpWinRate": 91.5
+    },
+    "tokens": {
+      "mcpMean": 268,
+      "vanillaMean": 585,
+      "savingsMean": 37.1,
+      "savingsPct": 54.2,
+      "ci95": {
+        "lower": 20.4,
+        "upper": 49
+      }
+    },
+    "calls": {
+      "mcpMean": 3,
+      "vanillaMean": 5
+    },
+    "statistics": {
+      "wilcoxon": {
+        "W": 427,
+        "z": 11.742,
+        "p": 0,
+        "n": 200
+      },
+      "effectSize": 0.958,
+      "effectLabel": "large",
+      "significant": true
+    },
+    "byTemplate": {
+      "multi-file": {
+        "count": 48,
+        "mcpMean": 455,
+        "vanillaMean": 904,
+        "savingsPct": 49.7
+      },
+      "dep-tracing": {
+        "count": 48,
+        "mcpMean": 100,
+        "vanillaMean": 494,
+        "savingsPct": 79.8
+      },
+      "single-file": {
+        "count": 55,
+        "mcpMean": 185,
+        "vanillaMean": 287,
+        "savingsPct": 35.5
+      },
+      "project-scan": {
+        "count": 49,
+        "mcpMean": 342,
+        "vanillaMean": 695,
+        "savingsPct": 50.8
+      }
+    }
+  },
+  "headline": {
+    "tokensSavedPct": 46.3,
+    "callsSavedPct": 27.9,
+    "mcpWinsPct": 91.5,
+    "wilcoxonP": 0,
+    "effectSizeR": 0.958
+  }
+}
