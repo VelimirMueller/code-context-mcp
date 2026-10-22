@@ -30,3 +30,4 @@ context.db*
 
 # code-context dump (holds all indexed source)
 code-context-dump*.json
+playwright-report/
