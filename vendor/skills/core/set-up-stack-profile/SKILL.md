@@ -48,12 +48,12 @@ Stop at three rounds if the user answers "defaults": fill the rest from the rada
 
 ## 5. Output: plugins to enable
 
-Marketplace name is `frontendskills`; install id is `<plugin>@frontendskills`. Map profile → plugins with the table in [wizard-reference.md](wizard-reference.md). Always `devcore`. Print the exact commands:
+Marketplace name is `claude-development-skills`; install id is `<plugin>@claude-development-skills`. Map profile → plugins with the table in [wizard-reference.md](wizard-reference.md). Always `devcore`. Print the exact commands:
 
 ```
-/plugin marketplace add VelimirMueller/claude-skills
-/plugin install devcore@frontendskills
-/plugin install <other>@frontendskills
+/plugin marketplace add VelimirMueller/claude-development-skills
+/plugin install devcore@claude-development-skills
+/plugin install <other>@claude-development-skills
 ```
 
 Plugins already enabled (`/plugin` lists them) are not repeated. Each plugin depends on `devcore`, so installing any of them installs it too.
