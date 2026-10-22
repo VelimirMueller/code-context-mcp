@@ -34,16 +34,16 @@ describe('Badge', () => {
     expect(screen.getByText('function')).toBeDefined();
   });
 
-  it('applies variant class', async () => {
+  it('marks the variant', async () => {
     const { Badge } = await import('@/components/atoms/Badge');
-    const { container } = render(<Badge text="test" variant="type" />);
-    expect(container.querySelector('.badge-type')).toBeTruthy();
+    render(<Badge text="test" variant="type" />);
+    expect(screen.getByText('test').dataset.variant).toBe('type');
   });
 
   it('defaults to default variant', async () => {
     const { Badge } = await import('@/components/atoms/Badge');
-    const { container } = render(<Badge text="x" />);
-    expect(container.querySelector('.badge-default')).toBeTruthy();
+    render(<Badge text="x" />);
+    expect(screen.getByText('x').dataset.variant).toBe('default');
   });
 });
 
@@ -52,14 +52,14 @@ describe('Badge', () => {
 describe('Skeleton', () => {
   it('renders correct number of bars', async () => {
     const { Skeleton } = await import('@/components/atoms/Skeleton');
-    const { container } = render(<Skeleton count={3} />);
-    expect(container.querySelectorAll('.skeleton-bar')).toHaveLength(3);
+    render(<Skeleton count={3} />);
+    expect(screen.getAllByTestId('skeleton-bar')).toHaveLength(3);
   });
 
   it('defaults to 1 bar', async () => {
     const { Skeleton } = await import('@/components/atoms/Skeleton');
-    const { container } = render(<Skeleton />);
-    expect(container.querySelectorAll('.skeleton-bar')).toHaveLength(1);
+    render(<Skeleton />);
+    expect(screen.getAllByTestId('skeleton-bar')).toHaveLength(1);
   });
 });
 

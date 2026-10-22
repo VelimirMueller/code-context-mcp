@@ -1,5 +1,3 @@
-import React from 'react';
-
 interface StatProps {
   value: string | number;
   label: string;
@@ -8,28 +6,13 @@ interface StatProps {
 
 export function Stat({ value, label, mono = true }: StatProps) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+    <div className="flex flex-col items-center gap-[2px]">
       <span
-        style={{
-          fontFamily: mono ? 'var(--mono)' : 'var(--font)',
-          fontSize: 15,
-          fontWeight: 600,
-          color: 'var(--text)',
-          lineHeight: 1,
-        }}
+        className={`${mono ? 'font-code' : 'font-body'} text-[15px] leading-none font-semibold text-fg`}
       >
         {value}
       </span>
-      <span
-        style={{
-          fontSize: 10,
-          color: 'var(--text3)',
-          textTransform: 'uppercase',
-          letterSpacing: '0.06em',
-        }}
-      >
-        {label}
-      </span>
+      <span className="text-10 tracking-[0.06em] text-fg-3 uppercase">{label}</span>
     </div>
   );
 }
