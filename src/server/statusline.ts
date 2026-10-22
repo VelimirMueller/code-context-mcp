@@ -16,10 +16,11 @@
  * }
  */
 
-import Database from "better-sqlite3";
-import fs from "fs";
-import path from "path";
-import { pathToFileURL } from "url";
+import Database from 'better-sqlite3';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { pathToFileURL } from 'url';
 
 const DEFAULT_SPRINT_LENGTH_DAYS = 5;
 const BAR_WIDTH = 8;
@@ -34,7 +35,7 @@ const MS_PER_DAY = 86_400_000;
 export function findDb(startDir: string): string | null {
   let dir = path.resolve(startDir);
   for (let i = 0; i < 10; i++) {
-    const candidate = path.join(dir, "context.db");
+    const candidate = path.join(dir, 'context.db');
     if (fs.existsSync(candidate)) return candidate;
     const parent = path.dirname(dir);
     if (parent === dir) break;
@@ -55,15 +56,14 @@ interface Palette {
 }
 
 function makePalette(useColor: boolean): Palette {
-  const wrap = (code: string) => (s: string) =>
-    useColor ? `\x1b[${code}m${s}\x1b[0m` : s;
+  const wrap = (code: string) => (s: string) => (useColor ? `\x1b[${code}m${s}\x1b[0m` : s);
   return {
-    cyan: wrap("36"),
-    bold: wrap("1"),
-    green: wrap("32"),
-    yellow: wrap("33"),
-    red: wrap("31"),
-    dim: wrap("2"),
+    cyan: wrap('36'),
+    bold: wrap('1'),
+    green: wrap('32'),
+    yellow: wrap('33'),
+    red: wrap('31'),
+    dim: wrap('2'),
   };
 }
 
@@ -99,7 +99,7 @@ function sprintLengthDays(db: Database.Database): number {
     if (!row?.content) return DEFAULT_SPRINT_LENGTH_DAYS;
     const config = JSON.parse(row.content) as Record<string, unknown>;
     const len = config.sprint_length_days ?? config.duration_days;
-    if (typeof len === "number" && Number.isFinite(len) && len > 0) {
+    if (typeof len === 'number' && Number.isFinite(len) && len > 0) {
       return Math.floor(len);
     }
     return DEFAULT_SPRINT_LENGTH_DAYS;
@@ -127,7 +127,7 @@ function shortSprintName(name: string): string {
 function progressBar(done: number, total: number): string {
   const ratio = total > 0 ? done / total : 0;
   const filled = Math.min(BAR_WIDTH, Math.max(0, Math.round(ratio * BAR_WIDTH)));
-  return "▰".repeat(filled) + "▱".repeat(BAR_WIDTH - filled);
+  return '▰'.repeat(filled) + '▱'.repeat(BAR_WIDTH - filled);
 }
 
 // ─── Statusline rendering ────────────────────────────────────────────────────
@@ -145,12 +145,12 @@ export function buildStatusline(dbPath: string, opts?: { color?: boolean }): str
   try {
     const sprint = findActiveSprint(db);
     if (!sprint) {
-      let line = `${c.cyan(`◆ ${project}`)} ${c.dim("▸")} no active sprint`;
+      let line = `${c.cyan(`◆ ${project}`)} ${c.dim('▸')} no active sprint`;
       try {
         const row = db
           .prepare(`SELECT COUNT(*) AS n FROM discoveries WHERE status = 'discovered'`)
           .get() as { n: number };
-        line += ` ${c.dim("·")} ${row.n} open discoveries`;
+        line += ` ${c.dim('·')} ${row.n} open discoveries`;
       } catch {
         // discoveries table missing on old DBs — omit the segment
       }
@@ -166,12 +166,12 @@ export function buildStatusline(dbPath: string, opts?: { color?: boolean }): str
     const ticketRows = db
       .prepare(
         `SELECT status, COUNT(*) AS n, COALESCE(SUM(story_points), 0) AS pts
-         FROM tickets WHERE sprint_id = ? AND deleted_at IS NULL GROUP BY status`
+         FROM tickets WHERE sprint_id = ? AND deleted_at IS NULL GROUP BY status`,
       )
       .all(sprint.id) as Array<{ status: string; n: number; pts: number }>;
     for (const row of ticketRows) {
       totalPts += row.pts;
-      if (row.status === "DONE") donePts = row.pts;
+      if (row.status === 'DONE') donePts = row.pts;
       if (row.status in counts) counts[row.status] = row.n;
     }
 
@@ -185,10 +185,12 @@ export function buildStatusline(dbPath: string, opts?: { color?: boolean }): str
       // blockers table missing — omit the segment
     }
 
-    let moodSegment = "";
+    let moodSegment = '';
     try {
       const mood = db
-        .prepare(`SELECT AVG(mood) AS avg, COUNT(*) AS n FROM agent_mood_history WHERE sprint_id = ?`)
+        .prepare(
+          `SELECT AVG(mood) AS avg, COUNT(*) AS n FROM agent_mood_history WHERE sprint_id = ?`,
+        )
         .get(sprint.id) as { avg: number | null; n: number };
       if (mood.n > 0 && mood.avg !== null) moodSegment = `  ☀ ${mood.avg.toFixed(1)}`;
     } catch {
@@ -197,12 +199,12 @@ export function buildStatusline(dbPath: string, opts?: { color?: boolean }): str
 
     const blockedCount = `✗${counts.BLOCKED}`;
     const segments = [
-      `${c.cyan(`◆ ${project}`)} ${c.dim("▸")} ${c.bold(shortSprintName(sprint.name))} ${sprint.status} ${c.dim("·")} day ${day}/${len}`,
+      `${c.cyan(`◆ ${project}`)} ${c.dim('▸')} ${c.bold(shortSprintName(sprint.name))} ${sprint.status} ${c.dim('·')} day ${day}/${len}`,
       `${progressBar(donePts, totalPts)} ${c.green(String(donePts))}/${totalPts}pt`,
       `${c.green(`✓${counts.DONE}`)} ${c.yellow(`⚙${counts.IN_PROGRESS}`)} ○${counts.TODO} ${counts.BLOCKED > 0 ? c.red(blockedCount) : blockedCount}`,
     ];
     if (openBlockers > 0) segments.push(c.red(`⛔${openBlockers}`));
-    return segments.join("  ") + moodSegment;
+    return segments.join('  ') + moodSegment;
   } finally {
     db.close();
   }
@@ -210,34 +212,60 @@ export function buildStatusline(dbPath: string, opts?: { color?: boolean }): str
 
 // ─── Setup integration ───────────────────────────────────────────────────────
 
-export type StatuslineSetupResult = "written" | "kept-existing";
+export type StatuslineSetupResult = 'written' | 'kept-existing' | 'kept-user';
+
+/** Directory of the user-scope Claude Code settings (honours CLAUDE_CONFIG_DIR). */
+function defaultUserConfigDir(): string {
+  return process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
+}
+
+/** True when the JSON file at `file` parses and has its own statusLine key. */
+function hasStatusLine(file: string): boolean {
+  try {
+    return Object.hasOwn(JSON.parse(fs.readFileSync(file, 'utf-8')), 'statusLine');
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Merge { statusLine: { type: "command", command: "code-context-statusline" } }
  * into <projectDir>/.claude/settings.json. Creates the file/dir when missing,
  * preserves every existing key, and never clobbers an existing statusLine.
+ * Project settings override user settings, so a statusLine in the user's
+ * settings.json or the project's settings.local.json is kept too ("kept-user").
  * Called by the setup "Statusline HUD" step; exported so tests can cover the
  * merge logic without executing the setup script.
  */
-export function applyStatuslineSetting(projectDir: string): StatuslineSetupResult {
-  const settingsDir = path.resolve(projectDir, ".claude");
-  const settingsPath = path.join(settingsDir, "settings.json");
+export function applyStatuslineSetting(
+  projectDir: string,
+  userConfigDir: string = defaultUserConfigDir(),
+): StatuslineSetupResult {
+  const settingsDir = path.resolve(projectDir, '.claude');
+  const settingsPath = path.join(settingsDir, 'settings.json');
+
+  if (
+    hasStatusLine(path.join(userConfigDir, 'settings.json')) ||
+    hasStatusLine(path.join(settingsDir, 'settings.local.json'))
+  ) {
+    return 'kept-user';
+  }
 
   let settings: Record<string, unknown> = {};
   if (fs.existsSync(settingsPath)) {
     try {
-      settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+      settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
     } catch {
       // Overwrite if corrupted (same policy as the .mcp.json setup step)
     }
   }
 
-  if (Object.hasOwn(settings, "statusLine")) return "kept-existing";
+  if (Object.hasOwn(settings, 'statusLine')) return 'kept-existing';
 
-  settings.statusLine = { type: "command", command: "code-context-statusline" };
+  settings.statusLine = { type: 'command', command: 'code-context-statusline' };
   if (!fs.existsSync(settingsDir)) fs.mkdirSync(settingsDir, { recursive: true });
-  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n");
-  return "written";
+  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
+  return 'written';
 }
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
@@ -248,10 +276,10 @@ function main(): void {
     if (!process.stdin.isTTY) {
       // Claude Code pipes a JSON payload; never block on interactive runs.
       try {
-        const raw = fs.readFileSync(0, "utf-8");
+        const raw = fs.readFileSync(0, 'utf-8');
         const payload = JSON.parse(raw) as { workspace?: { current_dir?: unknown } };
         const dir = payload.workspace?.current_dir;
-        if (typeof dir === "string" && dir.length > 0) startDir = dir;
+        if (typeof dir === 'string' && dir.length > 0) startDir = dir;
       } catch {
         // Malformed/empty payload — fall back to cwd
       }
@@ -261,7 +289,7 @@ function main(): void {
     if (!dbPath) return; // no DB found — print nothing, exit 0
 
     const line = buildStatusline(dbPath);
-    if (line) process.stdout.write(line + "\n");
+    if (line) process.stdout.write(line + '\n');
   } catch {
     // A statusline must never break the host UI — print nothing, exit 0
   }
@@ -272,7 +300,7 @@ function main(): void {
 const isMain = (() => {
   try {
     return (
-      typeof process.argv[1] === "string" &&
+      typeof process.argv[1] === 'string' &&
       import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href
     );
   } catch {

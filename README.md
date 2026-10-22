@@ -1,3 +1,5 @@
+[![Vlm Code Context MCP server](https://mcprush.com/badge/vlm-code-context-mcp/card.svg)](https://mcprush.com/to/vlm-code-context-mcp?ref=badge)
+
 <p>
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="assets/banner/hero-v3-light.svg">

@@ -516,6 +516,10 @@ if (statuslineResult === 'written') {
   console.log(
     `  Statusline HUD configured in ${claudeSettingsPath} (command: code-context-statusline)`,
   );
+} else if (statuslineResult === 'kept-user') {
+  console.log(
+    '  Your own statusLine (user or settings.local.json) wins — skipped the project HUD.',
+  );
 } else {
   console.log(`  Existing statusLine found in ${claudeSettingsPath} — left untouched.`);
 }
