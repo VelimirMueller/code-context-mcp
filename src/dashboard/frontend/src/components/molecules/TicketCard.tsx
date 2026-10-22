@@ -1,5 +1,7 @@
+import type { CSSProperties } from 'react';
 import { motion } from 'framer-motion';
 import { cardHover } from '@/lib/motion';
+import { cx } from '@/lib/utils';
 import { useBridgeStore } from '@/stores/bridgeStore';
 import { AssignmentChips } from '@/components/molecules/AssignmentChips';
 import type { Ticket } from '@/types';
@@ -12,11 +14,14 @@ interface TicketCardProps {
 }
 
 const priorityColor: Record<string, string> = {
-  P0: 'var(--red)',
-  P1: 'var(--orange)',
-  P2: 'var(--blue)',
+  P0: 'var(--color-red)',
+  P1: 'var(--color-orange)',
+  P2: 'var(--color-blue)',
   P3: '#6b6b84',
 };
+
+const actionBtnClass =
+  'text-9 py-0.5 px-1.5 rounded-[4px] border border-line bg-surface cursor-pointer';
 
 export function TicketCard({ ticket, onClick, onEdit }: TicketCardProps) {
   const queueAction = useBridgeStore((s) => s.queueAction);
@@ -28,102 +33,42 @@ export function TicketCard({ ticket, onClick, onEdit }: TicketCardProps) {
       whileHover={cardHover}
       layout
       onClick={onClick}
-      style={{
-        padding: '10px 12px',
-        background: 'var(--surface)',
-        border: '1px solid var(--border)',
-        borderRadius: 10,
-        marginBottom: 6,
-        cursor: onClick ? 'pointer' : 'default',
-      }}
+      className={cx(
+        'py-[10px] px-3 bg-surface border border-line rounded-[10px] mb-1.5',
+        onClick ? 'cursor-pointer' : 'cursor-default',
+      )}
     >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 4,
-        }}
-      >
-        <span
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
-            color: 'var(--text3)',
-            fontFamily: 'var(--mono)',
-          }}
-        >
+      <div className="flex justify-between items-center mb-1">
+        <span className="text-10 font-bold text-fg-3 font-code">
           {ticket.ticket_ref ?? `#${ticket.id}`}
         </span>
         <span
-          style={{
-            padding: '1px 5px',
-            borderRadius: 3,
-            fontSize: 9,
-            fontWeight: 700,
-            background: pColor,
-            color: 'white',
-          }}
+          style={{ '--c': pColor } as CSSProperties}
+          className="py-px px-[5px] rounded-[3px] text-9 font-bold bg-(--c) text-[white]"
         >
           {ticket.priority}
         </span>
       </div>
 
-      <div
-        style={{
-          fontSize: 12,
-          fontWeight: 500,
-          color: 'var(--text)',
-          marginBottom: 6,
-          lineHeight: 1.4,
-        }}
-      >
-        {ticket.title}
-      </div>
+      <div className="text-12 font-medium text-fg mb-1.5 leading-[1.4]">{ticket.title}</div>
 
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          fontSize: 11,
-          color: 'var(--text3)',
-        }}
-      >
+      <div className="flex justify-between items-center text-11 text-fg-3">
         {assignments.length > 0 ? (
           <AssignmentChips assignments={assignments} />
         ) : (
           <span>{ticket.assigned_to ?? '—'}</span>
         )}
-        <span style={{ fontFamily: 'var(--mono)' }}>{ticket.story_points ?? 0}sp</span>
+        <span className="font-code">{ticket.story_points ?? 0}sp</span>
       </div>
 
       {ticket.epic_name && (
-        <span
-          style={{
-            display: 'inline-block',
-            marginTop: 4,
-            fontSize: 10,
-            padding: '1px 6px',
-            borderRadius: 4,
-            background: 'rgba(168, 85, 247, 0.15)',
-            color: 'rgb(168, 85, 247)',
-          }}
-        >
+        <span className="inline-block mt-1 text-10 py-px px-1.5 rounded-[4px] bg-[rgba(168,85,247,0.15)] text-[rgb(168,85,247)]">
           {ticket.epic_name}
         </span>
       )}
 
       {/* Bridge action buttons */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 4,
-          marginTop: 6,
-          borderTop: '1px solid var(--border)',
-          paddingTop: 6,
-        }}
-      >
+      <div className="flex gap-1 mt-1.5 border-t border-t-line pt-1.5">
         {onEdit && (
           <button
             aria-label="Edit ticket"
@@ -132,15 +77,7 @@ export function TicketCard({ ticket, onClick, onEdit }: TicketCardProps) {
               e.stopPropagation();
               onEdit();
             }}
-            style={{
-              fontSize: 9,
-              padding: '2px 6px',
-              borderRadius: 4,
-              border: '1px solid var(--border)',
-              background: 'var(--surface)',
-              color: 'var(--text3)',
-              cursor: 'pointer',
-            }}
+            className={cx(actionBtnClass, 'text-fg-3')}
           >
             ✎ Edit
           </button>
@@ -151,15 +88,7 @@ export function TicketCard({ ticket, onClick, onEdit }: TicketCardProps) {
               e.stopPropagation();
               queueAction('assign_ticket', 'ticket', ticket.id, { ticket_ref: ticket.ticket_ref });
             }}
-            style={{
-              fontSize: 9,
-              padding: '2px 6px',
-              borderRadius: 4,
-              border: '1px solid var(--border)',
-              background: 'var(--surface)',
-              color: 'var(--text3)',
-              cursor: 'pointer',
-            }}
+            className={cx(actionBtnClass, 'text-fg-3')}
           >
             Assign
           </button>
@@ -173,15 +102,7 @@ export function TicketCard({ ticket, onClick, onEdit }: TicketCardProps) {
                 ticket_ref: ticket.ticket_ref,
               });
             }}
-            style={{
-              fontSize: 9,
-              padding: '2px 6px',
-              borderRadius: 4,
-              border: '1px solid var(--border)',
-              background: 'var(--surface)',
-              color: 'var(--green, #10b981)',
-              cursor: 'pointer',
-            }}
+            className={cx(actionBtnClass, 'text-green')}
           >
             Done
           </button>

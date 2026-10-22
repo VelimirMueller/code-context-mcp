@@ -61,30 +61,12 @@ export function HeroText({ children, subtitle }: HeroTextProps) {
   const wv = shouldReduce ? reducedVariants : wordVariants;
 
   return (
-    <div
-      style={{
-        maxHeight: 80,
-        padding: '14px 24px',
-        background: 'var(--surface)',
-        borderBottom: '1px solid var(--border)',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        flexShrink: 0,
-        overflow: 'hidden',
-      }}
-    >
+    <div className="max-h-20 py-3.5 px-6 bg-surface border-b border-b-line flex flex-col justify-center shrink-0 overflow-hidden">
       <motion.div
         variants={shouldReduce ? undefined : containerVariants}
         initial="initial"
         animate="animate"
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'baseline',
-          gap: '0 4px',
-          lineHeight: 1.4,
-        }}
+        className="flex flex-wrap items-baseline gap-x-1 gap-y-0 leading-[1.4]"
       >
         {items.map((item, i) => {
           if (typeof item === 'string') {
@@ -96,12 +78,7 @@ export function HeroText({ children, subtitle }: HeroTextProps) {
               <motion.span
                 key={i}
                 variants={wv}
-                style={{
-                  fontSize: 15,
-                  fontWeight: 600,
-                  color: 'var(--text2)',
-                  fontFamily: 'var(--font)',
-                }}
+                className="text-[15px] font-semibold text-fg-2 font-body"
               >
                 {item}
               </motion.span>
@@ -109,11 +86,7 @@ export function HeroText({ children, subtitle }: HeroTextProps) {
           }
           // Non-string child (e.g. AnimatedNumber) — wrap in motion.span
           return (
-            <motion.span
-              key={i}
-              variants={wv}
-              style={{ display: 'inline-flex', alignItems: 'baseline' }}
-            >
+            <motion.span key={i} variants={wv} className="inline-flex items-baseline">
               {item}
             </motion.span>
           );
@@ -121,17 +94,7 @@ export function HeroText({ children, subtitle }: HeroTextProps) {
       </motion.div>
 
       {subtitle && (
-        <div
-          style={{
-            fontSize: 11,
-            color: 'var(--text3)',
-            marginTop: 2,
-            fontFamily: 'var(--font)',
-            letterSpacing: '0.02em',
-          }}
-        >
-          {subtitle}
-        </div>
+        <div className="text-11 text-fg-3 mt-0.5 font-body tracking-[0.02em]">{subtitle}</div>
       )}
     </div>
   );
