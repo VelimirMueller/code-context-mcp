@@ -10,10 +10,9 @@ on:
     # release/** too: a major lands on its release branch first (#179).
     # integration/** too: slice PRs land on an integration branch first (#293).
     branches: [main, develop, 'release/**', 'integration/**']
-    # labeled/unlabeled: the contract gate reads the `contract-change-approved`
-    # label (#180), so adding or removing it re-runs the checks.
-    # Only the contract job runs on label events; the other jobs skip them.
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    # No labeled/unlabeled: a label run would cancel the full run in the same
+    # concurrency group. The label-sensitive contract gate lives in contract.yml.
+    types: [opened, synchronize, reopened]
 
 # A new push to a PR supersedes the old run. Push runs on main/develop are never
 # cancelled: the promotion flow needs a finished result for every SHA.
@@ -35,7 +34,6 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    if: ${{ github.event.action != 'labeled' && github.event.action != 'unlabeled' }}
     strategy:
       matrix:
         # 22 = minimum (package.json engines), 24 = recommended LTS.
@@ -62,7 +60,6 @@ jobs:
 
   lint:
     runs-on: ubuntu-latest
-    if: ${{ github.event.action != 'labeled' && github.event.action != 'unlabeled' }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -92,32 +89,8 @@ jobs:
           esac
           pnpm run format:changed "$base"
 
-  # The public contract (#180, docs/CONTRACT.md): the snapshots in
-  # test/contract/snapshots/ must match the code, and a PR that changes one
-  # needs a major version bump in package.json or the label
-  # `contract-change-approved` (scripts/check-contract-change.mjs).
-  contract:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-        with:
-          persist-credentials: false
-          fetch-depth: 0 # the gate diffs the snapshots against the base commit
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
-        with:
-          node-version: '24'
-          cache: 'pnpm'
-      - run: pnpm install --frozen-lockfile
-      - name: Contract tests (snapshots match the code)
-        run: pnpm run contract:test
-      - name: Contract gate (a changed snapshot needs a major bump or approval)
-        # Base commit and labels come from $GITHUB_EVENT_PATH.
-        run: pnpm run contract:check
-
   e2e:
     runs-on: ubuntu-latest
-    if: ${{ github.event.action != 'labeled' && github.event.action != 'unlabeled' }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -136,7 +109,6 @@ jobs:
   validate-counts:
     runs-on: ubuntu-latest
     needs: test
-    if: ${{ github.event.action != 'labeled' && github.event.action != 'unlabeled' }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -181,7 +153,7 @@ jobs:
   # VitePress build; catches dead links (#264). Runs only when the PR touches docs/.
   docs:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'pull_request' && github.event.action != 'labeled' && github.event.action != 'unlabeled' }}
+    if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
