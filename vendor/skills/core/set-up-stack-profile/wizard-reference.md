@@ -54,13 +54,14 @@ Recommended defaults are rooted in [engineering-principles.md](../_shared/engine
 
 | Profile signal | Plugin | Install id |
 |---|---|---|
-| always | `devcore` | `devcore@frontendskills` |
-| `frontend.framework` is `react` or `vue` | `frontendskills` (also contains the landing skills) | `frontendskills@frontendskills` |
-| `backend.track` is not `none`, or a `database` is set | `backendskills` | `backendskills@frontendskills` |
-| `hosting` has `hetzner`/`ionos`, or `iac: opentofu`, or CI/deploy work | `infraskills` | `infraskills@frontendskills` |
-| a Go/Rust/Python/TS CLI is built | `cliskills` | `cliskills@frontendskills` |
-| `ai.provider` is not `none` | `aiskills` | `aiskills@frontendskills` |
-| a game or interactive canvas is built | `gameskills` | `gameskills@frontendskills` |
+| always | `devcore` | `devcore@claude-development-skills` |
+| `frontend.framework` is `react` or `vue` | `frontendskills` (also contains the landing skills) | `frontendskills@claude-development-skills` |
+| `backend.track` is not `none`, or a `database` is set | `backendskills` | `backendskills@claude-development-skills` |
+| `hosting` has `hetzner`/`ionos`, or `iac: opentofu`, or CI/deploy work | `infraskills` | `infraskills@claude-development-skills` |
+| `hosting` includes `azure`/`aws` (cloud), or Airtable/SigNoz is used, or alerting work | `opsskills` | `opsskills@claude-development-skills` |
+| a Go/Rust/Python/TS CLI is built | `cliskills` | `cliskills@claude-development-skills` |
+| `ai.provider` is not `none` | `aiskills` | `aiskills@claude-development-skills` |
+| a game or interactive canvas is built | `gameskills` | `gameskills@claude-development-skills` |
 
 Plugins that are not yet published in the marketplace are listed as "planned". Check `.claude-plugin/marketplace.json` for which exist before printing install commands.
 
