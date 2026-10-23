@@ -245,11 +245,8 @@ export function DependencyGraph() {
   }, [renderGraph]);
 
   return (
-    <div
-      ref={containerRef}
-      style={{ flex: 1, position: 'relative', overflow: 'hidden', background: 'var(--bg)' }}
-    >
-      <canvas ref={canvasRef} style={{ display: 'block' }} />
+    <div ref={containerRef} className="relative flex-1 overflow-hidden bg-bg">
+      <canvas ref={canvasRef} className="block" />
     </div>
   );
 }
