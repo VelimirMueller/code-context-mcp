@@ -78,13 +78,13 @@ export function BentoGrid() {
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
               <path
                 d="M3 9a6 6 0 0110.2-4.3M15 9a6 6 0 01-10.2 4.3"
-                stroke="var(--purple)"
+                stroke="var(--color-accent-2)"
                 strokeWidth="1.5"
                 strokeLinecap="round"
               />
               <path
                 d="M13.5 2.5v2.5H11M4.5 15.5v-2.5H7"
-                stroke="var(--purple)"
+                stroke="var(--color-accent-2)"
                 strokeWidth="1.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -93,7 +93,7 @@ export function BentoGrid() {
           }
           title="Recurring Topics"
           subtitle="Patterns across all sprints"
-          borderColor="var(--purple)"
+          borderColor="var(--color-accent-2)"
           iconBg="rgba(167,139,250,.15)"
           wide
           items={
@@ -124,10 +124,10 @@ export function BentoGrid() {
         <BentoCard
           icon={
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-              <circle cx="9" cy="9" r="7" stroke="var(--green)" strokeWidth="1.5" />
+              <circle cx="9" cy="9" r="7" stroke="var(--color-green)" strokeWidth="1.5" />
               <path
                 d="M6 9l2 2 4-4"
-                stroke="var(--green)"
+                stroke="var(--color-green)"
                 strokeWidth="1.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -136,7 +136,7 @@ export function BentoGrid() {
           }
           title="Recent Wins"
           subtitle="What went well"
-          borderColor="var(--green)"
+          borderColor="var(--color-green)"
           iconBg="rgba(16,185,129,.15)"
           items={
             well.length > 0
@@ -151,17 +151,22 @@ export function BentoGrid() {
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
               <path
                 d="M9 2L1.5 15.5h15L9 2z"
-                stroke="var(--red)"
+                stroke="var(--color-red)"
                 strokeWidth="1.5"
                 strokeLinejoin="round"
               />
-              <path d="M9 7v3.5" stroke="var(--red)" strokeWidth="1.5" strokeLinecap="round" />
-              <circle cx="9" cy="13" r="0.75" fill="var(--red)" />
+              <path
+                d="M9 7v3.5"
+                stroke="var(--color-red)"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+              <circle cx="9" cy="13" r="0.75" fill="var(--color-red)" />
             </svg>
           }
           title="Recent Issues"
           subtitle="What went wrong"
-          borderColor="var(--red)"
+          borderColor="var(--color-red)"
           iconBg="rgba(248,113,113,.15)"
           items={
             wrong.length > 0
@@ -176,7 +181,7 @@ export function BentoGrid() {
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
               <path
                 d="M9 1.5l2.3 4.7 5.2.8-3.8 3.7.9 5.1L9 13.5l-4.6 2.3.9-5.1L1.5 7l5.2-.8L9 1.5z"
-                stroke="var(--blue)"
+                stroke="var(--color-blue)"
                 strokeWidth="1.5"
                 strokeLinejoin="round"
               />
@@ -184,7 +189,7 @@ export function BentoGrid() {
           }
           title="Action Items"
           subtitle="Try next time"
-          borderColor="var(--blue)"
+          borderColor="var(--color-blue)"
           iconBg="rgba(59,130,246,.15)"
           items={
             well.length > 0
@@ -199,10 +204,10 @@ export function BentoGrid() {
         <BentoCard
           icon={
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-              <circle cx="9" cy="9" r="7" stroke="var(--orange)" strokeWidth="1.5" />
+              <circle cx="9" cy="9" r="7" stroke="var(--color-orange)" strokeWidth="1.5" />
               <path
                 d="M6.5 6.5l5 5M11.5 6.5l-5 5"
-                stroke="var(--orange)"
+                stroke="var(--color-orange)"
                 strokeWidth="1.5"
                 strokeLinecap="round"
               />
@@ -210,7 +215,7 @@ export function BentoGrid() {
           }
           title="Worst Moment"
           subtitle="Biggest setback"
-          borderColor="var(--orange)"
+          borderColor="var(--color-orange)"
           iconBg="rgba(251,191,36,.15)"
           items={
             wrong.length > 0

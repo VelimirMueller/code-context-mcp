@@ -15,9 +15,9 @@ const isArchiveEligible = (s: Sprint) =>
  * milestone, gets the planned colour.
  */
 export function milestoneStatusColor(status: string | undefined): string {
-  if (status === 'active') return 'var(--accent)';
-  if (status === 'completed') return 'var(--text3)';
-  return 'var(--purple)';
+  if (status === 'active') return 'var(--color-accent)';
+  if (status === 'completed') return 'var(--color-fg-3)';
+  return 'var(--color-accent-2)';
 }
 
 export function SprintList() {

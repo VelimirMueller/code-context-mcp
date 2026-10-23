@@ -4,39 +4,16 @@ import betterTailwind from 'eslint-plugin-better-tailwindcss';
 
 const FRONTEND = 'src/dashboard/frontend/src';
 
-// #293: class names the Tailwind config does not know: global classes in src/index.css and
-// names styled only in the legacy dashboard.html (they render unstyled in the Vite app).
-// A slice that removes a name removes it here.
+// #293: unstyled class names that e2e or visual specs still select. They have no CSS
+// rule; move the spec to a data-testid before you remove a name here.
 export const LEGACY_CLASSES = [
-  '^active$',
-  '^change-event$',
-  '^change-header$',
-  '^change-item$',
-  '^chevron$',
   '^count$',
-  '^dep-item$',
-  '^dep-path$',
-  '^dep-symbols$',
-  '^detail-desc$',
   '^detail-meta$',
-  '^detail-section$',
   '^detail-title$',
-  '^empty$',
-  '^empty-icon$',
-  '^kbd-hint$',
   '^main$',
-  '^open$',
-  '^quick-search$',
-  '^search$',
-  '^search-input$',
-  '^search-wrap$',
   '^sidebar$',
   '^sidebar-body$',
   '^sidebar-head$',
-  '^stats$',
-  '^tab$',
-  '^tabs$',
-  '^top-nav$',
   '^tree-folder$',
 ];
 

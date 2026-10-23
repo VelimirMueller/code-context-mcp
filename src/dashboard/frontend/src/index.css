@@ -95,63 +95,41 @@
   }
 }
 
-/* Old names, kept until the last slice of #293 moves every component to the tokens above. */
-:root {
-  --bg: var(--color-bg);
-  --surface: var(--color-surface);
-  --surface2: var(--color-surface-2);
-  --surface3: var(--color-surface-3);
-  --border: var(--color-line);
-  --border2: var(--color-line-2);
-  --text: var(--color-fg);
-  --text2: var(--color-fg-2);
-  --text3: var(--color-fg-3);
-  --accent: var(--color-accent);
-  --accent2: var(--color-accent-2);
-  --accent-glow: var(--color-accent-glow);
-  --accent-fill: var(--color-accent-fill);
-  --green: var(--color-green);
-  --green-glow: var(--color-green-glow);
-  --orange: var(--color-orange);
-  --pink: var(--color-accent);
-  --purple: var(--color-accent-2);
-  --red: var(--color-red);
-  --blue: var(--color-blue);
-  --blue-glow: var(--color-blue-glow);
-  --pill-bg: var(--color-pill);
-  --pill-fg: var(--color-pill-fg);
-  --radius: var(--radius-card);
-  --radius-lg: var(--radius-panel);
-  --font: var(--font-body);
-  --display: var(--font-display);
-  --mono: var(--font-code);
+@layer base {
+  body {
+    background-color: var(--color-bg);
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+    background-size: 32px 32px;
+    color: var(--color-fg);
+    font-family: var(--font-body);
+    font-size: 13.5px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-line-2);
+    border-radius: 4px;
+  }
+
+  /* D-41: headings in the display face. */
+  h1,
+  h2 {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
 }
 
-body {
-  background-color: var(--bg);
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
-  background-size: 32px 32px;
-  color: var(--text);
-  font-family: var(--font);
-  font-size: 13.5px;
-  line-height: 1.6;
-  -webkit-font-smoothing: antialiased;
-}
-
-::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: var(--border2);
-  border-radius: 4px;
-}
-
+/* Skeleton and status pulse (`animate-[pulse_…]`); unlayered like every @keyframes. */
 @keyframes pulse {
   0%,
   100% {
@@ -160,11 +138,4 @@ body {
   50% {
     opacity: 0.7;
   }
-}
-
-/* D-41: headings in the display face. */
-h1,
-h2 {
-  font-family: var(--display);
-  letter-spacing: -0.01em;
 }

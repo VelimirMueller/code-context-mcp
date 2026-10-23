@@ -319,7 +319,7 @@ function RetroInline() {
         >
           <path
             d="M5 2.5L9.5 7L5 11.5"
-            stroke="var(--text3)"
+            stroke="var(--color-fg-3)"
             strokeWidth="1.5"
             strokeLinecap="round"
             strokeLinejoin="round"

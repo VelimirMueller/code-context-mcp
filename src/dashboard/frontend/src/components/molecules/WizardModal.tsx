@@ -139,7 +139,7 @@ function ProgressDots({
           initial={false}
           animate={{
             width: i === currentIndex ? 24 : 8,
-            backgroundColor: i <= currentIndex ? accentColor : 'var(--border2)',
+            backgroundColor: i <= currentIndex ? accentColor : 'var(--color-line-2)',
           }}
           transition={{ duration: reduceMotion ? 0 : 0.3, ease: 'easeInOut' }}
           className="h-2 rounded-[4px]"
@@ -660,7 +660,7 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                   type="button"
                   onClick={onDismiss}
                   className={cx(buttonClasses, 'bg-transparent border border-line-2 text-fg-2')}
-                  whileHover={reduceMotion ? {} : { scale: 1.02, borderColor: 'var(--border)' }}
+                  whileHover={reduceMotion ? {} : { scale: 1.02, borderColor: 'var(--color-line)' }}
                   whileTap={reduceMotion ? {} : { scale: 0.98 }}
                 >
                   Dismiss

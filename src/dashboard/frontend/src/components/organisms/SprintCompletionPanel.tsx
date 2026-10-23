@@ -25,7 +25,7 @@ function getCompletionStatus(
   value?: string,
 ): { type: 'done' | 'partial' | 'pending'; color: string } {
   if (complete) {
-    return { type: 'done', color: 'var(--green)' };
+    return { type: 'done', color: 'var(--color-green)' };
   }
   if (threshold !== undefined && value) {
     const match = value.match(/(\d+)\s*\/\s*(\d+)/);
@@ -33,11 +33,11 @@ function getCompletionStatus(
       const current = parseInt(match[1], 10);
       const pct = (current / parseInt(match[2], 10)) * 100;
       if (pct >= threshold * 100) {
-        return { type: 'partial', color: 'var(--orange)' };
+        return { type: 'partial', color: 'var(--color-orange)' };
       }
     }
   }
-  return { type: 'pending', color: 'var(--red)' };
+  return { type: 'pending', color: 'var(--color-red)' };
 }
 
 function StatusIcon({ type, color }: { type: 'done' | 'partial' | 'pending'; color: string }) {
@@ -235,7 +235,7 @@ export function SprintCompletionPanel({
                 <span className="flex shrink-0 items-center">
                   {t.qa_verified ? (
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                      <circle cx="7" cy="7" r="6" fill="var(--green)" />
+                      <circle cx="7" cy="7" r="6" fill="var(--color-green)" />
                       <path
                         d="M4.5 7L6 8.5L9.5 5"
                         stroke="white"
@@ -250,7 +250,7 @@ export function SprintCompletionPanel({
                         cx="7"
                         cy="7"
                         r="6"
-                        stroke="var(--red)"
+                        stroke="var(--color-red)"
                         strokeWidth="1.5"
                         fill="none"
                       />

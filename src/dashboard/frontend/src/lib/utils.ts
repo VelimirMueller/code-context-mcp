@@ -109,9 +109,9 @@ export const langColors: Record<string, string> = {
 };
 
 export function getMoodColor(score: number): string {
-  if (score >= 60) return 'var(--accent)';
-  if (score >= 40) return 'var(--orange)';
-  return 'var(--red)';
+  if (score >= 60) return 'var(--color-accent)';
+  if (score >= 40) return 'var(--color-orange)';
+  return 'var(--color-red)';
 }
 
 /** Join class names; falsy parts drop out: `cx('px-2', active && 'text-accent')`. */
