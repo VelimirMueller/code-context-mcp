@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { get } from '@/lib/api';
 import { Skeleton } from '@/components/atoms/Skeleton';
+import { cx } from '@/lib/utils';
 
 interface BurndownMetric {
   date: string;
@@ -37,17 +38,8 @@ export function BurndownChart({ sprintId }: BurndownChartProps) {
 
   if (!data) {
     return (
-      <div
-        style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius)',
-          overflow: 'hidden',
-          marginBottom: 16,
-          padding: '10px 14px',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+      <div className="mb-4 overflow-hidden rounded-card border border-line bg-surface px-[14px] py-[10px]">
+        <div className="mb-3 flex items-center gap-2">
           <Skeleton width={14} height={14} />
           <Skeleton width={80} height={14} />
           <Skeleton width={60} height={18} />
@@ -118,111 +110,52 @@ export function BurndownChart({ sprintId }: BurndownChartProps) {
   const yTicks = [0, Math.round(maxY / 2), maxY];
 
   return (
-    <div
-      style={{
-        background: 'var(--surface)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--radius)',
-        overflow: 'hidden',
-        marginBottom: 16,
-      }}
-    >
+    <div className="mb-4 overflow-hidden rounded-card border border-line bg-surface">
       <button
         onClick={() => setExpanded(!expanded)}
-        style={{
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          padding: '10px 14px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          width: '100%',
-          fontFamily: 'var(--font)',
-          transition: 'background .15s',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'var(--bg)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'none';
-        }}
+        className="flex w-full cursor-pointer items-center gap-2 border-none bg-transparent px-[14px] py-[10px] font-body [transition:background_.15s] hover:bg-bg"
       >
         <svg
           width="14"
           height="14"
           viewBox="0 0 14 14"
           fill="none"
-          style={{
-            transform: expanded ? 'rotate(90deg)' : 'none',
-            transition: 'transform .2s',
-            flexShrink: 0,
-          }}
+          className={cx(
+            'shrink-0 [transition:transform_.2s]',
+            expanded && '[transform:rotate(90deg)]',
+          )}
         >
           <path
             d="M5 2.5L9.5 7L5 11.5"
-            stroke="var(--text3)"
+            stroke="var(--color-fg-3)"
             strokeWidth="1.5"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
         </svg>
-        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Burndown</span>
-        <span
-          style={{
-            fontSize: 11,
-            color: 'var(--text3)',
-            fontFamily: 'var(--mono)',
-            background: 'var(--bg)',
-            padding: '1px 8px',
-            borderRadius: 10,
-          }}
-        >
+        <span className="text-13 font-semibold text-fg">Burndown</span>
+        <span className="rounded-[10px] bg-bg px-2 py-[1px] font-code text-11 text-fg-3">
           {current.completed}/{total}pts
         </span>
-        <div
-          style={{
-            marginLeft: 'auto',
-            display: 'flex',
-            gap: 10,
-            fontSize: 10,
-            color: 'var(--text3)',
-          }}
-        >
-          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span
-              style={{
-                width: 8,
-                height: 2,
-                background: 'var(--text3)',
-                borderRadius: 1,
-                opacity: 0.5,
-              }}
-            />
+        <div className="ml-auto flex gap-[10px] text-10 text-fg-3">
+          <span className="flex items-center gap-1">
+            <span className="h-[2px] w-2 rounded-[1px] bg-fg-3 opacity-50" />
             Ideal
           </span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ width: 8, height: 2, background: 'var(--accent)', borderRadius: 1 }} />
+          <span className="flex items-center gap-1">
+            <span className="h-[2px] w-2 rounded-[1px] bg-accent" />
             Remaining
           </span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: 2,
-                background: 'var(--accent)',
-                opacity: 0.15,
-              }}
-            />
+          <span className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-[2px] bg-accent opacity-15" />
             Done
           </span>
         </div>
       </button>
 
       {expanded && (
-        <div style={{ padding: '0 14px 14px' }}>
-          <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }}>
+        <div className="px-[14px] pb-[14px]">
+          <svg viewBox={`0 0 ${W} ${H}`} width="100%" className="block">
             {/* Grid lines */}
             {yTicks.map((v) => (
               <g key={v}>
@@ -231,7 +164,7 @@ export function BurndownChart({ sprintId }: BurndownChartProps) {
                   y1={yScale(v)}
                   x2={pad.left + plotW}
                   y2={yScale(v)}
-                  stroke="var(--border)"
+                  stroke="var(--color-line)"
                   strokeWidth={0.5}
                 />
                 <text
@@ -239,8 +172,8 @@ export function BurndownChart({ sprintId }: BurndownChartProps) {
                   y={yScale(v) + 3}
                   textAnchor="end"
                   fontSize={9}
-                  fill="var(--text3)"
-                  fontFamily="var(--mono)"
+                  fill="var(--color-fg-3)"
+                  fontFamily="var(--font-code)"
                 >
                   {v}
                 </text>
@@ -248,7 +181,7 @@ export function BurndownChart({ sprintId }: BurndownChartProps) {
             ))}
 
             {/* Completed area */}
-            <path d={completedArea} fill="var(--green)" opacity={0.1} />
+            <path d={completedArea} fill="var(--color-green)" opacity={0.1} />
 
             {/* Ideal burndown line */}
             <line
@@ -256,7 +189,7 @@ export function BurndownChart({ sprintId }: BurndownChartProps) {
               y1={idealStart.y}
               x2={idealEnd.x}
               y2={idealEnd.y}
-              stroke="var(--text3)"
+              stroke="var(--color-fg-3)"
               strokeWidth={1}
               strokeDasharray="4 3"
               opacity={0.4}
@@ -266,7 +199,7 @@ export function BurndownChart({ sprintId }: BurndownChartProps) {
             <path
               d={actualPath}
               fill="none"
-              stroke="var(--accent)"
+              stroke="var(--color-accent)"
               strokeWidth={2}
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -275,15 +208,15 @@ export function BurndownChart({ sprintId }: BurndownChartProps) {
             {/* Data points */}
             {points.map((p, i) => (
               <g key={i}>
-                <circle cx={xScale(i)} cy={yScale(p.remaining)} r={3} fill="var(--accent)" />
+                <circle cx={xScale(i)} cy={yScale(p.remaining)} r={3} fill="var(--color-accent)" />
                 {/* X-axis labels */}
                 <text
                   x={xScale(i)}
                   y={H - 4}
                   textAnchor="middle"
                   fontSize={8}
-                  fill="var(--text3)"
-                  fontFamily="var(--mono)"
+                  fill="var(--color-fg-3)"
+                  fontFamily="var(--font-code)"
                 >
                   {p.label}
                 </text>
@@ -296,7 +229,7 @@ export function BurndownChart({ sprintId }: BurndownChartProps) {
               y1={pad.top}
               x2={pad.left}
               y2={pad.top + plotH}
-              stroke="var(--border)"
+              stroke="var(--color-line)"
               strokeWidth={0.5}
             />
             <line
@@ -304,7 +237,7 @@ export function BurndownChart({ sprintId }: BurndownChartProps) {
               y1={pad.top + plotH}
               x2={pad.left + plotW}
               y2={pad.top + plotH}
-              stroke="var(--border)"
+              stroke="var(--color-line)"
               strokeWidth={0.5}
             />
           </svg>

@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type CSSProperties } from 'react';
 import { PHASE_ORDER, getPhaseStyle, mapLegacyPhase } from '@/lib/phases';
 import { post } from '@/lib/api';
+import { cx } from '@/lib/utils';
 
 interface PhaseGateStepperProps {
   currentPhase: string;
@@ -60,9 +61,9 @@ export function PhaseGateStepper({ currentPhase, sprintId, updatedAt }: PhaseGat
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div className="flex flex-col gap-[10px]">
       {/* Stepper row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+      <div className="flex items-center gap-0">
         {PHASE_ORDER.map((phase, idx) => {
           const isCompleted = idx < currentIdx;
           const isCurrent = idx === currentIdx;
@@ -71,39 +72,22 @@ export function PhaseGateStepper({ currentPhase, sprintId, updatedAt }: PhaseGat
           return (
             <div
               key={phase}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                flex: idx < PHASE_ORDER.length - 1 ? 1 : 0,
-              }}
+              className={cx(
+                'flex items-center',
+                idx < PHASE_ORDER.length - 1 ? 'flex-1' : 'flex-[0]',
+              )}
             >
               {/* Circle */}
               <div
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 10,
-                  fontWeight: 700,
-                  flexShrink: 0,
-                  transition: 'all .2s',
-                  ...(isCompleted
-                    ? { background: '#10b981', color: 'white', border: '2px solid #10b981' }
+                style={{ '--c': style.bg, '--bc': style.border } as CSSProperties}
+                className={cx(
+                  'w-7 h-7 rounded-[50%] flex items-center justify-center text-10 font-bold shrink-0 transition-all border-2',
+                  isCompleted
+                    ? 'bg-green text-[white] border-green'
                     : isCurrent
-                      ? {
-                          background: style.bg,
-                          color: 'white',
-                          border: `2px solid ${style.border}`,
-                        }
-                      : {
-                          background: 'transparent',
-                          color: 'var(--text3)',
-                          border: '2px solid var(--border)',
-                        }),
-                }}
+                      ? 'bg-(--c) text-[white] border-(--bc)'
+                      : 'bg-transparent text-fg-3 border-line',
+                )}
               >
                 {isCompleted ? (
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -123,13 +107,10 @@ export function PhaseGateStepper({ currentPhase, sprintId, updatedAt }: PhaseGat
               {/* Connector line */}
               {idx < PHASE_ORDER.length - 1 && (
                 <div
-                  style={{
-                    flex: 1,
-                    height: 2,
-                    background: idx < currentIdx ? '#10b981' : 'var(--border)',
-                    margin: '0 4px',
-                    transition: 'background .2s',
-                  }}
+                  className={cx(
+                    'flex-1 h-0.5 mx-1 [transition:background_.2s]',
+                    idx < currentIdx ? 'bg-green' : 'bg-line',
+                  )}
                 />
               )}
             </div>
@@ -138,7 +119,7 @@ export function PhaseGateStepper({ currentPhase, sprintId, updatedAt }: PhaseGat
       </div>
 
       {/* Phase labels row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginTop: 2 }}>
+      <div className="flex items-center gap-0 mt-0.5">
         {PHASE_ORDER.map((phase, idx) => {
           const isCompleted = idx < currentIdx;
           const isCurrent = idx === currentIdx;
@@ -146,15 +127,14 @@ export function PhaseGateStepper({ currentPhase, sprintId, updatedAt }: PhaseGat
           return (
             <div
               key={phase}
-              style={{ flex: idx < PHASE_ORDER.length - 1 ? 1 : 0, textAlign: 'left' }}
+              className={cx('text-left', idx < PHASE_ORDER.length - 1 ? 'flex-1' : 'flex-[0]')}
             >
               <div
-                style={{
-                  fontSize: 9,
-                  fontWeight: 600,
-                  color: isCurrent ? style.bg : isCompleted ? '#10b981' : 'var(--text3)',
-                  textTransform: 'uppercase',
-                }}
+                style={{ '--c': style.bg } as CSSProperties}
+                className={cx(
+                  'text-9 font-semibold uppercase',
+                  isCurrent ? 'text-(--c)' : isCompleted ? 'text-green' : 'text-fg-3',
+                )}
               >
                 {style.label}
               </div>
@@ -165,26 +145,14 @@ export function PhaseGateStepper({ currentPhase, sprintId, updatedAt }: PhaseGat
 
       {/* Stuck button — only shows after 10 min in same phase */}
       {stuckVisible && !stuckSent && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+        <div className="flex items-center gap-2 mt-1">
           <button
             onClick={handleStuck}
             disabled={sending}
-            style={{
-              background: 'var(--red)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 6,
-              padding: '5px 14px',
-              fontSize: 11,
-              fontWeight: 700,
-              cursor: sending ? 'not-allowed' : 'pointer',
-              opacity: sending ? 0.6 : 1,
-              fontFamily: 'var(--font)',
-              transition: 'opacity .15s',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
+            className={cx(
+              'bg-red text-[white] border-none rounded-[6px] py-[5px] px-3.5 text-11 font-bold font-body [transition:opacity_.15s] flex items-center gap-1.5',
+              sending ? 'cursor-not-allowed opacity-60' : 'cursor-pointer opacity-100',
+            )}
           >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <circle cx="6" cy="6" r="5" stroke="white" strokeWidth="1.5" />
@@ -201,23 +169,13 @@ export function PhaseGateStepper({ currentPhase, sprintId, updatedAt }: PhaseGat
             </svg>
             {sending ? 'Notifying...' : `Stuck in ${getPhaseStyle(currentPhase).label}`}
           </button>
-          <span style={{ fontSize: 10, color: 'var(--text3)' }}>10+ min in this phase</span>
+          <span className="text-10 text-fg-3">10+ min in this phase</span>
         </div>
       )}
 
       {/* Stuck confirmation */}
       {stuckSent && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            marginTop: 4,
-            fontSize: 11,
-            color: 'var(--text3)',
-            fontStyle: 'italic',
-          }}
-        >
+        <div className="flex items-center gap-1.5 mt-1 text-11 text-fg-3 italic">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
             <path
               d="M2 6L5 9L10 3"

@@ -8,37 +8,24 @@ const FRONTEND = 'src/dashboard/frontend/src';
 // file to Tailwind removes it here; a new file never joins the list.
 export const LEGACY_INLINE_STYLE = [
   'App.tsx',
-  'components/molecules/AgentCard.tsx',
   'components/molecules/AlertDialog.tsx',
-  'components/molecules/AssignmentChips.tsx',
-  'components/molecules/AssignmentEditor.tsx',
-  'components/molecules/BentoCard.tsx',
   'components/molecules/Breadcrumb.tsx',
-  'components/molecules/HeroText.tsx',
-  'components/molecules/PhaseGateStepper.tsx',
   'components/molecules/SearchBar.tsx',
-  'components/molecules/SprintCard.tsx',
   'components/molecules/StatGroup.tsx',
   'components/molecules/SubTabBar.tsx',
   'components/molecules/TabBar.tsx',
-  'components/molecules/TicketCard.tsx',
   'components/molecules/WizardModal.tsx',
   'components/organisms/BentoGrid.tsx',
-  'components/organisms/BurndownChart.tsx',
   'components/organisms/DashboardTour.tsx',
   'components/organisms/EpicList.tsx',
-  'components/organisms/KanbanBoard.tsx',
   'components/organisms/LandingAnimation.tsx',
   'components/organisms/SprintCompletionPanel.tsx',
   'components/organisms/SprintDetail.tsx',
   'components/organisms/SprintList.tsx',
   'components/organisms/TeamGrid.tsx',
   'components/organisms/TeamManagementModal.tsx',
-  'components/organisms/TicketDetailModal.tsx',
   'pages/Benchmark.tsx',
-  'pages/CodeExplorer.tsx',
   'pages/Dashboard.tsx',
-  'pages/ProjectManagement.tsx',
   'pages/Retro.tsx',
   'pages/Team.tsx',
 ];
@@ -199,7 +186,14 @@ export default tseslint.config(
         'error',
         {
           selector:
-            "JSXAttribute[name.name='style'] > JSXExpressionContainer > ObjectExpression > Property:not([key.value=/^--/])[value.type=/^(Literal|TemplateLiteral)$/]",
+            // A cast (`{…} as CSSProperties`) must not hide the object; a template with
+            // expressions (`${pct}%`) is a runtime value.
+            ['', 'TSAsExpression > ', 'TSSatisfiesExpression > ']
+              .map(
+                (cast) =>
+                  `JSXAttribute[name.name='style'] > JSXExpressionContainer > ${cast}ObjectExpression > Property:not([key.value=/^--/]):matches([value.type='Literal'], [value.type='TemplateLiteral'][value.expressions.length=0])`,
+              )
+              .join(', '),
           message:
             'Static style value: use a Tailwind utility with a token from src/index.css (#293).',
         },

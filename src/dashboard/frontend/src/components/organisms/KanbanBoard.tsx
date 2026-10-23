@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import type { CSSProperties } from 'react';
 import type { Ticket } from '@/types';
 import { TicketCard } from '@/components/molecules/TicketCard';
 import { TicketDetailModal } from './TicketDetailModal';
@@ -6,6 +7,7 @@ import { usePlanningStore } from '@/stores/planningStore';
 import { useSprintStore } from '@/stores/sprintStore';
 import { get, patch } from '@/lib/api';
 import type { Epic } from '@/types';
+import { cx } from '@/lib/utils';
 
 interface KanbanBoardProps {
   tickets: Ticket[];
@@ -13,14 +15,14 @@ interface KanbanBoardProps {
 
 interface ColConfig {
   label: string;
-  color: string;
+  dot: string;
 }
 
 const COLUMNS: Record<string, ColConfig> = {
-  TODO: { label: 'To Do', color: '#6b6b84' },
-  IN_PROGRESS: { label: 'In Progress', color: 'var(--blue)' },
-  DONE: { label: 'Done', color: 'var(--green)' },
-  NOT_DONE: { label: 'Not Done', color: 'var(--red)' },
+  TODO: { label: 'To Do', dot: 'bg-[#6b6b84]' },
+  IN_PROGRESS: { label: 'In Progress', dot: 'bg-blue' },
+  DONE: { label: 'Done', dot: 'bg-green' },
+  NOT_DONE: { label: 'Not Done', dot: 'bg-red' },
 };
 
 export function KanbanBoard({ tickets }: KanbanBoardProps) {
@@ -131,14 +133,7 @@ export function KanbanBoard({ tickets }: KanbanBoardProps) {
   };
 
   const renderColumns = (columnTickets: Ticket[]) => (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: '2fr 1.5fr 1fr 0.8fr',
-        gap: 12,
-        padding: '12px 0',
-      }}
-    >
+    <div className="grid grid-cols-[2fr_1.5fr_1fr_0.8fr] gap-3 py-3">
       {Object.entries(COLUMNS).map(([status, cfg]) => {
         const colTickets = columnTickets.filter((t) => t.status === status);
         const pts = colTickets.reduce((sum, t) => sum + (t.story_points ?? 0), 0);
@@ -146,6 +141,7 @@ export function KanbanBoard({ tickets }: KanbanBoardProps) {
         return (
           <div
             key={status}
+            data-testid="kanban-column"
             onDragOver={(e) => {
               e.preventDefault();
               setDragOverCol(status);
@@ -156,54 +152,26 @@ export function KanbanBoard({ tickets }: KanbanBoardProps) {
               }
             }}
             onDrop={(e) => handleDrop(e, status)}
-            style={{
-              background: dragOverCol === status ? 'rgba(99,102,241,0.04)' : 'var(--bg)',
-              border:
-                dragOverCol === status ? '1px solid var(--accent)' : '1px solid var(--border)',
-              borderRadius: 'var(--radius)',
-              display: 'flex',
-              flexDirection: 'column',
-              minHeight: 200,
-              transition: 'border-color 0.15s, background 0.15s',
-            }}
+            className={cx(
+              'flex min-h-50 flex-col rounded-card border [transition:border-color_0.15s,background_0.15s]',
+              dragOverCol === status
+                ? 'bg-[rgba(99,102,241,0.04)] border-accent'
+                : 'bg-bg border-line',
+            )}
           >
             {/* Column header */}
-            <div
-              style={{
-                padding: '10px 12px',
-                borderBottom: '1px solid var(--border)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <div
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    background: cfg.color,
-                  }}
-                />
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>
-                  {cfg.label}
-                </span>
+            <div className="flex shrink-0 items-center justify-between border-b border-b-line px-3 py-[10px]">
+              <div className="flex items-center gap-1.5">
+                <div className={cx('h-2 w-2 rounded-[50%]', cfg.dot)} />
+                <span className="text-12 font-semibold text-fg">{cfg.label}</span>
               </div>
-              <span
-                style={{
-                  fontSize: 10,
-                  color: 'var(--text3)',
-                  fontFamily: 'var(--mono)',
-                }}
-              >
+              <span className="font-code text-10 text-fg-3">
                 {colTickets.length} · {pts}sp
               </span>
             </div>
 
             {/* Cards */}
-            <div style={{ padding: 8, overflowY: 'auto', flex: 1 }}>
+            <div className="flex-1 overflow-y-auto p-2">
               {colTickets.map((ticket) => (
                 <div
                   key={ticket.id}
@@ -217,7 +185,10 @@ export function KanbanBoard({ tickets }: KanbanBoardProps) {
                     setDraggingId(null);
                     setDragOverCol(null);
                   }}
-                  style={{ cursor: 'grab', opacity: draggingId === ticket.id ? 0.4 : 1 }}
+                  className={cx(
+                    'cursor-grab',
+                    draggingId === ticket.id ? 'opacity-40' : 'opacity-100',
+                  )}
                 >
                   <TicketCard
                     ticket={ticket}
@@ -227,16 +198,7 @@ export function KanbanBoard({ tickets }: KanbanBoardProps) {
                 </div>
               ))}
               {colTickets.length === 0 && (
-                <div
-                  style={{
-                    padding: '20px 8px',
-                    textAlign: 'center',
-                    fontSize: 11,
-                    color: 'var(--text3)',
-                  }}
-                >
-                  Empty
-                </div>
+                <div className="px-2 py-5 text-center text-11 text-fg-3">Empty</div>
               )}
             </div>
           </div>
@@ -248,48 +210,33 @@ export function KanbanBoard({ tickets }: KanbanBoardProps) {
   return (
     <>
       {/* Group by Epic toggle */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0 0' }}>
+      <div className="flex items-center gap-2 pt-2">
         <button
           onClick={() => setGroupByEpic((v) => !v)}
-          style={{
-            background: groupByEpic ? 'var(--accent)' : 'var(--surface)',
-            color: groupByEpic ? '#000' : 'var(--text3)',
-            border: `1px solid ${groupByEpic ? 'var(--accent)' : 'var(--border)'}`,
-            borderRadius: 7,
-            padding: '5px 12px',
-            fontSize: 11.5,
-            fontWeight: 650,
-            cursor: 'pointer',
-            fontFamily: 'var(--font)',
-            transition: 'all .2s',
-          }}
+          className={cx(
+            'cursor-pointer rounded-[7px] border px-3 py-[5px] font-body text-[11.5px] font-[650] transition-all',
+            groupByEpic
+              ? 'bg-accent text-[#000] border-accent'
+              : 'bg-surface text-fg-3 border-line',
+          )}
         >
           Group by Epic
         </button>
       </div>
 
       {groupByEpic && epicGroups ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div className="flex flex-col gap-1">
           {epicGroups.map(([epicName, groupTickets]) => {
-            const color = epicColorMap.get(epicName) ?? 'var(--border)';
+            const color = epicColorMap.get(epicName) ?? 'var(--color-line)';
             return (
               <div key={epicName}>
                 {/* Epic section header */}
                 <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '10px 0 2px',
-                    borderLeft: `4px solid ${color}`,
-                    paddingLeft: 12,
-                    marginTop: 8,
-                  }}
+                  style={{ '--c': color } as CSSProperties}
+                  className="mt-2 flex items-center gap-[10px] border-l-4 border-l-(--c) pb-0.5 pl-3 pt-[10px]"
                 >
-                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
-                    {epicName}
-                  </span>
-                  <span style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>
+                  <span className="text-13 font-bold text-fg">{epicName}</span>
+                  <span className="font-code text-11 text-fg-3">
                     {groupTickets.length} ticket{groupTickets.length !== 1 ? 's' : ''}
                   </span>
                 </div>
