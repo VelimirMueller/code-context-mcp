@@ -7,7 +7,6 @@ const FRONTEND = 'src/dashboard/frontend/src';
 // #293 ratchet: files that still carry static inline styles. A slice that moves a
 // file to Tailwind removes it here; a new file never joins the list.
 export const LEGACY_INLINE_STYLE = [
-  'App.tsx',
   'components/molecules/AlertDialog.tsx',
   'components/molecules/Breadcrumb.tsx',
   'components/molecules/SearchBar.tsx',
@@ -36,7 +35,6 @@ export const LEGACY_CLASSES = [
   '^action-icon$',
   '^action-label$',
   '^active$',
-  '^app$',
   '^breadcrumb$',
   '^breadcrumb-current$',
   '^breadcrumb-item$',
@@ -59,13 +57,8 @@ export const LEGACY_CLASSES = [
   '^empty-icon$',
   '^highlight$',
   '^kbd-hint$',
-  '^logo$',
-  '^logo-icon$',
-  '^logo-sub$',
-  '^logo-text$',
   '^main$',
   '^open$',
-  '^page-content$',
   '^quick-action-btn$',
   '^quick-actions-bar$',
   '^quick-actions-breadcrumb$',
@@ -84,7 +77,6 @@ export const LEGACY_CLASSES = [
   '^top-nav-icon$',
   '^top-nav-item$',
   '^top-nav-label$',
-  '^topbar$',
   '^tree-folder$',
 ];
 

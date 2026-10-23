@@ -152,79 +152,6 @@ body {
   border-radius: 4px;
 }
 
-.app {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  overflow: hidden;
-}
-
-.topbar {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  padding: 0 28px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
-  height: 64px;
-  flex-shrink: 0;
-}
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.logo-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, var(--accent) 0%, #a5b4fc 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
-}
-.logo-text {
-  font-family: var(--display);
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  text-transform: uppercase;
-}
-.logo-sub {
-  color: var(--text3);
-  font-weight: 400;
-}
-
-.page-nav {
-  display: flex;
-  gap: 0;
-  border-bottom: 1px solid var(--border);
-  padding: 0 16px;
-  background: var(--surface);
-}
-.page-nav-item {
-  padding: 12px 24px;
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--text3);
-  cursor: pointer;
-  border: none;
-  background: none;
-  border-bottom: 2px solid transparent;
-  font-family: var(--display);
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  transition: all 0.2s;
-}
-.page-nav-item:hover {
-  color: var(--text2);
-}
-.page-nav-item.active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
-}
-
 /* TopNav - New flattened navigation */
 .top-nav {
   display: flex;
@@ -383,30 +310,6 @@ body {
 .breadcrumb-current {
   color: var(--text2);
   font-weight: 500;
-}
-
-.page-content {
-  flex: 1;
-  overflow: hidden;
-}
-
-/* Vision tab: player fills right half edge-to-edge */
-.vision-layout {
-  height: 100% !important;
-}
-.vision-player-sticky {
-  height: 100%;
-  border-radius: 0 !important;
-}
-
-/* Mobile: single-column, player hidden */
-@media (max-width: 768px) {
-  .vision-layout {
-    grid-template-columns: 1fr !important;
-  }
-  .vision-layout > :nth-child(2) {
-    display: none;
-  }
 }
 
 /* D-41: headings in the display face. */

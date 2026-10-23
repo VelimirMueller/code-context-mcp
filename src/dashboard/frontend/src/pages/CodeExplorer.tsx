@@ -244,9 +244,9 @@ export function CodeExplorer() {
     <div className="flex flex-col h-full overflow-hidden">
       <SubTabBar tabs={CODE_TABS} />
       {/* Topbar with stats + search */}
-      <div className="topbar flex items-center gap-5 shrink-0">
-        <div className="logo shrink-0">
-          <div className="logo-icon">
+      <div className="flex items-center gap-5 px-7 border-b border-b-line bg-surface h-16 shrink-0">
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="w-8 h-8 rounded-[10px] bg-[linear-gradient(135deg,var(--color-accent)_0%,#a5b4fc_100%)] flex items-center justify-center [box-shadow:0_0_20px_rgba(99,102,241,0.2)]">
             <svg
               viewBox="0 0 24 24"
               fill="none"
@@ -258,8 +258,11 @@ export function CodeExplorer() {
               <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
             </svg>
           </div>
-          <span className="logo-text">
-            Code Context <span className="logo-sub">Explorer</span>
+          <span
+            data-testid="logo-text"
+            className="font-display text-[15px] font-bold tracking-[-0.01em] uppercase"
+          >
+            Code Context <span className="text-fg-3 font-normal">Explorer</span>
           </span>
         </div>
 

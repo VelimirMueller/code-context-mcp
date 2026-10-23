@@ -16,8 +16,8 @@ test.describe('Code Explorer', () => {
   });
 
   test('page loads with header and file sidebar', async ({ page }) => {
-    // Logo text visible (page has two .logo-text — nav and Code Explorer header)
-    await expect(page.locator('.logo-text').first()).toContainText('Code Context');
+    // Logo text visible (page has two logo-text elements — nav and Code Explorer header)
+    await expect(page.getByTestId('logo-text').first()).toContainText('Code Context');
 
     // Sidebar shows "Files" heading with count
     await expect(page.locator('.sidebar-head')).toContainText('Files');

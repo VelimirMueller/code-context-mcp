@@ -51,7 +51,7 @@ test.describe('Dashboard Tab', () => {
 
   test('Board sub-tab shows ticket content area', async ({ page }) => {
     // Board is the default sub-tab — the page content should render
-    const pageContent = page.locator('.page-content');
+    const pageContent = page.getByTestId('page-content');
     await expect(pageContent).toBeVisible();
 
     // Should not be an empty/blank page — some element must exist inside
@@ -65,7 +65,7 @@ test.describe('Dashboard Tab', () => {
     await page.waitForTimeout(500);
 
     // Overview should render — check that the page-content area has content
-    const pageContent = page.locator('.page-content');
+    const pageContent = page.getByTestId('page-content');
     const childCount = await pageContent.locator('> *').count();
     expect(childCount).toBeGreaterThan(0);
   });
@@ -77,7 +77,7 @@ test.describe('Dashboard Tab', () => {
         await tab.click();
         await page.waitForTimeout(400);
         // Page should not crash — check page-content still exists
-        await expect(page.locator('.page-content')).toBeVisible();
+        await expect(page.getByTestId('page-content')).toBeVisible();
       }
     }
   });
@@ -155,7 +155,7 @@ test.describe('Team Tab', () => {
     // Wait for content to load
     await page.waitForTimeout(500);
 
-    const pageContent = page.locator('.page-content');
+    const pageContent = page.getByTestId('page-content');
     await expect(pageContent).toBeVisible();
 
     // Should have visible content (agent cards or at least the sub-tab bar)
@@ -211,13 +211,13 @@ test.describe('Retro Tab', () => {
       await page.waitForTimeout(400);
 
       // Page should not crash
-      await expect(page.locator('.page-content')).toBeVisible();
+      await expect(page.getByTestId('page-content')).toBeVisible();
     }
   });
 
   test('Findings tab renders content area', async ({ page }) => {
     // Findings is the default — should have visible content or empty state
-    const pageContent = page.locator('.page-content');
+    const pageContent = page.getByTestId('page-content');
     await expect(pageContent).toBeVisible();
     const childCount = await pageContent.locator('> *').count();
     expect(childCount).toBeGreaterThan(0);
@@ -242,7 +242,7 @@ test.describe('Navigation Flow', () => {
       await expect(activeTab).toContainText(tabLabel);
 
       // Verify page-content is visible and not empty
-      const pageContent = page.locator('.page-content');
+      const pageContent = page.getByTestId('page-content');
       await expect(pageContent).toBeVisible();
       const childCount = await pageContent.locator('> *').count();
       expect(childCount).toBeGreaterThan(0);
