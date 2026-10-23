@@ -26,8 +26,6 @@ export const LEGACY_INLINE_STYLE = [
   'components/organisms/SprintCompletionPanel.tsx',
   'components/organisms/SprintDetail.tsx',
   'components/organisms/SprintList.tsx',
-  'components/organisms/TeamGrid.tsx',
-  'components/organisms/TeamManagementModal.tsx',
   'pages/Benchmark.tsx',
   'pages/Dashboard.tsx',
   'pages/Retro.tsx',
