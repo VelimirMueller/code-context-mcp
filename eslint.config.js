@@ -28,7 +28,6 @@ export const LEGACY_INLINE_STYLE = [
   'components/organisms/SprintList.tsx',
   'components/organisms/TeamGrid.tsx',
   'components/organisms/TeamManagementModal.tsx',
-  'pages/Benchmark.tsx',
   'pages/Dashboard.tsx',
   'pages/Retro.tsx',
   'pages/Team.tsx',
