@@ -10,8 +10,6 @@ export const LEGACY_INLINE_STYLE = [
   'App.tsx',
   'components/molecules/AlertDialog.tsx',
   'components/molecules/Breadcrumb.tsx',
-  'components/molecules/FileItem.tsx',
-  'components/molecules/FolderItem.tsx',
   'components/molecules/SearchBar.tsx',
   'components/molecules/StatGroup.tsx',
   'components/molecules/SubTabBar.tsx',
@@ -19,15 +17,11 @@ export const LEGACY_INLINE_STYLE = [
   'components/molecules/WizardModal.tsx',
   'components/organisms/BentoGrid.tsx',
   'components/organisms/DashboardTour.tsx',
-  'components/organisms/DependencyGraph.tsx',
   'components/organisms/EpicList.tsx',
-  'components/organisms/FileTree.tsx',
   'components/organisms/LandingAnimation.tsx',
   'components/organisms/SprintCompletionPanel.tsx',
   'components/organisms/SprintDetail.tsx',
   'components/organisms/SprintList.tsx',
-  'components/organisms/TeamGrid.tsx',
-  'components/organisms/TeamManagementModal.tsx',
   'pages/Benchmark.tsx',
 ];
 
@@ -60,12 +54,6 @@ export const LEGACY_CLASSES = [
   '^detail-title$',
   '^empty$',
   '^empty-icon$',
-  '^file-item$',
-  '^file-name$',
-  '^file-size$',
-  '^folder-count$',
-  '^folder-icon$',
-  '^folder-name$',
   '^highlight$',
   '^kbd-hint$',
   '^logo$',
@@ -94,9 +82,7 @@ export const LEGACY_CLASSES = [
   '^top-nav-item$',
   '^top-nav-label$',
   '^topbar$',
-  '^tree-children$',
   '^tree-folder$',
-  '^tree-folder-head$',
 ];
 
 export default tseslint.config(

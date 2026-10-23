@@ -1,6 +1,6 @@
 import React from 'react';
 import { Dot } from '@/components/atoms/Dot';
-import { langColors, fmtSize } from '@/lib/utils';
+import { cx, langColors, fmtSize } from '@/lib/utils';
 import type { File } from '@/types';
 
 interface FileItemProps {
@@ -15,27 +15,25 @@ export function FileItem({ file, isActive, onClick }: FileItemProps) {
 
   return (
     <div
-      className={`file-item${isActive ? ' active' : ''}`}
+      data-testid="file-item"
+      className={cx(
+        'flex cursor-pointer items-center gap-[6px] overflow-hidden rounded-[6px] px-2 py-1 [transition:background_0.15s] hover:bg-surface-2',
+        isActive && 'bg-surface-3 text-accent hover:bg-surface-3',
+      )}
       onClick={() => onClick(file.id)}
       title={file.summary || file.path}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+      <div className="flex min-w-0 items-center gap-[6px]">
         <Dot color={color} />
-        <span className="file-name">{name}</span>
-        <span className="file-size">{fmtSize(file.size_bytes)}</span>
+        <span className="flex-1 overflow-hidden text-13 text-ellipsis whitespace-nowrap">
+          {name}
+        </span>
+        <span className="ml-auto shrink-0 font-code text-10 text-fg-3">
+          {fmtSize(file.size_bytes)}
+        </span>
       </div>
       {file.summary && (
-        <div
-          style={{
-            fontSize: 10,
-            color: 'var(--text3)',
-            paddingLeft: 20,
-            lineHeight: 1.3,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
+        <div className="overflow-hidden pl-5 text-10 leading-[1.3] text-ellipsis whitespace-nowrap text-fg-3">
           {file.summary}
         </div>
       )}
