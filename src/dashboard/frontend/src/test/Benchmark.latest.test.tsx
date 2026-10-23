@@ -310,9 +310,9 @@ describe('Benchmark page: latest run table (#160)', () => {
     const table = await renderPage();
     const chip = (kind: string) =>
       within(rowOf(table, kind)).getByTestId('result-chip').firstElementChild as HTMLElement;
-    expect(chip('agent-glm').getAttribute('style')).toContain('var(--red)');
-    expect(chip('agent-opus').getAttribute('style')).toContain('var(--green)');
-    expect(chip('agent-deepseek').getAttribute('style')).toContain('var(--text3)');
+    expect(chip('agent-glm').getAttribute('data-verdict')).toBe('SUBOPTIMAL');
+    expect(chip('agent-opus').getAttribute('data-verdict')).toBe('BENEFICIAL');
+    expect(chip('agent-deepseek').getAttribute('data-verdict')).toBe('NO_CLEAR_EFFECT');
   });
 
   it('adds a caption and one plain sentence per model from the verdict', async () => {

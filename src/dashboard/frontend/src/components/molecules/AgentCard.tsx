@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type CSSProperties } from 'react';
 import { motion } from 'framer-motion';
 import { cardHover } from '@/lib/motion';
 import { put, del } from '@/lib/api';
 import { useAgentStore } from '@/stores/agentStore';
 import { AlertDialog } from '@/components/molecules/AlertDialog';
 import { MODEL_OPTIONS, MODEL_COLORS, MODEL_SHORT_LABELS } from '@/lib/constants';
+import { cx } from '@/lib/utils';
 import type { Agent } from '@/types';
 
 interface AgentCardProps {
@@ -21,33 +22,23 @@ function healthStatus(agent: Agent): 'active' | 'idle' | 'blocked' {
 }
 
 const healthColor: Record<string, string> = {
-  active: 'var(--accent)',
-  idle: 'var(--orange)',
-  blocked: 'var(--red)',
+  active: 'var(--color-accent)',
+  idle: 'var(--color-orange)',
+  blocked: 'var(--color-red)',
 };
 
-const iconBtnStyle: React.CSSProperties = {
-  background: 'none',
-  border: 'none',
-  cursor: 'pointer',
-  padding: 2,
-  fontSize: 13,
-  lineHeight: 1,
-  color: 'var(--text3)',
-  borderRadius: 4,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: 22,
-  height: 22,
-  transition: 'background .15s, color .15s',
-};
+const iconBtnClass =
+  'bg-transparent border-none cursor-pointer p-0.5 text-13 leading-none text-fg-3 rounded-[4px] flex items-center justify-center w-[22px] h-[22px] [transition:background_.15s,color_.15s] hover:bg-surface-2';
 
 export function AgentCard({ agent, onEdit }: AgentCardProps) {
   const health = healthStatus(agent);
   const moodScore = agent.mood ?? 50;
   const moodColor =
-    moodScore >= 60 ? 'var(--green)' : moodScore >= 40 ? 'var(--orange)' : 'var(--red)';
+    moodScore >= 60
+      ? 'var(--color-green)'
+      : moodScore >= 40
+        ? 'var(--color-orange)'
+        : 'var(--color-red)';
   const fetchAgents = useAgentStore((s) => s.fetchAgents);
 
   const [busy, setBusy] = useState(false);
@@ -89,36 +80,22 @@ export function AgentCard({ agent, onEdit }: AgentCardProps) {
     }
   }
 
-  const modelColor = MODEL_COLORS[agent.model] ?? 'var(--text3)';
+  const modelColor = MODEL_COLORS[agent.model] ?? 'var(--color-fg-3)';
 
   return (
     <>
       <motion.div
         whileHover={cardHover}
         layout
-        style={{
-          padding: '14px 16px',
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius)',
-          position: 'relative',
-        }}
+        className="py-[14px] px-4 bg-surface border border-line rounded-card relative"
       >
         {/* Action buttons: edit + delete */}
-        <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 2 }}>
+        <div className="absolute top-2 right-2 flex gap-0.5">
           <button
             onClick={() => onEdit(agent)}
             disabled={busy}
             title="Edit agent"
-            style={iconBtnStyle}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'var(--surface2)';
-              e.currentTarget.style.color = 'var(--text)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'none';
-              e.currentTarget.style.color = 'var(--text3)';
-            }}
+            className={cx(iconBtnClass, 'hover:text-fg')}
           >
             <svg
               width="13"
@@ -138,15 +115,7 @@ export function AgentCard({ agent, onEdit }: AgentCardProps) {
             onClick={() => setShowDeleteConfirm(true)}
             disabled={busy}
             title="Delete agent"
-            style={iconBtnStyle}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'var(--surface2)';
-              e.currentTarget.style.color = 'var(--red)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'none';
-              e.currentTarget.style.color = 'var(--text3)';
-            }}
+            className={cx(iconBtnClass, 'hover:text-red')}
           >
             <svg
               width="13"
@@ -165,131 +134,52 @@ export function AgentCard({ agent, onEdit }: AgentCardProps) {
         </div>
 
         {/* Header: role + health dot + mood emoji */}
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: 6,
-            paddingRight: 50,
-          }}
-        >
-          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
-            {agent.name || agent.role}
-          </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div className="flex justify-between items-center mb-1.5 pr-[50px]">
+          <span className="text-13 font-semibold text-fg">{agent.name || agent.role}</span>
+          <div className="flex items-center gap-1.5">
             {/* Health dot */}
             <div
               title={health}
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                background: healthColor[health],
-                boxShadow: `0 0 6px ${healthColor[health]}`,
-              }}
+              style={{ '--c': healthColor[health] } as CSSProperties}
+              className="w-2 h-2 rounded-[50%] bg-(--c) [box-shadow:0_0_6px_var(--c)]"
             />
-            <span style={{ fontSize: 16 }}>{agent.mood_emoji || '\u{1F610}'}</span>
+            <span className="text-16">{agent.mood_emoji || '\u{1F610}'}</span>
           </div>
         </div>
 
         {/* Description */}
-        <div
-          style={{
-            fontSize: 12,
-            color: 'var(--text2)',
-            marginBottom: 8,
-            lineHeight: 1.5,
-          }}
-        >
+        <div className="text-12 text-fg-2 mb-2 leading-[1.5]">
           {agent.description || 'No description'}
         </div>
 
         {/* Model badge (clickable) + mood label */}
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: 6,
-          }}
-        >
-          <div ref={dropdownRef} style={{ position: 'relative' }}>
+        <div className="flex justify-between items-center mb-1.5">
+          <div ref={dropdownRef} className="relative">
             <button
               onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
               disabled={busy}
-              style={{
-                fontSize: 10,
-                color: '#fff',
-                fontFamily: 'var(--mono)',
-                background: modelColor,
-                padding: '2px 8px',
-                borderRadius: 4,
-                border: 'none',
-                cursor: 'pointer',
-                fontWeight: 600,
-                letterSpacing: '0.02em',
-              }}
+              style={{ '--c': modelColor } as CSSProperties}
+              className="text-10 text-[#fff] font-code bg-(--c) py-0.5 px-2 rounded-[4px] border-none cursor-pointer font-semibold tracking-[0.02em]"
               title="Click to change model"
             >
               {MODEL_SHORT_LABELS[agent.model] || agent.model || 'default'}
             </button>
 
             {modelDropdownOpen && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  marginTop: 4,
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius)',
-                  boxShadow: '0 4px 12px rgba(0,0,0,.3)',
-                  zIndex: 100,
-                  minWidth: 140,
-                  overflow: 'hidden',
-                }}
-              >
+              <div className="absolute top-full left-0 mt-1 bg-surface border border-line rounded-card [box-shadow:0_4px_12px_rgba(0,0,0,.3)] z-[100] min-w-[140px] overflow-hidden">
                 {MODEL_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
                     onClick={() => handleModelChange(opt.value)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      width: '100%',
-                      padding: '6px 10px',
-                      fontSize: 11,
-                      color: agent.model === opt.value ? '#fff' : 'var(--text)',
-                      background:
-                        agent.model === opt.value ? MODEL_COLORS[opt.value] : 'transparent',
-                      border: 'none',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      fontFamily: 'inherit',
-                    }}
-                    onMouseEnter={(e) => {
-                      if (agent.model !== opt.value) {
-                        e.currentTarget.style.background = 'var(--surface2)';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (agent.model !== opt.value) {
-                        e.currentTarget.style.background = 'transparent';
-                      }
-                    }}
+                    style={{ '--c': MODEL_COLORS[opt.value] } as CSSProperties}
+                    className={cx(
+                      'flex items-center gap-2 w-full py-[6px] px-[10px] text-11 border-none cursor-pointer text-left [font-family:inherit]',
+                      agent.model === opt.value
+                        ? 'text-[#fff] bg-(--c)'
+                        : 'text-fg bg-transparent hover:bg-surface-2',
+                    )}
                   >
-                    <span
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: '50%',
-                        background: MODEL_COLORS[opt.value],
-                        flexShrink: 0,
-                      }}
-                    />
+                    <span className="w-2 h-2 rounded-[50%] bg-(--c) shrink-0" />
                     {opt.label}
                   </button>
                 ))}
@@ -297,33 +187,24 @@ export function AgentCard({ agent, onEdit }: AgentCardProps) {
             )}
           </div>
 
-          <span style={{ fontSize: 11, color: moodColor, fontWeight: 600 }}>
+          <span
+            style={{ '--c': moodColor } as CSSProperties}
+            className="text-11 text-(--c) font-semibold"
+          >
             {agent.mood_label || 'neutral'} ({moodScore})
           </span>
         </div>
 
         {/* Mood progress bar */}
-        <div
-          style={{
-            height: 3,
-            background: 'var(--border)',
-            borderRadius: 2,
-            overflow: 'hidden',
-            marginBottom: 6,
-          }}
-        >
+        <div className="h-[3px] bg-line rounded-[2px] overflow-hidden mb-1.5">
           <div
-            style={{
-              height: '100%',
-              width: `${moodScore}%`,
-              background: moodColor,
-              transition: 'width .3s',
-            }}
+            style={{ width: `${moodScore}%`, '--c': moodColor } as CSSProperties}
+            className="h-full bg-(--c) [transition:width_.3s]"
           />
         </div>
 
         {/* Ticket counts */}
-        <div style={{ fontSize: 11, color: 'var(--text3)' }}>
+        <div className="text-11 text-fg-3">
           Done: {agent.done_tickets ?? 0} | Active: {agent.active_tickets ?? 0} | Blocked:{' '}
           {agent.blocked_tickets ?? 0}
         </div>

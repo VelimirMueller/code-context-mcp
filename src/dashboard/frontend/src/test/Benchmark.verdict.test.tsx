@@ -89,7 +89,7 @@ describe('Benchmark verdict (CCA-20)', () => {
     const card = screen.getAllByRole('button', { pressed: true })[0];
     const chip = within(card).getByTestId('verdict-chip');
     expect(chip.textContent).toBe('BENEFICIALindicative');
-    expect(within(chip).getByText('BENEFICIAL').getAttribute('style')).toContain('var(--green)');
+    expect(within(chip).getByText('BENEFICIAL').getAttribute('data-verdict')).toBe('BENEFICIAL');
     // The chip comes before the headline numbers.
     const text = card.textContent ?? '';
     expect(text.indexOf('BENEFICIAL')).toBeLessThan(text.indexOf('Success vanilla'));
@@ -119,7 +119,7 @@ describe('Benchmark verdict (CCA-20)', () => {
     await renderPage();
     const section = screen.getByRole('region', { name: 'Verdict' });
     await waitFor(() => expect(within(section).getByText('SUBOPTIMAL')).toBeTruthy());
-    expect(within(section).getByText('SUBOPTIMAL').getAttribute('style')).toContain('var(--red)');
+    expect(within(section).getByText('SUBOPTIMAL').getAttribute('data-verdict')).toBe('SUBOPTIMAL');
     expect(within(section).getByText('The tasks are more than 25 % slower.')).toBeTruthy();
     expect(within(section).queryByText('indicative')).toBeNull();
   });
@@ -140,7 +140,7 @@ describe('Benchmark verdict (CCA-20)', () => {
     await renderPage();
     const section = screen.getByRole('region', { name: 'Verdict' });
     await waitFor(() => expect(within(section).getByText('SUBOPTIMAL')).toBeTruthy());
-    expect(within(section).getByText('SUBOPTIMAL').getAttribute('style')).toContain('var(--red)');
+    expect(within(section).getByText('SUBOPTIMAL').getAttribute('data-verdict')).toBe('SUBOPTIMAL');
     expect(
       within(section).getByText('Result: code-context is suboptimal for these tasks.'),
     ).toBeTruthy();

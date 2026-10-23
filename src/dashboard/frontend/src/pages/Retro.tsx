@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, type CSSProperties } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useSprints } from '@/hooks/useSprints';
 import { useSprintStore } from '@/stores/sprintStore';
@@ -27,67 +27,39 @@ function HistoryView() {
 
   const byCategory = (cat: string) => allFindings.filter((f) => f.category === cat);
   const categories = [
-    { key: 'went_well', label: 'Went Well', color: '#10b981' },
-    { key: 'went_wrong', label: 'Went Wrong', color: '#f87171' },
-    { key: 'try_next', label: 'Try Next', color: '#818cf8' },
+    { key: 'went_well', label: 'Went Well', color: 'var(--color-green)' },
+    { key: 'went_wrong', label: 'Went Wrong', color: 'var(--color-red)' },
+    { key: 'try_next', label: 'Try Next', color: 'var(--color-accent)' },
   ];
 
   if (allFindings.length === 0) {
-    return (
-      <div style={{ padding: 40, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>
-        No retro findings yet.
-      </div>
-    );
+    return <div className="p-10 text-center text-13 text-fg-3">No retro findings yet.</div>;
   }
 
   return (
-    <div style={{ padding: 20, overflowY: 'auto', flex: 1 }}>
+    <div className="flex-1 overflow-y-auto p-5">
       {categories.map(({ key, label, color }) => {
         const items = byCategory(key);
         if (items.length === 0) return null;
         return (
-          <div key={key} style={{ marginBottom: 20 }}>
+          <div key={key} className="mb-5">
             <div
-              style={{
-                fontSize: 13,
-                fontWeight: 700,
-                color,
-                marginBottom: 8,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
+              className="mb-2 flex items-center gap-1.5 text-13 font-bold text-(--c)"
+              style={{ '--c': color } as CSSProperties}
             >
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />
+              <span className="h-2 w-2 rounded-[50%] bg-(--c)" />
               {label} ({items.length})
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div className="flex flex-col gap-1.5">
               {items.slice(0, 20).map((f) => (
                 <div
                   key={f.id}
-                  style={{
-                    padding: '8px 12px',
-                    background: 'var(--surface)',
-                    border: '1px solid var(--border)',
-                    borderLeft: `3px solid ${color}`,
-                    borderRadius: 6,
-                    fontSize: 12,
-                    color: 'var(--text2)',
-                    lineHeight: 1.5,
-                  }}
+                  className="rounded-[6px] border border-line border-l-[3px] border-l-(--c) bg-surface px-3 py-2 text-12 leading-[1.5] text-fg-2"
+                  style={{ '--c': color } as CSSProperties}
                 >
                   {f.finding}
                   {f.sprint_name && (
-                    <span
-                      style={{
-                        fontSize: 10,
-                        color: 'var(--text3)',
-                        marginLeft: 8,
-                        fontFamily: 'var(--mono)',
-                      }}
-                    >
-                      — {f.sprint_name}
-                    </span>
+                    <span className="ml-2 font-code text-10 text-fg-3">— {f.sprint_name}</span>
                   )}
                 </div>
               ))}
@@ -111,7 +83,7 @@ function PatternsView() {
 
   if (userFindings.length === 0) {
     return (
-      <div style={{ padding: 40, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>
+      <div className="p-10 text-center text-13 text-fg-3">
         No retro findings yet. Complete a sprint to see patterns.
       </div>
     );
@@ -180,9 +152,9 @@ function PatternsView() {
     .slice(0, 8);
 
   const catColor: Record<string, string> = {
-    went_well: '#10b981',
-    went_wrong: '#f87171',
-    try_next: '#818cf8',
+    went_well: 'var(--color-green)',
+    went_wrong: 'var(--color-red)',
+    try_next: 'var(--color-accent)',
   };
   const catLabel: Record<string, string> = {
     went_well: 'Went Well',
@@ -191,59 +163,37 @@ function PatternsView() {
   };
 
   return (
-    <div
-      style={{
-        padding: 20,
-        overflowY: 'auto',
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 20,
-      }}
-    >
+    <div className="flex flex-1 flex-col gap-5 overflow-y-auto p-5">
       {/* Health bar */}
-      <div
-        style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 10,
-          padding: '14px 18px',
-        }}
-      >
-        <div
-          style={{
-            fontSize: 12,
-            fontWeight: 700,
-            color: 'var(--text3)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.06em',
-            marginBottom: 10,
-          }}
-        >
+      <div className="rounded-[10px] border border-line bg-surface px-[18px] py-3.5">
+        <div className="mb-2.5 text-12 font-bold tracking-[0.06em] text-fg-3 uppercase">
           Cumulative Health — {bySprint.size} sprint{bySprint.size !== 1 ? 's' : ''}, {total}{' '}
           findings
         </div>
-        <div style={{ display: 'flex', height: 10, borderRadius: 5, overflow: 'hidden', gap: 2 }}>
+        <div className="flex h-2.5 gap-0.5 overflow-hidden rounded-[5px]">
           {totalWell > 0 && (
             <div
-              style={{ flex: totalWell, background: '#10b981', borderRadius: 5 }}
+              className="rounded-[5px] bg-green"
+              style={{ flex: totalWell }}
               title={`${totalWell} went well`}
             />
           )}
           {totalTry > 0 && (
             <div
-              style={{ flex: totalTry, background: '#818cf8', borderRadius: 5 }}
+              className="rounded-[5px] bg-accent"
+              style={{ flex: totalTry }}
               title={`${totalTry} try next`}
             />
           )}
           {totalWrong > 0 && (
             <div
-              style={{ flex: totalWrong, background: '#f87171', borderRadius: 5 }}
+              className="rounded-[5px] bg-red"
+              style={{ flex: totalWrong }}
               title={`${totalWrong} went wrong`}
             />
           )}
         </div>
-        <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
+        <div className="mt-2 flex gap-4">
           {[
             ['went_well', totalWell],
             ['try_next', totalTry],
@@ -251,7 +201,8 @@ function PatternsView() {
           ].map(([cat, count]) => (
             <span
               key={cat as string}
-              style={{ fontSize: 11, color: catColor[cat as string], fontFamily: 'var(--mono)' }}
+              className="font-code text-11 text-(--c)"
+              style={{ '--c': catColor[cat as string] } as CSSProperties}
             >
               {count} {catLabel[cat as string]}
             </span>
@@ -261,41 +212,17 @@ function PatternsView() {
 
       {/* Recurring keywords */}
       {recurring.length > 0 && (
-        <div
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 10,
-            padding: '14px 18px',
-          }}
-        >
-          <div
-            style={{
-              fontSize: 12,
-              fontWeight: 700,
-              color: 'var(--text3)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-              marginBottom: 10,
-            }}
-          >
+        <div className="rounded-[10px] border border-line bg-surface px-[18px] py-3.5">
+          <div className="mb-2.5 text-12 font-bold tracking-[0.06em] text-fg-3 uppercase">
             Recurring Themes
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          <div className="flex flex-wrap gap-1.5">
             {recurring.map(([word, sprints]) => (
               <span
                 key={word}
-                style={{
-                  background: 'rgba(99,102,241,.12)',
-                  border: '1px solid rgba(99,102,241,.25)',
-                  color: '#818cf8',
-                  borderRadius: 20,
-                  padding: '3px 10px',
-                  fontSize: 11,
-                  fontFamily: 'var(--mono)',
-                }}
+                className="rounded-[20px] border border-[rgba(99,102,241,.25)] bg-[rgba(99,102,241,.12)] px-2.5 py-[3px] font-code text-11 text-accent"
               >
-                {word} <span style={{ opacity: 0.6 }}>×{sprints.size}</span>
+                {word} <span className="opacity-60">×{sprints.size}</span>
               </span>
             ))}
           </div>
@@ -303,72 +230,39 @@ function PatternsView() {
       )}
 
       {/* Sprint-by-sprint breakdown */}
-      <div
-        style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 10,
-          padding: '14px 18px',
-        }}
-      >
-        <div
-          style={{
-            fontSize: 12,
-            fontWeight: 700,
-            color: 'var(--text3)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.06em',
-            marginBottom: 12,
-          }}
-        >
+      <div className="rounded-[10px] border border-line bg-surface px-[18px] py-3.5">
+        <div className="mb-3 text-12 font-bold tracking-[0.06em] text-fg-3 uppercase">
           Sprint Breakdown
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div className="flex flex-col gap-3">
           {[...bySprint.entries()].map(([sprintName, findings]) => {
             const well = findings.filter((f) => f.category === 'went_well').length;
             const wrong = findings.filter((f) => f.category === 'went_wrong').length;
             const tryN = findings.filter((f) => f.category === 'try_next').length;
             return (
               <div key={sprintName}>
-                <div
-                  style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 5 }}
-                >
-                  {sprintName}
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div className="mb-[5px] text-12 font-semibold text-fg-2">{sprintName}</div>
+                <div className="flex flex-col gap-1">
                   {findings
                     .filter((f) => f.category !== 'auto_analysis')
                     .map((f) => (
                       <div
                         key={f.id}
-                        style={{
-                          padding: '6px 10px',
-                          borderRadius: 6,
-                          background: 'var(--surface2)',
-                          borderLeft: `3px solid ${catColor[f.category] ?? '#888'}`,
-                          fontSize: 12,
-                          color: 'var(--text2)',
-                          lineHeight: 1.4,
-                        }}
+                        className="rounded-[6px] border-l-[3px] border-l-(--c) bg-surface-2 px-2.5 py-1.5 text-12 leading-[1.4] text-fg-2"
+                        style={{ '--c': catColor[f.category] ?? '#888' } as CSSProperties}
                       >
                         {f.finding}
                       </div>
                     ))}
-                  <div style={{ display: 'flex', gap: 10, marginTop: 2 }}>
+                  <div className="mt-0.5 flex gap-2.5">
                     {well > 0 && (
-                      <span style={{ fontSize: 10, color: '#10b981', fontFamily: 'var(--mono)' }}>
-                        ✓ {well} well
-                      </span>
+                      <span className="font-code text-10 text-green">✓ {well} well</span>
                     )}
                     {wrong > 0 && (
-                      <span style={{ fontSize: 10, color: '#f87171', fontFamily: 'var(--mono)' }}>
-                        ✗ {wrong} wrong
-                      </span>
+                      <span className="font-code text-10 text-red">✗ {wrong} wrong</span>
                     )}
                     {tryN > 0 && (
-                      <span style={{ fontSize: 10, color: '#818cf8', fontFamily: 'var(--mono)' }}>
-                        → {tryN} try
-                      </span>
+                      <span className="font-code text-10 text-accent">→ {tryN} try</span>
                     )}
                   </div>
                 </div>
@@ -389,7 +283,7 @@ export function Retro() {
   const activeTab = useUIStore((s) => s.activeTab);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <div className="flex h-full flex-col overflow-hidden">
       <SubTabBar tabs={RETRO_TABS} />
       <AnimatePresence mode="wait">
         <motion.div
@@ -399,7 +293,7 @@ export function Retro() {
           animate="animate"
           exit="exit"
           transition={tabTransition}
-          style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
+          className="flex flex-1 flex-col overflow-hidden"
         >
           <HeroText>
             <AnimatedNumber value={allRetroFindings.length} />

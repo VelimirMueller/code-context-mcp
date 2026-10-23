@@ -1,5 +1,7 @@
+import type { CSSProperties } from 'react';
 import { motion } from 'framer-motion';
 import { cardHover } from '@/lib/motion';
+import { cx } from '@/lib/utils';
 
 interface BentoCardProps {
   icon: React.ReactNode;
@@ -26,77 +28,32 @@ export function BentoCard({
     <motion.div
       whileHover={cardHover}
       layout
-      style={{
-        background: 'var(--surface)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--radius)',
-        borderTop: `3px solid ${borderColor}`,
-        padding: '16px',
-        gridColumn: wide ? 'span 2' : undefined,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 10,
-      }}
+      style={{ '--c': borderColor } as CSSProperties}
+      className={cx(
+        'bg-surface border border-line rounded-card border-t-[3px] border-t-(--c) p-4 flex flex-col gap-[10px]',
+        wide && '[grid-column:span_2]',
+      )}
     >
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+      <div className="flex items-start gap-[10px]">
         <div
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 8,
-            background: iconBg,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 18,
-            flexShrink: 0,
-          }}
+          style={{ '--c': iconBg } as CSSProperties}
+          className="w-9 h-9 rounded-[8px] bg-(--c) flex items-center justify-center text-18 shrink-0"
         >
           {icon}
         </div>
         <div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', lineHeight: 1.3 }}>
-            {title}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{subtitle}</div>
+          <div className="text-13 font-semibold text-fg leading-[1.3]">{title}</div>
+          <div className="text-11 text-fg-3 mt-0.5">{subtitle}</div>
         </div>
       </div>
 
       {/* Bullet list */}
       {items && items.length > 0 && (
-        <ul
-          style={{
-            listStyle: 'none',
-            margin: 0,
-            padding: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 5,
-          }}
-        >
+        <ul className="list-none m-0 p-0 flex flex-col gap-[5px]">
           {items.map((item, i) => (
-            <li
-              key={i}
-              style={{
-                display: 'flex',
-                gap: 8,
-                alignItems: 'flex-start',
-                fontSize: 12,
-                color: 'var(--text2)',
-                lineHeight: 1.5,
-              }}
-            >
-              <span
-                style={{
-                  width: 5,
-                  height: 5,
-                  borderRadius: '50%',
-                  background: borderColor,
-                  flexShrink: 0,
-                  marginTop: 6,
-                }}
-              />
+            <li key={i} className="flex gap-2 items-start text-12 text-fg-2 leading-[1.5]">
+              <span className="w-[5px] h-[5px] rounded-[50%] bg-(--c) shrink-0 mt-[6px]" />
               {item}
             </li>
           ))}

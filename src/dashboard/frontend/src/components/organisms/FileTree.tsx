@@ -63,7 +63,7 @@ export function FileTree() {
 
   if (loadingFiles && !files.length) {
     return (
-      <div style={{ padding: '10px 12px' }}>
+      <div className="px-3 py-[10px]">
         <Skeleton count={6} width="80%" />
         <Skeleton count={4} width="65%" />
       </div>

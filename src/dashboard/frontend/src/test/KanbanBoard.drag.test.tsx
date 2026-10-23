@@ -42,7 +42,9 @@ const nonGetCalls = () =>
 
 /** Drop ticket `id` on the column whose header text is `label`. */
 const dropOn = async (label: string, id: number) => {
-  const column = screen.getByText(label, { selector: 'span' }).closest('[style*="min-height"]')!;
+  const column = screen
+    .getByText(label, { selector: 'span' })
+    .closest('[data-testid="kanban-column"]')!;
   const dataTransfer = { getData: () => String(id), setData: vi.fn(), effectAllowed: '' };
   await act(async () => {
     fireEvent.dragOver(column, { dataTransfer });
@@ -81,7 +83,7 @@ describe('KanbanBoard drag and drop (#198)', () => {
     expect(useSprintStore.getState().tickets[0].status).toBe('IN_PROGRESS');
     const inProgress = screen
       .getByText('In Progress', { selector: 'span' })
-      .closest('[style*="min-height"]')!;
+      .closest('[data-testid="kanban-column"]')!;
     expect(inProgress.textContent).toContain('Ticket 1');
   });
 
@@ -103,7 +105,7 @@ describe('KanbanBoard drag and drop (#198)', () => {
 
     expect(nonGetCalls()).toHaveLength(1);
     // The card is back in "To Do": the first column holds it.
-    const firstColumn = container.querySelector('[style*="min-height"]')!;
+    const firstColumn = container.querySelector('[data-testid="kanban-column"]')!;
     expect(firstColumn.textContent).toContain('Ticket 1');
   });
 

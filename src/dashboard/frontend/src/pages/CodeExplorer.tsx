@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { type CSSProperties } from 'react';
 import { useFiles } from '@/hooks/useFiles';
 import { useFileStore } from '@/stores/fileStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -13,7 +13,7 @@ import { AnimatedNumber } from '@/components/atoms/AnimatedNumber';
 import { Badge } from '@/components/atoms/Badge';
 import { Skeleton } from '@/components/atoms/Skeleton';
 import { ErrorBoundary } from '@/components/atoms/ErrorBoundary';
-import { fmtSize, langColors } from '@/lib/utils';
+import { cx, fmtSize, langColors } from '@/lib/utils';
 
 // ─── Tab definitions ──────────────────────────────────────────────────────────
 const EXPLORER_TABS = [
@@ -36,13 +36,8 @@ function DetailTab() {
 
   if (!selectedFileId && !fileDetail) {
     return (
-      <div
-        className="empty"
-        style={{ padding: '64px 40px', textAlign: 'center', color: 'var(--text3)' }}
-      >
-        <div className="empty-icon" style={{ fontSize: 32, marginBottom: 16, opacity: 0.3 }}>
-          📄
-        </div>
+      <div className="empty py-16 px-10 text-center text-fg-3">
+        <div className="empty-icon text-32 mb-4 opacity-30">📄</div>
         <div>Select a file to view details</div>
       </div>
     );
@@ -50,7 +45,7 @@ function DetailTab() {
 
   if (loadingDetail) {
     return (
-      <div style={{ padding: '16px 20px' }}>
+      <div className="py-4 px-5">
         <Skeleton width="60%" height={18} />
         <Skeleton width="40%" />
         <Skeleton count={3} />
@@ -70,18 +65,16 @@ function DetailTab() {
       {/* Title / meta */}
       <div className="detail-section">
         <div className="detail-title">{d.path}</div>
-        <div className="detail-meta" style={{ marginTop: 8 }}>
+        <div className="detail-meta mt-2">
           <span>{d.language}</span>
           {' · '}
           <span>{d.line_count ?? 0} lines</span>
           {' · '}
-          <span style={{ fontFamily: 'var(--mono)' }}>{fmtSize(d.size_bytes ?? 0)}</span>
+          <span className="font-code">{fmtSize(d.size_bytes ?? 0)}</span>
         </div>
         {d.description && <div className="detail-desc">{d.description}</div>}
         {d.summary && d.summary !== d.description && (
-          <div className="detail-desc" style={{ marginTop: 4, fontStyle: 'italic' }}>
-            {d.summary}
-          </div>
+          <div className="detail-desc mt-1 italic">{d.summary}</div>
         )}
       </div>
 
@@ -89,30 +82,15 @@ function DetailTab() {
       {exports.length > 0 && (
         <div className="detail-section">
           <h3>Exports ({exports.length})</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
+          <div className="flex flex-col gap-1.5 mt-1">
             {exports.map((exp, i) => {
               const e = typeof exp === 'string' ? { name: exp, kind: '', description: null } : exp;
               return (
-                <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                <div key={i} className="flex items-baseline gap-1.5">
                   <Badge text={e.name} variant="pkg" />
-                  {e.kind && (
-                    <span
-                      style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--mono)' }}
-                    >
-                      {e.kind}
-                    </span>
-                  )}
+                  {e.kind && <span className="text-10 text-fg-3 font-code">{e.kind}</span>}
                   {e.description && (
-                    <span
-                      style={{
-                        fontSize: 11,
-                        color: 'var(--text2)',
-                        flex: 1,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
+                    <span className="text-11 text-fg-2 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
                       {e.description}
                     </span>
                   )}
@@ -170,13 +148,8 @@ function ChangesTab() {
 
   if (!selectedFileId) {
     return (
-      <div
-        className="empty"
-        style={{ padding: '64px 40px', textAlign: 'center', color: 'var(--text3)' }}
-      >
-        <div className="empty-icon" style={{ fontSize: 32, marginBottom: 16, opacity: 0.3 }}>
-          🕐
-        </div>
+      <div className="empty py-16 px-10 text-center text-fg-3">
+        <div className="empty-icon text-32 mb-4 opacity-30">🕐</div>
         <div>Select a file to view its change history</div>
       </div>
     );
@@ -184,7 +157,7 @@ function ChangesTab() {
 
   if (loadingChanges) {
     return (
-      <div style={{ padding: '16px 20px' }}>
+      <div className="py-4 px-5">
         <Skeleton count={4} />
       </div>
     );
@@ -192,13 +165,8 @@ function ChangesTab() {
 
   if (!fileChanges || !fileChanges.length) {
     return (
-      <div
-        className="empty"
-        style={{ padding: '48px 40px', textAlign: 'center', color: 'var(--text3)' }}
-      >
-        <div className="empty-icon" style={{ fontSize: 28, marginBottom: 12, opacity: 0.3 }}>
-          📋
-        </div>
+      <div className="empty py-12 px-10 text-center text-fg-3">
+        <div className="empty-icon text-[28px] mb-3 opacity-30">📋</div>
         <div>No changes recorded</div>
       </div>
     );
@@ -223,35 +191,16 @@ function ChangesTab() {
           <div key={change.id} className="change-item">
             <div className="change-header">
               <span
-                className={`change-event ${change.event ?? 'change'}`}
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.06em',
-                  padding: '3px 10px',
-                  borderRadius: 6,
-                  background: 'var(--blue-glow)',
-                  color: '#60a5fa',
-                  border: '1px solid rgba(59,130,246,.15)',
-                }}
+                className={`change-event ${change.event ?? 'change'} text-10 font-bold uppercase tracking-[0.06em] py-[3px] px-[10px] rounded-[6px] bg-blue-glow text-blue border border-[rgba(59,130,246,.15)]`}
               >
                 {change.event ?? 'change'}
               </span>
-              <span style={{ fontSize: 12, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>
+              <span className="text-12 text-fg-3 font-code">
                 {dateStr} {timeStr}
               </span>
               {lineDiff !== 0 && (
-                <span
-                  style={{
-                    marginLeft: 'auto',
-                    display: 'flex',
-                    gap: 8,
-                    fontSize: 11,
-                    fontFamily: 'var(--mono)',
-                  }}
-                >
-                  <span style={{ color: lineDiff > 0 ? 'var(--green)' : 'var(--red)' }}>
+                <span className="ml-auto flex gap-2 text-11 font-code">
+                  <span className={lineDiff > 0 ? 'text-green' : 'text-red'}>
                     {lineDiff > 0 ? '+' : ''}
                     {lineDiff} lines
                   </span>
@@ -259,17 +208,9 @@ function ChangesTab() {
               )}
             </div>
             {change.new_summary && (
-              <div style={{ marginTop: 8, fontSize: 13, color: 'var(--text2)', lineHeight: 1.5 }}>
-                {change.new_summary}
-              </div>
+              <div className="mt-2 text-13 text-fg-2 leading-[1.5]">{change.new_summary}</div>
             )}
-            {change.reason && (
-              <div
-                style={{ marginTop: 4, fontSize: 11, color: 'var(--text3)', fontStyle: 'italic' }}
-              >
-                {change.reason}
-              </div>
-            )}
+            {change.reason && <div className="mt-1 text-11 text-fg-3 italic">{change.reason}</div>}
           </div>
         );
       })}
@@ -300,14 +241,11 @@ export function CodeExplorer() {
   const codeTab = ['files', 'graph', 'stats'].includes(activeTab) ? activeTab : 'files';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <div className="flex flex-col h-full overflow-hidden">
       <SubTabBar tabs={CODE_TABS} />
       {/* Topbar with stats + search */}
-      <div
-        className="topbar"
-        style={{ display: 'flex', alignItems: 'center', gap: 20, flexShrink: 0 }}
-      >
-        <div className="logo" style={{ flexShrink: 0 }}>
+      <div className="topbar flex items-center gap-5 shrink-0">
+        <div className="logo shrink-0">
           <div className="logo-icon">
             <svg
               viewBox="0 0 24 24"
@@ -325,86 +263,32 @@ export function CodeExplorer() {
           </span>
         </div>
 
-        <div
-          style={{
-            flex: 1,
-            display: 'flex',
-            alignItems: 'center',
-            background: 'var(--surface2)',
-            border: '1px solid var(--border)',
-            borderRadius: 10,
-            padding: '0 12px',
-            height: 36,
-            maxWidth: 360,
-          }}
-        >
+        <div className="flex-1 flex items-center bg-surface-2 border border-line rounded-[10px] px-3 h-9 max-w-[360px]">
           <SearchBar />
         </div>
 
-        <div style={{ marginLeft: 'auto' }}>
+        <div className="ml-auto">
           <StatGroup stats={stats} />
         </div>
 
         <span
           title="Live"
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: '50%',
-            background: 'var(--accent)',
-            boxShadow: '0 0 6px var(--accent)',
-            flexShrink: 0,
-          }}
+          className="w-2 h-2 rounded-[50%] bg-accent [box-shadow:0_0_6px_var(--accent)] shrink-0"
         />
       </div>
 
       {/* Body — switches based on code sub-tab */}
       {codeTab === 'files' && (
-        <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
+        <div className="flex flex-1 overflow-hidden min-h-0">
           {/* Sidebar */}
-          <div
-            className="sidebar"
-            style={{
-              width: 300,
-              flexShrink: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              borderRight: '1px solid var(--border)',
-              background: 'var(--surface)',
-              overflow: 'hidden',
-            }}
-          >
-            <div
-              className="sidebar-head"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '12px 16px',
-                borderBottom: '1px solid var(--border)',
-                flexShrink: 0,
-              }}
-            >
-              <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }}>Files</span>
-              <span
-                className="count"
-                style={{
-                  fontSize: 10,
-                  color: 'var(--text3)',
-                  background: 'var(--surface3)',
-                  padding: '2px 7px',
-                  borderRadius: 6,
-                  fontFamily: 'var(--mono)',
-                  fontWeight: 500,
-                }}
-              >
+          <div className="sidebar w-[300px] shrink-0 flex flex-col border-r border-r-line bg-surface overflow-hidden">
+            <div className="sidebar-head flex items-center gap-2 py-3 px-4 border-b border-b-line shrink-0">
+              <span className="font-semibold text-13 text-fg">Files</span>
+              <span className="count text-10 text-fg-3 bg-surface-3 py-0.5 px-[7px] rounded-[6px] font-code font-medium">
                 {files.length}
               </span>
             </div>
-            <div
-              className="sidebar-body"
-              style={{ flex: 1, overflowY: 'auto', padding: '10px 12px', minHeight: 0 }}
-            >
+            <div className="sidebar-body flex-1 overflow-y-auto py-[10px] px-3 min-h-0">
               <ErrorBoundary>
                 <FileTree />
               </ErrorBoundary>
@@ -412,17 +296,7 @@ export function CodeExplorer() {
           </div>
 
           {/* Main panel */}
-          <div
-            className="main"
-            style={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
-              background: 'var(--bg)',
-              minWidth: 0,
-            }}
-          >
+          <div className="main flex-1 flex flex-col overflow-hidden bg-bg min-w-0">
             <TabBar tabs={EXPLORER_TABS} activeTab={explorerTab} onTabChange={setTab} />
 
             <HeroText>
@@ -436,13 +310,10 @@ export function CodeExplorer() {
             </HeroText>
 
             <div
-              style={{
-                flex: 1,
-                overflowY: explorerTab === 'graph' ? 'hidden' : 'auto',
-                minHeight: 0,
-                display: 'flex',
-                flexDirection: 'column',
-              }}
+              className={cx(
+                'flex-1 min-h-0 flex flex-col',
+                explorerTab === 'graph' ? 'overflow-y-hidden' : 'overflow-y-auto',
+              )}
             >
               <ErrorBoundary key={explorerTab}>
                 {explorerTab === 'detail' && <DetailTab />}
@@ -455,7 +326,7 @@ export function CodeExplorer() {
       )}
 
       {codeTab === 'graph' && (
-        <div style={{ flex: 1, overflow: 'hidden' }}>
+        <div className="flex-1 overflow-hidden">
           <HeroText>
             {'Dependency graph — '}
             <AnimatedNumber value={files.length} />
@@ -463,27 +334,20 @@ export function CodeExplorer() {
             <AnimatedNumber value={stats?.deps ?? 0} />
             {' connections'}
           </HeroText>
-          <div style={{ flex: 1, height: 'calc(100% - 40px)' }}>
+          <div className="flex-1 h-[calc(100%-40px)]">
             <DependencyGraph />
           </div>
         </div>
       )}
 
       {codeTab === 'stats' && (
-        <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
+        <div className="flex-1 overflow-y-auto p-5">
           <HeroText>
             {'Codebase stats — '}
             <AnimatedNumber value={files.length} />
             {' files indexed'}
           </HeroText>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-              gap: 12,
-              padding: '0 20px',
-            }}
-          >
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-3 py-0 px-5">
             {[
               { label: 'Files', value: files.length },
               { label: 'Directories', value: directories.length },
@@ -492,94 +356,32 @@ export function CodeExplorer() {
             ].map((s) => (
               <div
                 key={s.label}
-                style={{
-                  padding: 16,
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 8,
-                  textAlign: 'center',
-                }}
+                className="p-4 bg-surface border border-line rounded-[8px] text-center"
               >
-                <div
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 600,
-                    color: 'var(--text3)',
-                    textTransform: 'uppercase',
-                    marginBottom: 6,
-                  }}
-                >
-                  {s.label}
-                </div>
-                <div
-                  style={{
-                    fontSize: 24,
-                    fontWeight: 700,
-                    fontFamily: 'var(--mono)',
-                    color: 'var(--text)',
-                  }}
-                >
-                  {s.value}
-                </div>
+                <div className="text-10 font-semibold text-fg-3 uppercase mb-1.5">{s.label}</div>
+                <div className="text-[24px] font-bold font-code text-fg">{s.value}</div>
               </div>
             ))}
           </div>
           {stats?.extensions && Array.isArray(stats.extensions) && stats.extensions.length > 0 && (
-            <div style={{ padding: '20px 20px 0' }}>
-              <div
-                style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}
-              >
-                File Types
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div className="pt-5 px-5 pb-0">
+              <div className="text-13 font-bold text-fg mb-3">File Types</div>
+              <div className="flex flex-col gap-1.5">
                 {(stats.extensions as { extension: string; c: number }[]).map((ext) => {
                   const pct = files.length > 0 ? (ext.c / files.length) * 100 : 0;
                   const color = langColors[ext.extension] || 'var(--accent)';
                   return (
-                    <div
-                      key={ext.extension}
-                      style={{ display: 'flex', alignItems: 'center', gap: 10 }}
-                    >
-                      <div
-                        style={{
-                          width: 60,
-                          fontSize: 12,
-                          fontFamily: 'var(--mono)',
-                          color: 'var(--text2)',
-                          fontWeight: 600,
-                        }}
-                      >
+                    <div key={ext.extension} className="flex items-center gap-[10px]">
+                      <div className="w-[60px] text-12 font-code text-fg-2 font-semibold">
                         {ext.extension}
                       </div>
-                      <div
-                        style={{
-                          flex: 1,
-                          height: 8,
-                          background: 'var(--border)',
-                          borderRadius: 4,
-                          overflow: 'hidden',
-                        }}
-                      >
+                      <div className="flex-1 h-2 bg-line rounded-[4px] overflow-hidden">
                         <div
-                          style={{
-                            height: '100%',
-                            width: `${pct}%`,
-                            background: color,
-                            borderRadius: 4,
-                          }}
+                          style={{ width: `${pct}%`, '--c': color } as CSSProperties}
+                          className="h-full bg-(--c) rounded-[4px]"
                         />
                       </div>
-                      <div
-                        style={{
-                          width: 40,
-                          fontSize: 11,
-                          fontFamily: 'var(--mono)',
-                          color: 'var(--text3)',
-                          textAlign: 'right',
-                        }}
-                      >
-                        {ext.c}
-                      </div>
+                      <div className="w-10 text-11 font-code text-fg-3 text-right">{ext.c}</div>
                     </div>
                   );
                 })}
