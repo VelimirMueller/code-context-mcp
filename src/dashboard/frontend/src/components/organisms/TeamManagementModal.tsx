@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { post, put, del } from '@/lib/api';
 import { useAgentStore } from '@/stores/agentStore';
 import { AlertDialog } from '@/components/molecules/AlertDialog';
 import type { Agent } from '@/types';
+import { cx } from '@/lib/utils';
 import { MODEL_OPTIONS, DEFAULT_AGENT_MODEL } from '@/lib/constants';
 
 interface TeamManagementModalProps {
@@ -49,27 +50,10 @@ const ROLE_PRESETS = [
   { role: 'devops', name: 'DevOps Engineer', description: 'Manages deployment and infrastructure' },
 ];
 
-const inputStyle: React.CSSProperties = {
-  background: 'var(--surface2)',
-  border: '1px solid var(--border2)',
-  borderRadius: 8,
-  color: 'var(--text)',
-  fontSize: 13,
-  padding: '10px 14px',
-  fontFamily: 'var(--font)',
-  width: '100%',
-  outline: 'none',
-  boxSizing: 'border-box',
-  transition: 'border-color 0.15s',
-};
+const inputClass =
+  'bg-surface-2 border border-line-2 rounded-[8px] text-fg text-13 py-[10px] px-[14px] font-body w-full [outline:none] box-border [transition:border-color_.15s]';
 
-const labelStyle: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 600,
-  color: 'var(--text2)',
-  marginBottom: 4,
-  display: 'block',
-};
+const labelClass = 'text-12 font-semibold text-fg-2 mb-1 block';
 
 export function TeamManagementModal({ open, onClose, agent }: TeamManagementModalProps) {
   const fetchAgents = useAgentStore((s) => s.fetchAgents);
@@ -188,16 +172,13 @@ export function TeamManagementModal({ open, onClose, agent }: TeamManagementModa
       {/* Main Modal */}
       <div
         onClick={onClose}
-        style={{
-          position: 'fixed',
-          inset: 0,
-          zIndex: 9999,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'rgba(0,0,0,0.6)',
-          backdropFilter: 'blur(6px)',
-        }}
+        style={
+          {
+            '--accent-c': accentColor,
+            '--accent-bg': `${accentColor}18`,
+          } as CSSProperties
+        }
+        className="fixed inset-0 z-[9999] flex items-center justify-center bg-[rgba(0,0,0,0.6)] [backdrop-filter:blur(6px)]"
       >
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -205,49 +186,19 @@ export function TeamManagementModal({ open, onClose, agent }: TeamManagementModa
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
           transition={{ duration: 0.15 }}
           onClick={(e) => e.stopPropagation()}
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 16,
-            maxWidth: 560,
-            width: '92vw',
-            maxHeight: '85vh',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-            boxShadow: '0 24px 80px rgba(0,0,0,0.5)',
-          }}
+          className="bg-surface border border-line rounded-[16px] max-w-[560px] w-[92vw] max-h-[85vh] overflow-hidden flex flex-col [box-shadow:0_24px_80px_rgba(0,0,0,0.5)]"
         >
           {/* Header */}
-          <div
-            style={{
-              padding: '24px 28px 0',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 10,
-                  background: `${accentColor}18`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 16,
-                  color: accentColor,
-                }}
-              >
+          <div className="px-7 pt-6 pb-0 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-[10px] bg-(--accent-bg) flex items-center justify-center text-16 text-(--accent-c)">
                 {isEdit ? '✏️' : '👤'}
               </div>
               <div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>
+                <div className="text-[15px] font-bold text-fg">
                   {isEdit ? 'Edit Team Member' : 'Add Team Member'}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
+                <div className="text-11 text-fg-3 mt-0.5">
                   {isEdit ? 'Update agent configuration' : 'Create a new team member'}
                 </div>
               </div>
@@ -255,70 +206,35 @@ export function TeamManagementModal({ open, onClose, agent }: TeamManagementModa
             <button
               onClick={onClose}
               disabled={busy}
-              style={{
-                background: 'none',
-                border: 'none',
-                fontSize: 18,
-                color: 'var(--text3)',
-                cursor: busy ? 'not-allowed' : 'pointer',
-                padding: 4,
-                borderRadius: 4,
-                lineHeight: 1,
-              }}
-              onMouseEnter={(e) => {
-                if (!busy) e.currentTarget.style.background = 'var(--surface2)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'none';
-              }}
+              className={cx(
+                'bg-transparent border-none text-18 text-fg-3 p-1 rounded-[4px] leading-none enabled:hover:bg-surface-2',
+                busy ? 'cursor-not-allowed' : 'cursor-pointer',
+              )}
             >
               ×
             </button>
           </div>
 
           {/* Content */}
-          <div style={{ padding: '20px 28px 24px', overflowY: 'auto' }}>
+          <div className="px-7 pt-5 pb-6 overflow-y-auto">
             {/* Role Presets - only show for new agents */}
             {!isEdit && (
-              <div style={{ marginBottom: 20 }}>
-                <div
-                  style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 8 }}
-                >
-                  Quick Start Templates
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+              <div className="mb-5">
+                <div className="text-12 font-semibold text-fg-2 mb-2">Quick Start Templates</div>
+                <div className="grid grid-cols-[repeat(2,1fr)] gap-2">
                   {ROLE_PRESETS.map((preset) => (
                     <button
                       key={preset.role}
                       type="button"
                       onClick={() => handlePresetClick(preset)}
                       disabled={busy}
-                      style={{
-                        padding: '10px 12px',
-                        background: 'var(--surface2)',
-                        border: '1px solid var(--border2)',
-                        borderRadius: 8,
-                        cursor: busy ? 'not-allowed' : 'pointer',
-                        textAlign: 'left',
-                        transition: 'all 0.15s',
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!busy) {
-                          e.currentTarget.style.background = 'var(--surface3)';
-                          e.currentTarget.style.borderColor = accentColor;
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'var(--surface2)';
-                        e.currentTarget.style.borderColor = 'var(--border2)';
-                      }}
+                      className={cx(
+                        'py-[10px] px-3 bg-surface-2 border border-line-2 rounded-[8px] text-left [transition:all_.15s] enabled:hover:bg-surface-3 enabled:hover:border-(--accent-c)',
+                        busy ? 'cursor-not-allowed' : 'cursor-pointer',
+                      )}
                     >
-                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>
-                        {preset.name}
-                      </div>
-                      <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>
-                        {preset.role}
-                      </div>
+                      <div className="text-12 font-semibold text-fg">{preset.name}</div>
+                      <div className="text-10 text-fg-3 mt-0.5">{preset.role}</div>
                     </button>
                   ))}
                 </div>
@@ -326,23 +242,17 @@ export function TeamManagementModal({ open, onClose, agent }: TeamManagementModa
             )}
 
             {/* Form */}
-            <form
-              onSubmit={handleSubmit}
-              style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
-            >
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+              <div className="grid grid-cols-[1fr_1fr] gap-4">
                 <div>
-                  <label style={labelStyle}>
+                  <label className={labelClass}>
                     Role
-                    {!isEdit && <span style={{ color: accentColor, marginLeft: 2 }}>*</span>}
+                    {!isEdit && <span className="text-(--accent-c) ml-0.5">*</span>}
                   </label>
                   <input
                     ref={firstInputRef}
                     type="text"
-                    style={{
-                      ...inputStyle,
-                      ...(isEdit ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
-                    }}
+                    className={cx(inputClass, isEdit && 'opacity-60 cursor-not-allowed')}
                     placeholder="e.g. backend-developer"
                     value={role}
                     onChange={(e) => setRole(e.target.value)}
@@ -351,13 +261,13 @@ export function TeamManagementModal({ open, onClose, agent }: TeamManagementModa
                   />
                 </div>
                 <div>
-                  <label style={labelStyle}>
+                  <label className={labelClass}>
                     Name
-                    <span style={{ color: accentColor, marginLeft: 2 }}>*</span>
+                    <span className="text-(--accent-c) ml-0.5">*</span>
                   </label>
                   <input
                     type="text"
-                    style={inputStyle}
+                    className={inputClass}
                     placeholder="e.g. Backend Developer"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -368,9 +278,9 @@ export function TeamManagementModal({ open, onClose, agent }: TeamManagementModa
               </div>
 
               <div>
-                <label style={labelStyle}>Description</label>
+                <label className={labelClass}>Description</label>
                 <textarea
-                  style={{ ...inputStyle, resize: 'vertical', minHeight: 80 }}
+                  className={cx(inputClass, 'resize-y min-h-[80px]')}
                   placeholder="What does this team member do?"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
@@ -379,141 +289,77 @@ export function TeamManagementModal({ open, onClose, agent }: TeamManagementModa
               </div>
 
               <div>
-                <label style={labelStyle}>AI Model</label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                <label className={labelClass}>AI Model</label>
+                <div className="grid grid-cols-[repeat(2,1fr)] gap-2">
                   {MODEL_OPTIONS.map((opt) => (
                     <button
                       key={opt.value}
                       type="button"
                       onClick={() => setModel(opt.value)}
                       disabled={busy}
-                      style={{
-                        padding: '12px 10px',
-                        background: model === opt.value ? `${opt.color}15` : 'var(--surface2)',
-                        border: `1.5px solid ${model === opt.value ? opt.color : 'var(--border2)'}`,
-                        borderRadius: 10,
-                        cursor: busy ? 'not-allowed' : 'pointer',
-                        transition: 'all 0.15s',
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!busy && model !== opt.value) {
-                          e.currentTarget.style.background = 'var(--surface3)';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (model !== opt.value) {
-                          e.currentTarget.style.background = 'var(--surface2)';
-                        }
-                      }}
+                      style={
+                        { '--opt-c': opt.color, '--opt-bg': `${opt.color}15` } as CSSProperties
+                      }
+                      className={cx(
+                        'py-3 px-[10px] border-[1.5px] rounded-[10px] [transition:all_.15s]',
+                        model === opt.value
+                          ? 'bg-(--opt-bg) border-(--opt-c)'
+                          : 'bg-surface-2 border-line-2 enabled:hover:bg-surface-3',
+                        busy ? 'cursor-not-allowed' : 'cursor-pointer',
+                      )}
                     >
-                      <div
-                        style={{
-                          width: 10,
-                          height: 10,
-                          borderRadius: '50%',
-                          background: opt.color,
-                          marginBottom: 6,
-                        }}
-                      />
-                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text)' }}>
-                        {opt.label}
-                      </div>
-                      <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>
-                        {opt.description}
-                      </div>
+                      <div className="w-[10px] h-[10px] rounded-[50%] bg-(--opt-c) mb-1.5" />
+                      <div className="text-11 font-bold text-fg">{opt.label}</div>
+                      <div className="text-10 text-fg-3 mt-0.5">{opt.description}</div>
                     </button>
                   ))}
                 </div>
               </div>
 
               {error && (
-                <div
-                  style={{
-                    padding: '10px 14px',
-                    background: 'rgba(239,68,68,0.1)',
-                    border: '1px solid rgba(239,68,68,0.2)',
-                    borderRadius: 8,
-                    fontSize: 12,
-                    color: '#f87171',
-                  }}
-                >
+                <div className="py-[10px] px-[14px] bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.2)] rounded-[8px] text-12 text-red">
                   {error}
                 </div>
               )}
 
               {/* Actions */}
-              <div
-                style={{
-                  display: 'flex',
-                  gap: 8,
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  paddingTop: 8,
-                }}
-              >
+              <div className="flex gap-2 justify-between items-center pt-2">
                 <div>
                   {isEdit && (
                     <button
                       type="button"
                       onClick={() => setShowDeleteConfirm(true)}
                       disabled={busy}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#f87171',
-                        fontSize: 12,
-                        fontWeight: 600,
-                        cursor: busy ? 'not-allowed' : 'pointer',
-                        padding: '8px 12px',
-                        borderRadius: 6,
-                        transition: 'background 0.15s',
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!busy) e.currentTarget.style.background = 'rgba(239,68,68,0.1)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'none';
-                      }}
+                      className={cx(
+                        'bg-transparent border-none text-red text-12 font-semibold py-2 px-3 rounded-[6px] [transition:background_.15s] enabled:hover:bg-[rgba(239,68,68,0.1)]',
+                        busy ? 'cursor-not-allowed' : 'cursor-pointer',
+                      )}
                     >
                       Delete Agent
                     </button>
                   )}
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={onClose}
                     disabled={busy}
-                    style={{
-                      background: 'none',
-                      border: '1px solid var(--border2)',
-                      borderRadius: 8,
-                      padding: '8px 18px',
-                      fontSize: 13,
-                      color: 'var(--text2)',
-                      cursor: busy ? 'not-allowed' : 'pointer',
-                      fontFamily: 'var(--font)',
-                      fontWeight: 500,
-                    }}
+                    className={cx(
+                      'bg-transparent border border-line-2 rounded-[8px] py-2 px-[18px] text-13 text-fg-2 font-body font-medium',
+                      busy ? 'cursor-not-allowed' : 'cursor-pointer',
+                    )}
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={busy || !role.trim() || !name.trim()}
-                    style={{
-                      background: accentColor,
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: 8,
-                      padding: '8px 22px',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: busy || !role.trim() || !name.trim() ? 'not-allowed' : 'pointer',
-                      fontFamily: 'var(--font)',
-                      opacity: busy || !role.trim() || !name.trim() ? 0.5 : 1,
-                      transition: 'opacity 0.15s',
-                    }}
+                    className={cx(
+                      'bg-(--accent-c) text-[#fff] border-none rounded-[8px] py-2 px-[22px] text-13 font-semibold font-body [transition:opacity_.15s]',
+                      busy || !role.trim() || !name.trim()
+                        ? 'cursor-not-allowed opacity-50'
+                        : 'cursor-pointer opacity-100',
+                    )}
                   >
                     {busy ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Agent'}
                   </button>

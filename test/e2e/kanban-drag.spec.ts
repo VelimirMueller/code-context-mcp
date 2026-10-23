@@ -19,8 +19,9 @@ import { test, expect, createOwnSprint, openApp } from './helpers';
  *   and retries with a scroll while the button is down.
  * - Names carry a UUID, because parallel workers can read one Date.now().
  */
+// KanbanBoard renders each column with data-testid="kanban-column" (#313).
 const column = (page: Page, label: string) =>
-  page.locator(`xpath=//span[text()="${label}"]/ancestor::div[contains(@style,"min-height")][1]`);
+  page.locator(`xpath=//span[text()="${label}"]/ancestor::div[@data-testid="kanban-column"][1]`);
 
 const openBoard = async (page: Page) => {
   await page
