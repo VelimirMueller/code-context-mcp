@@ -1,4 +1,5 @@
 import { useEffect, useCallback } from 'react';
+import type { CSSProperties } from 'react';
 import { motion, AnimatePresence, useReducedMotion, useAnimation } from 'framer-motion';
 
 interface LandingAnimationProps {
@@ -44,14 +45,7 @@ const LABELS = [
 function TypewriterText({ text, delay }: { text: string; delay: number }) {
   const letters = Array.from(text);
   return (
-    <motion.span
-      style={{
-        fontFamily: 'var(--mono)',
-        fontSize: 13,
-        color: 'var(--text2)',
-        letterSpacing: '0.04em',
-      }}
-    >
+    <motion.span className="font-code text-13 text-fg-2 tracking-[0.04em]">
       {letters.map((ch, i) => (
         <motion.span
           key={i}
@@ -110,26 +104,16 @@ export function LandingAnimation({ onComplete }: LandingAnimationProps) {
       <motion.div
         animate={overlayControls}
         initial={{ opacity: 1 }}
-        style={{
-          position: 'fixed',
-          inset: 0,
-          zIndex: 9999,
-          background: 'var(--bg)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexDirection: 'column',
-          gap: 24,
-        }}
+        className="fixed inset-0 z-[9999] bg-bg flex items-center justify-center flex-col gap-6"
       >
         {/* ── Central composition (max 400px wide) ── */}
-        <div style={{ width: '100%', maxWidth: 400, position: 'relative' }}>
+        <div className="w-full max-w-[400px] relative">
           {/* Phase 1: Grid lines SVG */}
           <svg
             viewBox="0 0 400 300"
             width="400"
             height="300"
-            style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+            className="absolute inset-0 pointer-events-none"
           >
             {GRID_LINES.map((l) => (
               <motion.line
@@ -152,7 +136,7 @@ export function LandingAnimation({ onComplete }: LandingAnimationProps) {
             viewBox="0 0 400 300"
             width="400"
             height="300"
-            style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+            className="absolute inset-0 pointer-events-none"
           >
             {FILE_NODES.map((n) => (
               <motion.rect
@@ -174,7 +158,7 @@ export function LandingAnimation({ onComplete }: LandingAnimationProps) {
                   stiffness: 280,
                   damping: 22,
                 }}
-                style={{ originX: `${n.x}px`, originY: `${n.y}px` }}
+                style={{ originX: n.x + 'px', originY: n.y + 'px' }}
               />
             ))}
           </svg>
@@ -184,40 +168,23 @@ export function LandingAnimation({ onComplete }: LandingAnimationProps) {
             initial={{ x: 60, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             transition={{ delay: 1.0, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-            style={{
-              position: 'absolute',
-              right: 8,
-              bottom: 28,
-              width: 110,
-              height: 64,
-              background: 'var(--surface2)',
-              border: '1px solid var(--border2)',
-              borderRadius: 8,
-              padding: 8,
-              display: 'flex',
-              gap: 6,
-              alignItems: 'stretch',
-            }}
+            className="absolute right-2 bottom-7 w-[110px] h-16 bg-surface-2 border border-line-2 rounded-[8px] p-2 flex gap-[6px] items-stretch"
           >
             {['var(--text3)', 'var(--accent)', 'var(--blue)'].map((c, i) => (
               <div
                 key={i}
-                style={{
-                  flex: 1,
-                  background: c,
-                  opacity: 0.35,
-                  borderRadius: 4,
-                }}
+                style={{ '--c': c } as CSSProperties}
+                className="flex-1 bg-(--c) opacity-35 rounded-[4px]"
               />
             ))}
           </motion.div>
 
           {/* Spacer so the composition has correct height */}
-          <div style={{ width: 400, height: 300 }} />
+          <div className="w-[400px] h-[300px]" />
         </div>
 
         {/* Phase 4: Agent circles */}
-        <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+        <div className="flex gap-[14px] items-center">
           {AGENT_CIRCLES.map((a) => (
             <motion.div
               key={a.id}
@@ -229,28 +196,27 @@ export function LandingAnimation({ onComplete }: LandingAnimationProps) {
                 times: [0, 0.6, 1],
                 ease: 'easeOut',
               }}
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: '50%',
-                background: a.color,
-                opacity: 0.85,
-                boxShadow: `0 0 12px ${a.color}55`,
-              }}
+              className="w-7 h-7 rounded-[50%] bg-(--c) opacity-85"
+              style={
+                {
+                  '--c': a.color,
+                  boxShadow: `0 0 12px ${a.color}55`,
+                } as CSSProperties
+              }
             />
           ))}
         </div>
 
         {/* Phase 5: Typewriter labels */}
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+        <div className="flex gap-3 items-center">
           {LABELS.map((l, i) => (
-            <span key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span key={l.id} className="flex items-center gap-2">
               {i > 0 && (
                 <motion.span
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: l.delay - 0.05 }}
-                  style={{ color: 'var(--text3)', fontSize: 13 }}
+                  className="text-fg-3 text-13"
                 >
                   /
                 </motion.span>
@@ -266,20 +232,7 @@ export function LandingAnimation({ onComplete }: LandingAnimationProps) {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8, duration: 0.4 }}
           onClick={dismiss}
-          style={{
-            position: 'fixed',
-            bottom: 24,
-            right: 24,
-            background: 'transparent',
-            border: '1px solid var(--border2)',
-            borderRadius: 6,
-            color: 'var(--text3)',
-            fontSize: 12,
-            padding: '5px 12px',
-            cursor: 'pointer',
-            fontFamily: 'var(--font)',
-            letterSpacing: '0.02em',
-          }}
+          className="fixed bottom-6 right-6 bg-transparent border border-line-2 rounded-[6px] text-fg-3 text-12 py-[5px] px-3 cursor-pointer font-body tracking-[0.02em]"
           whileHover={{ color: 'var(--text2)', borderColor: 'var(--border)' }}
         >
           Skip

@@ -8,15 +8,11 @@ const FRONTEND = 'src/dashboard/frontend/src';
 // file to Tailwind removes it here; a new file never joins the list.
 export const LEGACY_INLINE_STYLE = [
   'App.tsx',
-  'components/molecules/AlertDialog.tsx',
   'components/molecules/Breadcrumb.tsx',
   'components/molecules/SearchBar.tsx',
   'components/molecules/StatGroup.tsx',
   'components/molecules/SubTabBar.tsx',
   'components/molecules/TabBar.tsx',
-  'components/molecules/WizardModal.tsx',
-  'components/organisms/DashboardTour.tsx',
-  'components/organisms/LandingAnimation.tsx',
 ];
 
 // #293: class names the Tailwind config does not know: global classes in src/index.css and

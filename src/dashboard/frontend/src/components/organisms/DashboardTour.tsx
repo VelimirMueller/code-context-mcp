@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { cx } from '@/lib/utils';
 
 interface TourStep {
   id: string;
@@ -110,24 +111,11 @@ export function DashboardTour({ onComplete, onDismiss }: DashboardTourProps) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          zIndex: 9999,
-          pointerEvents: 'none',
-        }}
+        className="fixed inset-0 z-[9999] pointer-events-none"
       >
         {/* Backdrop */}
         <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            pointerEvents: 'auto',
-          }}
+          className="absolute inset-0 bg-[rgba(0,0,0,0.5)] pointer-events-auto"
           onClick={onDismiss}
         />
 
@@ -137,16 +125,12 @@ export function DashboardTour({ onComplete, onDismiss }: DashboardTourProps) {
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.8, opacity: 0 }}
+            className="absolute border-[3px] border-accent rounded-[12px] [box-shadow:0_0_0_9999px_rgba(0,0,0,0.5)] pointer-events-none"
             style={{
-              position: 'absolute',
               left: highlightRect.left - 8,
               top: highlightRect.top - 8,
               width: highlightRect.width + 16,
               height: highlightRect.height + 16,
-              border: '3px solid var(--accent)',
-              borderRadius: 12,
-              boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.5)',
-              pointerEvents: 'none',
             }}
           />
         )}
@@ -158,88 +142,45 @@ export function DashboardTour({ onComplete, onDismiss }: DashboardTourProps) {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -20, scale: 0.95 }}
           transition={{ duration: 0.3 }}
-          style={{
-            position: 'absolute',
-            left: '50%',
-            top: highlightRect ? highlightRect.bottom + 20 : '50%',
-            transform: 'translateX(-50%)',
-            maxWidth: 400,
-            minWidth: 300,
-            backgroundColor: 'var(--surface1)',
-            borderRadius: 16,
-            padding: 24,
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
-            border: '1px solid var(--surface3)',
-            pointerEvents: 'auto',
-          }}
+          className="absolute left-1/2 max-w-[400px] min-w-[300px] bg-(--surface1) rounded-[16px] p-6 [box-shadow:0_20px_60px_rgba(0,0,0,0.3)] border border-surface-3 pointer-events-auto"
+          style={{ top: highlightRect ? highlightRect.bottom + 20 : '50%' }}
         >
           {/* Progress Dots */}
-          <div style={{ display: 'flex', gap: 6, marginBottom: 16, justifyContent: 'center' }}>
+          <div className="flex gap-[6px] mb-4 justify-center">
             {tourSteps.map((_, i) => (
               <div
                 key={i}
-                style={{
-                  width: i === currentStep ? 24 : 8,
-                  height: 8,
-                  borderRadius: 4,
-                  backgroundColor: i === currentStep ? 'var(--accent)' : 'var(--surface3)',
-                  transition: 'all 0.3s',
-                }}
+                className={cx(
+                  'h-2 rounded-[4px] [transition:all_0.3s]',
+                  i === currentStep ? 'w-6 bg-accent' : 'w-2 bg-surface-3',
+                )}
               />
             ))}
           </div>
 
           {/* Content */}
-          <h2 style={{ margin: '0 0 12px', fontSize: 20, fontWeight: 600 }}>{step.title}</h2>
-          <p style={{ margin: '0 0 20px', fontSize: 14, lineHeight: 1.5, color: 'var(--text2)' }}>
-            {step.description}
-          </p>
+          <h2 className="mb-3 text-[20px] font-semibold">{step.title}</h2>
+          <p className="mb-5 text-14 leading-[1.5] text-fg-2">{step.description}</p>
 
           {/* Actions */}
-          <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+          <div className="flex gap-3 justify-end">
             {!isFirstStep && (
               <button
                 onClick={handlePrev}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: 8,
-                  border: '1px solid var(--surface3)',
-                  background: 'transparent',
-                  color: 'var(--text1)',
-                  cursor: 'pointer',
-                  fontSize: 14,
-                  fontWeight: 500,
-                }}
+                className="py-2 px-4 rounded-[8px] border border-surface-3 bg-transparent text-(color:--text1) cursor-pointer text-14 font-medium"
               >
                 Back
               </button>
             )}
             <button
               onClick={handleNext}
-              style={{
-                padding: '8px 20px',
-                borderRadius: 'var(--radius-pill)',
-                border: 'none',
-                background: 'var(--pill-bg)',
-                color: 'var(--pill-fg)',
-                cursor: 'pointer',
-                fontSize: 14,
-                fontWeight: 600,
-              }}
+              className="py-2 px-5 rounded-pill border-none bg-pill text-pill-fg cursor-pointer text-14 font-semibold"
             >
               {isLastStep ? 'Get Started' : 'Next'}
             </button>
             <button
               onClick={onDismiss}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 8,
-                border: 'none',
-                background: 'transparent',
-                color: 'var(--text2)',
-                cursor: 'pointer',
-                fontSize: 12,
-              }}
+              className="py-2 px-3 rounded-[8px] border-none bg-transparent text-fg-2 cursor-pointer text-12"
             >
               Skip
             </button>

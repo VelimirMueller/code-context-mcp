@@ -6,6 +6,7 @@ import { patch } from '@/lib/api';
 import { useEventSource } from '@/hooks/useEventSource';
 import { useBridgeStore } from '@/stores/bridgeStore';
 import { ClaudeOutputStream } from '@/components/atoms/ClaudeOutputStream';
+import { cx } from '@/lib/utils';
 
 interface StepProgressData {
   step: string;
@@ -104,30 +105,19 @@ const contentVariants = {
   }),
 };
 
-const inputStyle: React.CSSProperties = {
-  background: 'var(--surface2)',
-  border: '1px solid var(--border2)',
-  borderRadius: 8,
-  color: 'var(--text)',
-  fontSize: 13,
-  padding: '10px 14px',
-  fontFamily: 'var(--font)',
-  width: '100%',
-  outline: 'none',
-  boxSizing: 'border-box',
-  transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
-};
+const inputClasses =
+  'bg-surface-2 border rounded-[8px] text-fg text-13 py-[10px] px-[14px] font-body w-full [outline:none] box-border [transition:border-color_0.2s_ease,box-shadow_0.2s_ease]';
 
-const buttonStyle: React.CSSProperties = {
-  borderRadius: 8,
-  padding: '10px 20px',
-  fontSize: 13,
-  cursor: 'pointer',
-  fontFamily: 'var(--font)',
-  fontWeight: 500,
-  border: 'none',
-  transition: 'all 0.15s ease',
-};
+const focusClasses = (focused: boolean) =>
+  focused
+    ? 'border-(--c) [box-shadow:0_0_0_3px_rgba(99,102,241,0.1)]'
+    : 'border-line-2 [box-shadow:none]';
+
+const buttonClasses =
+  'rounded-[8px] py-[10px] px-5 text-13 cursor-pointer font-body font-medium [transition:all_0.15s_ease]';
+
+const underlineClasses =
+  'absolute bottom-0 left-0 right-0 h-0.5 rounded-[0_0_8px_8px] origin-center [background:linear-gradient(90deg,var(--c),var(--c-88))]';
 
 // Progress dots component
 function ProgressDots({
@@ -142,15 +132,7 @@ function ProgressDots({
   const reduceMotion = useReducedMotion();
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        gap: 8,
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '8px 0',
-      }}
-    >
+    <div className="flex gap-2 items-center justify-center py-2">
       {Array.from({ length: totalSteps }).map((_, i) => (
         <motion.div
           key={i}
@@ -160,10 +142,7 @@ function ProgressDots({
             backgroundColor: i <= currentIndex ? accentColor : 'var(--border2)',
           }}
           transition={{ duration: reduceMotion ? 0 : 0.3, ease: 'easeInOut' }}
-          style={{
-            height: 8,
-            borderRadius: 4,
-          }}
+          className="h-2 rounded-[4px]"
         />
       ))}
     </div>
@@ -284,40 +263,29 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
       exit="exit"
       onClick={onDismiss}
       transition={transition}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 9999,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'rgba(0,0,0,0.6)',
-        backdropFilter: 'blur(8px)',
-      }}
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-[rgba(0,0,0,0.6)] [backdrop-filter:blur(8px)]"
     >
       <motion.div
         variants={modalVariants}
         onClick={(e) => e.stopPropagation()}
         transition={transition}
-        style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 16,
-          maxWidth: 520,
-          width: '92vw',
-          display: 'flex',
-          flexDirection: 'column',
-          boxShadow: '0 24px 80px rgba(0,0,0,0.5)',
-          overflow: 'hidden',
-        }}
+        className="bg-surface border border-line rounded-[16px] max-w-[520px] w-[92vw] flex flex-col [box-shadow:0_24px_80px_rgba(0,0,0,0.5)] overflow-hidden"
+        style={
+          {
+            '--c': accentColor,
+            '--c-10': `${accentColor}10`,
+            '--c-18': `${accentColor}18`,
+            '--c-30': `${accentColor}30`,
+            '--c-33': `${accentColor}33`,
+            '--c-88': `${accentColor}88`,
+            '--c-cc': `${accentColor}cc`,
+          } as React.CSSProperties
+        }
       >
         {/* Progress bar */}
-        <div style={{ height: 3, background: 'var(--border)', position: 'relative' }}>
+        <div className="h-[3px] bg-line relative">
           <motion.div
-            style={{
-              height: '100%',
-              background: `linear-gradient(90deg, ${accentColor}, ${accentColor}cc)`,
-            }}
+            className="h-full [background:linear-gradient(90deg,var(--c),var(--c-cc))]"
             initial={{ width: 0 }}
             animate={{ width: `${progress}%` }}
             transition={{ duration: 0.5, ease: 'easeInOut' }}
@@ -332,34 +300,19 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.2 }}
-              style={{ overflow: 'hidden' }}
+              className="overflow-hidden"
             >
-              <div
-                style={{
-                  padding: '10px 28px',
-                  background: `${accentColor}10`,
-                  borderBottom: `1px solid ${accentColor}30`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                }}
-              >
+              <div className="py-[10px] px-7 flex items-center gap-[10px] bg-(--c-10) border-b border-b-(color:--c-30)">
                 <motion.div
-                  style={{
-                    width: 18,
-                    height: 18,
-                    borderRadius: '50%',
-                    border: `2px solid ${accentColor}`,
-                    borderTopColor: 'transparent',
-                  }}
+                  className="w-[18px] h-[18px] rounded-[50%] border-2 border-(--c) border-t-transparent"
                   animate={{ rotate: 360 }}
                   transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
                 />
-                <div style={{ flex: 1 }}>
+                <div className="flex-1">
                   <motion.div
                     initial={{ opacity: 0, x: -5 }}
                     animate={{ opacity: 1, x: 0 }}
-                    style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}
+                    className="text-12 font-semibold text-fg"
                   >
                     {stepProgress[currentExecutingStep]?.title ||
                       `Step ${currentExecutingStep + 1}`}
@@ -368,7 +321,7 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.1 }}
-                    style={{ fontSize: 11, color: 'var(--text2)' }}
+                    className="text-11 text-fg-2"
                   >
                     {stepProgress[currentExecutingStep]?.description || 'Processing...'}
                   </motion.div>
@@ -376,7 +329,7 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                 <motion.div
                   initial={{ scale: 0.8 }}
                   animate={{ scale: 1 }}
-                  style={{ fontSize: 11, color: 'var(--text3)' }}
+                  className="text-11 text-fg-3"
                 >
                   {stepProgress[currentExecutingStep]?.current ?? 0} /{' '}
                   {stepProgress[currentExecutingStep]?.total ?? steps.length}
@@ -396,10 +349,10 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
             animate="center"
             exit="exit"
             transition={transition}
-            style={{ padding: '24px 28px 24px' }}
+            className="py-6 px-7"
           >
             {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div className="flex items-center gap-3">
               <motion.div
                 initial={{ rotate: -180, scale: 0 }}
                 animate={{
@@ -425,19 +378,7 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                       }
                     : {}),
                 }}
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 12,
-                  background: `${accentColor}18`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 18,
-                  color: accentColor,
-                  flexShrink: 0,
-                  boxShadow: `0 0 20px ${accentColor}33`,
-                }}
+                className="w-10 h-10 rounded-[12px] flex items-center justify-center text-18 text-(--c) shrink-0 bg-(--c-18) [box-shadow:0_0_20px_var(--c-33)]"
               >
                 {currentExecutingStep !== null && currentExecutingStep === currentIndex ? (
                   <motion.span
@@ -455,7 +396,7 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.15 }}
-                  style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}
+                  className="text-16 font-bold text-fg"
                 >
                   {current.title}
                 </motion.div>
@@ -463,7 +404,7 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.2 }}
-                  style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}
+                  className="text-11 text-fg-3 mt-0.5"
                 >
                   Step {currentIndex + 1} of {steps.length}
                 </motion.div>
@@ -475,7 +416,7 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
               initial={{ opacity: 0, y: 5 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.25 }}
-              style={{ paddingTop: 12, fontSize: 13, color: 'var(--text2)', lineHeight: 1.6 }}
+              className="pt-3 text-13 text-fg-2 leading-[1.6]"
             >
               {current.description}
             </motion.div>
@@ -486,7 +427,7 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.3 }}
-                style={{ paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}
+                className="pt-[10px] flex flex-col gap-[6px]"
               >
                 {current.hints.map((hint, i) => (
                   <motion.div
@@ -494,13 +435,7 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.35 + i * 0.05 }}
-                    style={{
-                      fontSize: 12,
-                      color: 'var(--text3)',
-                      display: 'flex',
-                      gap: 8,
-                      alignItems: 'baseline',
-                    }}
+                    className="text-12 text-fg-3 flex gap-2 items-baseline"
                   >
                     {!reduceMotion ? (
                       <motion.span
@@ -511,12 +446,12 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                           repeatDelay: 1,
                           ease: 'easeInOut',
                         }}
-                        style={{ color: accentColor }}
+                        className="text-(--c)"
                       >
                         ▸
                       </motion.span>
                     ) : (
-                      <span style={{ color: accentColor }}>▸</span>
+                      <span className="text-(--c)">▸</span>
                     )}
                     {hint}
                   </motion.div>
@@ -532,7 +467,7 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                   animate={{ opacity: 1, height: 'auto', marginTop: 12 }}
                   exit={{ opacity: 0, height: 0, marginTop: 0 }}
                   transition={{ duration: reduceMotion ? 0 : 0.25 }}
-                  style={{ overflow: 'hidden' }}
+                  className="overflow-hidden"
                 >
                   <ClaudeOutputStream
                     lines={claudeStream.lines}
@@ -545,27 +480,21 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
             </AnimatePresence>
 
             {/* Form */}
-            <form
-              onSubmit={handleSubmit}
-              style={{ paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}
-            >
+            <form onSubmit={handleSubmit} className="pt-4 flex flex-col gap-3">
               {current.fields.map((field, idx) => (
                 <motion.div
                   key={field.name}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.4 + idx * 0.08 }}
-                  style={{ display: 'flex', flexDirection: 'column', gap: 6 }}
+                  className="flex flex-col gap-[6px]"
                 >
                   <motion.label
                     animate={{ scale: focusedField === field.name ? 1.01 : 1 }}
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: focusedField === field.name ? 'var(--accent)' : 'var(--text2)',
-                      originX: 0,
-                      transition: 'color 0.2s ease',
-                    }}
+                    className={cx(
+                      'text-12 font-semibold origin-left [transition:color_0.2s_ease]',
+                      focusedField === field.name ? 'text-accent' : 'text-fg-2',
+                    )}
                   >
                     {field.label}
                     {field.required !== false && (
@@ -574,30 +503,25 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                           focusedField === field.name ? { scale: [1, 1.2, 1] } : { scale: 1 }
                         }
                         transition={{ duration: 0.3 }}
-                        style={{ color: accentColor, marginLeft: 4, display: 'inline-block' }}
+                        className="text-(--c) ml-1 inline-block"
                       >
                         *
                       </motion.span>
                     )}
                   </motion.label>
                   {field.type === 'textarea' ? (
-                    <div style={{ position: 'relative' }}>
+                    <div className="relative">
                       <motion.textarea
                         ref={
                           idx === 0
                             ? (firstInputRef as React.RefObject<HTMLTextAreaElement>)
                             : undefined
                         }
-                        style={{
-                          ...inputStyle,
-                          resize: 'vertical',
-                          minHeight: 100,
-                          borderColor: focusedField === field.name ? accentColor : 'var(--border2)',
-                          boxShadow:
-                            focusedField === field.name
-                              ? `0 0 0 3px rgba(99, 102, 241, 0.1)`
-                              : 'none',
-                        }}
+                        className={cx(
+                          inputClasses,
+                          'resize-y min-h-[100px]',
+                          focusClasses(focusedField === field.name),
+                        )}
                         placeholder={field.placeholder}
                         value={values[field.name] ?? ''}
                         onChange={(e) => setValue(field.name, e.target.value)}
@@ -612,36 +536,23 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                           initial={{ scaleX: 0 }}
                           animate={{ scaleX: focusedField === field.name ? 1 : 0 }}
                           transition={{ duration: 0.2 }}
-                          style={{
-                            position: 'absolute',
-                            bottom: 0,
-                            left: 0,
-                            right: 0,
-                            height: 2,
-                            background: `linear-gradient(90deg, ${accentColor}, ${accentColor}88)`,
-                            borderRadius: '0 0 8px 8px',
-                            originX: 0.5,
-                          }}
+                          className={underlineClasses}
                         />
                       )}
                     </div>
                   ) : field.type === 'select' ? (
-                    <div style={{ position: 'relative' }}>
+                    <div className="relative">
                       <motion.select
                         ref={
                           idx === 0
                             ? (firstInputRef as React.RefObject<HTMLSelectElement>)
                             : undefined
                         }
-                        style={{
-                          ...inputStyle,
-                          cursor: 'pointer',
-                          borderColor: focusedField === field.name ? accentColor : 'var(--border2)',
-                          boxShadow:
-                            focusedField === field.name
-                              ? `0 0 0 3px rgba(99, 102, 241, 0.1)`
-                              : 'none',
-                        }}
+                        className={cx(
+                          inputClasses,
+                          'cursor-pointer',
+                          focusClasses(focusedField === field.name),
+                        )}
                         value={values[field.name] ?? ''}
                         onChange={(e) => setValue(field.name, e.target.value)}
                         disabled={submitting}
@@ -662,21 +573,12 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                           initial={{ scaleX: 0 }}
                           animate={{ scaleX: focusedField === field.name ? 1 : 0 }}
                           transition={{ duration: 0.2 }}
-                          style={{
-                            position: 'absolute',
-                            bottom: 0,
-                            left: 0,
-                            right: 0,
-                            height: 2,
-                            background: `linear-gradient(90deg, ${accentColor}, ${accentColor}88)`,
-                            borderRadius: '0 0 8px 8px',
-                            originX: 0.5,
-                          }}
+                          className={underlineClasses}
                         />
                       )}
                     </div>
                   ) : (
-                    <div style={{ position: 'relative' }}>
+                    <div className="relative">
                       <motion.input
                         ref={
                           idx === 0
@@ -684,14 +586,7 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                             : undefined
                         }
                         type={field.type}
-                        style={{
-                          ...inputStyle,
-                          borderColor: focusedField === field.name ? accentColor : 'var(--border2)',
-                          boxShadow:
-                            focusedField === field.name
-                              ? `0 0 0 3px rgba(99, 102, 241, 0.1)`
-                              : 'none',
-                        }}
+                        className={cx(inputClasses, focusClasses(focusedField === field.name))}
                         placeholder={field.placeholder}
                         value={values[field.name] ?? ''}
                         onChange={(e) => setValue(field.name, e.target.value)}
@@ -706,16 +601,7 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                           initial={{ scaleX: 0 }}
                           animate={{ scaleX: focusedField === field.name ? 1 : 0 }}
                           transition={{ duration: 0.2 }}
-                          style={{
-                            position: 'absolute',
-                            bottom: 0,
-                            left: 0,
-                            right: 0,
-                            height: 2,
-                            background: `linear-gradient(90deg, ${accentColor}, ${accentColor}88)`,
-                            borderRadius: '0 0 8px 8px',
-                            originX: 0.5,
-                          }}
+                          className={underlineClasses}
                         />
                       )}
                     </div>
@@ -730,17 +616,7 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                     initial={{ opacity: 0, height: 0, y: -10 }}
                     animate={{ opacity: 1, height: 'auto', y: 0 }}
                     exit={{ opacity: 0, height: 0, y: -10 }}
-                    style={{
-                      fontSize: 12,
-                      color: '#f87171',
-                      padding: '8px 12px',
-                      background: 'rgba(239, 68, 68, 0.1)',
-                      borderRadius: 6,
-                      border: '1px solid rgba(239, 68, 68, 0.2)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                    }}
+                    className="text-12 text-red py-2 px-3 bg-[rgba(239,68,68,0.1)] rounded-[6px] border border-[rgba(239,68,68,0.2)] flex items-center gap-2"
                   >
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                       <circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.5" />
@@ -778,17 +654,12 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.55 }}
-                style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}
+                className="flex gap-[10px] justify-end mt-2"
               >
                 <motion.button
                   type="button"
                   onClick={onDismiss}
-                  style={{
-                    ...buttonStyle,
-                    background: 'none',
-                    border: '1px solid var(--border2)',
-                    color: 'var(--text2)',
-                  }}
+                  className={cx(buttonClasses, 'bg-transparent border border-line-2 text-fg-2')}
                   whileHover={reduceMotion ? {} : { scale: 1.02, borderColor: 'var(--border)' }}
                   whileTap={reduceMotion ? {} : { scale: 0.98 }}
                 >
@@ -797,15 +668,11 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                 <motion.button
                   type="submit"
                   disabled={submitting}
-                  style={{
-                    ...buttonStyle,
-                    background: submitting ? 'var(--text3)' : accentColor,
-                    color: '#fff',
-                    opacity: submitting ? 0.7 : 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                  }}
+                  className={cx(
+                    buttonClasses,
+                    'border-none text-[#fff] flex items-center gap-2',
+                    submitting ? 'bg-fg-3 opacity-70' : 'bg-(--c) opacity-100',
+                  )}
                   whileHover={
                     submitting || reduceMotion
                       ? {}
@@ -818,7 +685,7 @@ export function WizardModal({ steps, onComplete, onDismiss }: WizardModalProps) 
                       <motion.span
                         animate={{ rotate: 360 }}
                         transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                        style={{ display: 'inline-block' }}
+                        className="inline-block"
                       >
                         ○
                       </motion.span>
