@@ -12,37 +12,26 @@ export function SearchBar() {
   }, [searchFocused]);
 
   return (
-    <div
-      className="search-wrap"
-      style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, position: 'relative' }}
-    >
+    <div className="search-wrap relative flex flex-1 items-center gap-2">
       <svg
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
         strokeWidth="2"
-        style={{ width: 16, height: 16, color: 'var(--text3)', flexShrink: 0 }}
+        className="h-4 w-4 shrink-0 text-fg-3"
       >
         <circle cx="11" cy="11" r="8" />
         <line x1="21" y1="21" x2="16.65" y2="16.65" />
       </svg>
       <input
         ref={inputRef}
-        className="search"
+        className="search flex-1 border-none bg-transparent text-13 text-fg outline-none"
         placeholder="Search files..."
         autoComplete="off"
         value={searchQuery}
         onChange={(e) => setSearch(e.target.value)}
         onFocus={() => setSearchFocused(true)}
         onBlur={() => setSearchFocused(false)}
-        style={{
-          flex: 1,
-          background: 'transparent',
-          border: 'none',
-          outline: 'none',
-          color: 'var(--text)',
-          fontSize: 13,
-        }}
       />
       <span className="kbd-hint">⌘K</span>
     </div>

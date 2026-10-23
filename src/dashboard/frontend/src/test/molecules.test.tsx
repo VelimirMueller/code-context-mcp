@@ -75,7 +75,7 @@ describe('Breadcrumb', () => {
   it('renders separator between items', async () => {
     const { Breadcrumb } = await import('@/components/molecules/Breadcrumb');
     const { container } = render(<Breadcrumb items={[{ label: 'A' }, { label: 'B' }]} />);
-    const separators = container.querySelectorAll('.breadcrumb-separator');
+    const separators = container.querySelectorAll('[data-testid="breadcrumb-separator"]');
     expect(separators.length).toBe(1);
   });
 

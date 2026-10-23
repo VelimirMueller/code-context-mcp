@@ -1,4 +1,5 @@
 import { useUIStore } from '@/stores/uiStore';
+import { cx } from '@/lib/utils';
 
 interface Tab {
   key: string;
@@ -27,14 +28,7 @@ export function SubTabBar({ tabs, active, onChange }: SubTabBarProps) {
     <div
       role="tablist"
       aria-label="Sub navigation"
-      style={{
-        display: 'flex',
-        gap: 0,
-        borderBottom: '1px solid var(--border)',
-        padding: '0 20px',
-        background: 'var(--surface)',
-        flexShrink: 0,
-      }}
+      className="flex shrink-0 gap-0 border-b border-b-line bg-surface px-5"
     >
       {tabs.map((tab) => {
         const isActive = tab.key === currentTab;
@@ -55,18 +49,12 @@ export function SubTabBar({ tabs, active, onChange }: SubTabBarProps) {
               }
             }}
             tabIndex={isActive ? 0 : -1}
-            style={{
-              padding: '12px 20px',
-              fontSize: 13,
-              fontWeight: isActive ? 600 : 500,
-              color: isActive ? 'var(--accent)' : 'var(--text3)',
-              cursor: 'pointer',
-              border: 'none',
-              background: 'none',
-              borderBottom: isActive ? '2px solid var(--accent)' : '2px solid transparent',
-              fontFamily: 'var(--font)',
-              transition: 'all .2s',
-            }}
+            className={cx(
+              'cursor-pointer bg-transparent px-5 py-3 font-body text-13 transition-all [border-style:none_none_solid] [border-width:0_0_2px]',
+              isActive
+                ? 'border-b-accent font-semibold text-accent'
+                : 'border-b-transparent font-medium text-fg-3',
+            )}
           >
             {tab.label}
           </button>

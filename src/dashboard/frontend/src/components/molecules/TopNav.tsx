@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { cx } from '@/lib/utils';
 
 interface TopNavProps {
   activeTab: 'dashboard' | 'code' | 'planning' | 'team' | 'retro' | 'benchmark';
@@ -147,13 +148,22 @@ export function TopNav({ activeTab, onTabChange, badgeCounts }: TopNavProps) {
   };
 
   return (
-    <nav className="top-nav" role="tablist" aria-label="Main navigation">
+    <nav
+      className="top-nav flex h-12 items-center gap-0 border-b border-b-line bg-surface px-4"
+      role="tablist"
+      aria-label="Main navigation"
+    >
       {navItems.map((item) => {
         const isActive = activeTab === item.id;
         return (
           <button
             key={item.id}
-            className={`top-nav-item ${isActive ? 'active' : ''}`}
+            className={cx(
+              'flex min-h-[44px] cursor-pointer items-center gap-2 [background:none] px-5 py-3 font-display text-12 font-normal tracking-[0.12em] uppercase [transition:all_.2s_ease-in-out] [border-style:none_none_solid] [border-width:0_0_2px]',
+              isActive
+                ? 'border-b-accent text-accent'
+                : 'border-b-transparent text-fg-3 hover:text-fg-2',
+            )}
             onClick={() => onTabChange(item.id)}
             onKeyDown={(e) => handleKeyDown(e, item.id)}
             role="tab"
@@ -161,10 +171,10 @@ export function TopNav({ activeTab, onTabChange, badgeCounts }: TopNavProps) {
             aria-label={`${item.label} ${isActive ? '(current page)' : ''}`}
             tabIndex={isActive ? 0 : -1}
           >
-            <span className="top-nav-icon" aria-hidden="true">
+            <span className="text-16" aria-hidden="true">
               {item.icon}
             </span>
-            <span className="top-nav-label">{item.label}</span>
+            <span className="text-12">{item.label}</span>
           </button>
         );
       })}
