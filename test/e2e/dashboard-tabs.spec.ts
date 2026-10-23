@@ -119,7 +119,7 @@ test.describe('Code Explorer Tab', () => {
     await expect(page.locator('.sidebar-head')).toContainText('Files');
 
     // File tree should have at least one item
-    const treeItems = page.locator('.file-item, .tree-folder');
+    const treeItems = page.locator('[data-testid="file-item"], .tree-folder');
     await expect(treeItems.first()).toBeVisible({ timeout: 5000 });
   });
 

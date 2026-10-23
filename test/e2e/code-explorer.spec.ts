@@ -25,7 +25,7 @@ test.describe('Code Explorer', () => {
     await expect(count).toBeVisible();
 
     // File tree has items (files or folders)
-    const treeItems = page.locator('.file-item, .tree-folder');
+    const treeItems = page.locator('[data-testid="file-item"], .tree-folder');
     await expect(treeItems.first()).toBeVisible({ timeout: 5000 });
   });
 
@@ -70,7 +70,7 @@ test.describe('Code Explorer', () => {
 
   test('search filters the file list', async ({ page }) => {
     // Count initial files
-    const initialCount = await page.locator('.file-item').count();
+    const initialCount = await page.locator('[data-testid="file-item"]').count();
     expect(initialCount).toBeGreaterThan(0);
 
     // Type a search query
@@ -79,13 +79,13 @@ test.describe('Code Explorer', () => {
     await page.waitForTimeout(500);
 
     // File list should be filtered (fewer or equal items)
-    const filteredCount = await page.locator('.file-item').count();
+    const filteredCount = await page.locator('[data-testid="file-item"]').count();
     expect(filteredCount).toBeLessThanOrEqual(initialCount);
 
     // Clear search
     await searchInput.fill('');
     await page.waitForTimeout(500);
-    const restoredCount = await page.locator('.file-item').count();
+    const restoredCount = await page.locator('[data-testid="file-item"]').count();
     expect(restoredCount).toBe(initialCount);
   });
 
