@@ -29,9 +29,6 @@ export const LEGACY_INLINE_STYLE = [
   'components/organisms/TeamGrid.tsx',
   'components/organisms/TeamManagementModal.tsx',
   'pages/Benchmark.tsx',
-  'pages/Dashboard.tsx',
-  'pages/Retro.tsx',
-  'pages/Team.tsx',
 ];
 
 // #293: class names the Tailwind config does not know: global classes in src/index.css and
