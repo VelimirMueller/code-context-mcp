@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, type CSSProperties } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { useAgentStore } from '@/stores/agentStore';
 import { AgentCard } from '@/components/molecules/AgentCard';
 import { TeamManagementModal } from '@/components/organisms/TeamManagementModal';
+import { cx } from '@/lib/utils';
 import type { Agent } from '@/types';
 
 const DEPARTMENT_DISPLAY: Record<string, { label: string; color: string }> = {
@@ -37,70 +38,30 @@ export function TeamGrid() {
 
   if (loading && agents.length === 0) {
     return (
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-          gap: 12,
-          padding: 20,
-        }}
-      >
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3 p-5">
         {[1, 2, 3, 4, 5, 6].map((i) => (
-          <div
-            key={i}
-            style={{
-              height: 140,
-              background: 'var(--surface2)',
-              borderRadius: 'var(--radius)',
-            }}
-          />
+          <div key={i} className="h-[140px] bg-surface-2 rounded-card" />
         ))}
       </div>
     );
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflowY: 'auto' }}>
+    <div className="flex flex-col flex-1 overflow-y-auto">
       {/* Header bar with title and Add button */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '0 20px 12px',
-        }}
-      >
-        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Team Members</div>
+      <div className="flex justify-between items-center px-5 pt-0 pb-3">
+        <div className="text-14 font-bold text-fg">Team Members</div>
         <button
           onClick={handleAdd}
-          style={{
-            padding: '6px 14px',
-            fontSize: 12,
-            fontWeight: 600,
-            background: 'var(--pill-bg)',
-            border: 'none',
-            borderRadius: 'var(--radius-pill)',
-            color: 'var(--pill-fg)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            transition: 'opacity 0.15s',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.opacity = '0.8';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.opacity = '1';
-          }}
+          className="py-1.5 px-[14px] text-12 font-semibold bg-pill border-none rounded-pill text-pill-fg cursor-pointer flex items-center gap-1.5 [transition:opacity_.15s] hover:opacity-80"
         >
-          <span style={{ fontSize: 15, lineHeight: 1 }}>+</span> Add Member
+          <span className="text-[15px] leading-none">+</span> Add Member
         </button>
       </div>
 
       {/* Grouped grid or empty state */}
       {agents.length === 0 ? (
-        <div style={{ padding: 60, textAlign: 'center', color: 'var(--text3)', fontSize: 14 }}>
+        <div className="p-[60px] text-center text-fg-3 text-14">
           No team members yet. Click "Add Member" to create your first agent.
         </div>
       ) : (
@@ -167,33 +128,22 @@ function GroupedAgentGrid({ agents, onEdit }: GroupedAgentGridProps) {
   };
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 20px' }}>
+    <div className="flex-1 overflow-y-auto px-5 pt-0 pb-5">
       {groups.map((group) => (
-        <div key={group.label} style={{ marginBottom: 16 }}>
+        <div key={group.label} className="mb-4">
           <button
             onClick={() => toggle(group.label)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              padding: '8px 0',
-              width: '100%',
-              fontFamily: 'var(--font)',
-            }}
+            className="flex items-center gap-2 bg-transparent border-none cursor-pointer py-2 px-0 w-full font-body"
           >
             <svg
               width="12"
               height="12"
               viewBox="0 0 12 12"
               fill="none"
-              style={{
-                transform: collapsed.has(group.label) ? 'none' : 'rotate(90deg)',
-                transition: 'transform .2s',
-                flexShrink: 0,
-              }}
+              className={cx(
+                '[transition:transform_.2s] shrink-0',
+                collapsed.has(group.label) ? '[transform:none]' : '[transform:rotate(90deg)]',
+              )}
             >
               <path
                 d="M4 2L8 6L4 10"
@@ -204,39 +154,16 @@ function GroupedAgentGrid({ agents, onEdit }: GroupedAgentGridProps) {
               />
             </svg>
             <span
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                background: group.color,
-                flexShrink: 0,
-              }}
+              style={{ '--c': group.color } as CSSProperties}
+              className="w-2 h-2 rounded-[50%] bg-(--c) shrink-0"
             />
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
-              {group.label}
-            </span>
-            <span
-              style={{
-                fontSize: 11,
-                color: 'var(--text3)',
-                fontFamily: 'var(--mono)',
-                background: 'var(--surface2)',
-                padding: '1px 8px',
-                borderRadius: 10,
-              }}
-            >
+            <span className="text-13 font-bold text-fg">{group.label}</span>
+            <span className="text-11 text-fg-3 font-code bg-surface-2 py-px px-2 rounded-[10px]">
               {group.agents.length}
             </span>
           </button>
           {!collapsed.has(group.label) && (
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-                gap: 12,
-                paddingTop: 4,
-              }}
-            >
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3 pt-1">
               {group.agents.map((agent) => (
                 <AgentCard key={agent.role} agent={agent} onEdit={onEdit} />
               ))}
