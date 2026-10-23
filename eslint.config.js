@@ -17,7 +17,6 @@ export const LEGACY_INLINE_STYLE = [
   'components/molecules/WizardModal.tsx',
   'components/organisms/DashboardTour.tsx',
   'components/organisms/LandingAnimation.tsx',
-  'pages/Benchmark.tsx',
   'pages/Dashboard.tsx',
   'pages/Retro.tsx',
   'pages/Team.tsx',
