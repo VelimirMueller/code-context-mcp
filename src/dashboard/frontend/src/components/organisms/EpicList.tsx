@@ -1,34 +1,27 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, type CSSProperties } from 'react';
 import type { Epic, Milestone } from '@/types';
 import { get, post } from '@/lib/api';
 import { usePlanningStore } from '@/stores/planningStore';
 import { useToastStore } from '@/stores/toastStore';
+import { cx } from '@/lib/utils';
 
-const statusColors: Record<string, { bg: string; color: string; border: string; label: string }> = {
+const statusColors: Record<string, { classes: string; label: string }> = {
   active: {
-    bg: 'rgba(16,185,129,.10)',
-    color: 'var(--green)',
-    border: 'rgba(16,185,129,.20)',
+    classes: 'bg-[rgba(16,185,129,.10)] text-green border-[rgba(16,185,129,.20)]',
     label: 'Active',
   },
   planned: {
-    bg: 'rgba(167,139,250,.10)',
-    color: 'var(--purple)',
-    border: 'rgba(167,139,250,.20)',
+    classes: 'bg-[rgba(167,139,250,.10)] text-accent-2 border-[rgba(167,139,250,.20)]',
     label: 'Planned',
   },
   completed: {
-    bg: 'rgba(59,130,246,.10)',
-    color: 'var(--blue)',
-    border: 'rgba(59,130,246,.20)',
+    classes: 'bg-[rgba(59,130,246,.10)] text-blue border-[rgba(59,130,246,.20)]',
     label: 'Completed',
   },
   archived: {
-    bg: 'rgba(107,114,128,.10)',
-    color: 'var(--text3)',
-    border: 'rgba(107,114,128,.20)',
+    classes: 'bg-[rgba(107,114,128,.10)] text-fg-3 border-[rgba(107,114,128,.20)]',
     label: 'Archived',
   },
 };
@@ -37,18 +30,10 @@ function StatusBadge({ status }: { status: string }) {
   const s = statusColors[status] ?? statusColors.planned;
   return (
     <span
-      style={{
-        background: s.bg,
-        color: s.color,
-        border: `1px solid ${s.border}`,
-        borderRadius: 6,
-        padding: '2px 9px',
-        fontSize: 11,
-        fontWeight: 600,
-        fontFamily: 'var(--mono)',
-        letterSpacing: '0.04em',
-        textTransform: 'uppercase',
-      }}
+      className={cx(
+        'rounded-[6px] border px-[9px] py-0.5 font-code text-11 font-semibold tracking-[0.04em] uppercase',
+        s.classes,
+      )}
     >
       {s.label}
     </span>
@@ -68,19 +53,10 @@ function ArchiveButton({
     <button
       onClick={onClick}
       disabled={busy}
-      style={{
-        marginLeft: 'auto',
-        background: 'none',
-        border: '1px solid var(--border2)',
-        borderRadius: 6,
-        padding: '2px 10px',
-        fontSize: 11,
-        fontWeight: 600,
-        color: busy ? 'var(--text3)' : 'var(--text2)',
-        cursor: busy ? 'not-allowed' : 'pointer',
-        fontFamily: 'var(--font)',
-        flexShrink: 0,
-      }}
+      className={cx(
+        'ml-auto shrink-0 rounded-[6px] border border-line-2 bg-transparent px-2.5 py-0.5 font-body text-11 font-semibold',
+        busy ? 'cursor-not-allowed text-fg-3' : 'cursor-pointer text-fg-2',
+      )}
     >
       {busy ? '…' : archived ? 'Unarchive' : 'Archive'}
     </button>
@@ -174,43 +150,32 @@ export function EpicList() {
   }, [epics, milestones, milestoneLookup]);
 
   if (loading) {
-    return (
-      <div style={{ padding: 40, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>
-        Loading epics...
-      </div>
-    );
+    return <div className="p-10 text-center text-13 text-fg-3">Loading epics...</div>;
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', margin: 0 }}>
+    <div className="flex flex-col gap-5">
+      <h2 className="m-0 text-18 font-bold text-fg">
         Epics
-        <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text3)', marginLeft: 8 }}>
+        <span className="ml-2 text-12 font-medium text-fg-3">
           {epics.filter((e) => !e.archived_at && e.status !== 'completed').length} active
         </span>
       </h2>
 
       {activeGroups.length === 0 && (
-        <div style={{ padding: 40, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>
-          No epics outside the archive. Run{' '}
-          <code style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>/kickoff</code> to create epics.
+        <div className="p-10 text-center text-13 text-fg-3">
+          No epics outside the archive. Run <code className="font-code text-12">/kickoff</code> to
+          create epics.
         </div>
       )}
 
       {activeGroups.map((group, gi) => (
-        <div
-          key={group.milestone?.id ?? `none-${gi}`}
-          style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
-        >
+        <div key={group.milestone?.id ?? `none-${gi}`} className="flex flex-col gap-2.5">
           <div
-            style={{
-              fontSize: 13,
-              fontWeight: 700,
-              color: 'var(--text2)',
-              borderBottom: '1px solid var(--border)',
-              paddingBottom: 6,
-              marginTop: gi > 0 ? 8 : 0,
-            }}
+            className={cx(
+              'border-b border-b-line pb-1.5 text-13 font-bold text-fg-2',
+              gi > 0 ? 'mt-2' : 'mt-0',
+            )}
           >
             {group.milestone ? group.milestone.name : 'No Milestone'}
           </div>
@@ -218,46 +183,21 @@ export function EpicList() {
           {group.epics.map((epic) => {
             const progress =
               epic.ticket_count > 0 ? Math.round((epic.done_count / epic.ticket_count) * 100) : 0;
+            const progressWidth = `${progress}%`;
             const ms = epic.milestone_id ? milestoneLookup.get(epic.milestone_id) : null;
 
             return (
               <div
                 key={epic.id}
-                style={{
-                  display: 'flex',
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius)',
-                  overflow: 'hidden',
-                }}
+                className="flex overflow-hidden rounded-card border border-line bg-surface"
+                style={{ '--c': epic.color } as CSSProperties}
               >
-                <div style={{ width: 5, flexShrink: 0, background: epic.color }} />
-                <div
-                  style={{
-                    flex: 1,
-                    padding: '12px 16px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 8,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
-                      {epic.name}
-                    </span>
+                <div className="w-1.25 shrink-0 bg-(--c)" />
+                <div className="flex flex-1 flex-col gap-2 px-4 py-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-14 font-bold text-fg">{epic.name}</span>
                     <StatusBadge status={epic.status} />
-                    <span
-                      style={{
-                        background: 'var(--surface2)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 10,
-                        padding: '1px 9px',
-                        fontSize: 11,
-                        fontWeight: 600,
-                        fontFamily: 'var(--mono)',
-                        color: 'var(--text3)',
-                      }}
-                    >
+                    <span className="rounded-[10px] border border-line bg-surface-2 px-[9px] py-px font-code text-11 font-semibold text-fg-3">
                       {epic.done_count}/{epic.ticket_count} tickets
                     </span>
                     {epic.status === 'completed' && (
@@ -270,53 +210,19 @@ export function EpicList() {
                   </div>
 
                   {epic.description && (
-                    <div style={{ fontSize: 12.5, color: 'var(--text2)', lineHeight: 1.5 }}>
-                      {epic.description}
-                    </div>
+                    <div className="text-[12.5px] leading-[1.5] text-fg-2">{epic.description}</div>
                   )}
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 2 }}>
-                    {ms && (
-                      <span
-                        style={{
-                          fontSize: 11,
-                          color: 'var(--text3)',
-                          fontFamily: 'var(--mono)',
-                          flexShrink: 0,
-                        }}
-                      >
-                        {ms.name}
-                      </span>
-                    )}
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div
-                        style={{
-                          flex: 1,
-                          height: 8,
-                          borderRadius: 4,
-                          background: 'var(--surface3)',
-                          overflow: 'hidden',
-                        }}
-                      >
+                  <div className="mt-0.5 flex items-center gap-2.5">
+                    {ms && <span className="shrink-0 font-code text-11 text-fg-3">{ms.name}</span>}
+                    <div className="flex flex-1 items-center gap-2">
+                      <div className="h-2 flex-1 overflow-hidden rounded-[4px] bg-surface-3">
                         <div
-                          style={{
-                            width: `${progress}%`,
-                            height: '100%',
-                            borderRadius: 4,
-                            background: epic.color,
-                            transition: 'width .3s ease',
-                          }}
+                          className="h-full rounded-[4px] bg-(--c) [transition:width_.3s_ease]"
+                          style={{ width: progressWidth }}
                         />
                       </div>
-                      <span
-                        style={{
-                          fontSize: 11,
-                          color: 'var(--text2)',
-                          fontFamily: 'var(--mono)',
-                          fontWeight: 600,
-                          flexShrink: 0,
-                        }}
-                      >
+                      <span className="shrink-0 font-code text-11 font-semibold text-fg-2">
                         {progress}%
                       </span>
                     </div>
@@ -329,42 +235,23 @@ export function EpicList() {
       ))}
 
       {archivedGroups.length > 0 && (
-        <div style={{ marginTop: 12 }}>
+        <div className="mt-3">
           <button
             onClick={() => setShowArchive(!showArchive)}
-            style={{
-              width: '100%',
-              background: 'none',
-              border: '1px solid var(--border2)',
-              borderRadius: 8,
-              color: 'var(--text3)',
-              fontSize: 13,
-              padding: '8px 16px',
-              cursor: 'pointer',
-              fontFamily: 'var(--font)',
-              fontWeight: 500,
-              textAlign: 'center',
-            }}
+            className="w-full cursor-pointer rounded-[8px] border border-line-2 bg-transparent px-4 py-2 text-center font-body text-13 font-medium text-fg-3"
           >
             {showArchive ? 'Hide' : 'Show'} Archive (
             {archivedGroups.reduce((a, g) => a + g.epics.length, 0)} archived epics)
           </button>
           {showArchive && (
-            <div style={{ marginTop: 12, opacity: 0.7 }}>
+            <div className="mt-3 opacity-70">
               {archivedGroups.map((group, gi) => (
-                <div
-                  key={group.milestone?.id ?? `none-${gi}`}
-                  style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
-                >
+                <div key={group.milestone?.id ?? `none-${gi}`} className="flex flex-col gap-2.5">
                   <div
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 700,
-                      color: 'var(--text3)',
-                      borderBottom: '1px solid var(--border)',
-                      paddingBottom: 6,
-                      marginTop: gi > 0 ? 8 : 0,
-                    }}
+                    className={cx(
+                      'border-b border-b-line pb-1.5 text-13 font-bold text-fg-3',
+                      gi > 0 ? 'mt-2' : 'mt-0',
+                    )}
                   >
                     {group.milestone ? group.milestone.name : 'No Milestone'}
                   </div>
@@ -373,31 +260,19 @@ export function EpicList() {
                       epic.ticket_count > 0
                         ? Math.round((epic.done_count / epic.ticket_count) * 100)
                         : 0;
+                    const progressWidth = `${progress}%`;
                     return (
                       <div
                         key={epic.id}
-                        style={{
-                          display: 'flex',
-                          background: 'var(--surface)',
-                          border: '1px solid var(--border)',
-                          borderRadius: 'var(--radius)',
-                          overflow: 'hidden',
-                        }}
+                        className="flex overflow-hidden rounded-card border border-line bg-surface"
+                        style={{ '--c': epic.color } as CSSProperties}
                       >
-                        <div style={{ width: 5, flexShrink: 0, background: epic.color }} />
-                        <div style={{ flex: 1, padding: '12px 16px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text3)' }}>
-                              {epic.name}
-                            </span>
+                        <div className="w-1.25 shrink-0 bg-(--c)" />
+                        <div className="flex-1 px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-14 font-semibold text-fg-3">{epic.name}</span>
                             <StatusBadge status={epic.status} />
-                            <span
-                              style={{
-                                fontSize: 11,
-                                color: 'var(--text3)',
-                                fontFamily: 'var(--mono)',
-                              }}
-                            >
+                            <span className="font-code text-11 text-fg-3">
                               {epic.done_count}/{epic.ticket_count} tickets
                             </span>
                             <ArchiveButton
@@ -406,36 +281,14 @@ export function EpicList() {
                               onClick={() => toggleArchive(epic)}
                             />
                           </div>
-                          <div
-                            style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}
-                          >
-                            <div
-                              style={{
-                                flex: 1,
-                                height: 4,
-                                background: 'var(--surface3)',
-                                borderRadius: 2,
-                                overflow: 'hidden',
-                              }}
-                            >
+                          <div className="mt-1.5 flex items-center gap-2">
+                            <div className="h-1 flex-1 overflow-hidden rounded-[2px] bg-surface-3">
                               <div
-                                style={{
-                                  width: `${progress}%`,
-                                  height: '100%',
-                                  background: 'var(--blue)',
-                                  borderRadius: 2,
-                                }}
+                                className="h-full rounded-[2px] bg-blue"
+                                style={{ width: progressWidth }}
                               />
                             </div>
-                            <span
-                              style={{
-                                fontSize: 11,
-                                color: 'var(--text3)',
-                                fontFamily: 'var(--mono)',
-                              }}
-                            >
-                              {progress}%
-                            </span>
+                            <span className="font-code text-11 text-fg-3">{progress}%</span>
                           </div>
                         </div>
                       </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { cx } from '@/lib/utils';
 import type { Sprint, Ticket } from '@/types';
 
 interface ChecklistItem {
@@ -126,28 +127,15 @@ export function SprintCompletionPanel({
 
   const allComplete = checklistItems.every((item) => item.complete);
 
+  const completedCount = checklistItems.filter((i) => i.complete).length;
+  const completedWidth = `${(completedCount / checklistItems.length) * 100}%`;
+
   return (
-    <div
-      style={{
-        background: 'var(--surface)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--radius)',
-        padding: '16px 20px',
-      }}
-    >
-      <div
-        style={{
-          fontSize: 14,
-          fontWeight: 600,
-          color: 'var(--text)',
-          marginBottom: 16,
-        }}
-      >
-        Sprint Completion Checklist
-      </div>
+    <div className="rounded-card border border-line bg-surface px-5 py-4">
+      <div className="mb-4 text-14 font-semibold text-fg">Sprint Completion Checklist</div>
 
       {/* Checklist Items */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div className="flex flex-col gap-2.5">
         {checklistItems.map((item) => {
           const status = getCompletionStatus(item.complete, item.threshold, item.value);
           const isPartial = !item.complete && status.type === 'partial';
@@ -155,53 +143,30 @@ export function SprintCompletionPanel({
           return (
             <div
               key={item.id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '8px 12px',
-                borderRadius: 'var(--radius)',
-                background: item.complete ? 'rgba(16, 185, 129, 0.08)' : 'var(--bg)',
-                border: `1px solid ${item.complete ? 'var(--green)' : 'var(--border)'}`,
-              }}
+              className={cx(
+                'flex items-center gap-2.5 rounded-card border px-3 py-2',
+                item.complete ? 'border-green bg-[rgba(16,185,129,0.08)]' : 'border-line bg-bg',
+              )}
             >
               {/* Status Icon */}
-              <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+              <span className="flex shrink-0 items-center">
                 <StatusIcon type={status.type} color={status.color} />
               </span>
 
               {/* Label */}
-              <span
-                style={{
-                  fontSize: 12,
-                  fontWeight: 500,
-                  color: 'var(--text)',
-                  flex: 1,
-                }}
-              >
-                {item.label}
-              </span>
+              <span className="flex-1 text-12 font-medium text-fg">{item.label}</span>
 
               {/* Value Badge */}
               {item.value && (
                 <span
-                  style={{
-                    fontSize: 11,
-                    fontFamily: 'var(--mono)',
-                    fontWeight: 600,
-                    padding: '2px 8px',
-                    borderRadius: 6,
-                    background: isPartial
-                      ? 'rgba(245, 158, 11, 0.15)'
+                  className={cx(
+                    'rounded-[6px] px-2 py-0.5 font-code text-11 font-semibold',
+                    isPartial
+                      ? 'bg-[rgba(245,158,11,0.15)] text-orange'
                       : item.complete
-                        ? 'rgba(16, 185, 129, 0.15)'
-                        : 'var(--surface3)',
-                    color: isPartial
-                      ? 'var(--orange)'
-                      : item.complete
-                        ? 'var(--green)'
-                        : 'var(--text3)',
-                  }}
+                        ? 'bg-[rgba(16,185,129,0.15)] text-green'
+                        : 'bg-surface-3 text-fg-3',
+                  )}
                 >
                   {item.value}
                 </span>
@@ -212,69 +177,31 @@ export function SprintCompletionPanel({
       </div>
 
       {/* Divider */}
-      <div
-        style={{
-          height: 1,
-          background: 'var(--border)',
-          margin: '16px 0',
-        }}
-      />
+      <div className="my-4 h-px bg-line" />
 
       {/* Action Buttons */}
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+      <div className="flex flex-wrap gap-2.5">
         <button
           onClick={onComplete}
           disabled={!allComplete}
-          style={{
-            padding: '8px 16px',
-            borderRadius: 'var(--radius)',
-            fontSize: 12,
-            fontWeight: 600,
-            border: 'none',
-            cursor: allComplete ? 'pointer' : 'not-allowed',
-            background: allComplete ? 'var(--green)' : 'var(--surface3)',
-            color: allComplete ? 'white' : 'var(--text3)',
-            transition: 'all 0.2s ease',
-          }}
-          onMouseEnter={(e) => {
-            if (allComplete) {
-              e.currentTarget.style.transform = 'translateY(-1px)';
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.3)';
-            }
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = 'none';
-          }}
+          className={cx(
+            'rounded-card border-none px-4 py-2 text-12 font-semibold transition-all',
+            allComplete
+              ? 'cursor-pointer bg-green text-[white] hover:[box-shadow:0_4px_12px_rgba(16,185,129,0.3)] hover:[transform:translateY(-1px)]'
+              : 'cursor-not-allowed bg-surface-3 text-fg-3',
+          )}
         >
           Complete Sprint
         </button>
 
         <button
           onClick={() => setShowQaReport(!showQaReport)}
-          style={{
-            padding: '8px 16px',
-            borderRadius: 'var(--radius)',
-            fontSize: 12,
-            fontWeight: 500,
-            border: `1px solid ${showQaReport ? 'var(--accent)' : 'var(--border)'}`,
-            background: showQaReport ? 'rgba(16,185,129,.08)' : 'var(--bg)',
-            color: showQaReport ? 'var(--accent)' : 'var(--text)',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-          }}
-          onMouseEnter={(e) => {
-            if (!showQaReport) {
-              e.currentTarget.style.background = 'var(--surface2)';
-              e.currentTarget.style.borderColor = 'var(--text3)';
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (!showQaReport) {
-              e.currentTarget.style.background = 'var(--bg)';
-              e.currentTarget.style.borderColor = 'var(--border)';
-            }
-          }}
+          className={cx(
+            'cursor-pointer rounded-card border px-4 py-2 text-12 font-medium transition-all',
+            showQaReport
+              ? 'border-accent bg-[rgba(16,185,129,.08)] text-accent'
+              : 'border-line bg-bg text-fg hover:border-fg-3 hover:bg-surface-2',
+          )}
         >
           {showQaReport ? 'Hide' : 'Show'} QA Report
         </button>
@@ -282,55 +209,30 @@ export function SprintCompletionPanel({
 
       {/* Inline QA Report */}
       {showQaReport && tickets.items && (
-        <div
-          style={{
-            marginTop: 12,
-            padding: '12px',
-            borderRadius: 'var(--radius)',
-            background: 'var(--bg)',
-            border: '1px solid var(--border)',
-          }}
-        >
-          <div
-            style={{
-              fontSize: 12,
-              fontWeight: 600,
-              color: 'var(--text)',
-              marginBottom: 10,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
+        <div className="mt-3 rounded-card border border-line bg-bg p-3">
+          <div className="mb-2.5 flex items-center gap-2 text-12 font-semibold text-fg">
             <span>QA Verification Report</span>
             <span
-              style={{
-                fontFamily: 'var(--mono)',
-                fontSize: 11,
-                color: qaComplete ? 'var(--green)' : 'var(--red)',
-                background: qaComplete ? 'rgba(16,185,129,.1)' : 'rgba(239,68,68,.1)',
-                padding: '1px 8px',
-                borderRadius: 10,
-              }}
+              className={cx(
+                'rounded-[10px] px-2 py-px font-code text-11',
+                qaComplete
+                  ? 'bg-[rgba(16,185,129,.1)] text-green'
+                  : 'bg-[rgba(239,68,68,.1)] text-red',
+              )}
             >
               {qaVerified}/{tickets.total} verified
             </span>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div className="flex flex-col gap-1">
             {tickets.items.map((t) => (
               <div
                 key={t.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '5px 8px',
-                  borderRadius: 4,
-                  fontSize: 12,
-                  background: t.qa_verified ? 'rgba(16,185,129,.05)' : 'transparent',
-                }}
+                className={cx(
+                  'flex items-center gap-2 rounded-[4px] px-2 py-[5px] text-12',
+                  t.qa_verified ? 'bg-[rgba(16,185,129,.05)]' : 'bg-transparent',
+                )}
               >
-                <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                <span className="flex shrink-0 items-center">
                   {t.qa_verified ? (
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                       <circle cx="7" cy="7" r="6" fill="var(--green)" />
@@ -355,32 +257,12 @@ export function SprintCompletionPanel({
                     </svg>
                   )}
                 </span>
-                <span
-                  style={{
-                    fontFamily: 'var(--mono)',
-                    fontSize: 10,
-                    color: 'var(--text3)',
-                    width: 42,
-                    flexShrink: 0,
-                  }}
-                >
+                <span className="w-10.5 shrink-0 font-code text-10 text-fg-3">
                   {t.ticket_ref ?? `#${t.id}`}
                 </span>
-                <span
-                  style={{
-                    color: 'var(--text2)',
-                    flex: 1,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {t.title}
-                </span>
+                <span className="flex-1 truncate text-fg-2">{t.title}</span>
                 {t.verified_by && (
-                  <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text3)' }}>
-                    {t.verified_by}
-                  </span>
+                  <span className="font-code text-10 text-fg-3">{t.verified_by}</span>
                 )}
               </div>
             ))}
@@ -389,49 +271,18 @@ export function SprintCompletionPanel({
       )}
 
       {/* Progress Summary */}
-      <div
-        style={{
-          marginTop: 16,
-          padding: '12px',
-          borderRadius: 'var(--radius)',
-          background: 'var(--bg)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-        }}
-      >
-        <div
-          style={{
-            flex: 1,
-            height: 6,
-            borderRadius: 3,
-            background: 'var(--surface3)',
-            overflow: 'hidden',
-          }}
-        >
+      <div className="mt-4 flex items-center gap-2 rounded-card bg-bg p-3">
+        <div className="h-1.5 flex-1 overflow-hidden rounded-[3px] bg-surface-3">
           <div
-            style={{
-              width: `${(checklistItems.filter((i) => i.complete).length / checklistItems.length) * 100}%`,
-              height: '100%',
-              background: allComplete
-                ? 'var(--green)'
-                : velocityPct >= 50
-                  ? 'var(--orange)'
-                  : 'var(--red)',
-              borderRadius: 3,
-              transition: 'width 0.3s ease',
-            }}
+            className={cx(
+              'h-full rounded-[3px] [transition:width_0.3s_ease]',
+              allComplete ? 'bg-green' : velocityPct >= 50 ? 'bg-orange' : 'bg-red',
+            )}
+            style={{ width: completedWidth }}
           />
         </div>
-        <span
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            fontFamily: 'var(--mono)',
-            color: 'var(--text3)',
-          }}
-        >
-          {checklistItems.filter((i) => i.complete).length}/{checklistItems.length}
+        <span className="font-code text-11 font-semibold text-fg-3">
+          {completedCount}/{checklistItems.length}
         </span>
       </div>
     </div>

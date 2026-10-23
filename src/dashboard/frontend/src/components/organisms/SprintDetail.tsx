@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type CSSProperties } from 'react';
 import { useSprintStore } from '@/stores/sprintStore';
 import { usePlanningStore } from '@/stores/planningStore';
 import { patch, put, get } from '@/lib/api';
@@ -11,7 +11,7 @@ import { PHASE_ORDER, getPhaseStyle, getPhaseLabel } from '@/lib/phases';
 import { PhaseGateStepper } from '../molecules/PhaseGateStepper';
 import { Badge } from '@/components/atoms/Badge';
 import type { RetroFinding } from '@/types';
-import { hideArchived } from '@/lib/utils';
+import { cx, hideArchived } from '@/lib/utils';
 
 interface GateInfo {
   gate: string;
@@ -49,19 +49,8 @@ export function SprintDetail({ onNavigate }: SprintDetailProps = {}) {
 
   if (!selectedSprintId) {
     return (
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'var(--text3)',
-          fontSize: 14,
-          flexDirection: 'column',
-          gap: 12,
-        }}
-      >
-        <div style={{ fontSize: 32 }}>☰</div>
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 text-14 text-fg-3">
+        <div className="text-32">☰</div>
         Select a sprint from the list
       </div>
     );
@@ -69,24 +58,9 @@ export function SprintDetail({ onNavigate }: SprintDetailProps = {}) {
 
   if (loading && !sprintDetail) {
     return (
-      <div style={{ flex: 1, padding: 20 }}>
-        <div
-          style={{
-            height: 24,
-            width: '50%',
-            background: 'var(--surface2)',
-            borderRadius: 6,
-            marginBottom: 12,
-          }}
-        />
-        <div
-          style={{
-            height: 16,
-            width: '80%',
-            background: 'var(--surface2)',
-            borderRadius: 6,
-          }}
-        />
+      <div className="flex-1 p-5">
+        <div className="mb-3 h-6 w-1/2 rounded-[6px] bg-surface-2" />
+        <div className="h-4 w-4/5 rounded-[6px] bg-surface-2" />
       </div>
     );
   }
@@ -100,6 +74,7 @@ export function SprintDetail({ onNavigate }: SprintDetailProps = {}) {
     .filter((t) => t.status === 'DONE')
     .reduce((s, t) => s + (t.story_points ?? 0), 0);
   const velPct = totalPts > 0 ? Math.round((donePts / totalPts) * 100) : 0;
+  const velWidth = `${velPct}%`;
 
   const countByStatus = (status: string) => tickets.filter((t) => t.status === status).length;
   const doneRatio =
@@ -124,41 +99,21 @@ export function SprintDetail({ onNavigate }: SprintDetailProps = {}) {
   };
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+    <div className="flex-1 overflow-y-auto px-5 py-4">
       {/* Sprint header */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 14,
-        }}
-      >
+      <div className="mb-3.5 flex items-center justify-between">
         <div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>
-            {sprintDetail.name}
-          </div>
-          <div
-            style={{ fontSize: 12, color: 'var(--text3)', fontFamily: 'var(--mono)', marginTop: 2 }}
-          >
+          <div className="text-18 font-bold text-fg">{sprintDetail.name}</div>
+          <div className="mt-0.5 font-code text-12 text-fg-3">
             {doneCount}/{totalCount} shipped · {donePts}/{totalPts}pt · {velPct}% complete
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="flex items-center gap-2">
           {isArchived && <Badge text="Archived" variant="default" />}
           {(isArchived || canArchive) && (
             <button
               onClick={handleArchiveToggle}
-              style={{
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 6,
-                padding: '3px 10px',
-                fontSize: 11,
-                color: 'var(--text2)',
-                fontFamily: 'var(--font)',
-                cursor: 'pointer',
-              }}
+              className="cursor-pointer rounded-[6px] border border-line bg-surface px-2.5 py-[3px] font-body text-11 text-fg-2"
             >
               {isArchived ? 'Unarchive' : 'Archive'}
             </button>
@@ -179,18 +134,10 @@ export function SprintDetail({ onNavigate }: SprintDetailProps = {}) {
                 setMilestoneUpdating(false);
               }
             }}
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 6,
-              padding: '3px 8px',
-              fontSize: 11,
-              color: 'var(--text2)',
-              fontFamily: 'var(--font)',
-              cursor: 'pointer',
-              maxWidth: 160,
-              opacity: milestoneUpdating ? 0.5 : 1,
-            }}
+            className={cx(
+              'max-w-40 cursor-pointer rounded-[6px] border border-line bg-surface px-2 py-[3px] font-body text-11 text-fg-2',
+              milestoneUpdating ? 'opacity-50' : 'opacity-100',
+            )}
           >
             <option value="">No milestone</option>
             {hideArchived(milestones, sprintDetail.milestone_id).map((m) => (
@@ -200,15 +147,8 @@ export function SprintDetail({ onNavigate }: SprintDetailProps = {}) {
             ))}
           </select>
           <div
-            style={{
-              padding: '3px 10px',
-              borderRadius: 6,
-              fontSize: 11,
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              background: statusColor,
-              color: 'white',
-            }}
+            className="rounded-[6px] bg-(--c) px-2.5 py-[3px] text-11 font-bold text-[white] uppercase"
+            style={{ '--c': statusColor } as CSSProperties}
           >
             {getPhaseLabel(sprintDetail.status)}
           </div>
@@ -216,15 +156,7 @@ export function SprintDetail({ onNavigate }: SprintDetailProps = {}) {
       </div>
 
       {/* Phase Gate Stepper */}
-      <div
-        style={{
-          marginBottom: 14,
-          padding: '10px 14px',
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 8,
-        }}
-      >
+      <div className="mb-3.5 rounded-[8px] border border-line bg-surface px-3.5 py-2.5">
         <PhaseGateStepper
           currentPhase={sprintDetail.status}
           sprintId={sprintDetail.id}
@@ -237,64 +169,21 @@ export function SprintDetail({ onNavigate }: SprintDetailProps = {}) {
 
       {/* Sprint goal */}
       {sprintDetail.goal && (
-        <div
-          style={{
-            padding: '10px 14px',
-            background: 'var(--bg)',
-            borderRadius: 8,
-            borderLeft: '3px solid var(--accent)',
-            fontSize: 13,
-            color: 'var(--text2)',
-            marginBottom: 16,
-          }}
-        >
+        <div className="mb-4 rounded-[8px] border-l-[3px] border-l-accent bg-bg px-3.5 py-2.5 text-13 text-fg-2">
           {sprintDetail.goal}
         </div>
       )}
 
       {/* Metrics row */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(5, 1fr)',
-          gap: 8,
-          marginBottom: 16,
-        }}
-      >
+      <div className="mb-4 grid grid-cols-[repeat(5,1fr)] gap-2">
         {/* Velocity */}
-        <div
-          style={{
-            padding: 10,
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 8,
-            textAlign: 'center',
-          }}
-        >
-          <div
-            style={{
-              fontSize: 10,
-              color: 'var(--text3)',
-              fontWeight: 600,
-              textTransform: 'uppercase',
-              marginBottom: 4,
-            }}
-          >
-            Velocity
-          </div>
-          <div style={{ fontSize: 18, fontWeight: 700 }}>
+        <div className="rounded-[8px] border border-line bg-surface p-2.5 text-center">
+          <div className="mb-1 text-10 font-semibold text-fg-3 uppercase">Velocity</div>
+          <div className="text-18 font-bold">
             {donePts}/{totalPts}
           </div>
-          <div
-            style={{
-              height: 4,
-              background: 'var(--border)',
-              borderRadius: 2,
-              overflow: 'hidden',
-              marginTop: 6,
-            }}
-          >
-            <div style={{ height: '100%', width: `${velPct}%`, background: 'var(--accent)' }} />
+          <div className="mt-1.5 h-1 overflow-hidden rounded-[2px] bg-line">
+            <div className="h-full bg-accent" style={{ width: velWidth }} />
           </div>
         </div>
 
@@ -307,33 +196,20 @@ export function SprintDetail({ onNavigate }: SprintDetailProps = {}) {
             NOT_DONE: 'NOT DONE',
           };
           const colors: Record<string, string> = {
-            TODO: 'var(--text3)',
-            IN_PROGRESS: 'var(--blue)',
-            DONE: 'var(--green)',
-            NOT_DONE: 'var(--red)',
+            TODO: 'text-fg-3',
+            IN_PROGRESS: 'text-blue',
+            DONE: 'text-green',
+            NOT_DONE: 'text-red',
           };
           return (
             <div
               key={status}
-              style={{
-                padding: 10,
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                textAlign: 'center',
-              }}
+              className="rounded-[8px] border border-line bg-surface p-2.5 text-center"
             >
-              <div
-                style={{
-                  fontSize: 10,
-                  color: colors[status],
-                  fontWeight: 600,
-                  marginBottom: 4,
-                }}
-              >
+              <div className={cx('mb-1 text-10 font-semibold', colors[status])}>
                 {labels[status]}
               </div>
-              <div style={{ fontSize: 18, fontWeight: 700 }}>{countByStatus(status)}</div>
+              <div className="text-18 font-bold">{countByStatus(status)}</div>
             </div>
           );
         })}
@@ -346,79 +222,26 @@ export function SprintDetail({ onNavigate }: SprintDetailProps = {}) {
       <KanbanBoard tickets={tickets} />
 
       {/* Planning Summary */}
-      <div
-        style={{
-          marginTop: 16,
-          padding: '14px 16px',
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius)',
-        }}
-      >
-        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 10 }}>
-          Sprint Planning
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+      <div className="mt-4 rounded-card border border-line bg-surface px-4 py-3.5">
+        <div className="mb-2.5 text-13 font-semibold text-fg">Sprint Planning</div>
+        <div className="grid grid-cols-[repeat(3,1fr)] gap-3">
           <div>
-            <div
-              style={{
-                fontSize: 10,
-                color: 'var(--text3)',
-                fontWeight: 600,
-                textTransform: 'uppercase' as const,
-                marginBottom: 2,
-              }}
-            >
-              Committed
-            </div>
-            <div style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--mono)' }}>
-              {sprintDetail.velocity_committed}sp
-            </div>
+            <div className="mb-0.5 text-10 font-semibold text-fg-3 uppercase">Committed</div>
+            <div className="font-code text-16 font-bold">{sprintDetail.velocity_committed}sp</div>
           </div>
           <div>
-            <div
-              style={{
-                fontSize: 10,
-                color: 'var(--text3)',
-                fontWeight: 600,
-                textTransform: 'uppercase' as const,
-                marginBottom: 2,
-              }}
-            >
-              Completed
-            </div>
-            <div
-              style={{
-                fontSize: 16,
-                fontWeight: 700,
-                fontFamily: 'var(--mono)',
-                color: 'var(--green)',
-              }}
-            >
-              {donePts}sp
-            </div>
+            <div className="mb-0.5 text-10 font-semibold text-fg-3 uppercase">Completed</div>
+            <div className="font-code text-16 font-bold text-green">{donePts}sp</div>
           </div>
           <div>
-            <div
-              style={{
-                fontSize: 10,
-                color: 'var(--text3)',
-                fontWeight: 600,
-                textTransform: 'uppercase' as const,
-                marginBottom: 2,
-              }}
-            >
-              Team
-            </div>
-            <div style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--mono)' }}>
+            <div className="mb-0.5 text-10 font-semibold text-fg-3 uppercase">Team</div>
+            <div className="font-code text-16 font-bold">
               {new Set(tickets.map((t) => t.assigned_to).filter(Boolean)).size} members
             </div>
           </div>
         </div>
         {(sprintDetail.start_date || sprintDetail.end_date) && (
-          <div
-            style={{ marginTop: 8, fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)' }}
-          >
+          <div className="mt-2 font-code text-11 text-fg-3">
             {sprintDetail.start_date ?? '?'} → {sprintDetail.end_date ?? '?'}
           </div>
         )}
@@ -454,53 +277,45 @@ function RetroInline() {
   const auto = findings.filter((f: RetroFinding) => f.category === 'auto_analysis');
 
   const categories = [
-    { items: well, label: 'Went Well', color: 'var(--accent)', dot: 'var(--accent)' },
-    { items: wrong, label: 'Went Wrong', color: 'var(--red)', dot: 'var(--red)' },
-    { items: tryNext, label: 'Try Next', color: 'var(--purple)', dot: 'var(--purple)' },
-    { items: auto, label: 'Auto Analysis', color: 'var(--blue)', dot: 'var(--blue)' },
+    {
+      items: well,
+      label: 'Went Well',
+      text: 'text-accent',
+      dot: 'bg-accent',
+      edge: 'border-l-accent',
+    },
+    { items: wrong, label: 'Went Wrong', text: 'text-red', dot: 'bg-red', edge: 'border-l-red' },
+    {
+      items: tryNext,
+      label: 'Try Next',
+      text: 'text-accent-2',
+      dot: 'bg-accent-2',
+      edge: 'border-l-accent-2',
+    },
+    {
+      items: auto,
+      label: 'Auto Analysis',
+      text: 'text-blue',
+      dot: 'bg-blue',
+      edge: 'border-l-blue',
+    },
   ];
 
   return (
-    <div
-      style={{
-        marginTop: 16,
-        background: 'var(--surface)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--radius)',
-        overflow: 'hidden',
-      }}
-    >
+    <div className="mt-4 overflow-hidden rounded-card border border-line bg-surface">
       <button
         onClick={() => setExpanded(!expanded)}
-        style={{
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          padding: '14px 16px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          width: '100%',
-          fontFamily: 'var(--font)',
-          transition: 'background .15s',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'var(--bg)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'none';
-        }}
+        className="flex w-full cursor-pointer items-center gap-2.5 border-none bg-transparent px-4 py-3.5 font-body [transition:background_.15s] hover:bg-bg"
       >
         <svg
           width="14"
           height="14"
           viewBox="0 0 14 14"
           fill="none"
-          style={{
-            transform: expanded ? 'rotate(90deg)' : 'none',
-            transition: 'transform .2s',
-            flexShrink: 0,
-          }}
+          className={cx(
+            'shrink-0 [transition:transform_.2s]',
+            expanded ? '[transform:rotate(90deg)]' : '[transform:none]',
+          )}
         >
           <path
             d="M5 2.5L9.5 7L5 11.5"
@@ -510,42 +325,16 @@ function RetroInline() {
             strokeLinejoin="round"
           />
         </svg>
-        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Retro Findings</span>
-        <span
-          style={{
-            fontSize: 11,
-            color: 'var(--text3)',
-            fontFamily: 'var(--mono)',
-            background: 'var(--bg)',
-            padding: '1px 8px',
-            borderRadius: 10,
-          }}
-        >
+        <span className="text-13 font-semibold text-fg">Retro Findings</span>
+        <span className="rounded-[10px] bg-bg px-2 py-px font-code text-11 text-fg-3">
           {findings.length}
         </span>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+        <div className="ml-auto flex gap-1.5">
           {categories.map(
             ({ items, dot, label }) =>
               items.length > 0 && (
-                <span
-                  key={label}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 3,
-                    fontSize: 10,
-                    color: 'var(--text3)',
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: '50%',
-                      background: dot,
-                      flexShrink: 0,
-                    }}
-                  />
+                <span key={label} className="flex items-center gap-[3px] text-10 text-fg-3">
+                  <span className={cx('h-1.5 w-1.5 shrink-0 rounded-[50%]', dot)} />
                   {items.length}
                 </span>
               ),
@@ -553,71 +342,27 @@ function RetroInline() {
         </div>
       </button>
       {expanded && (
-        <div
-          style={{
-            padding: '0 16px 14px',
-            display: 'flex',
-            flexDirection: 'column' as const,
-            gap: 12,
-          }}
-        >
+        <div className="flex flex-col gap-3 px-4 pt-0 pb-3.5">
           {categories.map(
-            ({ items, label, color }) =>
+            ({ items, label, text, dot, edge }) =>
               items.length > 0 && (
                 <div key={label}>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color,
-                      marginBottom: 8,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: '50%',
-                        background: color,
-                        flexShrink: 0,
-                      }}
-                    />
+                  <div className={cx('mb-2 flex items-center gap-1.5 text-11 font-semibold', text)}>
+                    <span className={cx('h-2 w-2 shrink-0 rounded-[50%]', dot)} />
                     {label}
-                    <span
-                      style={{ fontFamily: 'var(--mono)', fontWeight: 400, color: 'var(--text3)' }}
-                    >
-                      ({items.length})
-                    </span>
+                    <span className="font-code font-normal text-fg-3">({items.length})</span>
                   </div>
                   {items.map((f: RetroFinding, i: number) => (
                     <div
                       key={f.id ?? i}
-                      style={{
-                        padding: '8px 12px',
-                        background: 'var(--bg)',
-                        borderRadius: 6,
-                        fontSize: 12,
-                        color: 'var(--text2)',
-                        marginBottom: 4,
-                        borderLeft: `3px solid ${color}`,
-                        lineHeight: 1.5,
-                      }}
+                      className={cx(
+                        'mb-1 rounded-[6px] border-l-[3px] bg-bg px-3 py-2 text-12 leading-[1.5] text-fg-2',
+                        edge,
+                      )}
                     >
                       {f.finding}
                       {f.action_owner && (
-                        <span
-                          style={{
-                            fontSize: 10,
-                            color: 'var(--text3)',
-                            marginLeft: 8,
-                            fontFamily: 'var(--mono)',
-                          }}
-                        >
-                          — {f.action_owner}
-                        </span>
+                        <span className="ml-2 font-code text-10 text-fg-3">— {f.action_owner}</span>
                       )}
                     </div>
                   ))}
@@ -650,59 +395,36 @@ function GateStatusBar({ sprintId, phase }: { sprintId: number; phase: string })
   };
 
   return (
-    <div
-      style={{
-        marginBottom: 14,
-        padding: '10px 14px',
-        background: 'var(--surface)',
-        border: '1px solid var(--border)',
-        borderRadius: 8,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <span
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            color: 'var(--text3)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
-          }}
-        >
+    <div className="mb-3.5 rounded-[8px] border border-line bg-surface px-3.5 py-2.5">
+      <div className="mb-2 flex items-center gap-2">
+        <span className="text-11 font-semibold tracking-[0.05em] text-fg-3 uppercase">
           Gates for {phase} → {gateStatus.next_phase}
         </span>
         <span
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
-            padding: '1px 8px',
-            borderRadius: 10,
-            background: gateStatus.all_passed ? 'rgba(16,185,129,.15)' : 'rgba(239,68,68,.15)',
-            color: gateStatus.all_passed ? 'var(--green)' : 'var(--red)',
-          }}
+          className={cx(
+            'rounded-[10px] px-2 py-px text-10 font-bold',
+            gateStatus.all_passed
+              ? 'bg-[rgba(16,185,129,.15)] text-green'
+              : 'bg-[rgba(239,68,68,.15)] text-red',
+          )}
         >
           {gateStatus.all_passed ? 'READY' : 'BLOCKED'}
         </span>
       </div>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <div className="flex flex-wrap gap-2">
         {gateStatus.gates.map((g) => (
           <div
             key={g.gate}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              padding: '3px 10px',
-              borderRadius: 6,
-              fontSize: 11,
-              background: g.passed ? 'rgba(16,185,129,.08)' : 'rgba(239,68,68,.08)',
-              border: `1px solid ${g.passed ? 'rgba(16,185,129,.2)' : 'rgba(239,68,68,.2)'}`,
-              color: g.passed ? 'var(--green)' : 'var(--red)',
-            }}
+            className={cx(
+              'flex items-center gap-1 rounded-[6px] border px-2.5 py-[3px] text-11',
+              g.passed
+                ? 'border-[rgba(16,185,129,.2)] bg-[rgba(16,185,129,.08)] text-green'
+                : 'border-[rgba(239,68,68,.2)] bg-[rgba(239,68,68,.08)] text-red',
+            )}
           >
             <span>{g.passed ? '✓' : '✗'}</span>
-            <span style={{ fontWeight: 600 }}>{GATE_LABELS[g.gate] || g.gate}</span>
-            <span style={{ fontSize: 10, color: 'var(--text3)' }}>({g.detail})</span>
+            <span className="font-semibold">{GATE_LABELS[g.gate] || g.gate}</span>
+            <span className="text-10 text-fg-3">({g.detail})</span>
           </div>
         ))}
       </div>
