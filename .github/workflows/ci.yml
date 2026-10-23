@@ -136,11 +136,7 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 7
-      - name: Baselines change only with the visual-change label
-        if: github.event_name == 'pull_request'
-        run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          node scripts/check-visual-change.mjs
+      # The label gate (baselines change only with `visual-change`) is in visual-gate.yml.
 
   validate-counts:
     runs-on: ubuntu-latest
