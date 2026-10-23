@@ -149,6 +149,7 @@ export function TopNav({ activeTab, onTabChange, badgeCounts }: TopNavProps) {
 
   return (
     <nav
+      data-tour="top-nav"
       className="flex h-12 items-center gap-0 border-b border-b-line bg-surface px-4"
       role="tablist"
       aria-label="Main navigation"

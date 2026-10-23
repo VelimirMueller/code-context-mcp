@@ -26,7 +26,7 @@ const tourSteps: TourStep[] = [
     title: 'Navigation Tabs',
     description:
       'Use these tabs to navigate between Sprints, Planning, Code Explorer, Team, and Retro views.',
-    target: '.top-nav',
+    target: '[data-tour="top-nav"]',
     position: 'bottom',
   },
   {
