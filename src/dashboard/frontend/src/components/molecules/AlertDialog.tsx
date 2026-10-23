@@ -1,4 +1,10 @@
 import React, { useEffect, useRef } from 'react';
+import { cx } from '@/lib/utils';
+
+const confirmClasses: Record<'danger' | 'warning', string> = {
+  danger: 'bg-[#f87171] hover:bg-[#dc2626]',
+  warning: 'bg-[#fbbf24] hover:bg-[#d97706]',
+};
 
 interface AlertDialogProps {
   open: boolean;
@@ -38,77 +44,31 @@ export function AlertDialog({
 
   if (!open) return null;
 
-  const confirmBg = variant === 'danger' ? '#f87171' : '#fbbf24';
-  const confirmHoverBg = variant === 'danger' ? '#dc2626' : '#d97706';
-
   return (
     <div
       onClick={onCancel}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 9999,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'rgba(0,0,0,0.55)',
-        backdropFilter: 'blur(4px)',
-      }}
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-[rgba(0,0,0,0.55)] [backdrop-filter:blur(4px)]"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 14,
-          padding: '24px 28px',
-          maxWidth: 420,
-          width: '90vw',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 16,
-          boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
-        }}
+        className="bg-surface border border-line rounded-card py-6 px-7 max-w-[420px] w-[90vw] flex flex-col gap-4 [box-shadow:0_20px_60px_rgba(0,0,0,0.4)]"
       >
-        <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{title}</div>
-        <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.6 }}>{message}</div>
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+        <div className="text-16 font-bold text-fg">{title}</div>
+        <div className="text-13 text-fg-2 leading-[1.6]">{message}</div>
+        <div className="flex gap-2 justify-end mt-1">
           <button
             onClick={onCancel}
-            style={{
-              background: 'none',
-              border: '1px solid var(--border2)',
-              borderRadius: 8,
-              padding: '8px 18px',
-              fontSize: 13,
-              color: 'var(--text2)',
-              cursor: 'pointer',
-              fontFamily: 'var(--font)',
-              fontWeight: 500,
-            }}
+            className="bg-transparent border border-line-2 rounded-[8px] py-2 px-[18px] text-13 text-fg-2 cursor-pointer font-body font-medium"
           >
             Cancel
           </button>
           <button
             ref={confirmRef}
             onClick={onConfirm}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = confirmHoverBg;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = confirmBg;
-            }}
-            style={{
-              background: confirmBg,
-              color: '#fff',
-              border: 'none',
-              borderRadius: 8,
-              padding: '8px 18px',
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: 'pointer',
-              fontFamily: 'var(--font)',
-            }}
+            className={cx(
+              'text-[#fff] border-none rounded-[8px] py-2 px-[18px] text-13 font-semibold cursor-pointer font-body',
+              confirmClasses[variant],
+            )}
           >
             {confirmLabel}
           </button>
