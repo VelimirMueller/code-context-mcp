@@ -226,9 +226,9 @@ describe('SprintList milestone colour (#211)', () => {
   });
 
   it.each([
-    ['planned', 'var(--purple)'],
-    ['active', 'var(--accent)'],
-    ['completed', 'var(--text3)'],
+    ['planned', 'var(--color-accent-2)'],
+    ['active', 'var(--color-accent)'],
+    ['completed', 'var(--color-fg-3)'],
   ])('colours a %s milestone with %s', async (status, colour) => {
     storeState = baseState([
       { milestone: milestone(7, status), sprints: [makeSprint({ id: 70 })] },
@@ -246,7 +246,7 @@ describe('SprintList milestone colour (#211)', () => {
 
   it('does not use the active colour for the old in_progress value', async () => {
     const { milestoneStatusColor } = await import('@/components/organisms/SprintList');
-    expect(milestoneStatusColor('in_progress')).toBe('var(--purple)');
-    expect(milestoneStatusColor(undefined)).toBe('var(--purple)');
+    expect(milestoneStatusColor('in_progress')).toBe('var(--color-accent-2)');
+    expect(milestoneStatusColor(undefined)).toBe('var(--color-accent-2)');
   });
 });

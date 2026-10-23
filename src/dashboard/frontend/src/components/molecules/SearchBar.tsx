@@ -12,7 +12,7 @@ export function SearchBar() {
   }, [searchFocused]);
 
   return (
-    <div className="search-wrap relative flex flex-1 items-center gap-2">
+    <div className="relative flex flex-1 items-center gap-2">
       <svg
         viewBox="0 0 24 24"
         fill="none"
@@ -25,7 +25,7 @@ export function SearchBar() {
       </svg>
       <input
         ref={inputRef}
-        className="search flex-1 border-none bg-transparent text-13 text-fg outline-none"
+        className="flex-1 border-none bg-transparent text-13 text-fg outline-none"
         placeholder="Search files..."
         autoComplete="off"
         value={searchQuery}
@@ -33,7 +33,7 @@ export function SearchBar() {
         onFocus={() => setSearchFocused(true)}
         onBlur={() => setSearchFocused(false)}
       />
-      <span className="kbd-hint">⌘K</span>
+      <span>⌘K</span>
     </div>
   );
 }

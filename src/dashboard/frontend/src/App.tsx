@@ -9,7 +9,7 @@ import { useAgentStore } from '@/stores/agentStore';
 import { usePlanningStore } from '@/stores/planningStore';
 import { useBridgeStore } from '@/stores/bridgeStore';
 import { useComparisonStore } from '@/stores/comparisonStore';
-import { useEventSource } from '@/hooks/useEventSource';
+import { useEventSource, type SSEConnectionState } from '@/hooks/useEventSource';
 import { useHashRouter } from '@/hooks/useHashRouter';
 import { useKeyboard } from '@/hooks/useKeyboard';
 
@@ -24,6 +24,7 @@ const ProjectManagement = lazy(() =>
 );
 const Benchmark = lazy(() => import('@/pages/Benchmark').then((m) => ({ default: m.Benchmark })));
 import { pageVariants, pageTransition, reducedMotion } from '@/lib/motion';
+import { cx } from '@/lib/utils';
 import { ToastContainer } from '@/components/atoms/ToastContainer';
 import { BridgeStatusBadge } from '@/components/atoms/BridgeStatusBadge';
 import { ErrorBoundary } from '@/components/atoms/ErrorBoundary';
@@ -50,71 +51,38 @@ const legacyUrlMap: Record<string, string> = {
   '#explorer/files': '#code/files',
 };
 
+// SSE indicator: text colour + opacity of the label, colour of the dot.
+const sseTone: Record<SSEConnectionState, string> = {
+  connected: 'text-green opacity-60',
+  reconnecting: 'text-orange opacity-100',
+  disconnected: 'text-red opacity-100',
+};
+const sseDot: Record<SSEConnectionState, string> = {
+  connected: 'bg-green',
+  reconnecting: 'bg-orange animate-[pulse_1.5s_ease-in-out_infinite]',
+  disconnected: 'bg-red',
+};
+
+const skeletonBar = 'bg-surface-2 animate-[pulse_1.5s_ease-in-out_infinite]';
+
 function PageSkeleton() {
   return (
-    <div style={{ padding: 20, height: '100%' }}>
-      <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+    <div className="p-5 h-full">
+      <div className="flex gap-3 mb-5">
         {[1, 2, 3, 4].map((i) => (
-          <div
-            key={i}
-            style={{
-              width: 80,
-              height: 32,
-              background: 'var(--surface2)',
-              borderRadius: 6,
-              animation: 'pulse 1.5s ease-in-out infinite',
-            }}
-          />
+          <div key={i} className={`w-20 h-8 rounded-[6px] ${skeletonBar}`} />
         ))}
       </div>
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '240px 1fr',
-          gap: 16,
-          height: 'calc(100% - 60px)',
-        }}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div className="grid grid-cols-[240px_1fr] gap-4 h-[calc(100%-60px)]">
+        <div className="flex flex-col gap-2">
           {[1, 2, 3, 4, 5].map((i) => (
-            <div
-              key={i}
-              style={{
-                height: 56,
-                background: 'var(--surface2)',
-                borderRadius: 8,
-                animation: 'pulse 1.5s ease-in-out infinite',
-              }}
-            />
+            <div key={i} className={`h-14 rounded-[8px] ${skeletonBar}`} />
           ))}
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div
-            style={{
-              height: 24,
-              width: '40%',
-              background: 'var(--surface2)',
-              borderRadius: 6,
-              animation: 'pulse 1.5s ease-in-out infinite',
-            }}
-          />
-          <div
-            style={{
-              height: 16,
-              width: '70%',
-              background: 'var(--surface2)',
-              borderRadius: 6,
-              animation: 'pulse 1.5s ease-in-out infinite',
-            }}
-          />
-          <div
-            style={{
-              flex: 1,
-              background: 'var(--surface2)',
-              borderRadius: 8,
-              animation: 'pulse 1.5s ease-in-out infinite',
-            }}
-          />
+        <div className="flex flex-col gap-3">
+          <div className={`h-6 w-[40%] rounded-[6px] ${skeletonBar}`} />
+          <div className={`h-4 w-[70%] rounded-[6px] ${skeletonBar}`} />
+          <div className={`flex-1 rounded-[8px] ${skeletonBar}`} />
         </div>
       </div>
     </div>
@@ -238,7 +206,7 @@ export function App() {
   const variants = prefersReducedMotion ? reducedMotion : pageVariants;
 
   return (
-    <div className="app">
+    <div className="flex flex-col h-screen overflow-hidden">
       {showLanding && <LandingAnimation onComplete={() => setShowLanding(false)} />}
       {showTour && !showLanding && (
         <DashboardTour
@@ -252,9 +220,9 @@ export function App() {
           }}
         />
       )}
-      <header className="topbar">
-        <div className="logo">
-          <div className="logo-icon">
+      <header className="flex items-center gap-5 px-7 border-b border-b-line bg-surface h-16 shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-[10px] bg-[linear-gradient(135deg,var(--color-accent)_0%,#a5b4fc_100%)] flex items-center justify-center [box-shadow:0_0_20px_rgba(99,102,241,0.2)]">
             <svg viewBox="0 0 24 24" fill="white" width="16" height="16">
               <path
                 d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
@@ -264,44 +232,19 @@ export function App() {
               />
             </svg>
           </div>
-          <span className="logo-text">
-            Code Context <span className="logo-sub">MCP</span>
+          <span
+            data-testid="logo-text"
+            className="font-display text-[15px] font-bold tracking-[-0.01em] uppercase"
+          >
+            Code Context <span className="text-fg-3 font-normal">MCP</span>
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="flex items-center gap-2">
           <span
             title={`SSE: ${connectionState}`}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-              fontSize: 11,
-              color:
-                connectionState === 'connected'
-                  ? 'var(--green, #10b981)'
-                  : connectionState === 'reconnecting'
-                    ? 'var(--yellow, #fbbf24)'
-                    : 'var(--red, #f87171)',
-              opacity: connectionState === 'connected' ? 0.6 : 1,
-            }}
+            className={cx('inline-flex items-center gap-1 text-11', sseTone[connectionState])}
           >
-            <span
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: '50%',
-                background:
-                  connectionState === 'connected'
-                    ? '#10b981'
-                    : connectionState === 'reconnecting'
-                      ? '#fbbf24'
-                      : '#f87171',
-                animation:
-                  connectionState === 'reconnecting'
-                    ? 'pulse 1.5s ease-in-out infinite'
-                    : undefined,
-              }}
-            />
+            <span className={cx('w-[6px] h-[6px] rounded-[50%]', sseDot[connectionState])} />
             {connectionState !== 'connected' && connectionState}
           </span>
           <BridgeStatusBadge />
@@ -323,7 +266,7 @@ export function App() {
         onSearchChange={useUIStore((s) => s.setSearch)}
         breadcrumbItems={breadcrumb}
       />
-      <main className="page-content">
+      <main data-testid="page-content" className="flex-1 overflow-hidden">
         <AnimatePresence mode="wait">
           <motion.div
             key={normalizedPage}
@@ -332,7 +275,7 @@ export function App() {
             animate="animate"
             exit="exit"
             transition={prefersReducedMotion ? { duration: 0 } : pageTransition}
-            style={{ height: '100%' }}
+            className="h-full"
           >
             <Suspense fallback={<PageSkeleton />}>
               {normalizedPage === 'dashboard' && (

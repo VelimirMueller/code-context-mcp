@@ -67,7 +67,7 @@ const STEP_STATUS_ICON: Record<ClaudeStep['status'], string> = {
 };
 
 const STEP_STATUS_COLOR: Record<ClaudeStep['status'], string> = {
-  pending: 'var(--text3)',
+  pending: 'var(--color-fg-3)',
   in_progress: '#60a5fa',
   completed: '#10b981',
   error: '#f87171',

@@ -57,7 +57,7 @@ test.describe('Sprint Phase Display (4-phase model)', () => {
     await page.waitForTimeout(500);
 
     // Get all visible text in the page-content area
-    const pageContent = page.locator('.page-content');
+    const pageContent = page.getByTestId('page-content');
     const text = await pageContent.textContent();
 
     // None of the old phase names should appear as standalone phase labels

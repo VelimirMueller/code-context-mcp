@@ -20,20 +20,20 @@ const GRID_LINES = [
 
 // ── Phase 2: File nodes (constellation) ──────────────────────────────
 const FILE_NODES = [
-  { id: 'f0', x: 55, y: 62, color: 'var(--blue)', delay: 0.4 },
-  { id: 'f1', x: 155, y: 40, color: 'var(--purple)', delay: 0.5 },
-  { id: 'f2', x: 260, y: 70, color: 'var(--green)', delay: 0.55 },
-  { id: 'f3', x: 100, y: 130, color: 'var(--accent)', delay: 0.6 },
-  { id: 'f4', x: 310, y: 125, color: 'var(--blue)', delay: 0.65 },
-  { id: 'f5', x: 195, y: 155, color: 'var(--purple)', delay: 0.7 },
+  { id: 'f0', x: 55, y: 62, color: 'var(--color-blue)', delay: 0.4 },
+  { id: 'f1', x: 155, y: 40, color: 'var(--color-accent-2)', delay: 0.5 },
+  { id: 'f2', x: 260, y: 70, color: 'var(--color-green)', delay: 0.55 },
+  { id: 'f3', x: 100, y: 130, color: 'var(--color-accent)', delay: 0.6 },
+  { id: 'f4', x: 310, y: 125, color: 'var(--color-blue)', delay: 0.65 },
+  { id: 'f5', x: 195, y: 155, color: 'var(--color-accent-2)', delay: 0.7 },
 ];
 
 // ── Phase 4: Agent circles ────────────────────────────────────────────
 const AGENT_CIRCLES = [
-  { id: 'a0', color: 'var(--accent)', delay: 1.5 },
-  { id: 'a1', color: 'var(--blue)', delay: 1.65 },
-  { id: 'a2', color: 'var(--purple)', delay: 1.8 },
-  { id: 'a3', color: 'var(--orange)', delay: 1.95 },
+  { id: 'a0', color: 'var(--color-accent)', delay: 1.5 },
+  { id: 'a1', color: 'var(--color-blue)', delay: 1.65 },
+  { id: 'a2', color: 'var(--color-accent-2)', delay: 1.8 },
+  { id: 'a3', color: 'var(--color-orange)', delay: 1.95 },
 ];
 
 // ── Phase 5: Labels ───────────────────────────────────────────────────
@@ -122,7 +122,7 @@ export function LandingAnimation({ onComplete }: LandingAnimationProps) {
                 y1={l.y1}
                 x2={l.x2}
                 y2={l.y2}
-                stroke="var(--border2)"
+                stroke="var(--color-line-2)"
                 strokeWidth={0.75}
                 initial={{ pathLength: 0, opacity: 0 }}
                 animate={{ pathLength: 1, opacity: 1 }}
@@ -170,7 +170,7 @@ export function LandingAnimation({ onComplete }: LandingAnimationProps) {
             transition={{ delay: 1.0, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
             className="absolute right-2 bottom-7 w-[110px] h-16 bg-surface-2 border border-line-2 rounded-[8px] p-2 flex gap-[6px] items-stretch"
           >
-            {['var(--text3)', 'var(--accent)', 'var(--blue)'].map((c, i) => (
+            {['var(--color-fg-3)', 'var(--color-accent)', 'var(--color-blue)'].map((c, i) => (
               <div
                 key={i}
                 style={{ '--c': c } as CSSProperties}
@@ -233,7 +233,7 @@ export function LandingAnimation({ onComplete }: LandingAnimationProps) {
           transition={{ delay: 0.8, duration: 0.4 }}
           onClick={dismiss}
           className="fixed bottom-6 right-6 bg-transparent border border-line-2 rounded-[6px] text-fg-3 text-12 py-[5px] px-3 cursor-pointer font-body tracking-[0.02em]"
-          whileHover={{ color: 'var(--text2)', borderColor: 'var(--border)' }}
+          whileHover={{ color: 'var(--color-fg-2)', borderColor: 'var(--color-line)' }}
         >
           Skip
         </motion.button>

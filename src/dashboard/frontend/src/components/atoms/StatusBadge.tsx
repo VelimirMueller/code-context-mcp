@@ -14,18 +14,18 @@ interface StatusBadgeProps {
 }
 
 const defaultColors: Record<string, string> = {
-  success: 'var(--green)',
-  warning: 'var(--orange)',
-  error: 'var(--red)',
-  info: 'var(--blue)',
-  purple: 'var(--purple)',
-  neutral: 'var(--text3)',
+  success: 'var(--color-green)',
+  warning: 'var(--color-orange)',
+  error: 'var(--color-red)',
+  info: 'var(--color-blue)',
+  purple: 'var(--color-accent-2)',
+  neutral: 'var(--color-fg-3)',
 };
 
 export function StatusBadge({
   icon,
   label,
-  color = 'var(--accent)',
+  color = 'var(--color-accent)',
   variant = 'solid',
   className,
   style = {},
@@ -51,21 +51,23 @@ export function StatusBadge({
 
 // Preset badges for common statuses
 export function RetroDoneBadge({ variant }: { variant?: StatusVariant }) {
-  return <StatusBadge icon="✓" label="Retro" color="var(--accent)" variant={variant} />;
+  return <StatusBadge icon="✓" label="Retro" color="var(--color-accent)" variant={variant} />;
 }
 
 export function QaVerifiedBadge({ variant }: { variant?: StatusVariant }) {
-  return <StatusBadge icon="✓" label="QA" color="var(--accent)" variant={variant} />;
+  return <StatusBadge icon="✓" label="QA" color="var(--color-accent)" variant={variant} />;
 }
 
 export function QaPendingBadge({ variant }: { variant?: StatusVariant }) {
-  return <StatusBadge icon="⚠" label="QA Pending" color="var(--orange)" variant={variant} />;
+  return <StatusBadge icon="⚠" label="QA Pending" color="var(--color-orange)" variant={variant} />;
 }
 
 export function VelocityMetBadge({ variant }: { variant?: StatusVariant }) {
-  return <StatusBadge icon="★" label="Target Met" color="var(--purple)" variant={variant} />;
+  return (
+    <StatusBadge icon="★" label="Target Met" color="var(--color-accent-2)" variant={variant} />
+  );
 }
 
 export function VelocityLowBadge({ variant }: { variant?: StatusVariant }) {
-  return <StatusBadge icon="⚠" label="Velocity Low" color="var(--red)" variant={variant} />;
+  return <StatusBadge icon="⚠" label="Velocity Low" color="var(--color-red)" variant={variant} />;
 }

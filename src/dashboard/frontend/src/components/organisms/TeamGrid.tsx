@@ -100,7 +100,7 @@ function GroupedAgentGrid({ agents, onEdit }: GroupedAgentGridProps) {
       if (group && group.length > 0) {
         const display = DEPARTMENT_DISPLAY[key] ?? {
           label: key.charAt(0).toUpperCase() + key.slice(1),
-          color: 'var(--text3)',
+          color: 'var(--color-fg-3)',
         };
         result.push({ label: display.label, color: display.color, agents: group });
         byDept.delete(key);
@@ -111,7 +111,7 @@ function GroupedAgentGrid({ agents, onEdit }: GroupedAgentGridProps) {
       if (group.length > 0) {
         const display = DEPARTMENT_DISPLAY[key] ?? {
           label: key.charAt(0).toUpperCase() + key.slice(1),
-          color: 'var(--text3)',
+          color: 'var(--color-fg-3)',
         };
         result.push({ label: display.label, color: display.color, agents: group });
       }

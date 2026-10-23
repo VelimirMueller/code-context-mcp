@@ -4,50 +4,16 @@ import betterTailwind from 'eslint-plugin-better-tailwindcss';
 
 const FRONTEND = 'src/dashboard/frontend/src';
 
-// #293 ratchet: files that still carry static inline styles. A slice that moves a
-// file to Tailwind removes it here; a new file never joins the list.
-export const LEGACY_INLINE_STYLE = ['App.tsx'];
-
-// #293: class names the Tailwind config does not know: global classes in src/index.css and
-// names styled only in the legacy dashboard.html (they render unstyled in the Vite app).
-// A slice that removes a name removes it here.
+// #293: unstyled class names that e2e or visual specs still select. They have no CSS
+// rule; move the spec to a data-testid before you remove a name here.
 export const LEGACY_CLASSES = [
-  '^active$',
-  '^app$',
-  '^change-event$',
-  '^change-header$',
-  '^change-item$',
-  '^chevron$',
   '^count$',
-  '^dep-item$',
-  '^dep-path$',
-  '^dep-symbols$',
-  '^detail-desc$',
   '^detail-meta$',
-  '^detail-section$',
   '^detail-title$',
-  '^empty$',
-  '^empty-icon$',
-  '^kbd-hint$',
-  '^logo$',
-  '^logo-icon$',
-  '^logo-sub$',
-  '^logo-text$',
   '^main$',
-  '^open$',
-  '^page-content$',
-  '^quick-search$',
-  '^search$',
-  '^search-input$',
-  '^search-wrap$',
   '^sidebar$',
   '^sidebar-body$',
   '^sidebar-head$',
-  '^stats$',
-  '^tab$',
-  '^tabs$',
-  '^top-nav$',
-  '^topbar$',
   '^tree-folder$',
 ];
 
@@ -141,7 +107,6 @@ export default tseslint.config(
     // CSS variables fed from data (`style={{ '--c': epic.color }}` + `bg-(--c)`).
     // The rule sees literal values only; a constant or a spread still passes, so review those.
     files: [`${FRONTEND}/**/*.tsx`],
-    ignores: LEGACY_INLINE_STYLE.map((f) => `${FRONTEND}/${f}`),
     rules: {
       'no-restricted-syntax': [
         'error',

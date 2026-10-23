@@ -14,7 +14,7 @@ const smallButtonBase =
 const smallButton = (busy: boolean) =>
   cx(smallButtonBase, busy ? 'text-fg-3 cursor-not-allowed' : 'text-fg-2 cursor-pointer');
 
-function ProgressBar({ value, color = 'var(--accent)' }: { value: number; color?: string }) {
+function ProgressBar({ value, color = 'var(--color-accent)' }: { value: number; color?: string }) {
   return (
     <div
       style={{ '--c': color } as CSSProperties}

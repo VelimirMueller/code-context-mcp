@@ -69,13 +69,12 @@ export function QuickActionsBar({
           </button>
         ))}
         {onSearchChange && (
-          <div className="quick-search">
+          <div>
             <input
               type="text"
               placeholder="Search..."
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              className="search-input"
               aria-label="Search tickets"
             />
           </div>

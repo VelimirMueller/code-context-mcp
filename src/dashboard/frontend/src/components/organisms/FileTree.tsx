@@ -72,8 +72,8 @@ export function FileTree() {
 
   if (!files.length) {
     return (
-      <div className="empty">
-        <div className="empty-icon">📂</div>
+      <div>
+        <div>📂</div>
         <div>No files indexed</div>
       </div>
     );
@@ -84,8 +84,8 @@ export function FileTree() {
     return (
       <div>
         {filteredFiles.length === 0 ? (
-          <div className="empty">
-            <div className="empty-icon">🔍</div>
+          <div>
+            <div>🔍</div>
             <div>No files match "{debouncedQuery}"</div>
           </div>
         ) : (

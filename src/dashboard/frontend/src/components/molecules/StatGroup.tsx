@@ -11,7 +11,7 @@ export function StatGroup({ stats }: StatGroupProps) {
   if (!stats) return null;
 
   return (
-    <div className="stats flex shrink-0 items-center gap-6">
+    <div className="flex shrink-0 items-center gap-6">
       <Stat value={stats.files ?? 0} label="files" />
       <Stat value={stats.exports ?? 0} label="exports" />
       <Stat value={stats.deps ?? 0} label="deps" />

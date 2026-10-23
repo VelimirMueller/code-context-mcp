@@ -36,8 +36,8 @@ function DetailTab() {
 
   if (!selectedFileId && !fileDetail) {
     return (
-      <div className="empty py-16 px-10 text-center text-fg-3">
-        <div className="empty-icon text-32 mb-4 opacity-30">📄</div>
+      <div className="py-16 px-10 text-center text-fg-3">
+        <div className="text-32 mb-4 opacity-30">📄</div>
         <div>Select a file to view details</div>
       </div>
     );
@@ -63,7 +63,7 @@ function DetailTab() {
   return (
     <div>
       {/* Title / meta */}
-      <div className="detail-section">
+      <div>
         <div className="detail-title">{d.path}</div>
         <div className="detail-meta mt-2">
           <span>{d.language}</span>
@@ -72,15 +72,13 @@ function DetailTab() {
           {' · '}
           <span className="font-code">{fmtSize(d.size_bytes ?? 0)}</span>
         </div>
-        {d.description && <div className="detail-desc">{d.description}</div>}
-        {d.summary && d.summary !== d.description && (
-          <div className="detail-desc mt-1 italic">{d.summary}</div>
-        )}
+        {d.description && <div>{d.description}</div>}
+        {d.summary && d.summary !== d.description && <div className="mt-1 italic">{d.summary}</div>}
       </div>
 
       {/* Exports */}
       {exports.length > 0 && (
-        <div className="detail-section">
+        <div>
           <h3>Exports ({exports.length})</h3>
           <div className="flex flex-col gap-1.5 mt-1">
             {exports.map((exp, i) => {
@@ -103,16 +101,16 @@ function DetailTab() {
 
       {/* Imports */}
       {imports.length > 0 && (
-        <div className="detail-section">
+        <div>
           <h3>Imports ({imports.length})</h3>
           {imports.map((imp, i) => {
             const path = typeof imp === 'string' ? imp : (imp?.path ?? '');
             const symbols = typeof imp === 'string' ? imp : (imp?.symbols ?? '');
             const short = path ? path.split('/').slice(-2).join('/') : '(unknown)';
             return (
-              <div key={i} className="dep-item">
-                <div className="dep-path">{short}</div>
-                <div className="dep-symbols">{symbols}</div>
+              <div key={i}>
+                <div>{short}</div>
+                <div>{symbols}</div>
               </div>
             );
           })}
@@ -121,16 +119,16 @@ function DetailTab() {
 
       {/* Imported By */}
       {importedBy.length > 0 && (
-        <div className="detail-section">
+        <div>
           <h3>Imported By ({importedBy.length})</h3>
           {importedBy.map((dep, i) => {
             const path = typeof dep === 'string' ? dep : (dep?.path ?? '');
             const symbols = typeof dep === 'string' ? dep : (dep?.symbols ?? '');
             const short = path ? path.split('/').slice(-2).join('/') : '(unknown)';
             return (
-              <div key={i} className="dep-item">
-                <div className="dep-path">{short}</div>
-                <div className="dep-symbols">{symbols}</div>
+              <div key={i}>
+                <div>{short}</div>
+                <div>{symbols}</div>
               </div>
             );
           })}
@@ -148,8 +146,8 @@ function ChangesTab() {
 
   if (!selectedFileId) {
     return (
-      <div className="empty py-16 px-10 text-center text-fg-3">
-        <div className="empty-icon text-32 mb-4 opacity-30">🕐</div>
+      <div className="py-16 px-10 text-center text-fg-3">
+        <div className="text-32 mb-4 opacity-30">🕐</div>
         <div>Select a file to view its change history</div>
       </div>
     );
@@ -165,8 +163,8 @@ function ChangesTab() {
 
   if (!fileChanges || !fileChanges.length) {
     return (
-      <div className="empty py-12 px-10 text-center text-fg-3">
-        <div className="empty-icon text-[28px] mb-3 opacity-30">📋</div>
+      <div className="py-12 px-10 text-center text-fg-3">
+        <div className="text-[28px] mb-3 opacity-30">📋</div>
         <div>No changes recorded</div>
       </div>
     );
@@ -188,10 +186,10 @@ function ChangesTab() {
         const sizeDiff = (change.new_size_bytes ?? 0) - (change.old_size_bytes ?? 0);
 
         return (
-          <div key={change.id} className="change-item">
-            <div className="change-header">
+          <div key={change.id}>
+            <div>
               <span
-                className={`change-event ${change.event ?? 'change'} text-10 font-bold uppercase tracking-[0.06em] py-[3px] px-[10px] rounded-[6px] bg-blue-glow text-blue border border-[rgba(59,130,246,.15)]`}
+                className={`${change.event ?? 'change'} text-10 font-bold uppercase tracking-[0.06em] py-[3px] px-[10px] rounded-[6px] bg-blue-glow text-blue border border-[rgba(59,130,246,.15)]`}
               >
                 {change.event ?? 'change'}
               </span>
@@ -244,9 +242,9 @@ export function CodeExplorer() {
     <div className="flex flex-col h-full overflow-hidden">
       <SubTabBar tabs={CODE_TABS} />
       {/* Topbar with stats + search */}
-      <div className="topbar flex items-center gap-5 shrink-0">
-        <div className="logo shrink-0">
-          <div className="logo-icon">
+      <div className="flex items-center gap-5 px-7 border-b border-b-line bg-surface h-16 shrink-0">
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="w-8 h-8 rounded-[10px] bg-[linear-gradient(135deg,var(--color-accent)_0%,#a5b4fc_100%)] flex items-center justify-center [box-shadow:0_0_20px_rgba(99,102,241,0.2)]">
             <svg
               viewBox="0 0 24 24"
               fill="none"
@@ -258,8 +256,11 @@ export function CodeExplorer() {
               <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
             </svg>
           </div>
-          <span className="logo-text">
-            Code Context <span className="logo-sub">Explorer</span>
+          <span
+            data-testid="logo-text"
+            className="font-display text-[15px] font-bold tracking-[-0.01em] uppercase"
+          >
+            Code Context <span className="text-fg-3 font-normal">Explorer</span>
           </span>
         </div>
 
@@ -273,7 +274,7 @@ export function CodeExplorer() {
 
         <span
           title="Live"
-          className="w-2 h-2 rounded-[50%] bg-accent [box-shadow:0_0_6px_var(--accent)] shrink-0"
+          className="w-2 h-2 rounded-[50%] bg-accent [box-shadow:0_0_6px_var(--color-accent)] shrink-0"
         />
       </div>
 
@@ -369,7 +370,7 @@ export function CodeExplorer() {
               <div className="flex flex-col gap-1.5">
                 {(stats.extensions as { extension: string; c: number }[]).map((ext) => {
                   const pct = files.length > 0 ? (ext.c / files.length) * 100 : 0;
-                  const color = langColors[ext.extension] || 'var(--accent)';
+                  const color = langColors[ext.extension] || 'var(--color-accent)';
                   return (
                     <div key={ext.extension} className="flex items-center gap-[10px]">
                       <div className="w-[60px] text-12 font-code text-fg-2 font-semibold">

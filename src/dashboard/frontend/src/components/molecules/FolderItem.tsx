@@ -46,8 +46,8 @@ export function FolderItem({
           viewBox="0 0 16 16"
           fill="currentColor"
           className={cx(
-            'chevron size-3.5 shrink-0 [transition:transform_.2s]',
-            isOpen ? 'open text-accent [transform:rotate(90deg)]' : 'text-fg-3',
+            'size-3.5 shrink-0 [transition:transform_.2s]',
+            isOpen ? 'text-accent [transform:rotate(90deg)]' : 'text-fg-3',
           )}
         >
           <path d="M6 3l5 5-5 5z" />

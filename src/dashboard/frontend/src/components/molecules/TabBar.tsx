@@ -1,6 +1,5 @@
 import React from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { cx } from '@/lib/utils';
 
 interface Tab {
   id: string;
@@ -17,16 +16,13 @@ export function TabBar({ tabs, activeTab, onTabChange }: TabBarProps) {
   const reduceMotion = useReducedMotion();
 
   return (
-    <div className="tabs relative">
+    <div className="relative">
       {tabs.map((tab) => {
         const isActive = activeTab === tab.id;
         return (
           <button
             key={tab.id}
-            className={cx(
-              'tab relative cursor-pointer border-none bg-transparent pb-2 font-body',
-              isActive && 'active',
-            )}
+            className="relative cursor-pointer border-none bg-transparent pb-2 font-body"
             onClick={() => onTabChange(tab.id)}
           >
             {tab.label}
