@@ -75,7 +75,7 @@ src/
 
   dashboard/       React dashboard
     dashboard.ts     Node.js HTTP server — serves APIs + static files on :3333
-    app/             Vite + React 19 + Tailwind CSS + Zustand + Framer Motion
+    frontend/        Vite + React 19 + Tailwind CSS + Zustand + Framer Motion
       src/
         components/    Atomic Design hierarchy (see below)
         hooks/         Custom React hooks (useSearch, useSprints, useAgents, etc.)
@@ -169,7 +169,7 @@ pnpm run build
 ```bash
 # 1. Start the dev server (in one terminal)
 pnpm run dashboard:dev
-# 2. Make changes in src/dashboard/app/src/
+# 2. Make changes in src/dashboard/frontend/src/
 # 3. Vite HMR reloads automatically
 # 4. Run frontend tests
 pnpm run test:frontend
@@ -225,13 +225,13 @@ pnpm run lint:fix
 - **Module system**: NodeNext (ESM)
 - **Strict mode**: Enabled
 - **Output**: `dist/`
-- The dashboard app (`src/dashboard/app/`) and Remotion (`src/remotion/`) are excluded from the main `tsconfig.json` — they have their own build configs.
+- The dashboard app (`src/dashboard/frontend/`) and Remotion (`src/remotion/`) are excluded from the main `tsconfig.json` — they have their own build configs.
 
 ### Pre-commit Hooks
 
 Husky runs lint-staged (`lint-staged.config.mjs`) on the staged files of every commit. It never runs a full build:
 
-1. `tsc --noEmit` — type check, once per commit, when a staged file is under `src/` (`-p src/dashboard/app` for dashboard app files)
+1. `tsc --noEmit` — type check, once per commit, when a staged file is under `src/` (`-p src/dashboard/frontend` for dashboard app files)
 2. `eslint --no-warn-ignored` — lint staged JS/TS files
 3. `prettier --write --ignore-unknown` — format staged files
 
@@ -241,11 +241,11 @@ If a commit fails the hook, fix the issues before re-committing.
 
 ### Test Structure
 
-| Type                | Location                      | Runner                   | Command                     |
-| ------------------- | ----------------------------- | ------------------------ | --------------------------- |
-| Unit / Integration  | `test/*.test.ts`              | Vitest                   | `pnpm test`                 |
-| Frontend components | `src/dashboard/app/src/test/` | Vitest + Testing Library | `pnpm run test:frontend`    |
-| End-to-end          | `test/e2e/*.spec.ts`          | Playwright               | `pnpm exec playwright test` |
+| Type                | Location                           | Runner                   | Command                     |
+| ------------------- | ---------------------------------- | ------------------------ | --------------------------- |
+| Unit / Integration  | `test/*.test.ts`                   | Vitest                   | `pnpm test`                 |
+| Frontend components | `src/dashboard/frontend/src/test/` | Vitest + Testing Library | `pnpm run test:frontend`    |
+| End-to-end          | `test/e2e/*.spec.ts`               | Playwright               | `pnpm exec playwright test` |
 
 ### Writing Backend Tests
 
@@ -323,7 +323,7 @@ Coverage is reported via V8 in both `text` and `lcov` formats, covering all file
 1. **Determine the Atomic Design layer** — is it an atom, molecule, or organism?
 2. **Create the component** in the appropriate `components/` subdirectory.
 3. **Export it** from the layer's `index.ts` barrel file.
-4. **Add tests** in `src/dashboard/app/src/test/`.
+4. **Add tests** in `src/dashboard/frontend/src/test/`.
 5. **Use existing Zustand stores** for state — avoid component-local state for shared data.
 
 ### Adding a Dashboard API Endpoint

@@ -1,5 +1,21 @@
 import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
+import betterTailwind from 'eslint-plugin-better-tailwindcss';
+
+const FRONTEND = 'src/dashboard/frontend/src';
+
+// #293: unstyled class names that e2e or visual specs still select. They have no CSS
+// rule; move the spec to a data-testid before you remove a name here.
+export const LEGACY_CLASSES = [
+  '^count$',
+  '^detail-meta$',
+  '^detail-title$',
+  '^main$',
+  '^sidebar$',
+  '^sidebar-body$',
+  '^sidebar-head$',
+  '^tree-folder$',
+];
 
 export default tseslint.config(
   eslint.configs.recommended,
@@ -11,7 +27,7 @@ export default tseslint.config(
       '**/node_modules/',
       '.claude/',
       'docs/',
-      'src/dashboard/app/dist/',
+      'src/dashboard/frontend/dist/',
       '**/*.min.js',
       '**/*.bundle.js',
     ],
@@ -83,6 +99,45 @@ export default tseslint.config(
       'prefer-const': 'warn',
       'no-console': ['warn', { allow: ['warn', 'error'] }],
       'preserve-caught-error': 'off',
+    },
+  },
+  {
+    // #293: the dashboard styles with Tailwind utilities and tokens (src/index.css @theme).
+    // `style` keeps only runtime values (widths, positions, framer-motion values) and
+    // CSS variables fed from data (`style={{ '--c': epic.color }}` + `bg-(--c)`).
+    // The rule sees literal values only; a constant or a spread still passes, so review those.
+    files: [`${FRONTEND}/**/*.tsx`],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            // A cast (`{…} as CSSProperties`) must not hide the object; a template with
+            // expressions (`${pct}%`) is a runtime value.
+            ['', 'TSAsExpression > ', 'TSSatisfiesExpression > ']
+              .map(
+                (cast) =>
+                  `JSXAttribute[name.name='style'] > JSXExpressionContainer > ${cast}ObjectExpression > Property:not([key.value=/^--/]):matches([value.type='Literal'], [value.type='TemplateLiteral'][value.expressions.length=0])`,
+              )
+              .join(', '),
+          message:
+            'Static style value: use a Tailwind utility with a token from src/index.css (#293).',
+        },
+        {
+          selector:
+            "AssignmentExpression > MemberExpression.left[object.property.name='style'][object.object.property.name='currentTarget']",
+          message: 'Hover style in a handler: use a `hover:` utility (#293).',
+        },
+      ],
+    },
+  },
+  {
+    files: [`${FRONTEND}/**/*.tsx`],
+    plugins: { 'better-tailwindcss': betterTailwind },
+    settings: { 'better-tailwindcss': { entryPoint: `${FRONTEND}/index.css` } },
+    rules: {
+      // A typo or an old name (`text-text2`) produces no CSS and fails silently.
+      'better-tailwindcss/no-unknown-classes': ['error', { ignore: LEGACY_CLASSES }],
     },
   },
   {

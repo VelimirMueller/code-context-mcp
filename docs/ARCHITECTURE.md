@@ -35,7 +35,7 @@ One package, one server, two bins over the same `context.db`:
 
 ### Dashboard (src/dashboard/)
 
-- **App**: Vite + React 19 + TypeScript + Tailwind CSS (src/dashboard/app/)
+- **App**: Vite + React 19 + TypeScript + Tailwind CSS (src/dashboard/frontend/)
 - **Server**: Node.js HTTP server serving APIs + static files (src/dashboard/dashboard.ts)
 - **State**: 9 Zustand stores (fileStore, sprintStore, agentStore, planningStore, uiStore, benchmarkStore, bridgeStore, comparisonStore, toastStore)
 - **Animation**: Framer Motion for transitions + micro-interactions
@@ -58,7 +58,7 @@ pages/       → Benchmark, CodeExplorer, Dashboard, ProjectManagement, Retro, T
 
 ## Pages
 
-The hash router (`src/dashboard/app/src/hooks/useHashRouter.ts`) maps `#<page>/<tab>` to six pages, in nav order:
+The hash router (`src/dashboard/frontend/src/hooks/useHashRouter.ts`) maps `#<page>/<tab>` to six pages, in nav order:
 
 | Nav label | Hash         | Page component    |
 | --------- | ------------ | ----------------- |

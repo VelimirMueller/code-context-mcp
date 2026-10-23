@@ -385,7 +385,7 @@ The dashboard Benchmark page and the site open with one table for the latest run
 - One row per model: GLM, Opus, DeepSeek. Columns: Model, Result (verdict chip, "indicative" below 3 repeats), Success ("92 % → 86 %", vanilla → with code-context), Tokens ("25 % less" / "8 % more"), Cost ("—" when unknown), Speed ("23 % faster" / "slower"), Repeats ("3×").
 - The numbers come from the verdict's best arm: "with code-context" is the better of the two code-context setups (cc, cc-guided). Tokens are the uncached tokens (input + output + cache write).
 - A caption names the run date, the suite ("test fixture" for a public run, the alias for a private suite) and what Tokens means. Below the table, one line per model gives the result sentence and its main reason.
-- Latest run, dashboard: the newest run per model among all runs, public and private (`latestPerModel` in `src/dashboard/app/src/lib/latestRun.ts`). The run filter does not change the table.
+- Latest run, dashboard: the newest run per model among all runs, public and private (`latestPerModel` in `src/dashboard/frontend/src/lib/latestRun.ts`). The run filter does not change the table.
 - Latest run, site: per model, the newest private-summary run when its date is newer than the newest public run of that model, else the public run (`latestPerModel` in `site/data.js`). On the same day the public run wins.
 - "Show details": dashboard: the run filter, the latest-per-kind cards, the run list and detail, and the Simulated (2026-06) tab. Site: the newest run of any kind, the history, the run detail and the private-suite cards with their per-group tables. A link to a section inside the block opens it.
 

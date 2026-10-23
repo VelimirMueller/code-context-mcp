@@ -10,7 +10,7 @@
 > - **Header button:** Every wireframe shows a `[⚙ Settings]` button in the top-right of the app header. This button does not exist in the shipped product. The actual header contains an **SSE connection status badge** (a colored dot with the connection state label) and a **`BridgeStatusBadge`** component — no Settings button.
 > - **Agent names (Wireframe 3):** The Team page wireframe uses placeholder names ("Backend Dev", "Frontend Dev", "UX Designer") that were never the real agent identifiers. The 9 real agents seeded by `src/scrum/defaults.ts` are: **FE Engineer** (`fe-engineer`), **BE Engineer** (`be-engineer`), **Developer** (`developer`), **DevOps** (`devops`), **QA Engineer** (`qa`), **Security Engineer** (`security`), **Architect** (`architect`), **Team Lead** (`team-lead`), **Product Owner** (`product-owner`).
 >
-> Do not use this document as a reference for the current UI. Consult `src/dashboard/app/src/components/molecules/TopNav.tsx` and `src/dashboard/app/src/App.tsx` for authoritative current navigation structure.
+> Do not use this document as a reference for the current UI. Consult `src/dashboard/frontend/src/components/molecules/TopNav.tsx` and `src/dashboard/frontend/src/App.tsx` for authoritative current navigation structure.
 
 ---
 
@@ -62,6 +62,7 @@
 ```
 
 **Key Features:**
+
 - Single-level navigation (5 tabs shown here; **6 tabs shipped** — Benchmark tab not shown in this wireframe)
 - Quick actions with count badges
 - Breadcrumb showing location
@@ -119,6 +120,7 @@
 ```
 
 **Key Features:**
+
 - Split view: Milestones (left) + Gantt (right)
 - No nested tabs — single level
 - Milestone progress percentages
@@ -176,6 +178,7 @@
 ```
 
 **Key Features:**
+
 - Grid view of all agents
 - Mood indicators with color coding
 - Ticket count per agent
@@ -236,6 +239,7 @@
 ```
 
 **Key Features:**
+
 - Hamburger menu for additional actions
 - Stacked layout for small screens
 - Sprint selector as dropdown
@@ -277,6 +281,7 @@
 ```
 
 **Key Features:**
+
 - Bottom sheet modal
 - Large touch targets
 - Count badges

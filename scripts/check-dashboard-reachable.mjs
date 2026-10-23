@@ -5,7 +5,7 @@
 // the script in index.html) with the TypeScript module resolver and the app
 // tsconfig (so the `@/` alias resolves the same way as in Vite). Static
 // imports, `export … from`, dynamic `import()` and `require()` count.
-// Every .ts/.tsx file under src/dashboard/app/src must be reached, except
+// Every .ts/.tsx file under src/dashboard/frontend/src must be reached, except
 // test code (src/test/, *.test.*) and type declarations (*.d.ts).
 // `import.meta.glob` is not followed: a module that uses it fails the check.
 //
@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const APP_DIR = path.join(root, 'src/dashboard/app');
+const APP_DIR = path.join(root, 'src/dashboard/frontend');
 
 function listFiles(dir) {
   return readdirSync(dir).flatMap((name) => {
@@ -96,7 +96,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     console.error(
       `check-dashboard-reachable: ${unreachable.length} dashboard module(s) are not reached from src/main.tsx:`,
     );
-    for (const f of unreachable) console.error(`  src/dashboard/app/${f}`);
+    for (const f of unreachable) console.error(`  src/dashboard/frontend/${f}`);
     console.error('Delete them, or import them from a page.');
   }
   process.exit(unreachable.length === 0 ? 0 : 1);
