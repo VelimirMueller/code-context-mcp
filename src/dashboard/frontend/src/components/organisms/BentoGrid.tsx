@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useSprintStore } from '@/stores/sprintStore';
+import { cx } from '@/lib/utils';
 import { BentoCard } from '@/components/molecules/BentoCard';
 
 export function BentoGrid() {
@@ -60,23 +61,17 @@ export function BentoGrid() {
     .map(([word, data]) => `${word} (${data.count}x)`);
 
   return (
-    <div style={{ padding: 20, overflowY: 'auto', flex: 1 }}>
+    <div className="p-5 overflow-y-auto flex-1">
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 16 }}>
-        <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>Retro Insights</span>
-        <span style={{ fontSize: 12, color: 'var(--text3)' }}>
+      <div className="flex items-baseline gap-3 mb-4">
+        <span className="text-18 font-bold text-fg">Retro Insights</span>
+        <span className="text-12 text-fg-3">
           {loading ? 'Loading…' : `${allFindings.length} findings across ${sprints.length} sprints`}
         </span>
       </div>
 
       {/* Bento grid: 3 columns */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: 12,
-        }}
-      >
+      <div className="grid grid-cols-[repeat(3,1fr)] gap-3">
         {/* Recurring Topics — wide (spans 2 cols) */}
         <BentoCard
           icon={
@@ -112,29 +107,15 @@ export function BentoGrid() {
         />
 
         {/* Stats card */}
-        <div
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)',
-            borderTop: '3px solid var(--text3)',
-            padding: 16,
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            alignItems: 'center',
-            textAlign: 'center',
-            gap: 4,
-          }}
-        >
+        <div className="bg-surface border border-line rounded-card border-t-[3px] border-t-fg-3 p-4 flex flex-col justify-center items-center text-center gap-1">
           {[
-            { v: well.length, c: 'var(--accent)', l: 'went well' },
-            { v: wrong.length, c: 'var(--red)', l: 'went wrong' },
-            { v: tryNext.length, c: 'var(--purple)', l: 'try next' },
+            { v: well.length, c: 'text-accent', l: 'went well' },
+            { v: wrong.length, c: 'text-red', l: 'went wrong' },
+            { v: tryNext.length, c: 'text-accent-2', l: 'try next' },
           ].map(({ v, c, l }, i) => (
-            <div key={i} style={{ marginBottom: i < 2 ? 12 : 0 }}>
-              <div style={{ fontSize: 32, fontWeight: 700, color: c, lineHeight: 1.1 }}>{v}</div>
-              <div style={{ fontSize: 11, color: 'var(--text3)' }}>{l}</div>
+            <div key={i} className={i < 2 ? 'mb-3' : 'mb-0'}>
+              <div className={cx('text-32 font-bold leading-[1.1]', c)}>{v}</div>
+              <div className="text-11 text-fg-3">{l}</div>
             </div>
           ))}
         </div>

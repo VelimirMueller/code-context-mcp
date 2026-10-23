@@ -237,10 +237,10 @@ describe('SprintList milestone colour (#211)', () => {
     render(<SprintList />);
 
     expect(milestoneStatusColor(status)).toBe(colour);
-    expect(screen.getByTestId('milestone-pct-7').style.color).toBe(colour);
+    expect(screen.getByTestId('milestone-pct-7').style.getPropertyValue('--c')).toBe(colour);
     // A completed milestone starts collapsed, so only open ones show the bar.
     if (status !== 'completed') {
-      expect(screen.getByTestId('milestone-bar-7').style.background).toBe(colour);
+      expect(screen.getByTestId('milestone-bar-7').style.getPropertyValue('--c')).toBe(colour);
     }
   });
 
