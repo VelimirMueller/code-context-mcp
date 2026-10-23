@@ -13,8 +13,9 @@ const workflowFiles = (): string[] => readdirSync(WORKFLOWS).filter((f) => f.end
 // benchmark scripts, so it sits outside the "benchmarks on demand" rule.
 // PLAN.md task 1 said "every .github/workflows/*.yml", which would also flag
 // sync-skills.yml; that schedule is the owner's existing behaviour and removing
-// it is out of scope for tasks 1-5 (see PR notes).
-const NON_BENCHMARK_SCHEDULED = new Set(['sync-skills.yml']);
+// it is out of scope for tasks 1-5 (see PR notes). codeql.yml runs a weekly
+// security scan (#311), not a benchmark.
+const NON_BENCHMARK_SCHEDULED = new Set(['sync-skills.yml', 'codeql.yml']);
 
 /**
  * Extract the block of lines under the top-level `on:` key. Returns the joined

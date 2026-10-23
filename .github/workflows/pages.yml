@@ -5,6 +5,11 @@ name: Pages
 on:
   push:
     branches: [main, bench-results]
+    # Only what the site is built from: site/ code on main, data/ on bench-results.
+    paths:
+      - 'site/**'
+      - 'data/**'
+      - '.github/workflows/pages.yml'
   workflow_dispatch:
 
 permissions:
