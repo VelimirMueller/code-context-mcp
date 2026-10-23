@@ -6,30 +6,14 @@ const FRONTEND = 'src/dashboard/frontend/src';
 
 // #293 ratchet: files that still carry static inline styles. A slice that moves a
 // file to Tailwind removes it here; a new file never joins the list.
-export const LEGACY_INLINE_STYLE = [
-  'App.tsx',
-  'components/molecules/Breadcrumb.tsx',
-  'components/molecules/SearchBar.tsx',
-  'components/molecules/StatGroup.tsx',
-  'components/molecules/SubTabBar.tsx',
-  'components/molecules/TabBar.tsx',
-];
+export const LEGACY_INLINE_STYLE = ['App.tsx'];
 
 // #293: class names the Tailwind config does not know: global classes in src/index.css and
 // names styled only in the legacy dashboard.html (they render unstyled in the Vite app).
 // A slice that removes a name removes it here.
 export const LEGACY_CLASSES = [
-  '^action-count$',
-  '^action-icon$',
-  '^action-label$',
   '^active$',
   '^app$',
-  '^breadcrumb$',
-  '^breadcrumb-current$',
-  '^breadcrumb-item$',
-  '^breadcrumb-link$',
-  '^breadcrumb-separator$',
-  '^breadcrumb-text$',
   '^change-event$',
   '^change-header$',
   '^change-item$',
@@ -44,7 +28,6 @@ export const LEGACY_CLASSES = [
   '^detail-title$',
   '^empty$',
   '^empty-icon$',
-  '^highlight$',
   '^kbd-hint$',
   '^logo$',
   '^logo-icon$',
@@ -53,10 +36,6 @@ export const LEGACY_CLASSES = [
   '^main$',
   '^open$',
   '^page-content$',
-  '^quick-action-btn$',
-  '^quick-actions-bar$',
-  '^quick-actions-breadcrumb$',
-  '^quick-actions-buttons$',
   '^quick-search$',
   '^search$',
   '^search-input$',
@@ -68,9 +47,6 @@ export const LEGACY_CLASSES = [
   '^tab$',
   '^tabs$',
   '^top-nav$',
-  '^top-nav-icon$',
-  '^top-nav-item$',
-  '^top-nav-label$',
   '^topbar$',
   '^tree-folder$',
 ];
