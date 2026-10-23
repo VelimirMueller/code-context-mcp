@@ -1,3 +1,4 @@
+import { cx } from '@/lib/utils';
 import type { TicketAssignment } from '@/types';
 import { MODEL_OPTIONS } from '@/lib/constants';
 import { sortLeadFirst } from './AssignmentChips';
@@ -52,40 +53,26 @@ export function AssignmentEditor({
     onChange(value.map((a) => (a.role === role ? { ...a, model } : a)));
   };
 
-  const innerButtonStyle: React.CSSProperties = {
-    background: 'none',
-    border: 'none',
-    padding: 0,
-    font: 'inherit',
-    color: 'inherit',
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    display: 'inline-flex',
-    alignItems: 'center',
-  };
+  const innerButtonClass = cx(
+    'bg-transparent border-none p-0 inline-flex items-center',
+    disabled ? 'cursor-not-allowed' : 'cursor-pointer',
+  );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div className="flex flex-col gap-2">
       {/* Role chips — click to assign/unassign, star to set the lead */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+      <div className="flex flex-wrap gap-[5px]">
         {allRoles.map((role) => {
           const assigned = assignedByRole.get(role);
           return (
             <span
               key={role}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                padding: '3px 9px',
-                borderRadius: 10,
-                fontSize: 11,
-                fontWeight: 600,
-                fontFamily: 'var(--font)',
-                transition: 'all .15s',
-                background: assigned ? 'rgba(99,102,241,.12)' : 'var(--bg)',
-                border: `1px solid ${assigned ? 'rgba(99,102,241,.4)' : 'var(--border)'}`,
-                color: assigned ? 'var(--accent)' : 'var(--text3)',
-              }}
+              className={cx(
+                'inline-flex items-center gap-1 py-[3px] px-[9px] rounded-[10px] text-11 font-semibold font-body [transition:all_.15s] border',
+                assigned
+                  ? 'bg-[rgba(99,102,241,.12)] border-[rgba(99,102,241,.4)] text-accent'
+                  : 'bg-bg border-line text-fg-3',
+              )}
             >
               {assigned && (
                 <button
@@ -96,12 +83,11 @@ export function AssignmentEditor({
                   onClick={() => {
                     if (!assigned.is_lead) setLead(role);
                   }}
-                  style={{
-                    ...innerButtonStyle,
-                    color: assigned.is_lead ? 'var(--orange)' : 'var(--text3)',
-                    fontSize: 12,
-                    lineHeight: 1,
-                  }}
+                  className={cx(
+                    innerButtonClass,
+                    assigned.is_lead ? 'text-orange' : 'text-fg-3',
+                    'text-12 leading-none',
+                  )}
                 >
                   {assigned.is_lead ? '★' : '☆'}
                 </button>
@@ -112,7 +98,7 @@ export function AssignmentEditor({
                 onClick={() => toggleRole(role)}
                 aria-pressed={Boolean(assigned)}
                 aria-label={assigned ? `Unassign ${role}` : `Assign ${role}`}
-                style={innerButtonStyle}
+                className={innerButtonClass}
               >
                 {role}
               </button>
@@ -123,23 +109,18 @@ export function AssignmentEditor({
 
       {/* Per-assignment model override (lead first) */}
       {value.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div className="flex flex-col gap-1">
           {sortLeadFirst(value).map((a) => {
             const knownModel = !a.model || MODEL_OPTIONS.some((m) => m.value === a.model);
             return (
-              <div key={a.role} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div key={a.role} className="flex items-center gap-2">
                 <span
-                  style={{
-                    fontSize: 11,
-                    color: a.is_lead ? 'var(--text)' : 'var(--text2)',
-                    fontWeight: a.is_lead ? 600 : 400,
-                    minWidth: 120,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 4,
-                  }}
+                  className={cx(
+                    'text-11 min-w-[120px] inline-flex items-center gap-1',
+                    a.is_lead ? 'text-fg font-semibold' : 'text-fg-2 font-normal',
+                  )}
                 >
-                  {a.is_lead ? <span style={{ color: 'var(--orange)' }}>★</span> : null}
+                  {a.is_lead ? <span className="text-orange">★</span> : null}
                   {a.role}
                 </span>
                 <select
@@ -147,18 +128,11 @@ export function AssignmentEditor({
                   disabled={disabled}
                   aria-label={`Model for ${a.role}`}
                   onChange={(e) => setModel(a.role, e.target.value === '' ? null : e.target.value)}
-                  style={{
-                    flex: 1,
-                    background: 'var(--bg)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 6,
-                    color: a.model ? 'var(--text)' : 'var(--text3)',
-                    fontSize: 11,
-                    padding: '3px 8px',
-                    fontFamily: 'var(--font)',
-                    cursor: disabled ? 'not-allowed' : 'pointer',
-                    outline: 'none',
-                  }}
+                  className={cx(
+                    'flex-1 bg-bg border border-line rounded-[6px] text-11 py-[3px] px-2 font-body outline-none',
+                    a.model ? 'text-fg' : 'text-fg-3',
+                    disabled ? 'cursor-not-allowed' : 'cursor-pointer',
+                  )}
                 >
                   <option value="">Agent default</option>
                   {MODEL_OPTIONS.map((opt) => (

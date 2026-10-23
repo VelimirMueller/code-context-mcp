@@ -1,32 +1,30 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, type CSSProperties } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePlanningStore, type MilestoneStatus } from '@/stores/planningStore';
 import { put } from '@/lib/api';
+import { cx } from '@/lib/utils';
 import type { Milestone } from '@/types';
 import { EpicList } from '@/components/organisms/EpicList';
 
-const smallButton = (busy: boolean): React.CSSProperties => ({
-  background: 'none',
-  border: '1px solid var(--border2)',
-  borderRadius: 6,
-  padding: '3px 10px',
-  fontSize: 11,
-  fontWeight: 600,
-  color: busy ? 'var(--text3)' : 'var(--text2)',
-  cursor: busy ? 'not-allowed' : 'pointer',
-  fontFamily: 'var(--font)',
-});
+const smallButtonBase =
+  'bg-transparent border border-line-2 rounded-[6px] py-[3px] px-[10px] text-11 font-semibold font-body';
+
+const smallButton = (busy: boolean) =>
+  cx(smallButtonBase, busy ? 'text-fg-3 cursor-not-allowed' : 'text-fg-2 cursor-pointer');
 
 function ProgressBar({ value, color = 'var(--accent)' }: { value: number; color?: string }) {
   return (
-    <div style={{ height: 4, background: 'var(--surface2)', borderRadius: 2, overflow: 'hidden' }}>
+    <div
+      style={{ '--c': color } as CSSProperties}
+      className="h-1 bg-surface-2 rounded-[2px] overflow-hidden"
+    >
       <motion.div
         initial={{ width: 0 }}
         animate={{ width: `${Math.min(100, value)}%` }}
         transition={{ duration: 0.5, ease: 'easeOut' }}
-        style={{ height: '100%', background: color, borderRadius: 2 }}
+        className="h-full bg-(--c) rounded-[2px]"
       />
     </div>
   );
@@ -85,61 +83,31 @@ function MilestoneCard({ milestone, onClose, onArchive, onUnarchive }: Milestone
 
   return (
     <div
-      style={{
-        background: 'var(--surface)',
-        border: '1px solid var(--border)',
-        borderLeft: `3px solid ${color}`,
-        borderRadius: 12,
-        padding: '16px 20px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 10,
-      }}
+      style={{ '--c': color, '--cb': `${color}18` } as CSSProperties}
+      className="bg-surface border border-line border-l-[3px] border-l-(--c) rounded-[12px] py-4 px-5 flex flex-col gap-[10px]"
     >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          gap: 12,
-        }}
-      >
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 2 }}>
-            {milestone.name}
-          </div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="text-14 font-bold text-fg mb-0.5">{milestone.name}</div>
           {milestone.description && (
-            <div style={{ fontSize: 12, color: 'var(--text3)', lineHeight: 1.5 }}>
-              {milestone.description}
-            </div>
+            <div className="text-12 text-fg-3 leading-[1.5]">{milestone.description}</div>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-              padding: '2px 8px',
-              borderRadius: 4,
-              background: `${color}18`,
-              color,
-            }}
-          >
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-10 font-bold uppercase tracking-[0.06em] py-0.5 px-2 rounded-[4px] bg-(--cb) text-(--c)">
             {milestone.status}
           </span>
           {!isArchived && !editing && (
             <button
               onClick={() => setEditing(true)}
               aria-label={`Edit ${milestone.name}`}
-              style={smallButton(false)}
+              className={smallButton(false)}
             >
               Edit
             </button>
           )}
           {isActive && !isArchived && (
-            <button onClick={handleClose} disabled={closing} style={smallButton(closing)}>
+            <button onClick={handleClose} disabled={closing} className={smallButton(closing)}>
               {closing ? '…' : 'Close'}
             </button>
           )}
@@ -149,7 +117,7 @@ function MilestoneCard({ milestone, onClose, onArchive, onUnarchive }: Milestone
             <button
               onClick={handleArchiveToggle}
               disabled={archiving}
-              style={smallButton(archiving)}
+              className={smallButton(archiving)}
             >
               {archiving ? '…' : isArchived ? 'Unarchive' : 'Archive'}
             </button>
@@ -161,7 +129,7 @@ function MilestoneCard({ milestone, onClose, onArchive, onUnarchive }: Milestone
 
       <ProgressBar value={pct} color={color} />
 
-      <div style={{ display: 'flex', gap: 20, fontSize: 11, color: 'var(--text3)' }}>
+      <div className="flex gap-5 text-11 text-fg-3">
         <span>
           {milestone.done_count ?? 0}/{milestone.ticket_count ?? 0} tickets
         </span>
@@ -174,15 +142,8 @@ function MilestoneCard({ milestone, onClose, onArchive, onUnarchive }: Milestone
   );
 }
 
-const fieldStyle: React.CSSProperties = {
-  background: 'var(--bg)',
-  border: '1px solid var(--border2)',
-  borderRadius: 6,
-  padding: '6px 10px',
-  fontSize: 12,
-  color: 'var(--text)',
-  fontFamily: 'var(--font)',
-};
+const fieldClass =
+  'bg-bg border border-line-2 rounded-[6px] py-[6px] px-[10px] text-12 text-fg font-body';
 
 /** Inline form for a new milestone; sends the body POST /api/milestones parses (#199). */
 function NewMilestoneForm({ onDone }: { onDone: () => void }) {
@@ -208,37 +169,34 @@ function NewMilestoneForm({ onDone }: { onDone: () => void }) {
   };
 
   return (
-    <form
-      onSubmit={submit}
-      style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}
-    >
+    <form onSubmit={submit} className="flex gap-2 items-center flex-wrap mb-[14px]">
       <input
         aria-label="Milestone name"
         placeholder="Milestone name"
         value={name}
         onChange={(e) => setName(e.target.value)}
         autoFocus
-        style={{ ...fieldStyle, flex: '1 1 200px' }}
+        className={cx(fieldClass, 'flex-[1_1_200px]')}
       />
       <input
         aria-label="Milestone target date"
         type="date"
         value={targetDate}
         onChange={(e) => setTargetDate(e.target.value)}
-        style={fieldStyle}
+        className={fieldClass}
       />
       <button
         type="submit"
         disabled={busy || !name.trim()}
-        style={smallButton(busy || !name.trim())}
+        className={smallButton(busy || !name.trim())}
       >
         {busy ? 'Creating…' : 'Create'}
       </button>
-      <button type="button" onClick={onDone} disabled={busy} style={smallButton(busy)}>
+      <button type="button" onClick={onDone} disabled={busy} className={smallButton(busy)}>
         Cancel
       </button>
       {error && (
-        <div role="alert" style={{ width: '100%', fontSize: 12, color: 'var(--red)' }}>
+        <div role="alert" className="w-full text-12 text-red">
           {error}
         </div>
       )}
@@ -285,15 +243,12 @@ function EditMilestoneForm({ milestone, onDone }: { milestone: Milestone; onDone
   };
 
   return (
-    <form
-      onSubmit={submit}
-      style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}
-    >
+    <form onSubmit={submit} className="flex gap-2 items-center flex-wrap">
       <select
         aria-label={`Status of ${milestone.name}`}
         value={status}
         onChange={(e) => setStatus(e.target.value as MilestoneStatus)}
-        style={fieldStyle}
+        className={fieldClass}
       >
         {MILESTONE_STATUSES.map((s) => (
           <option key={s.value} value={s.value}>
@@ -306,16 +261,16 @@ function EditMilestoneForm({ milestone, onDone }: { milestone: Milestone; onDone
         type="date"
         value={targetDate}
         onChange={(e) => setTargetDate(e.target.value)}
-        style={fieldStyle}
+        className={fieldClass}
       />
-      <button type="submit" disabled={busy} style={smallButton(busy)}>
+      <button type="submit" disabled={busy} className={smallButton(busy)}>
         {busy ? 'Saving…' : 'Save'}
       </button>
-      <button type="button" onClick={onDone} disabled={busy} style={smallButton(busy)}>
+      <button type="button" onClick={onDone} disabled={busy} className={smallButton(busy)}>
         Cancel
       </button>
       {error && (
-        <div role="alert" style={{ width: '100%', fontSize: 12, color: 'var(--red)' }}>
+        <div role="alert" className="w-full text-12 text-red">
           {error}
         </div>
       )}
@@ -348,53 +303,30 @@ export function ProjectManagement() {
   };
 
   return (
-    <div style={{ padding: '24px 28px', overflowY: 'auto', height: '100%' }}>
+    <div className="py-6 px-7 overflow-y-auto h-full">
       {/* Active milestones */}
-      <div style={{ marginBottom: 32 }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: 14,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-              color: 'var(--text3)',
-            }}
-          >
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-[14px]">
+          <div className="text-11 font-bold uppercase tracking-[0.08em] text-fg-3">
             Active Milestones
           </div>
           {!showCreate && (
-            <button onClick={() => setShowCreate(true)} style={smallButton(false)}>
+            <button onClick={() => setShowCreate(true)} className={smallButton(false)}>
               New milestone
             </button>
           )}
         </div>
         {showCreate && <NewMilestoneForm onDone={() => setShowCreate(false)} />}
         {active.length === 0 ? (
-          <div style={{ fontSize: 13, color: 'var(--text3)', padding: '20px 0' }}>
+          <div className="text-13 text-fg-3 py-5">
             No active milestones. Run{' '}
-            <code
-              style={{
-                fontFamily: 'var(--mono)',
-                fontSize: 12,
-                background: 'var(--surface2)',
-                padding: '1px 6px',
-                borderRadius: 4,
-              }}
-            >
+            <code className="font-code text-12 bg-surface-2 py-px px-1.5 rounded-[4px]">
               /kickoff
             </code>{' '}
             to create one.
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div className="flex flex-col gap-[10px]">
             {active.map((m) => (
               <MilestoneCard key={m.id} milestone={m} onClose={handleClose} />
             ))}
@@ -404,20 +336,11 @@ export function ProjectManagement() {
 
       {/* Completed, not yet archived */}
       {completed.length > 0 && (
-        <div style={{ marginBottom: 32 }}>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-              color: 'var(--text3)',
-              marginBottom: 14,
-            }}
-          >
+        <div className="mb-8">
+          <div className="text-11 font-bold uppercase tracking-[0.08em] text-fg-3 mb-[14px]">
             Completed ({completed.length})
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div className="flex flex-col gap-[10px]">
             {completed.map((m) => (
               <MilestoneCard
                 key={m.id}
@@ -435,26 +358,12 @@ export function ProjectManagement() {
         <div>
           <button
             onClick={() => setShowArchived((v) => !v)}
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: 11,
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-              color: 'var(--text3)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '0 0 14px',
-              fontFamily: 'var(--font)',
-            }}
+            className="bg-transparent border-none cursor-pointer text-11 font-bold uppercase tracking-[0.08em] text-fg-3 flex items-center gap-1.5 p-0 pb-[14px] font-body"
           >
             <motion.span
               animate={{ rotate: showArchived ? 90 : 0 }}
               transition={{ duration: 0.15 }}
-              style={{ display: 'inline-block' }}
+              className="inline-block"
             >
               ▶
             </motion.span>
@@ -467,9 +376,9 @@ export function ProjectManagement() {
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: 0.2 }}
-                style={{ overflow: 'hidden' }}
+                className="overflow-hidden"
               >
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div className="flex flex-col gap-[10px]">
                   {archived.map((m) => (
                     <MilestoneCard
                       key={m.id}
@@ -486,7 +395,7 @@ export function ProjectManagement() {
       )}
 
       {/* Epics — same archive model: completed epics archivable, archived behind a toggle */}
-      <div style={{ marginTop: 32 }}>
+      <div className="mt-8">
         <EpicList />
       </div>
     </div>

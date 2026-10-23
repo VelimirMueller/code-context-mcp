@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type CSSProperties } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useSprints } from '@/hooks/useSprints';
 import { useAgents } from '@/hooks/useAgents';
@@ -10,6 +10,7 @@ import { AnimatedNumber } from '@/components/atoms/AnimatedNumber';
 import { SprintList } from '@/components/organisms/SprintList';
 import { SprintDetail } from '@/components/organisms/SprintDetail';
 import { SubTabBar } from '@/components/molecules/SubTabBar';
+import { cx } from '@/lib/utils';
 import { pageVariants, pageTransition } from '@/lib/motion';
 
 const DASHBOARD_TABS = [
@@ -58,23 +59,17 @@ function ActivityFeed() {
       case 'deleted':
         return '#f87171';
       default:
-        return 'var(--text3)';
+        return 'var(--color-fg-3)';
     }
   };
 
   if (loading) {
     return (
-      <div style={{ padding: 20 }}>
+      <div className="p-5">
         {[1, 2, 3, 4].map((i) => (
           <div
             key={i}
-            style={{
-              height: 48,
-              background: 'var(--surface2)',
-              borderRadius: 8,
-              marginBottom: 8,
-              animation: 'pulse 1.5s ease-in-out infinite',
-            }}
+            className="mb-2 h-12 rounded-[8px] bg-surface-2 [animation:pulse_1.5s_ease-in-out_infinite]"
           />
         ))}
       </div>
@@ -82,51 +77,21 @@ function ActivityFeed() {
   }
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
+    <div className="flex-1 overflow-y-auto p-5">
       {/* Summary cards */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
-          gap: 12,
-          marginBottom: 20,
-        }}
-      >
+      <div className="mb-5 grid grid-cols-[repeat(4,1fr)] gap-3">
         {[
-          { label: 'Sprints Closed', value: closedCount, color: '#10b981' },
-          { label: 'Active Sprints', value: activeCount, color: '#60a5fa' },
-          { label: 'Total Tickets', value: totalTickets, color: 'var(--text)' },
-          { label: 'Done Tickets', value: doneTickets, color: '#10b981' },
+          { label: 'Sprints Closed', value: closedCount, color: 'text-green' },
+          { label: 'Active Sprints', value: activeCount, color: 'text-blue' },
+          { label: 'Total Tickets', value: totalTickets, color: 'text-fg' },
+          { label: 'Done Tickets', value: doneTickets, color: 'text-green' },
         ].map((card) => (
           <div
             key={card.label}
-            style={{
-              padding: 14,
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              textAlign: 'center',
-            }}
+            className="rounded-[8px] border border-line bg-surface p-3.5 text-center"
           >
-            <div
-              style={{
-                fontSize: 10,
-                fontWeight: 600,
-                color: 'var(--text3)',
-                textTransform: 'uppercase',
-                marginBottom: 6,
-              }}
-            >
-              {card.label}
-            </div>
-            <div
-              style={{
-                fontSize: 22,
-                fontWeight: 700,
-                fontFamily: 'var(--mono)',
-                color: card.color,
-              }}
-            >
+            <div className="mb-1.5 text-10 font-semibold text-fg-3 uppercase">{card.label}</div>
+            <div className={cx('font-code text-[22px] font-bold', card.color)}>
               <AnimatedNumber value={card.value} />
             </div>
           </div>
@@ -134,61 +99,40 @@ function ActivityFeed() {
       </div>
 
       {/* Activity feed */}
-      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>
-        Recent Activity
-      </div>
+      <div className="mb-3 text-14 font-bold text-fg">Recent Activity</div>
       {events.length === 0 ? (
-        <div style={{ padding: 40, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>
+        <div className="p-10 text-center text-13 text-fg-3">
           No activity recorded yet. Events are logged when tickets, sprints, and milestones change
           state.
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div className="flex flex-col gap-1.5">
           {events.map((e) => (
             <div
               key={e.id}
-              style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 10,
-                padding: '8px 12px',
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-              }}
+              className="flex items-start gap-2.5 rounded-[8px] border border-line bg-surface px-3 py-2"
             >
-              <span style={{ fontSize: 14, flexShrink: 0, marginTop: 2 }}>
-                {actionIcon(e.action)}
-              </span>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, color: 'var(--text)' }}>
-                  <span style={{ fontWeight: 600, color: actionColor(e.action) }}>{e.action}</span>{' '}
+              <span className="mt-0.5 shrink-0 text-14">{actionIcon(e.action)}</span>
+              <div className="flex-1">
+                <div className="text-12 text-fg">
+                  <span
+                    className="font-semibold text-(--c)"
+                    style={{ '--c': actionColor(e.action) } as CSSProperties}
+                  >
+                    {e.action}
+                  </span>{' '}
                   {e.entity_type} #{e.entity_id}
-                  {e.field_name && <span style={{ color: 'var(--text3)' }}> — {e.field_name}</span>}
+                  {e.field_name && <span className="text-fg-3"> — {e.field_name}</span>}
                 </div>
                 {(e.old_value || e.new_value) && (
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: 'var(--text3)',
-                      fontFamily: 'var(--mono)',
-                      marginTop: 2,
-                    }}
-                  >
+                  <div className="mt-0.5 font-code text-11 text-fg-3">
                     {e.old_value && <span>{e.old_value}</span>}
                     {e.old_value && e.new_value && <span> → </span>}
-                    {e.new_value && <span style={{ color: 'var(--text2)' }}>{e.new_value}</span>}
+                    {e.new_value && <span className="text-fg-2">{e.new_value}</span>}
                   </div>
                 )}
               </div>
-              <div
-                style={{
-                  fontSize: 10,
-                  color: 'var(--text3)',
-                  fontFamily: 'var(--mono)',
-                  flexShrink: 0,
-                }}
-              >
+              <div className="shrink-0 font-code text-10 text-fg-3">
                 {e.created_at?.slice(5, 16)}
               </div>
             </div>
@@ -223,7 +167,7 @@ export function Dashboard() {
   const dashTab = ['board', 'overview'].includes(activeTab) ? activeTab : 'board';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <div className="flex h-full flex-col overflow-hidden">
       <SubTabBar tabs={DASHBOARD_TABS} />
 
       {dashTab === 'board' && (
@@ -232,36 +176,15 @@ export function Dashboard() {
           initial="initial"
           animate={mounted ? 'animate' : 'initial'}
           transition={pageTransition}
-          style={{ display: 'flex', flex: 1, overflow: 'hidden' }}
+          className="flex flex-1 overflow-hidden"
         >
-          <div
-            style={{
-              width: 300,
-              flexShrink: 0,
-              borderRight: '1px solid var(--border)',
-              background: 'var(--surface)',
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
-            }}
-          >
-            <div
-              style={{
-                padding: '12px 16px',
-                borderBottom: '1px solid var(--border)',
-                fontSize: 11,
-                fontWeight: 600,
-                color: 'var(--text3)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.08em',
-                flexShrink: 0,
-              }}
-            >
+          <div className="flex w-75 shrink-0 flex-col overflow-hidden border-r border-r-line bg-surface">
+            <div className="shrink-0 border-b border-b-line px-4 py-3 text-11 font-semibold tracking-[0.08em] text-fg-3 uppercase">
               Sprints
             </div>
             <SprintList />
           </div>
-          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <div className="flex flex-1 flex-col overflow-hidden">
             <SprintDetail />
           </div>
         </motion.div>

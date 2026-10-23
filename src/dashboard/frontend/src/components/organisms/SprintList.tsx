@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type CSSProperties } from 'react';
 import { useSprintStore } from '@/stores/sprintStore';
 import { SprintCard } from '@/components/molecules/SprintCard';
 import { AlertDialog } from '@/components/molecules/AlertDialog';
+import { cx } from '@/lib/utils';
 import type { MilestoneSprintGroup, Sprint } from '@/types';
 
 const ARCHIVABLE_STATUSES = ['closed', 'rest', 'done'];
@@ -65,17 +66,11 @@ export function SprintList() {
 
   if (loading && milestoneGroups.length === 0 && sprints.length === 0) {
     return (
-      <div style={{ padding: 16 }}>
+      <div className="p-4">
         {[1, 2, 3].map((i) => (
           <div
             key={i}
-            style={{
-              height: 72,
-              background: 'var(--surface2)',
-              borderRadius: 'var(--radius)',
-              marginBottom: 6,
-              animation: 'pulse 1.5s ease-in-out infinite',
-            }}
+            className="mb-1.5 h-18 rounded-card bg-surface-2 [animation:pulse_1.5s_ease-in-out_infinite]"
           />
         ))}
       </div>
@@ -99,7 +94,7 @@ export function SprintList() {
       return (b.created_at || '').localeCompare(a.created_at || '');
     });
     return (
-      <div style={{ padding: 12, overflowY: 'auto', flex: 1 }}>
+      <div className="flex-1 overflow-y-auto p-3">
         {sorted.map((sprint) => (
           <SprintCard
             key={sprint.id}
@@ -113,11 +108,7 @@ export function SprintList() {
   }
 
   if (milestoneGroups.length === 0) {
-    return (
-      <div style={{ padding: 40, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>
-        No sprints found
-      </div>
-    );
+    return <div className="p-10 text-center text-13 text-fg-3">No sprints found</div>;
   }
 
   // Archive state is orthogonal to status: filter each group by archived_at.
@@ -134,18 +125,8 @@ export function SprintList() {
   const bulkEligibleCount = sprints.filter(isArchiveEligible).length;
 
   return (
-    <div style={{ padding: 12, overflowY: 'auto', flex: 1 }}>
-      <div
-        style={{
-          fontSize: 10,
-          fontWeight: 600,
-          color: 'var(--text3)',
-          textTransform: 'uppercase',
-          letterSpacing: '0.05em',
-          padding: '0 4px 8px',
-          marginBottom: 4,
-        }}
-      >
+    <div className="flex-1 overflow-y-auto p-3">
+      <div className="mb-1 px-1 pb-2 text-10 font-semibold tracking-[0.05em] text-fg-3 uppercase">
         Sprints
       </div>
 
@@ -159,41 +140,21 @@ export function SprintList() {
         const isCompleted = ms?.status === 'completed';
 
         return (
-          <div key={key} style={{ marginBottom: 8 }}>
+          <div key={key} className="mb-2">
             {/* Milestone header */}
             <button
               onClick={() => toggleCollapse(key)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                width: '100%',
-                padding: '6px 8px',
-                background: 'none',
-                border: 'none',
-                borderRadius: 6,
-                cursor: 'pointer',
-                fontFamily: 'var(--font)',
-                transition: 'background 0.15s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'var(--surface2)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'none';
-              }}
+              className="flex w-full cursor-pointer items-center gap-2 rounded-[6px] border-none bg-transparent px-2 py-1.5 font-body [transition:background_0.15s] hover:bg-surface-2"
             >
               <svg
                 width="12"
                 height="12"
                 viewBox="0 0 16 16"
                 fill="currentColor"
-                style={{
-                  color: 'var(--text3)',
-                  transition: 'transform 0.2s',
-                  transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)',
-                  flexShrink: 0,
-                }}
+                className={cx(
+                  'shrink-0 text-fg-3 [transition:transform_0.2s]',
+                  isCollapsed ? '[transform:rotate(0deg)]' : '[transform:rotate(90deg)]',
+                )}
               >
                 <path d="M6 3l5 5-5 5z" />
               </svg>
@@ -201,65 +162,30 @@ export function SprintList() {
               {ms ? (
                 <>
                   <span
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: isCompleted ? 'var(--text3)' : 'var(--text)',
-                      flex: 1,
-                      textAlign: 'left',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
+                    className={cx(
+                      'flex-1 truncate text-left text-11 font-bold',
+                      isCompleted ? 'text-fg-3' : 'text-fg',
+                    )}
                   >
                     {ms.name}
                   </span>
                   <span
                     data-testid={`milestone-pct-${ms.id}`}
-                    style={{
-                      fontSize: 9,
-                      fontFamily: 'var(--mono)',
-                      fontWeight: 600,
-                      color: statusColor,
-                      textTransform: 'uppercase',
-                      flexShrink: 0,
-                    }}
+                    className="shrink-0 font-code text-9 font-semibold text-(--c) uppercase"
+                    style={{ '--c': statusColor } as CSSProperties}
                   >
                     {pct}%
                   </span>
-                  <span
-                    style={{
-                      fontSize: 9,
-                      fontFamily: 'var(--mono)',
-                      color: 'var(--text3)',
-                      flexShrink: 0,
-                    }}
-                  >
+                  <span className="shrink-0 font-code text-9 text-fg-3">
                     {group.sprints.length}
                   </span>
                 </>
               ) : (
                 <>
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: 'var(--text3)',
-                      fontStyle: 'italic',
-                      flex: 1,
-                      textAlign: 'left',
-                    }}
-                  >
+                  <span className="flex-1 text-left text-11 font-semibold text-fg-3 italic">
                     Unassigned
                   </span>
-                  <span
-                    style={{
-                      fontSize: 9,
-                      fontFamily: 'var(--mono)',
-                      color: 'var(--text3)',
-                      flexShrink: 0,
-                    }}
-                  >
+                  <span className="shrink-0 font-code text-9 text-fg-3">
                     {group.sprints.length}
                   </span>
                 </>
@@ -268,31 +194,18 @@ export function SprintList() {
 
             {/* Progress bar for milestone */}
             {ms && !isCollapsed && (
-              <div
-                style={{
-                  margin: '2px 8px 6px',
-                  height: 2,
-                  background: 'var(--surface3)',
-                  borderRadius: 1,
-                  overflow: 'hidden',
-                }}
-              >
+              <div className="mx-2 mt-0.5 mb-1.5 h-0.5 overflow-hidden rounded-[1px] bg-surface-3">
                 <div
                   data-testid={`milestone-bar-${ms.id}`}
-                  style={{
-                    width: `${pct}%`,
-                    height: '100%',
-                    background: statusColor,
-                    borderRadius: 1,
-                    transition: 'width 0.4s ease',
-                  }}
+                  className="h-full rounded-[1px] bg-(--c) [transition:width_0.4s_ease]"
+                  style={{ width: `${pct}%`, '--c': statusColor } as CSSProperties}
                 />
               </div>
             )}
 
             {/* Sprint cards */}
             {!isCollapsed && (
-              <div style={{ marginLeft: 8 }}>
+              <div className="ml-2">
                 {group.sprints.map((sprint) => (
                   <SprintCard
                     key={sprint.id}
@@ -309,24 +222,12 @@ export function SprintList() {
 
       {/* Bulk archive + archive section */}
       {(bulkEligibleCount > 0 || archivedGroups.length > 0) && (
-        <div style={{ marginTop: 8 }}>
+        <div className="mt-2">
           {/* Archive all completed: same button style as the archive toggle */}
           {bulkEligibleCount > 0 && (
             <button
               onClick={() => setShowBulkDialog(true)}
-              style={{
-                width: '100%',
-                background: 'none',
-                border: '1px solid var(--border2)',
-                borderRadius: 6,
-                color: 'var(--text3)',
-                fontSize: 11,
-                padding: '6px 10px',
-                cursor: 'pointer',
-                fontFamily: 'var(--font)',
-                textAlign: 'center',
-                marginBottom: 6,
-              }}
+              className="w-full cursor-pointer rounded-[6px] border border-line-2 bg-transparent px-2.5 py-1.5 text-center font-body text-11 text-fg-3 mb-1.5"
             >
               Archive all completed ({bulkEligibleCount})
             </button>
@@ -335,18 +236,7 @@ export function SprintList() {
           {archivedGroups.length > 0 && (
             <button
               onClick={() => setShowArchive(!showArchive)}
-              style={{
-                width: '100%',
-                background: 'none',
-                border: '1px solid var(--border2)',
-                borderRadius: 6,
-                color: 'var(--text3)',
-                fontSize: 11,
-                padding: '6px 10px',
-                cursor: 'pointer',
-                fontFamily: 'var(--font)',
-                textAlign: 'center',
-              }}
+              className="w-full cursor-pointer rounded-[6px] border border-line-2 bg-transparent px-2.5 py-1.5 text-center font-body text-11 text-fg-3"
             >
               {showArchive ? 'Hide' : 'Show'} Archive (
               {archivedGroups.reduce((a, g) => a + g.sprints.length, 0)} sprints)
@@ -358,55 +248,30 @@ export function SprintList() {
               const isCollapsed = collapsed.has(key);
               const ms = group.milestone;
               return (
-                <div key={key} style={{ marginTop: 6, opacity: 0.6 }}>
+                <div key={key} className="mt-1.5 opacity-60">
                   <button
                     onClick={() => toggleCollapse(key)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      width: '100%',
-                      padding: '6px 8px',
-                      background: 'none',
-                      border: 'none',
-                      borderRadius: 6,
-                      cursor: 'pointer',
-                      fontFamily: 'var(--font)',
-                    }}
+                    className="flex w-full cursor-pointer items-center gap-2 rounded-[6px] border-none bg-transparent px-2 py-1.5 font-body"
                   >
                     <svg
                       width="12"
                       height="12"
                       viewBox="0 0 16 16"
                       fill="currentColor"
-                      style={{
-                        color: 'var(--text3)',
-                        transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)',
-                        flexShrink: 0,
-                      }}
+                      className={cx(
+                        'shrink-0 text-fg-3',
+                        isCollapsed ? '[transform:rotate(0deg)]' : '[transform:rotate(90deg)]',
+                      )}
                     >
                       <path d="M6 3l5 5-5 5z" />
                     </svg>
-                    <span
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        color: 'var(--text3)',
-                        flex: 1,
-                        textAlign: 'left',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
+                    <span className="flex-1 truncate text-left text-11 font-semibold text-fg-3">
                       {ms?.name ?? 'Unassigned'}
                     </span>
-                    <span style={{ fontSize: 9, fontFamily: 'var(--mono)', color: 'var(--text3)' }}>
-                      {group.sprints.length}
-                    </span>
+                    <span className="font-code text-9 text-fg-3">{group.sprints.length}</span>
                   </button>
                   {!isCollapsed && (
-                    <div style={{ marginLeft: 8 }}>
+                    <div className="ml-2">
                       {group.sprints.map((sprint) => (
                         <SprintCard
                           key={sprint.id}
