@@ -15,14 +15,8 @@ export const LEGACY_INLINE_STYLE = [
   'components/molecules/SubTabBar.tsx',
   'components/molecules/TabBar.tsx',
   'components/molecules/WizardModal.tsx',
-  'components/organisms/BentoGrid.tsx',
   'components/organisms/DashboardTour.tsx',
-  'components/organisms/EpicList.tsx',
   'components/organisms/LandingAnimation.tsx',
-  'components/organisms/SprintCompletionPanel.tsx',
-  'components/organisms/SprintDetail.tsx',
-  'components/organisms/SprintList.tsx',
-  'pages/Benchmark.tsx',
 ];
 
 // #293: class names the Tailwind config does not know: global classes in src/index.css and
