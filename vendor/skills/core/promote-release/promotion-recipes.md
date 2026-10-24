@@ -12,6 +12,7 @@ git merge-base --is-ancestor origin/stage origin/develop || exit 1   # ff possib
 git merge-base --is-ancestor origin/main origin/stage || exit 1      # invariant holds
 git log --oneline origin/stage..$SHA
 git push origin "$SHA:refs/heads/stage"                              # no --force
+gh workflow run infra.yml --ref stage -f environment=stg -f mode=apply  # only without promote.yml
 ```
 
 Wait for stg green, then:
@@ -21,6 +22,7 @@ SHA=$(git rev-parse origin/stage)
 git merge-base --is-ancestor origin/main origin/stage || exit 1
 git log --oneline origin/main..$SHA
 git push origin "$SHA:refs/heads/main"                               # no --force
+gh workflow run infra.yml --ref main -f environment=prd -f mode=apply    # only without promote.yml
 ```
 
 ## Hotfix on main — both paths
@@ -39,7 +41,8 @@ git checkout -b hotfix/<id> origin/main
 gh pr create --base main --head hotfix/<id>
 # merge it as a MERGE COMMIT, never squash; branch-policy allows only hotfix/* heads into main
 # then immediately (a) fast-forward stage to main:  gh workflow run promote.yml -f target=stg-hotfix
-# and (b) back-merge main into develop (below; branch-sync opens this PR for you):
+# and (b) back-merge main into develop (below; branch-sync opens this PR for you),
+# and (c) deploy it: gh workflow run promote.yml -f target=prd   (skips the fast-forward, asks promote-prd)
 ```
 
 If `stage != main` (a release is in flight on stg), do not hotfix on `main`: promote or reset the
