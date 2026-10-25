@@ -4,7 +4,13 @@ Three long-lived branches, one environment each: `develop` → `dev`, `stage` �
 Promotion is a fast-forward of a verified SHA, never a merge or squash, and all three branches stay in
 sync. **This is the norm for every deploy** — every repo with environments follows this contract unless a
 deviation at the end applies. Procedure: [promote-release](../promote-release/SKILL.md); full commands:
-[promotion-recipes](../promote-release/promotion-recipes.md).
+[promotion-recipes](../promote-release/promotion-recipes.md). The fleet standard (`VelimirMueller/fleet-standard`,
+rules `CI-*`, `CI-COST-*`, `GOV-*`) builds on this contract and makes it checkable with `fleet check`.
+
+Every deploy starts by hand (fleet standard CI-COST-01): `dev` by `deploy.yml` dispatched on `develop`, `stg` and
+`prd` by `promote.yml`, which fast-forwards the branch and deploys in the same run. A merge or a push deploys
+nothing. When `promote.yml` exists, every stg and prd deploy goes through it, so the `promote-stg`/`promote-prd`
+approvals apply; a direct `infra.yml` dispatch is only for repos that do not have `promote.yml` yet.
 
 | Branch | Environment | GitHub env (deploy) | Gets changes by |
 |---|---|---|---|
@@ -91,6 +97,8 @@ fast lane (same gates, minutes not days). Only when `develop` holds unreleased w
    (`gh workflow run promote.yml -f target=stg-hotfix`), and (b) merge the back-merge PR `main → develop`
    (merge commit, never squash). The branch-sync workflow opens that PR automatically and stays red until
    both are done.
+4. Deploy the merged hotfix to `prd`: `gh workflow run promote.yml -f target=prd`. `main` already holds the
+   SHA, so the run skips the fast-forward and asks only the `promote-prd` approval.
 
 If `stage != main` (a release is in flight on stg), do not hotfix on `main`: promote or reset the
 in-flight release first, or go through `develop`.
@@ -161,27 +169,30 @@ commits that are already live.
 
 Server-side, so a workflow edit cannot remove it:
 
-- **Rulesets on `stage` and `main`:** pull request required, required status check `branch-policy`, allowed
-  merge method `merge` only, block force push (`non_fast_forward`), block deletion. The promotion GitHub App
+- **One ruleset per branch, named after the branch.** `stage` and `main`: pull request required, required
+  status check `branch-policy` (plus `conclusion` on `main`), allowed merge method `merge` only, block force push (`non_fast_forward`), block deletion. The promotion GitHub App
   is the only bypass actor: it skips the pull-request rule for its fast-forward push, and Git still rejects
   anything that is not a fast-forward. `branch-policy` fails every PR into `stage` and every PR into `main`
   whose head is not `hotfix/*`, so the only human path into `main` is a reviewed hotfix PR. Do not use
   "restrict updates" — it blocks the hotfix merge too. No human bypass by default; repo admins documented
   as break-glass only.
-- **`develop`:** PR required, 1 approval, code owners, dismiss stale, `strict` required checks (one
-  `conclusion` job as the required context), conversation resolution. Allow squash **and** merge commits:
+- **`develop`:** PR required, 0 approvals (one maintainer), dismiss stale, `strict` required checks
+  (`conclusion` from `ci.yml`, and `fleet-check` once the repo has it), conversation resolution, no bypass.
+  Allow squash **and** merge commits:
   feature PRs squash, the back-merge PR `sync/main-into-develop` must use a merge commit (a squash keeps
   `main` ahead forever).
-- **GitHub environments:** `promote-stg` (required reviewers), `promote-prd` (required reviewers,
-  `prevent_self_review: true`), `tf-apply-prd` (required reviewers, `prevent_self_review: true`),
-  `dev`/`stg`/`prd` (deploy credentials, NO reviewers, deployment branch policy = `develop`/`stage`/`main`
-  respectively), `dev-plan`/`stg-plan`/`prd-plan` (read-only plan credentials, no reviewers, no branch policy —
-  a `pull_request` run does not match a branch pattern, and the identity cannot change anything; used by
-  PR plans, dispatch plans and the drift job).
+- **GitHub environments:** `promote-stg`, `promote-prd`, `tf-apply-prd` (required reviewers, no admin bypass,
+  `prevent_self_review: false` while the repo has one maintainer — fleet standard CI-GATE-03; `true` would
+  deadlock every gate — and `true` once a second maintainer joins), `dev`/`stg`/`prd` (deploy credentials, NO reviewers, deployment branch policy =
+  `develop`/`stage`/`main` respectively), `dev-plan`/`stg-plan`/`prd-plan` (read-only plan credentials, no
+  reviewers, no branch policy — the drift job plans every env from one ref, and the identity cannot change
+  anything; used by plan-only dispatches and the drift job).
 - An environment without `required_reviewers` never waits — the setup script asserts reviewers are non-empty
   on every gate environment.
-- **App token, not `GITHUB_TOKEN`:** pushes made with `GITHUB_TOKEN` do NOT trigger other workflows. The
-  promotion push uses a GitHub App installation token so the push to `stage`/`main` starts the deploy pipeline.
+- **App token, not `GITHUB_TOKEN`:** only the promotion App is a bypass actor on the `stage`/`main`
+  rulesets, so the fast-forward push uses its installation token. The deploy after the push is a
+  `workflow_dispatch` from the same promotion run (a `GITHUB_TOKEN` dispatch does start a run; a
+  `GITHUB_TOKEN` push would not).
 
 ## When to deviate
 
@@ -189,5 +200,8 @@ Server-side, so a workflow edit cannot remove it:
   `main` gets changes by fast-forward only, and promotion is `main := develop@<sha>`.
 - **A trunk-only repo with tag deploys is NOT this contract.** One branch, deploys by tag. If it needs
   environment promotion, migrate it to this contract; do not bolt promotion onto tags.
-- **A solo repo:** the reviewer is the author. Keep the gate as a pause for the plan output and say so — it
-  is not a second pair of eyes.
+- **A solo repo:** the reviewer is the author (`prevent_self_review: false`, above). Keep the gate as a pause
+  for the plan output and say so — it is not a second pair of eyes.
+- **A private repo on GitHub Free:** no rulesets, no environments, no reviewers. The dispatch is the approval
+  (fleet standard GOV-PRV-02); the `private-free` variant in
+  [set-up-terraform-pipeline](../../infra/set-up-terraform-pipeline/workflow-templates.md) shows the changes.
