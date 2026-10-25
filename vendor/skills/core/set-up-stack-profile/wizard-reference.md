@@ -54,14 +54,15 @@ Recommended defaults are rooted in [engineering-principles.md](../_shared/engine
 
 | Profile signal | Plugin | Install id |
 |---|---|---|
-| always | `devcore` | `devcore@claude-development-skills` |
-| `frontend.framework` is `react` or `vue` | `frontendskills` (also contains the landing skills) | `frontendskills@claude-development-skills` |
-| `backend.track` is not `none`, or a `database` is set | `backendskills` | `backendskills@claude-development-skills` |
-| `hosting` has `hetzner`/`ionos`, or `iac: opentofu`, or CI/deploy work | `infraskills` | `infraskills@claude-development-skills` |
-| `hosting` includes `azure`/`aws` (cloud), or Airtable/SigNoz is used, or alerting work | `opsskills` | `opsskills@claude-development-skills` |
-| a Go/Rust/Python/TS CLI is built | `cliskills` | `cliskills@claude-development-skills` |
-| `ai.provider` is not `none` | `aiskills` | `aiskills@claude-development-skills` |
-| a game or interactive canvas is built | `gameskills` | `gameskills@claude-development-skills` |
+| always | `devcore` | `devcore@ai-development-skills` |
+| any non-trivial implementation or refactoring work | `craftskills` | `craftskills@ai-development-skills` |
+| `frontend.framework` is `react` or `vue` | `frontendskills` (also contains the landing skills) | `frontendskills@ai-development-skills` |
+| `backend.track` is not `none`, or a `database` is set | `backendskills` | `backendskills@ai-development-skills` |
+| `hosting` has `hetzner`/`ionos`, or `iac: opentofu`, or CI/deploy work | `infraskills` | `infraskills@ai-development-skills` |
+| `hosting` includes `azure`/`aws` (cloud), or Airtable/SigNoz is used, or alerting work | `opsskills` | `opsskills@ai-development-skills` |
+| a Go/Rust/Python/TS CLI is built | `cliskills` | `cliskills@ai-development-skills` |
+| `ai.provider` is not `none` | `aiskills` | `aiskills@ai-development-skills` |
+| a game or interactive canvas is built | `gameskills` | `gameskills@ai-development-skills` |
 
 Plugins that are not yet published in the marketplace are listed as "planned". Check `.claude-plugin/marketplace.json` for which exist before printing install commands.
 

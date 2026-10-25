@@ -42,8 +42,9 @@ proves the source SHA deployed green on the previous environment before it moves
   ```bash
   gh workflow run promote.yml -f target=stg
   ```
-  The workflow runs the preflight, waits on `promote-stg`, pushes the SHA and waits for the deploy
-  pipeline. Do the same for `prd` with `-f target=prd` once stg is green.
+  The workflow runs the preflight (and `e2e` for stg), waits on `promote-stg`, pushes the SHA, starts the
+  stg deploy and waits for it. Do the same for `prd` with `-f target=prd` once stg is green. `dev` must have
+  deployed the SHA first: `gh workflow run deploy.yml --ref develop`.
 - No workflow yet → manual fast-forward push of the verified SHA with the same checks (steps 4 to 7), and
   recommend [set-up-terraform-pipeline](../../infra/set-up-terraform-pipeline/SKILL.md) (infra) or
   [set-up-delivery-pipeline](../../infra/set-up-delivery-pipeline/SKILL.md) (apps) to add `promote.yml`, so
@@ -58,7 +59,8 @@ git push origin "$SHA:refs/heads/stage"       # fast-forward only; never --force
 ```
 
 On a manual run, confirm the SHA deployed green on `dev` first (the deployment lookup in step 1). The
-workflow's preflight does this for you.
+workflow's preflight does this for you. With the fleet pipeline a push deploys nothing; in a repo without `promote.yml`, start
+the deploy by hand: `gh workflow run infra.yml --ref stage -f environment=stg -f mode=apply`.
 
 ## 5. Wait
 
@@ -84,7 +86,8 @@ git log --oneline origin/main..$SHA
 git push origin "$SHA:refs/heads/main"
 ```
 
-Then wait (step 5) for the prd pipeline run of that SHA.
+Then start the prd deploy (`gh workflow run infra.yml --ref main -f environment=prd -f mode=apply`) and wait
+(step 5) for that run.
 
 ## 7. Verify
 
