@@ -3,6 +3,8 @@ name: ci
 
 on:
   pull_request:
+    # Only develop and main (fleet standard CI-COST-19, no exception). The old release/**
+    # and integration/** targets had no branch and no open PR on 2026-10-28.
     branches: [develop, main]
     types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
@@ -18,6 +20,7 @@ defaults:
   run:
     shell: bash
 
+# On pull_request events github.event.number is the PR number (webhook payload `number`).
 concurrency:
   group: ci-${{ github.event.number || github.ref }}
   cancel-in-progress: true
@@ -55,8 +58,10 @@ jobs:
     with:
       stack: node
       # ESLint and Prettier instead of Biome. The repo is not formatted as a whole yet (#191), so
-      # Prettier checks only the files this change touches: HEAD^1 is the base side of the PR
-      # merge commit (the checkout is shallow, so deepen it by one first).
+      # Prettier checks only the files this change touches. A pull_request run checks out the
+      # merge commit refs/pull/N/merge, so HEAD^1 is the base branch tip and HEAD^1...HEAD is
+      # the PR diff. The checkout is shallow (depth 1), so deepen it by one first. A dispatch
+      # run checks the last commit of the branch.
       command: |
         pnpm run lint
         git fetch --no-tags --quiet --deepen=1 origin "$(git rev-parse HEAD)"
