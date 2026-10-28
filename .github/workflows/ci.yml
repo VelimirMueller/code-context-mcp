@@ -40,6 +40,8 @@ jobs:
         id: filter
         if: github.event_name == 'pull_request'
         uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        # Template logic: `every` makes a file count as code when it matches all the negations
+        # (no .md, not in docs/ …). One such file in a mixed PR sets code=true.
         with:
           predicate-quantifier: every
           filters: |
