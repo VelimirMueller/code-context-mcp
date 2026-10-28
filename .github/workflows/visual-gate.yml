@@ -2,10 +2,8 @@ name: visual-gate
 
 # The baseline gate (#293) reads the `visual-change` label, so label events re-run
 # it. It is its own workflow, like contract.yml, so a label run never cancels the
-# full CI run. The pixel comparison itself runs locally (`pnpm run test:visual`,
-# the pinned Playwright container): the fleet standard runs browser tests only on
-# demand (CI-COST-11). Fleet standard: a label gate outside the taxonomy (fleet.yml
-# exception WF-FILE-02).
+# full CI run. The pixel comparison itself stays in ci.yml (job `visual`).
+# Fleet standard: a label gate outside the taxonomy (fleet.yml exception WF-FILE-02).
 on:
   pull_request:
     branches: [develop, main]

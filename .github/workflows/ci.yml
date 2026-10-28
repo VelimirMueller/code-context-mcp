@@ -130,8 +130,50 @@ jobs:
         pnpm --dir docs install --frozen-lockfile
         pnpm --dir docs run build
 
+  # Visual regression gate (#293): screenshots and computed styles against the baselines, in
+  # the pinned Playwright image that scripts/visual.sh uses locally, so both render the same.
+  # It runs on every code PR (fleet.yml exceptions CI-COST-11 and WF-NAME-02). The label gate
+  # for baseline changes is in visual-gate.yml.
+  visual:
+    needs: changes
+    if: ${{ !failure() && !cancelled() && needs.changes.outputs.code == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble
+      options: --ipc=host
+    steps:
+      - name: Check out the source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - name: Set up pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - name: Set up Node
+        uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
+        with:
+          node-version: '24'
+          cache: pnpm
+      - name: Install the dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build the dashboard
+        run: pnpm run build
+      - name: Screenshots and computed styles match the baselines
+        run: pnpm exec playwright test -c playwright.visual.config.ts
+      - name: Upload the diff report
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: visual-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
   conclusion:
-    needs: [changes, lint, unit, e2e, build]
+    needs: [changes, lint, unit, e2e, build, visual]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
