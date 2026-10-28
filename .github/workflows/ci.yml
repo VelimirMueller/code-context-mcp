@@ -65,6 +65,9 @@ jobs:
       command: |
         pnpm run lint
         git fetch --no-tags --quiet --deepen=1 origin "$(git rev-parse HEAD)"
+        if [ "$GITHUB_EVENT_NAME" = pull_request ] && ! git rev-parse --verify -q 'HEAD^2' >/dev/null; then
+          echo "::error::expected the PR merge commit; HEAD^1 would not be the base"; exit 1
+        fi
         pnpm run format:changed HEAD^1
         pnpm exec tsc --noEmit
         pnpm run typecheck:dashboard
@@ -132,6 +135,8 @@ jobs:
     timeout-minutes: 5
     permissions: {}
     steps:
+      # Template logic: a skipped stage passes only when no code changed (CODE false). With
+      # CODE true, lint, unit and build must each be success; skipped fails.
       - name: Fail when a job failed or a required stage was skipped
         env:
           CODE: ${{ needs.changes.outputs.code }}
