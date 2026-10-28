@@ -179,8 +179,9 @@ jobs:
       - name: Publish run data to bench-results
         run: pnpm run bench:publish
 
-      # A push with the workflow token starts no workflow, so dispatch the two
-      # readers of bench-results by hand.
+      # A push with the workflow token starts no workflow, so dispatch the two readers of
+      # bench-results. workflow_dispatch is the documented exception: GITHUB_TOKEN can start
+      # it (actions: write above). pages.yml was already started this way.
       - name: Rebuild the Pages site and the benchmarks/latest snapshot PR
         env:
           GH_TOKEN: ${{ github.token }}
