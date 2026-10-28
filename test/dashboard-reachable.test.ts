@@ -77,8 +77,9 @@ describe('unreachable dashboard modules (#223)', () => {
       'node scripts/check-dashboard-reachable.mjs',
     );
     const ci = read('.github/workflows/ci.yml');
-    const lintJob = ci.slice(ci.indexOf('\n  lint:'), ci.indexOf('\n  e2e:'));
-    expect(lintJob).toMatch(/^\s+run: pnpm run check:dashboard-reachable$/m);
+    const lintJob = ci.slice(ci.indexOf('\n  lint:'), ci.indexOf('\n  unit:'));
+    // A line of the lint stage command (fleet-workflows runs it with errexit).
+    expect(lintJob).toMatch(/^\s+pnpm run check:dashboard-reachable$/m);
     expect(lintJob).not.toMatch(/check:dashboard-reachable.*\|\|/);
     expect(lintJob).not.toMatch(/continue-on-error/);
   });
