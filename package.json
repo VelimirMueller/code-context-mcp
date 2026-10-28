@@ -27,6 +27,7 @@
     "!scripts/format-changed.mjs",
     "!scripts/check-contract-change.mjs",
     "!scripts/check-visual-change.mjs",
+    "!scripts/check-defaults.sh",
     "!scripts/visual.sh",
     "comparison.json",
     "benchmark-results.json",

@@ -1,4 +1,4 @@
-name: Benchmark
+name: benchmark
 
 # On-demand benchmarks only — never a schedule (test/bench-guard.test.ts).
 # kind=simulated runs the token-cost simulation. kind=agent runs a real
@@ -36,13 +36,18 @@ on:
 # Nothing by default; each job declares its own permissions below.
 permissions: {}
 
+defaults:
+  run:
+    shell: bash
+
 concurrency:
-  group: benchmark
+  group: benchmark-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   run:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
     outputs:
@@ -71,9 +76,11 @@ jobs:
       #   pnpm/action-setup  v6.1.0 = ea17c68df8912ef543352723c149a84f56e3d413
       # It reads the pnpm version from packageManager in package.json and runs
       # before setup-node, which needs pnpm on PATH for cache: pnpm.
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - name: Set up pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
-      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
+      - name: Set up Node
+        uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
         with:
           node-version: 24
           cache: pnpm
@@ -84,16 +91,15 @@ jobs:
           pnpm run build
 
       - name: Run simulated benchmark
-        if: inputs.kind == 'simulated'
         id: simulated
+        if: inputs.kind == 'simulated'
         run: |
           pnpm run bench
           echo "ran=true" >> "$GITHUB_OUTPUT"
 
       - name: Run agent benchmark (clean skip without the key secret)
-        if: inputs.kind == 'agent'
         id: agent
-        shell: bash
+        if: inputs.kind == 'agent'
         env:
           ZAI_API_KEY: ${{ secrets.ZAI_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
@@ -138,21 +144,25 @@ jobs:
           name: bench-data
           path: data/runs
           if-no-files-found: error
+          retention-days: 1
 
   publish:
     needs: run
-    if: needs.run.outputs.should_publish == 'true'
+    if: github.event_name == 'workflow_dispatch' && needs.run.outputs.should_publish == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
       actions: write
     steps:
-      - name: Check out main (persisted credentials for push)
+      - name: Check out main (persisted credentials for push) # zizmor: ignore[artipacked]
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - name: Set up pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
-      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
+      - name: Set up Node
+        uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
         with:
           node-version: 24
           cache: pnpm
@@ -169,7 +179,12 @@ jobs:
       - name: Publish run data to bench-results
         run: pnpm run bench:publish
 
-      - name: Rebuild the Pages site
+      # A push with the workflow token starts no workflow, so dispatch the two readers of
+      # bench-results. workflow_dispatch is the documented exception: GITHUB_TOKEN can start
+      # it (actions: write above). pages.yml was already started this way.
+      - name: Rebuild the Pages site and the benchmarks/latest snapshot PR
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run pages.yml --ref "$GITHUB_REF_NAME"
+        run: |
+          gh workflow run pages.yml --ref "$GITHUB_REF_NAME"
+          gh workflow run bench-snapshot.yml --ref "$GITHUB_REF_NAME"

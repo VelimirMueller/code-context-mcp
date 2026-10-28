@@ -1,130 +1,165 @@
-name: CI
+# Fleet standard ci.yml (library tier, public). Stages call VelimirMueller/fleet-workflows at v0.0.2.
+name: ci
 
 on:
-  push:
-    # develop: every change enters there (branch promotion develop → main).
-    # No integration/** or release/** here: those branches are PR targets and
-    # their PRs already run CI on the same commit (a push run would double it).
-    branches: [main, develop]
   pull_request:
-    # release/** too: a major lands on its release branch first (#179).
-    # integration/** too: slice PRs land on an integration branch first (#293).
-    branches: [main, develop, 'release/**', 'integration/**']
-    # No labeled/unlabeled: a label run would cancel the full run in the same
-    # concurrency group. The label-sensitive contract gate lives in contract.yml.
-    types: [opened, synchronize, reopened]
+    # Only develop and main (fleet standard CI-COST-19, no exception). The old release/**
+    # and integration/** targets had no branch and no open PR on 2026-10-28.
+    branches: [develop, main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      e2e:
+        description: Run the e2e stage
+        type: boolean
+        default: false
 
-# A new push to a PR supersedes the old run. Push runs on main/develop are never
-# cancelled: the promotion flow needs a finished result for every SHA.
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+# On pull_request events github.event.number is the PR number (webhook payload `number`).
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
-# Read-only token for every job; no job writes to the repository.
-permissions:
-  contents: read
-
-# Actions are pinned by commit SHA (same pins as benchmark.yml / pages.yml):
-#   actions/checkout    v6.1.0 = d23441a48e516b6c34aea4fa41551a30e30af803
-#   actions/setup-node  v6.1.0 = 395ad3262231945c25e8478fd5baf05154b1d79f
-#   pnpm/action-setup   v6.1.0 = ea17c68df8912ef543352723c149a84f56e3d413
-# pnpm/action-setup reads the pnpm version from packageManager in package.json
-# and must run before setup-node, which needs pnpm on PATH for cache: pnpm.
+  group: ci-${{ github.event.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  test:
+  changes:
+    if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        # 22 = minimum (package.json engines), 24 = recommended LTS.
-        node-version: [22, 24, 'lts/*']
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      code: ${{ github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' }}
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - name: Detect code changes
+        id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        # Template logic: `every` makes a file count as code when it matches all the negations
+        # (no .md, not in docs/ …). One such file in a mixed PR sets code=true.
         with:
-          persist-credentials: false
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: 'pnpm'
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run check:commands
-      - run: pnpm exec tsc --noEmit
-      # The root tsconfig does not include the dashboard app (#213).
-      - run: pnpm run typecheck:dashboard
-      - run: pnpm test
-      - run: pnpm run test:frontend
-      - run: pnpm run build
-      # Dist assets must not carry the dashboard token (#247).
-      - run: pnpm run check:dist-token
+          predicate-quantifier: every
+          filters: |
+            code:
+              - '!**/*.md'
+              - '!docs/**'
+              - '!LICENSE'
+              - '!.github/ISSUE_TEMPLATE/**'
 
   lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-        with:
-          persist-credentials: false
-          fetch-depth: 0 # format:changed diffs against the base commit
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
-        with:
-          node-version: '24'
-          cache: 'pnpm'
-      - run: pnpm install --frozen-lockfile
-      - name: ESLint (fails on errors, warnings are reported)
-        run: pnpm run lint
-      # Every dashboard module must be reached from src/main.tsx (#223).
-      - name: No unreachable dashboard modules
-        run: pnpm run check:dashboard-reachable
-      - name: Prettier on the files this change touches
-        env:
-          # PR: the base branch commit. Push: the commit before the push.
-          # SHAs reach the shell through env only, never ${{ }} in run.
-          PR_BASE: ${{ github.event.pull_request.base.sha }}
-          PUSH_BEFORE: ${{ github.event.before }}
-        run: |
-          base="${PR_BASE:-$PUSH_BEFORE}"
-          case "$base" in
-            ''|0000000000000000000000000000000000000000) base="HEAD~1" ;;
-          esac
-          pnpm run format:changed "$base"
+    needs: changes
+    if: ${{ !failure() && !cancelled() && needs.changes.outputs.code == 'true' }}
+    permissions:
+      contents: read
+    uses: VelimirMueller/fleet-workflows/.github/workflows/_ci-lint.yml@v0.0.2
+    with:
+      stack: node
+      # ESLint and Prettier instead of Biome. The repo is not formatted as a whole yet (#191), so
+      # Prettier checks only the files this change touches. A pull_request run checks out the
+      # merge commit refs/pull/N/merge, so HEAD^1 is the base branch tip and HEAD^1...HEAD is
+      # the PR diff. The checkout is shallow (depth 1), so deepen it by one first. A dispatch
+      # run checks the last commit of the branch.
+      command: |
+        pnpm run lint
+        git fetch --no-tags --quiet --deepen=1 origin "$(git rev-parse HEAD)"
+        if [ "$GITHUB_EVENT_NAME" = pull_request ] && ! git rev-parse --verify -q 'HEAD^2' >/dev/null; then
+          echo "::error::expected the PR merge commit; HEAD^1 would not be the base"; exit 1
+        fi
+        pnpm run format:changed HEAD^1
+        pnpm exec tsc --noEmit
+        pnpm run typecheck:dashboard
+        pnpm run check:dashboard-reachable
+        pnpm run check:commands
+        sh scripts/check-defaults.sh
+
+  unit:
+    needs: [changes, lint]
+    if: ${{ !failure() && !cancelled() && needs.changes.outputs.code == 'true' }}
+    # Published npm package (engines node >=22): the oldest supported Node and the default
+    # (fleet.yml exception CI-COST-09).
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22', '24']
+    permissions:
+      contents: read
+    uses: VelimirMueller/fleet-workflows/.github/workflows/_ci-unit.yml@v0.0.2
+    with:
+      stack: node
+      tool-version: ${{ matrix.node }}
+      # Keep equal to coverage.thresholds.lines in vitest.config.ts (fleet.yml exception CI-UNIT-03).
+      coverage-floor: 62
+      # The root suite with coverage, then the dashboard frontend suite.
+      command: |
+        pnpm exec vitest run --coverage --coverage.reporter=lcov --coverage.reporter=text-summary
+        pnpm run test:frontend --coverage
 
   e2e:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-        with:
-          persist-credentials: false
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
-        with:
-          node-version: '24'
-          cache: 'pnpm'
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm run build
-      - name: Playwright specs (seeded dashboard on a throwaway DB)
-        run: pnpm run test:e2e
+    needs: [changes, unit]
+    if: ${{ !failure() && !cancelled() && github.event_name == 'workflow_dispatch' && inputs.e2e }}
+    permissions:
+      contents: read
+    uses: VelimirMueller/fleet-workflows/.github/workflows/_ci-e2e.yml@v0.0.2
+    with:
+      stack: node
+      # The specs drive the built dashboard; playwright.config.ts has no projects.
+      command: |
+        pnpm run build
+        pnpm exec playwright test --reporter=list,junit
 
+  build:
+    needs: [changes, e2e]
+    if: ${{ !failure() && !cancelled() && needs.changes.outputs.code == 'true' }}
+    permissions:
+      contents: read
+    uses: VelimirMueller/fleet-workflows/.github/workflows/_ci-build.yml@v0.0.2
+    with:
+      stack: node
+      # Build, dist token check (#247), pack dry run, and the VitePress docs build that fails
+      # on dead links (#264).
+      command: |
+        pnpm run build
+        pnpm run check:dist-token
+        mkdir -p "$RUNNER_TEMP/pack"
+        pnpm pack --pack-destination "$RUNNER_TEMP/pack"
+        pnpm --dir docs install --frozen-lockfile
+        pnpm --dir docs run build
+
+  # Visual regression gate (#293): screenshots and computed styles against the baselines, in
+  # the pinned Playwright image that scripts/visual.sh uses locally, so both render the same.
+  # It runs on every code PR (fleet.yml exceptions CI-COST-11 and WF-NAME-02). The label gate
+  # for baseline changes is in visual-gate.yml.
   visual:
-    # Visual regression gate (#293): the pinned Playwright image, the same one
-    # scripts/visual.sh runs locally, so baselines and CI render identically.
+    needs: changes
+    if: ${{ !failure() && !cancelled() && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
     container:
       image: mcr.microsoft.com/playwright:v1.59.1-noble
       options: --ipc=host
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - name: Check out the source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
-          fetch-depth: 0 # the baseline gate diffs against the base commit
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
+      - name: Set up pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - name: Set up Node
+        uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
         with:
           node-version: '24'
-          cache: 'pnpm'
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run build
+          cache: pnpm
+      - name: Install the dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build the dashboard
+        run: pnpm run build
       - name: Screenshots and computed styles match the baselines
         run: pnpm exec playwright test -c playwright.visual.config.ts
       - name: Upload the diff report
@@ -136,87 +171,29 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 7
-      # The label gate (baselines change only with `visual-change`) is in visual-gate.yml.
 
-  validate-counts:
+  conclusion:
+    needs: [changes, lint, unit, e2e, build, visual]
+    if: always()
     runs-on: ubuntu-latest
-    needs: test
+    timeout-minutes: 5
+    permissions: {}
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-        with:
-          persist-credentials: false
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
-        with:
-          node-version: '22'
-          cache: 'pnpm'
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run build
-      - name: Validate agent count
-        run: |
-          AGENT_COUNT=$(grep -A 100 "export const AGENT_DEFAULTS" src/scrum/defaults.ts | grep -E "^\s+role:" | wc -l)
-          if [ "$AGENT_COUNT" -ne 9 ]; then
-            echo "Error: Expected 9 agents, found $AGENT_COUNT"
-            exit 1
-          fi
-          echo "Agent count validation passed: $AGENT_COUNT agents"
-      - name: Validate skill count
-        run: |
-          SKILL_COUNT=$(grep -A 100 "export const SKILL_DEFAULTS" src/scrum/defaults.ts | grep -E "^\s+name:" | wc -l)
-          if [ "$SKILL_COUNT" -ne 5 ]; then
-            echo "Error: Expected 5 skills, found $SKILL_COUNT"
-            exit 1
-          fi
-          echo "Skill count validation passed: $SKILL_COUNT skills"
-      - name: Validate vendored skills
-        run: |
-          if [ ! -d vendor/skills ]; then
-            echo "Error: vendored vendor/skills/ directory is missing"
-            exit 1
-          fi
-          MANIFEST_COUNT=$(node -p "require('./vendor/skills/.source.json').skillCount")
-          ACTUAL_COUNT=$(find vendor/skills -name SKILL.md | wc -l | tr -d ' ')
-          if [ "$MANIFEST_COUNT" -ne "$ACTUAL_COUNT" ]; then
-            echo "Error: vendor/skills/.source.json skillCount=$MANIFEST_COUNT but found $ACTUAL_COUNT SKILL.md files"
-            exit 1
-          fi
-          echo "Vendored skills validation passed: $ACTUAL_COUNT skills"
-
-  # VitePress build; catches dead links (#264). Runs only when the PR touches docs/.
-  docs:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-        with:
-          persist-credentials: false
-          fetch-depth: 0 # the docs-changed check diffs against the base commit
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
-        with:
-          node-version: '24'
-          cache: 'pnpm'
-          cache-dependency-path: docs/pnpm-lock.yaml
-      - name: Did this pull request touch docs/?
-        id: docs-changed
+      # Template logic: a skipped stage passes only when no code changed (CODE false). With
+      # CODE true, lint, unit and build must each be success; skipped fails.
+      - name: Fail when a job failed or a required stage was skipped
         env:
-          # SHAs reach the shell through env only, never ${{ }} in run.
-          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          CODE: ${{ needs.changes.outputs.code }}
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+          LINT: ${{ needs.lint.result }}
+          UNIT: ${{ needs.unit.result }}
+          BUILD: ${{ needs.build.result }}
         run: |
-          base="${PR_BASE}"
-          case "$base" in
-            ''|0000000000000000000000000000000000000000) base="origin/main" ;;
-          esac
-          if git diff --name-only "${base}...HEAD" -- docs/ | grep -q .; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "No docs/ file changed; docs build skipped."
+          for r in $RESULTS; do
+            case "$r" in success|skipped) ;; *) echo "::error::a job ended as $r"; exit 1 ;; esac
+          done
+          if [ "$CODE" = "true" ]; then
+            for r in "$LINT" "$UNIT" "$BUILD"; do
+              [ "$r" = "success" ] || { echo "::error::a required stage did not run"; exit 1; }
+            done
           fi
-      - run: pnpm install --frozen-lockfile
-        if: steps.docs-changed.outputs.changed == 'true'
-        working-directory: docs
-      - name: VitePress build (fails on dead links)
-        run: pnpm run build
-        if: steps.docs-changed.outputs.changed == 'true'
-        working-directory: docs

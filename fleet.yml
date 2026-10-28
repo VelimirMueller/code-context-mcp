@@ -1,0 +1,34 @@
+# fleet.yml: tier and visibility of this repo (STANDARD.md). Exceptions: docs/rollout.md.
+tier: library
+visibility: public
+exceptions:
+  - rule: WF-FILE-02
+    value:
+      [bench-snapshot.yml, benchmark.yml, contract.yml, pages.yml, sync-skills.yml, visual-gate.yml]
+    reason: The benchmark site (run, snapshot, Pages), the vendored-skills sync and the two label gates (contract snapshots, visual baselines) have no taxonomy file. All except the label gates start only by hand.
+  - rule: CI-COST-09
+    value: 2
+    reason: The published npm package supports Node 22 and newer (engines) and ships the native better-sqlite3 binding, so unit runs on the oldest supported Node and on the default Node 24.
+    expires: 2027-04-30
+  - rule: CI-UNIT-03
+    value:
+      lines: 36
+      branches: 30
+    reason: "Today's level on 2026-10-28: the server suite has 63.5 % lines / 61.2 % branches (thresholds 62/60), the dashboard frontend suite 37.2 % / 30.7 % (thresholds 36/30). The floors only go up toward 80/70."
+    expires: 2027-04-30
+  - rule: CI-COST-14
+    value: [actions/setup-python, actions/setup-go]
+    reason: setup-node leaves the list because bench-snapshot, sync-skills and visual-gate install no dependencies, so they have no lockfile to key a cache on. Every job that runs pnpm install sets cache pnpm.
+    expires: 2027-04-30
+  - rule: CI-COST-11
+    value: [pull_request, workflow_dispatch]
+    reason: The visual regression gate (#293) compares the dashboard with its baselines on every code PR, in the pinned Playwright container. The repo is public, so the minutes are free. The functional Playwright e2e suite stays on dispatch only.
+    expires: 2027-04-30
+  - rule: WF-NAME-02
+    value:
+      ci.yml: [visual]
+    reason: The visual regression gate needs the pinned Playwright container image, which the fleet e2e stage cannot run, so it is its own ci.yml job.
+  - rule: CI-COST-15
+    value: 4
+    reason: The visual regression job is the fourth PR job besides lint, unit and build; it needs its own container image (see CI-COST-11).
+    expires: 2027-04-30

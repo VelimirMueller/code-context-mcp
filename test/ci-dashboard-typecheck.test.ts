@@ -17,10 +17,11 @@ describe('dashboard type check in CI (#213)', () => {
     expect(pkg.scripts['typecheck:dashboard']).toBe('tsc --noEmit -p src/dashboard/frontend');
   });
 
-  it('runs the script in the CI test job', () => {
+  it('runs the script in the CI lint job', () => {
     const ci = read('.github/workflows/ci.yml');
-    const testJob = ci.slice(ci.indexOf('\n  test:'), ci.indexOf('\n  lint:'));
-    expect(testJob).toMatch(/^\s+- run: pnpm run typecheck:dashboard$/m);
+    const testJob = ci.slice(ci.indexOf('\n  lint:'), ci.indexOf('\n  unit:'));
+    // A line of the lint stage command (fleet-workflows runs it with errexit).
+    expect(testJob).toMatch(/^\s+pnpm run typecheck:dashboard$/m);
     // No `|| true` or continue-on-error: a type error must fail the job.
     expect(testJob).not.toMatch(/typecheck:dashboard.*\|\|/);
     expect(testJob).not.toMatch(/continue-on-error/);

@@ -7,15 +7,9 @@ const LIVE_DIR = resolve(__dirname, '../scripts/bench/live');
 
 const workflowFiles = (): string[] => readdirSync(WORKFLOWS).filter((f) => f.endsWith('.yml'));
 
-// The one pre-existing non-benchmark workflow that legitimately runs on a daily
-// schedule. sync-skills.yml re-vendors skill files (scripts/sync-skills.mjs +
-// scripts/compile-skills.mjs); it never invokes a model, benchmark data, or the
-// benchmark scripts, so it sits outside the "benchmarks on demand" rule.
-// PLAN.md task 1 said "every .github/workflows/*.yml", which would also flag
-// sync-skills.yml; that schedule is the owner's existing behaviour and removing
-// it is out of scope for tasks 1-5 (see PR notes). codeql.yml runs a weekly
-// security scan (#311), not a benchmark.
-const NON_BENCHMARK_SCHEDULED = new Set(['sync-skills.yml', 'codeql.yml']);
+// No workflow runs on a schedule (fleet standard CI-COST-12): sync-skills.yml lost its
+// daily cron and codeql.yml moved to CodeQL default setup in the fleet rollout.
+const NON_BENCHMARK_SCHEDULED = new Set<string>();
 
 /**
  * Extract the block of lines under the top-level `on:` key. Returns the joined

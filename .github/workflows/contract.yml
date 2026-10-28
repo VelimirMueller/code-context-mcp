@@ -1,23 +1,25 @@
-name: Contract
+name: contract
 
 # The contract gate reads the `contract-change-approved` label (#180), so label
 # events re-run it. It is its own workflow so a label run never cancels the
 # full CI run (same concurrency group would skip jobs and show a false green).
+# Fleet standard: a label gate outside the taxonomy (fleet.yml exception WF-FILE-02).
 on:
-  push:
-    branches: [main, develop]
   pull_request:
-    branches: [main, develop, 'release/**', 'integration/**']
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    branches: [develop, main]
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
 
 concurrency:
-  group: contract-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: contract-${{ github.event.number || github.ref }}
+  cancel-in-progress: true
 
-permissions:
-  contents: read
-
-# Pins: see ci.yml.
+# Pins: see ci.yml history (checkout v6.1.0, pnpm/action-setup v6.1.0, setup-node v6.1.0).
 
 jobs:
   # The public contract (#180, docs/CONTRACT.md): the snapshots in
@@ -25,18 +27,26 @@ jobs:
   # needs a major version bump in package.json or the label
   # `contract-change-approved` (scripts/check-contract-change.mjs).
   contract:
+    if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - name: Check out the source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
           fetch-depth: 0 # the gate diffs the snapshots against the base commit
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
+      - name: Set up pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - name: Set up Node
+        uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
         with:
           node-version: '24'
-          cache: 'pnpm'
-      - run: pnpm install --frozen-lockfile
+          cache: pnpm
+      - name: Install the dependencies
+        run: pnpm install --frozen-lockfile
       - name: Contract tests (snapshots match the code)
         run: pnpm run contract:test
       - name: Contract gate (a changed snapshot needs a major bump or approval)
