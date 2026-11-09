@@ -56,7 +56,7 @@ jobs:
     if: ${{ !failure() && !cancelled() && needs.changes.outputs.code == 'true' }}
     permissions:
       contents: read
-    uses: VelimirMueller/fleet-workflows/.github/workflows/_ci-lint.yml@v0.0.2
+    uses: VelimirMueller/fleet-workflows/.github/workflows/_ci-lint.yml@v0.0.4
     with:
       stack: node
       # ESLint and Prettier instead of Biome. The repo is not formatted as a whole yet (#191), so
@@ -88,7 +88,7 @@ jobs:
         node: ['22', '24']
     permissions:
       contents: read
-    uses: VelimirMueller/fleet-workflows/.github/workflows/_ci-unit.yml@v0.0.2
+    uses: VelimirMueller/fleet-workflows/.github/workflows/_ci-unit.yml@v0.0.4
     with:
       stack: node
       tool-version: ${{ matrix.node }}
@@ -104,7 +104,7 @@ jobs:
     if: ${{ !failure() && !cancelled() && github.event_name == 'workflow_dispatch' && inputs.e2e }}
     permissions:
       contents: read
-    uses: VelimirMueller/fleet-workflows/.github/workflows/_ci-e2e.yml@v0.0.2
+    uses: VelimirMueller/fleet-workflows/.github/workflows/_ci-e2e.yml@v0.0.4
     with:
       stack: node
       # The specs drive the built dashboard; playwright.config.ts has no projects.
@@ -117,7 +117,7 @@ jobs:
     if: ${{ !failure() && !cancelled() && needs.changes.outputs.code == 'true' }}
     permissions:
       contents: read
-    uses: VelimirMueller/fleet-workflows/.github/workflows/_ci-build.yml@v0.0.2
+    uses: VelimirMueller/fleet-workflows/.github/workflows/_ci-build.yml@v0.0.4
     with:
       stack: node
       # Build, dist token check (#247), pack dry run, and the VitePress docs build that fails
